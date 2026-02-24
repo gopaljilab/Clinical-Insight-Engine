@@ -46,15 +46,27 @@ def create_synthetic_data():
 def get_model():
     """Loads data, preprocesses it, and trains a logistic regression model."""
     if not os.path.exists(DATA_FILE):
-        df = create_synthetic_data()
-    else:
-        df = pd.read_csv(DATA_FILE)
-        
-    # Step 1 & 2: Clean Data & Preprocess
-    df = df[(df['bmi'] >= 10) & (df['blood_glucose_level'] >= 50) & (df['HbA1c_level'] >= 3)]
+        return None, None, None
     
-    # Encode categorical variables
+    df = pd.read_csv(DATA_FILE)
+    
+    # Check for missing values and unrealistic zeros (Step 1 requirement)
+    # Handling strategy: replace with median for clinical measurements if unrealistic
+    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
+    for col in clinical_cols:
+        # Define unrealistic thresholds
+        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50}
+        invalid_mask = (df[col] < thresholds[col]) | (df[col].isna())
+        if invalid_mask.any():
+            df.loc[invalid_mask, col] = df[col].median()
+
+    # Step 2: Data Cleaning & Preprocessing
+    # Encode categorical variables: gender (binary: Female=0, Male=1)
+    # Note: Assignment says drop or map Other appropriately. We'll map to 0 (majority) or drop.
+    df = df[df['gender'] != 'Other'] 
     df['gender_Male'] = (df['gender'] == 'Male').astype(int)
+    
+    # smoking_history (one-hot encode with drop='first')
     smoking_dummies = pd.get_dummies(df['smoking_history'], prefix='smoke', drop_first=True)
     df = pd.concat([df, smoking_dummies], axis=1)
     
@@ -64,7 +76,7 @@ def get_model():
     X = df[features]
     y = df['diabetes']
     
-    # Scale features
+    # Standardize numeric features (age, bmi, HbA1c_level, blood_glucose_level) using StandardScaler
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
@@ -76,7 +88,11 @@ def get_model():
 
 def interpret_prediction(model, scaler, features, input_data):
     """Interprets a single patient's data, yielding clinician and patient views."""
+    if model is None:
+        return {"error": "Dataset missing. Please ensure diabetes_dataset.csv is present."}
+
     input_df = pd.DataFrame(0, index=[0], columns=features)
+    # ... (rest of the logic remains same but ensuring non-diagnostic language)
     
     input_df['age'] = input_data.get('age', 40)
     input_df['hypertension'] = int(input_data.get('hypertension', False))

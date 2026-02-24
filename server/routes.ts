@@ -95,10 +95,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         let prediction;
         try {
           prediction = JSON.parse(stdout.trim());
+          if (prediction.error) {
+            return res.status(400).json({ message: prediction.error });
+          }
         } catch (e) {
           console.error("Failed to parse python output:", stdout, stderr);
           throw new Error("Failed to process prediction.");
         }
+        
+        // Ensure non-diagnostic framing in response
+        prediction.disclaimer = "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions.";
         
         // Save the assessment to the database
         const assessment = await storage.createAssessment({
