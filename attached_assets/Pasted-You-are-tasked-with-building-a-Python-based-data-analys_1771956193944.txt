@@ -1,0 +1,56 @@
+You are tasked with building a Python-based data analysis and clinical decision support prototype for preventive diabetes risk assessment. Use the provided dataset `diabetes_dataset.csv`. The goal is to create a lightweight, interpretable system that surfaces early risk signals, identifies key contributing factors, and communicates findings differently for clinicians and patients, without making medical diagnoses.
+
+## Dataset Overview
+The dataset contains the following columns:
+- `gender`: categorical (Male, Female, Other)
+- `age`: numeric (years)
+- `hypertension`: binary (0 = no, 1 = yes)
+- `heart_disease`: binary (0 = no, 1 = yes)
+- `smoking_history`: categorical (e.g., 'never', 'No Info', 'current', 'former', 'ever', 'not current')
+- `bmi`: numeric
+- `HbA1c_level`: numeric (glycated hemoglobin)
+- `blood_glucose_level`: numeric
+- `diabetes`: binary target (0 = no diabetes, 1 = diabetes)
+
+## Requirements
+
+1. **Load and Explore**
+   - Load the CSV with pandas.
+   - Display basic info (shape, columns, data types, summary statistics).
+   - Check for missing values and unrealistic zeros (e.g., BMI < 10, glucose < 50, HbA1c < 3). Decide on a handling strategy (e.g., replace with median or drop).
+
+2. **Data Cleaning & Preprocessing**
+   - Handle any outliers or invalid values (you may set reasonable thresholds based on medical knowledge or distribution).
+   - Encode categorical variables: `gender` (binary: Female=0, Male=1; drop or map Other appropriately) and `smoking_history` (one-hot encode with drop='first').
+   - Split data into features (X) and target (y).
+   - Standardize numeric features (age, bmi, HbA1c_level, blood_glucose_level) using `StandardScaler` for logistic regression.
+
+3. **Model Building**
+   - Fit a logistic regression model on the entire dataset (or a train/test split for evaluation, but focus on interpretability).
+   - Obtain predicted probabilities for each patient (risk score as a percentage).
+
+4. **Interpretation & Outputs**
+   - **For Clinicians**:
+     - Display the patient's risk probability (e.g., "Predicted risk: 23.5%").
+     - Show the top 3-5 contributing factors (features with largest absolute coefficients) and their direction (positive = increases risk, negative = decreases risk).
+     - Include a confidence measure (e.g., model's probability, or if you do a train/test split, include a confidence interval via bootstrapping, but keep it simple: maybe just the probability).
+     - Suggest follow-up actions based on risk level (e.g., low: monitor annually; moderate: lifestyle counseling, repeat HbA1c; high: refer for diagnostic testing).
+   - **For Patients**:
+     - Provide a simplified explanation: e.g., "Your risk of developing diabetes in the near future is LOW/MODERATE/HIGH." (categorize: <20% low, 20-50% moderate, >50% high).
+     - List the main factors in plain language (e.g., "Your BMI is high", "Your blood glucose is elevated").
+     - Give high-level preventive advice (e.g., "Consider increasing physical activity, reducing sugar intake, and consulting your doctor for a follow-up.").
+
+5. **Visualizations**
+   - Plot feature importance (coefficient bar chart) to show which factors matter most.
+   - Plot the distribution of predicted risks (histogram), optionally overlaying the actual diabetes outcomes to see separation.
+
+6. **Workflow Documentation**
+   - Include markdown cells (or comments) explaining each step.
+   - Keep the code well-commented so it's easy to follow.
+
+7. **Constraints & Notes**
+   - Do not claim medical diagnosis; frame everything as decision support.
+   - Prioritize interpretability over model complexity.
+   - Ensure the code runs in a Replit environment (use standard libraries: pandas, numpy, matplotlib, seaborn, scikit-learn).
+
+Your output should be a complete Python script (or Jupyter notebook style with markdown) that performs all the steps above and prints the results clearly.
