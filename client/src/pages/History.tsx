@@ -71,50 +71,43 @@ export default function History() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-muted/50 border-b border-border text-sm text-muted-foreground">
+                  <tr className="bg-muted/50 border-b border-border text-xs text-muted-foreground uppercase tracking-wider">
                     <th className="p-4 font-semibold">Date</th>
-                    <th className="p-4 font-semibold">Patient Profile</th>
-                    <th className="p-4 font-semibold">Vitals</th>
+                    <th className="p-4 font-semibold">Age</th>
+                    <th className="p-4 font-semibold">BMI</th>
+                    <th className="p-4 font-semibold">HbA1c</th>
+                    <th className="p-4 font-semibold">Glucose</th>
+                    <th className="p-4 font-semibold">HTN</th>
+                    <th className="p-4 font-semibold">HD</th>
+                    <th className="p-4 font-semibold">Smoking</th>
                     <th className="p-4 font-semibold">Risk Score</th>
                     <th className="p-4 font-semibold">Category</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filteredAssessments.map((assessment) => (
-                    <tr key={assessment.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="p-4 align-top">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <Calendar className="w-4 h-4 text-muted-foreground" />
-                          {assessment.createdAt ? format(new Date(assessment.createdAt), 'MMM d, yyyy') : 'Unknown'}
-                        </div>
-                        <div className="text-xs text-muted-foreground ml-6 mt-0.5">
-                          {assessment.createdAt ? format(new Date(assessment.createdAt), 'h:mm a') : ''}
+                    <tr key={assessment.id} className="hover:bg-muted/30 transition-colors text-sm">
+                      <td className="p-4 whitespace-nowrap">
+                        {assessment.createdAt ? format(new Date(assessment.createdAt), 'MMM d, yyyy') : 'Unknown'}
+                      </td>
+                      <td className="p-4">{assessment.age}</td>
+                      <td className="p-4 font-medium">{assessment.bmi}</td>
+                      <td className="p-4 font-medium">{assessment.hba1cLevel}%</td>
+                      <td className="p-4 font-medium">{assessment.bloodGlucoseLevel}</td>
+                      <td className="p-4">{assessment.hypertension ? 'Yes' : 'No'}</td>
+                      <td className="p-4">{assessment.heartDisease ? 'Yes' : 'No'}</td>
+                      <td className="p-4">{assessment.smokingHistory}</td>
+                      <td className="p-4">
+                        <div className="font-bold flex flex-col">
+                          <span>{Number(assessment.riskScore).toFixed(1)}%</span>
+                          {assessment.confidenceInterval && (
+                            <span className="text-[10px] text-muted-foreground font-normal">
+                              ({assessment.confidenceInterval})
+                            </span>
+                          )}
                         </div>
                       </td>
-                      <td className="p-4 align-top">
-                        <div className="flex items-center gap-2 text-sm">
-                          <User className="w-4 h-4 text-muted-foreground" />
-                          <span className="font-semibold">{assessment.age}y {assessment.gender}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground ml-6 mt-1 flex flex-wrap gap-x-2 gap-y-1">
-                          {assessment.hypertension && <span className="bg-secondary px-1.5 py-0.5 rounded">Hypertension</span>}
-                          {assessment.heartDisease && <span className="bg-secondary px-1.5 py-0.5 rounded">Heart Disease</span>}
-                          <span className="bg-secondary px-1.5 py-0.5 rounded">{assessment.smokingHistory}</span>
-                        </div>
-                      </td>
-                      <td className="p-4 align-top text-sm">
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                          <span className="text-muted-foreground">BMI:</span> <span className="font-semibold">{assessment.bmi}</span>
-                          <span className="text-muted-foreground">HbA1c:</span> <span className="font-semibold">{assessment.hba1cLevel}%</span>
-                          <span className="text-muted-foreground">Glucose:</span> <span className="font-semibold">{assessment.bloodGlucoseLevel}</span>
-                        </div>
-                      </td>
-                      <td className="p-4 align-top">
-                        <div className="font-display font-bold text-lg">
-                          {Number(assessment.riskScore).toFixed(1)}%
-                        </div>
-                      </td>
-                      <td className="p-4 align-top">
+                      <td className="p-4">
                         {getRiskBadge(assessment.riskCategory)}
                       </td>
                     </tr>

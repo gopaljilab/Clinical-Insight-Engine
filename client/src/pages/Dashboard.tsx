@@ -11,13 +11,13 @@ import { type AssessmentResponse } from "@shared/routes";
 // Form schema aligned with the backend insert schema
 const formSchema = z.object({
   gender: z.enum(["Male", "Female", "Other"], { required_error: "Please select a gender" }),
-  age: z.coerce.number().min(0, "Age must be positive").max(120, "Age is too high"),
+  age: z.coerce.number().min(1, "Age must be greater than 0").max(120, "Age is too high"),
   hypertension: z.boolean().default(false),
   heartDisease: z.boolean().default(false),
-  smokingHistory: z.enum(["never", "current", "former", "No Info", "ever", "not current"], { required_error: "Please select smoking history" }),
-  bmi: z.coerce.number().min(10, "Invalid BMI").max(100, "Invalid BMI"),
-  hba1cLevel: z.coerce.number().min(3, "Invalid HbA1c").max(20, "Invalid HbA1c"),
-  bloodGlucoseLevel: z.coerce.number().min(50, "Invalid glucose level").max(500, "Invalid glucose level"),
+  smokingHistory: z.enum(["never", "No Info", "current", "former", "ever", "not current"], { required_error: "Please select smoking history" }),
+  bmi: z.coerce.number().min(10, "BMI must be between 10 and 60").max(60, "BMI must be between 10 and 60"),
+  hba1cLevel: z.coerce.number().min(3, "HbA1c must be between 3 and 15").max(15, "HbA1c must be between 3 and 15"),
+  bloodGlucoseLevel: z.coerce.number().min(50, "Blood glucose must be between 50 and 400").max(400, "Blood glucose must be between 50 and 400"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -32,7 +32,11 @@ export default function Dashboard() {
       hypertension: false,
       heartDisease: false,
       smokingHistory: "never",
-      gender: "Female"
+      gender: "Female",
+      age: undefined,
+      bmi: undefined,
+      hba1cLevel: undefined,
+      bloodGlucoseLevel: undefined
     }
   });
 
@@ -127,12 +131,12 @@ export default function Dashboard() {
                     {...register("smokingHistory")}
                     className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all text-foreground appearance-none"
                   >
-                    <option value="never">Never Smoked</option>
-                    <option value="former">Former Smoker</option>
-                    <option value="current">Current Smoker</option>
-                    <option value="ever">Ever Smoked (Not Sure Current)</option>
-                    <option value="not current">Not Current</option>
-                    <option value="No Info">No Information</option>
+                    <option value="never">never</option>
+                    <option value="No Info">No Info</option>
+                    <option value="current">current</option>
+                    <option value="former">former</option>
+                    <option value="ever">ever</option>
+                    <option value="not current">not current</option>
                   </select>
                   {errors.smokingHistory && <p className="text-sm text-destructive mt-1">{errors.smokingHistory.message}</p>}
                 </div>
@@ -151,7 +155,7 @@ export default function Dashboard() {
                       type="number" step="0.1"
                       {...register("bmi")} 
                       className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-                      placeholder="e.g. 24.5"
+                      placeholder="e.g. 25.0"
                     />
                     {errors.bmi && <p className="text-sm text-destructive mt-1">{errors.bmi.message}</p>}
                   </div>
@@ -162,7 +166,7 @@ export default function Dashboard() {
                       type="number" step="0.1"
                       {...register("hba1cLevel")} 
                       className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-                      placeholder="e.g. 5.5"
+                      placeholder="e.g. 5.7"
                     />
                     {errors.hba1cLevel && <p className="text-sm text-destructive mt-1">{errors.hba1cLevel.message}</p>}
                   </div>
@@ -203,6 +207,12 @@ export default function Dashboard() {
                   </label>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-6 p-4 bg-muted/30 rounded-xl border border-border/50">
+              <p className="text-xs text-muted-foreground text-center italic">
+                This tool is a prototype for decision support only. It does not provide a medical diagnosis. Always consult a healthcare professional.
+              </p>
             </div>
 
             <div className="mt-10 border-t border-border/50 pt-6 flex justify-end">

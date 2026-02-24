@@ -17,6 +17,8 @@ export const assessments = pgTable("assessments", {
   riskScore: numeric("risk_score").notNull(), // 0-100 percentage
   riskCategory: text("risk_category").notNull(), // 'LOW', 'MODERATE', 'HIGH'
   factors: json("factors").notNull(), // Array of { name, impact: 'positive' | 'negative', description }
+  confidenceInterval: text("confidence_interval"),
+  modelConfidence: numeric("model_confidence"),
   
   createdAt: timestamp("created_at").defaultNow(),
 });

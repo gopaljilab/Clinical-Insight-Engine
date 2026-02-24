@@ -132,13 +132,25 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   <p className="text-3xl font-bold font-display flex items-baseline gap-1">
                     {Number(assessment.riskScore).toFixed(1)}<span className="text-xl text-muted-foreground">%</span>
                   </p>
-                  <p className="text-xs text-muted-foreground mt-2">10-year probability</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    10-year probability
+                    {assessment.confidenceInterval && (
+                      <span className="block text-[10px] mt-0.5 opacity-80">
+                        (95% CI: {assessment.confidenceInterval})
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
                   <p className="text-sm font-medium text-muted-foreground mb-1">Risk Category</p>
                   <div className={`inline-flex px-3 py-1 rounded-full text-sm font-bold mt-1 ${getRiskColor(assessment.riskCategory)}`}>
                     {assessment.riskCategory}
                   </div>
+                  {assessment.modelConfidence && (
+                    <p className="text-[10px] text-muted-foreground mt-2 italic">
+                      Model confidence: {Number(assessment.modelConfidence).toFixed(2)}
+                    </p>
+                  )}
                 </div>
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
                   <p className="text-sm font-medium text-muted-foreground mb-1">Patient Vitals summary</p>

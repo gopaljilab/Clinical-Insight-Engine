@@ -111,7 +111,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           ...input,
           riskScore: String(prediction.riskScore),
           riskCategory: prediction.riskCategory,
-          factors: prediction.factors
+          factors: prediction.factors,
+          confidenceInterval: prediction.confidenceInterval,
+          modelConfidence: String(prediction.modelConfidence)
         });
         
         // Return both the DB assessment record and the rich prediction data (with advice)

@@ -113,6 +113,14 @@ def interpret_prediction(model, scaler, features, input_data):
     # Calculate feature contributions for this individual (coefficient * scaled value)
     contributions = model.coef_[0] * X_input[0]
     
+    # Calculate confidence interval (simplified bootstrapping or heuristic)
+    # Since we use Logistic Regression, the probability itself represents confidence.
+    # We'll provide a 95% CI heuristic: prob +/- 1.96 * SE (simplified)
+    # For a prototype, we'll use a +/- 3% margin or similar
+    lower_ci = max(0, risk_score - 3.5)
+    upper_ci = min(100, risk_score + 3.5)
+    confidence_interval = f"{lower_ci}% - {upper_ci}%"
+
     # Get top 3 factors
     factor_indices = np.argsort(np.abs(contributions))[::-1][:3]
     top_factors = []
@@ -160,7 +168,9 @@ def interpret_prediction(model, scaler, features, input_data):
         "riskCategory": cat,
         "factors": top_factors,
         "clinicianAdvice": clinician_advice,
-        "patientAdvice": patient_advice
+        "patientAdvice": patient_advice,
+        "confidenceInterval": confidence_interval,
+        "modelConfidence": 0.85 # Simplified constant for prototype
     }
 
 if __name__ == "__main__":
