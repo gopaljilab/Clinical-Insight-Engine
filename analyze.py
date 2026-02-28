@@ -106,9 +106,10 @@ def interpret_prediction(model, scaler, features, input_data):
     if smoke_col in features:
         input_df[smoke_col] = 1
         
-    # Scale input and get probability
+       # Scale input and get probability
     X_input = scaler.transform(input_df)
     prob = model.predict_proba(X_input)[0][1]
+    risk_score = round(prob * 100, 1)
     
     # Calculate feature contributions for this individual (coefficient * scaled value)
     contributions = model.coef_[0] * X_input[0]
@@ -141,7 +142,6 @@ def interpret_prediction(model, scaler, features, input_data):
                 "description": "Increases risk" if val > 0 else "Lowers risk"
             })
             
-    risk_score = round(prob * 100, 1)
     if risk_score < 20:
         cat = "LOW"
     elif risk_score < 50:
