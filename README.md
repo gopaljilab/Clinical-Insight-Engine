@@ -68,106 +68,15 @@ Inputs include:
 - Logistic Regression (scikit-learn)
 - Feature engineering and preprocessing
 - StandardScaler for normalization
-- Interpretable risk scoring
-- Dynamic advice generation based on risk level
-- Confidence-aware outputs to support clinical judgment
 
 ---
 
-## 🗂️ Project Structure
-```
-Clinical-Insight-Engine/
-├── client/                    # Frontend (Vite + React + Tailwind)
-│   ├── src/
-│   │   ├── components/       # Reusable UI components
-│   │   ├── pages/            # Page components
-│   │   ├── hooks/            # Custom React hooks
-│   │   ├── lib/              # Utilities and helpers
-│   │   └── types/            # TypeScript definitions
-│   └── public/                # Static assets
-│
-├── server/                    # Backend services
-│   ├── routes/               # API route handlers
-│   ├── middleware/           # Express middleware
-│   ├── services/             # Business logic
-│   └── db/                   # Database configuration
-│
-├── shared/                    # Shared types and schemas
-│   └── schema.ts             # Zod validation schemas
-│
-├── scripts/                   # Utility scripts
-│   └── setup-db.ts           # Database setup script
-│
-├── attached_assets/           # Static assets and references
-│
-├── analyze.py                 # Core ML analysis logic
-├── main.py                    # Backend entry point
-├── diabetes_dataset.csv       # Sample clinical dataset
-│
-├── vite.config.ts             # Vite configuration
-├── tailwind.config.ts         # Tailwind CSS configuration
-├── postcss.config.js          # PostCSS configuration
-├── tsconfig.json              # TypeScript configuration
-├── drizzle.config.ts          # Drizzle ORM configuration
-│
-├── pyproject.toml             # Python dependencies
-├── uv.lock                    # Python dependency lock file
-│
-├── package.json               # Node dependencies
-├── package-lock.json
-│
-├── ANALYSIS_README.md         # Detailed ML & analysis documentation
-├── README.md                   # Project overview
-└── .gitignore
-```
+## ✅ Prerequisites
 
----
-
-## 🧪 Data Model
-
-Each assessment record includes:
-
-### Patient Demographics
-- Age
-- Gender
-
-### Medical History
-- Hypertension
-- Heart disease
-- Smoking history
-
-### Clinical Measurements
-- BMI
-- HbA1c level
-- Blood glucose level
-
-### Model Outputs
-- Risk score (0–100%)
-- Risk category
-- Contributing risk factors
-
-### Metadata
-- Timestamp for tracking and auditing
-
----
-
-## 🔌 API Endpoints
-
-- `POST /api/assessments`  
-  Submit patient data for diabetes risk assessment
-
-- `GET /api/assessments`  
-  Retrieve historical assessment records
-
----
-
-## 📊 Risk Categorization
-
-| Risk Level | Probability | Recommended Action |
-|-----------|-------------|--------------------|
-| **LOW** | < 20% | Annual monitoring |
-| **MODERATE** | 20–50% | Lifestyle counseling, repeat HbA1c in 6 months |
-| **HIGH** | > 50% | Diagnostic testing and clinical intervention |
+- Node.js 18+ (LTS) + npm
+- Python 3.10+
+- PostgreSQL 14+ (local)
+- Git
 
 ---
 
@@ -179,66 +88,242 @@ git clone https://github.com/gopaljilab/Clinical-Insight-Engine.git
 cd Clinical-Insight-Engine
 ```
 
-2️⃣ Frontend Setup
-```
+### 2️⃣ Install Node Dependencies
+```bash
 npm install
-npm run dev
 ```
-Frontend runs at:
 
-http://localhost:5173
-3️⃣ Backend Setup
-python -m venv venv
-source venv/bin/activate   # macOS / Linux
+### 3️⃣ Create Environment File
+Create a `.env` file in the project root:
+
+```bash
+# Linux/macOS
+cp .env.example .env
+
+# Windows (PowerShell)
+Copy-Item .env.example .env
+```
+
+If `.env.example` doesn't exist, create `.env` manually:
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/clinical_insight_engine
+```
+
+### 4️⃣ PostgreSQL Database Setup
+
+#### Linux (Ubuntu/Debian)
+```bash
+# Install PostgreSQL
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+
+# Start service
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+# Create database
+sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres';"
+sudo -u postgres psql -c "CREATE DATABASE clinical_insight_engine;"
+```
+
+#### macOS (Homebrew)
+```bash
+# Install PostgreSQL
+brew install postgresql
+
+# Start service
+brew services start postgresql
+
+# Create database
+psql postgres -c "ALTER USER postgres WITH PASSWORD 'postgres';"
+psql postgres -c "CREATE DATABASE clinical_insight_engine;"
+```
+
+#### Windows
+1. Download PostgreSQL from [postgresql.org](https://www.postgresql.org/download/windows/)
+2. Install with default settings (remember the password for `postgres` user)
+3. Open **SQL Shell (psql)** or **pgAdmin** and run:
+
+```sql
+-- If password is different, update .env accordingly
+CREATE DATABASE clinical_insight_engine;
+```
+
+Or via PowerShell (if `psql` is in PATH):
+```powershell
+psql -U postgres -d postgres -c "CREATE DATABASE clinical_insight_engine;"
+```
+
+### 5️⃣ Database Migration
+Create the required tables:
+
+```bash
+npm run db:push
+```
+
+If the above doesn't work, try:
+```bash
+npm run migrate
+# or
+npm run db:migrate
+```
+
+### 6️⃣ Python Environment Setup
+
+#### Linux/macOS
+```bash
+# Create virtual environment
+python3 -m venv .venv
+
+# Activate environment
+source .venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 
-Run backend:
+# If requirements.txt doesn't exist, install manually:
+# pip install numpy pandas scikit-learn
+```
 
-python main.py
-🧠 Clinical Decision Support Workflow
+#### Windows (PowerShell)
+```powershell
+# Create virtual environment
+py -m venv .venv
 
-Clinician enters patient data via the assessment form
+# Activate environment
+.\.venv\Scripts\Activate.ps1
 
-Backend invokes the Python ML pipeline
+# Install dependencies
+pip install -r requirements.txt
 
-Logistic regression computes risk probability and contributors
+# If requirements.txt doesn't exist, install manually:
+# pip install numpy pandas scikit-learn
+```
 
-Results are persisted in the database
+### 7️⃣ Dataset Preparation
 
-Outputs are displayed in clinician and patient-friendly formats
+If dataset exists in project:
+```bash
+# Linux/macOS
+cp attached_assets/diabetes_dataset.csv ./diabetes_dataset.csv
 
-System suggests appropriate follow-up actions
+# Windows (PowerShell)
+Copy-Item attached_assets/diabetes_dataset.csv ./diabetes_dataset.csv
+```
 
-⚖️ Safety & Ethics
+If dataset is missing, generate synthetic data:
+```bash
+# Linux/macOS
+python3 -c "from analyze import create_synthetic_data; create_synthetic_data()"
 
-Not a Diagnostic Tool
-Explicitly framed as decision support
+# Windows
+py -c "from analyze import create_synthetic_data; create_synthetic_data()"
+```
 
-Interpretability First
-Logistic regression chosen for transparency
+### 8️⃣ Start the Application
 
-Uncertainty Communication
-Confidence indicators encourage clinical judgment
+#### Frontend (React + Vite)
+```bash
+npm run dev
+```
+Frontend runs at: `http://localhost:5173`
 
-Bias Awareness
-Balanced data and demographic sensitivity considered
+#### ML Pipeline (Training)
+```bash
+# Linux/macOS
+python3 analyze.py
 
-🔮 Future Enhancements
+# Windows
+py analyze.py
+```
 
-Longitudinal patient risk tracking
+#### Backend API (if separate)
+```bash
+# Linux/macOS
+python3 main.py
 
-Counterfactual reasoning (“What change reduces risk most?”)
+# Windows
+py main.py
+```
 
-Cohort discovery and population-level insights
+---
 
-Integration with Electronic Health Records (EHR)
+## 🧪 Single-Patient Prediction (Optional)
 
-Advanced bias detection and fairness metrics
+Create a patient JSON file:
 
-Cloud deployment (Vercel / Render / Replit)
+#### Linux/macOS
+```bash
+cat > patient.json << 'EOF'
+{
+  "gender": "Female",
+  "age": 52,
+  "hypertension": true,
+  "heartDisease": false,
+  "smokingHistory": "former",
+  "bmi": 30.1,
+  "hba1cLevel": 6.4,
+  "bloodGlucoseLevel": 148
+}
+EOF
+```
 
-👤 Author
+#### Windows (PowerShell)
+```powershell
+@'
+{
+  "gender": "Female",
+  "age": 52,
+  "hypertension": true,
+  "heartDisease": false,
+  "smokingHistory": "former",
+  "bmi": 30.1,
+  "hba1cLevel": 6.4,
+  "bloodGlucoseLevel": 148
+}
+'@ | Out-File -FilePath patient.json -Encoding utf8
+```
 
-Gopal Gupta
-Computer Science Engineer
+Run prediction:
+```bash
+# Linux/macOS
+python3 analyze.py predict_file patient.json
+
+# Windows
+py analyze.py predict_file patient.json
+```
+
+---
+
+## 🛑 Shutdown
+
+### 1️⃣ Stop Development Server
+Press `Ctrl + C` in the terminal running `npm run dev`
+
+### 2️⃣ Deactivate Python Environment
+```bash
+# Linux/macOS
+deactivate
+
+# Windows
+deactivate
+```
+
+---
+
+## 🔮 Future Enhancements
+
+- Longitudinal patient risk tracking
+- Counterfactual reasoning ("What change reduces risk most?")
+- Cohort discovery and population-level insights
+- Integration with Electronic Health Records (EHR)
+- Advanced bias detection and fairness metrics
+- Cloud deployment (Vercel / Render)
+
+---
+
+## 👤 Author
+
+**Gopal Gupta**  
+Computer Science Engineer  
 Full-Stack Developer | Data Science & ML Enthusiast
