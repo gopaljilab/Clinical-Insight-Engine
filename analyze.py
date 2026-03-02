@@ -184,7 +184,10 @@ if __name__ == "__main__":
         # Step 1-6: Execution when run directly
         print("Running complete exploratory and modeling pipeline...\n")
         model, scaler, features = get_model()
-        print("Model trained successfully.")
-        print(f"Features used: {features}")
-        print(f"Model Coefficients (Weights): {model.coef_[0]}")
-        print("Use 'python analyze.py predict_file <json_file>' to run a prediction.")
+        if model is None:
+            print("Error: Dataset file not found. Please run create_synthetic_data() first.")
+        else:
+            print("Model trained successfully.")
+            print(f"Features used: {features}")
+            print(f"Model Coefficients (Weights): {model.coef_[0]}")
+            print("Use 'python analyze.py predict_file <json_file>' to run a prediction.")

@@ -4,3 +4,14 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+/venv/
+*.log
+*.env
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.vscode/
+*.swp
+*.swo
+*.bak
+*.tmp
