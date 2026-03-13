@@ -1,3 +1,7 @@
+![License](https://img.shields.io/github/license/gopaljilab/Clinical-Insight-Engine)
+![Stars](https://img.shields.io/github/stars/gopaljilab/Clinical-Insight-Engine)
+![Issues](https://img.shields.io/github/issues/gopaljilab/Clinical-Insight-Engine)
+![Last Commit](https://img.shields.io/github/last-commit/gopaljilab/Clinical-Insight-Engine)
 # 🩺 Clinical Insight Engine  
 ## Clinical Decision Support for Preventive Diabetes Risk Assessment
 
