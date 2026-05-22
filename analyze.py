@@ -184,8 +184,12 @@ if __name__ == "__main__":
         # Step 1-6: Execution when run directly
         print("Running complete exploratory and modeling pipeline...\n")
         model, scaler, features = get_model()
+        if not os.path.exists(DATA_FILE):
+            print("Dataset not found. Creating synthetic dataset...")
+            create_synthetic_data()
+        model, scaler, features = get_model()
         if model is None:
-            print("Error: Dataset file not found. Please run create_synthetic_data() first.")
+            print("Failed to load dataset.")
         else:
             print("Model trained successfully.")
             print(f"Features used: {features}")
