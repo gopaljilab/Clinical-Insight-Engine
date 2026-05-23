@@ -29,10 +29,22 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     }
   };
 
-  // Safe parse factors if they come as string or object
-  const factors = typeof assessment.factors === 'string' 
-    ? JSON.parse(assessment.factors) 
-    : assessment.factors;
+  const factors = (() => {
+    if (Array.isArray(assessment.factors)) {
+      return assessment.factors;
+    }
+
+    if (typeof assessment.factors === "string") {
+      try {
+        const parsed = JSON.parse(assessment.factors);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  })();
 
   const chartData = factors.map((f: any) => ({
     name: f.name,
@@ -86,7 +98,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               {/* Patient Hero */}
               <div className="text-center space-y-4 max-w-2xl mx-auto">
                 <h2 className="text-xl sm:text-2xl font-bold text-foreground">Your Health Assessment</h2>
-                <div className={`inline-flex flex-col items-center justify-center w-36 h-36 sm:w-48 sm:h-48rounded-full border-8 shadow-inner ${getRiskColor(assessment.riskCategory)}`}>
+                <div className={`inline-flex flex-col items-center justify-center w-36 h-36 sm:w-48 sm:h-48 rounded-full border-8 shadow-inner ${getRiskColor(assessment.riskCategory)}`}>
                   <span className="text-sm font-bold uppercase tracking-widest opacity-80 mb-1">Risk Level</span>
                   <span className="text-3xl sm:text-4xl font-display font-black">{assessment.riskCategory}</span>
                 </div>
