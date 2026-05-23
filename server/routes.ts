@@ -91,7 +91,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       writeFileSync(tempFile, JSON.stringify(input));
       
       try {
-        // Call Python script to perform the logistic regression analysis
+       // Call Python script to perform the logistic regression analysis
         const { stdout, stderr } = await execFileAsync(
           "python3",
           ["analyze.py", "predict_file", tempFile],
