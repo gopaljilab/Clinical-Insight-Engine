@@ -7,6 +7,8 @@ import { writeFileSync, unlinkSync } from "fs";
 import { randomUUID } from "crypto";
 import { exec } from "child_process";
 import { promisify } from "util";
+import os from "os";
+import path from "path";
 
 const execAsync = promisify(exec);
 
@@ -85,7 +87,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const input = api.assessments.create.input.parse(req.body);
       
       // Save input to a temporary file to pass to the Python script
-      const tempFile = `/tmp/${randomUUID()}.json`;
+      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
       writeFileSync(tempFile, JSON.stringify(input));
       
       try {
