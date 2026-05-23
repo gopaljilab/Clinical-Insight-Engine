@@ -5,12 +5,12 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { writeFileSync, unlinkSync } from "fs";
 import { randomUUID } from "crypto";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import os from "os";
 import path from "path";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 async function seedDatabase() {
   const existing = await storage.getAssessments();
@@ -92,7 +92,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       try {
         // Call Python script to perform the logistic regression analysis
-        const { stdout, stderr } = await execAsync(`python3 analyze.py predict_file ${tempFile}`);
+        const { stdout, stderr } = await execFileAsync(
+          "python3",
+          ["analyze.py", "predict_file", tempFile]
+        );
         
         let prediction;
         try {
