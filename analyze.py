@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 DATA_FILE = "diabetes_dataset.csv"
 
@@ -42,6 +44,35 @@ def create_synthetic_data():
     })
     df.to_csv(DATA_FILE, index=False)
     return df
+
+def generate_correlation_heatmap(df, output_path="correlation_heatmap.png"):
+    """
+    Generate and save a correlation heatmap for numeric dataset columns.
+    """
+    numeric_df = df.select_dtypes(include=["number"])
+
+    if numeric_df.empty:
+        raise ValueError("No numeric columns found for correlation heatmap.")
+
+    correlation_matrix = numeric_df.corr()
+
+    plt.figure(figsize=(10, 8))
+
+    sns.heatmap(
+        correlation_matrix,
+        annot=True,
+        cmap="coolwarm",
+        fmt=".2f",
+        linewidths=0.5
+    )
+
+    plt.title("Correlation Heatmap - Diabetes Dataset")
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+
+    print(f"Correlation heatmap saved as {output_path}")
+
 
 def get_model():
     """Loads data, preprocesses it, and trains a logistic regression model."""
@@ -190,7 +221,11 @@ if __name__ == "__main__":
         model, scaler, features = get_model()
         if model is None:
             print("Failed to load dataset.")
+
         else:
+            df = pd.read_csv(DATA_FILE)
+            generate_correlation_heatmap(df)
+            
             print("Model trained successfully.")
             print(f"Features used: {features}")
             print(f"Model Coefficients (Weights): {model.coef_[0]}")
