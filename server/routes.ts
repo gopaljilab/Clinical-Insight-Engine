@@ -90,14 +90,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       try {
         // Call Python script to perform the logistic regression analysis
-        const { stdout, stderr } = await execAsync(`python3 analyze.py predict_file ${tempFile}`);
+        const { stdout, stderr } = await execAsync(
+          `python3 analyze.py predict_file ${tempFile}`,
+          {
+            timeout: 30000
+          }
+        );
         
         let prediction;
         try {
           prediction = JSON.parse(stdout.trim());
+
           if (prediction.error) {
             return res.status(400).json({ message: prediction.error });
           }
+
         } catch (e) {
           console.error("Failed to parse python output:", stdout, stderr);
           throw new Error("Failed to process prediction.");
@@ -118,15 +125,39 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         
         // Return both the DB assessment record and the rich prediction data (with advice)
         res.status(201).json({ ...assessment, prediction });
+
+      } catch (error: any) {
+
+        console.error("Python ML execution failed:", error);
+
+        if (error.killed || error.signal === "SIGTERM") {
+          return res.status(408).json({
+            message: "Clinical assessment generation timed out."
+          });
+        }
+
+        return res.status(500).json({
+          message: "Failed to generate clinical assessment."
+        });
+
       } finally {
-        try { unlinkSync(tempFile); } catch (e) {}
+        try {
+          unlinkSync(tempFile);
+        } catch (e) {}
       }
+
     } catch (err) {
+
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
+
       console.error("Error creating assessment:", err);
-      res.status(500).json({ message: "Internal server error" });
+
+      res.status(500).json({
+        message: "Internal server error"
+      });
+
     }
   });
 
