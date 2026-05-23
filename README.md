@@ -230,7 +230,7 @@ py -c "from analyze import create_synthetic_data; create_synthetic_data()"
 ```bash
 npm run dev
 ```
-Frontend runs at: `http://localhost:5173`
+The Express/Vite server listens on `PORT` or `5000` by default and binds to `0.0.0.0` so the app is reachable in local containers and hosted environments. Use `HOST=127.0.0.1 npm run dev` if you want a local-only listener.
 
 #### ML Pipeline (Training)
 ```bash
