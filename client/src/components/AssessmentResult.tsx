@@ -20,15 +20,6 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     }
   };
 
-  const getRiskColorHex = (category: string) => {
-    switch (category.toUpperCase()) {
-      case "LOW": return "#16a34a";
-      case "MODERATE": return "#d97706";
-      case "HIGH": return "#dc2626";
-      default: return "#2563eb";
-    }
-  };
-
   // Safe parse factors if they come as string or object
   const factors = typeof assessment.factors === 'string' 
     ? JSON.parse(assessment.factors) 
@@ -40,6 +31,20 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     impact: f.impact,
     description: f.description
   }));
+
+  const riskScore = Number(assessment.riskScore).toFixed(1);
+  const positiveFactors = factors.filter((f: any) => f.impact === "positive");
+  const protectiveFactors = factors.filter((f: any) => f.impact !== "positive");
+  const patientGuidance = [
+    "Review these results with a qualified clinician before making medical decisions.",
+    "Focus first on the highlighted risk factors that can be changed through care planning.",
+    "Track BMI, HbA1c, and blood glucose over time so future assessments have context.",
+  ];
+  const clinicianActions = [
+    "Confirm risk category against the patient's full history and current medication profile.",
+    "Use the factor breakdown to prioritize follow-up labs, counselling, or referrals.",
+    "Compare this assessment with prior visits to identify meaningful trajectory changes.",
+  ];
 
   return (
     <motion.div 
@@ -85,13 +90,17 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             >
               {/* Patient Hero */}
               <div className="text-center space-y-4 max-w-2xl mx-auto">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-xs font-bold uppercase tracking-wide text-primary">
+                  <UserCircle className="h-4 w-4" />
+                  Plain-language summary
+                </div>
                 <h2 className="text-xl sm:text-2xl font-bold text-foreground">Your Health Assessment</h2>
-                <div className={`inline-flex flex-col items-center justify-center w-36 h-36 sm:w-48 sm:h-48rounded-full border-8 shadow-inner ${getRiskColor(assessment.riskCategory)}`}>
+                <div className={`inline-flex flex-col items-center justify-center w-36 h-36 sm:w-48 sm:h-48 rounded-full border-8 shadow-inner ${getRiskColor(assessment.riskCategory)}`}>
                   <span className="text-sm font-bold uppercase tracking-widest opacity-80 mb-1">Risk Level</span>
                   <span className="text-3xl sm:text-4xl font-display font-black">{assessment.riskCategory}</span>
                 </div>
                 <p className="text-muted-foreground text-lg">
-                  Based on your provided information, your cardiovascular risk over the next 10 years is considered <strong>{assessment.riskCategory.toLowerCase()}</strong>.
+                  Based on your provided information, your preventive diabetes risk is considered <strong>{assessment.riskCategory.toLowerCase()}</strong>.
                 </p>
               </div>
 
@@ -116,6 +125,17 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   ))}
                 </div>
               </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                {patientGuidance.map((item, index) => (
+                  <div key={item} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                      {index + 1}
+                    </div>
+                    <p className="text-sm leading-6 text-muted-foreground">{item}</p>
+                  </div>
+                ))}
+              </div>
             </motion.div>
           ) : (
             <motion.div
@@ -125,15 +145,30 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               exit={{ opacity: 0, x: -10 }}
               className="space-y-8"
             >
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-primary">Clinician decision support</p>
+                    <h2 className="mt-1 text-2xl font-bold text-foreground">Detailed risk interpretation</h2>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                      This view keeps the quantitative score, model confidence, contributing factors, and follow-up actions together for clinical review.
+                    </p>
+                  </div>
+                  <div className={`inline-flex w-fit rounded-full border px-3 py-1 text-sm font-bold ${getRiskColor(assessment.riskCategory)}`}>
+                    {assessment.riskCategory} risk
+                  </div>
+                </div>
+              </div>
+
               {/* Clinician Top Metrics */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
                   <p className="text-sm font-medium text-muted-foreground mb-1">Predicted Risk Score</p>
                   <p className="text-3xl font-bold font-display flex items-baseline gap-1">
-                    {Number(assessment.riskScore).toFixed(1)}<span className="text-xl text-muted-foreground">%</span>
+                    {riskScore}<span className="text-xl text-muted-foreground">%</span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    10-year probability
+                    Model probability
                     {assessment.confidenceInterval && (
                       <span className="block text-[10px] mt-0.5 opacity-80">
                         (95% CI: {assessment.confidenceInterval})
@@ -163,6 +198,46 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                       <p className="text-xs text-muted-foreground">HbA1c</p>
                       <p className="font-semibold">{assessment.hba1cLevel}%</p>
                     </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Glucose</p>
+                      <p className="font-semibold">{assessment.bloodGlucoseLevel}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                  <h3 className="mb-3 flex items-center gap-2 font-bold">
+                    <AlertCircle className="h-5 w-5 text-amber-500" />
+                    Risk-driving factors
+                  </h3>
+                  <div className="space-y-3">
+                    {positiveFactors.length > 0 ? positiveFactors.map((factor: any) => (
+                      <div key={factor.name} className="rounded-lg bg-amber-50 p-3 text-sm text-amber-950">
+                        <p className="font-semibold">{factor.name}</p>
+                        <p className="mt-1 text-amber-900/80">{factor.description}</p>
+                      </div>
+                    )) : (
+                      <p className="text-sm text-muted-foreground">No risk-driving factors were highlighted by the model.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                  <h3 className="mb-3 flex items-center gap-2 font-bold">
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    Protective or lower-risk signals
+                  </h3>
+                  <div className="space-y-3">
+                    {protectiveFactors.length > 0 ? protectiveFactors.map((factor: any) => (
+                      <div key={factor.name} className="rounded-lg bg-green-50 p-3 text-sm text-green-950">
+                        <p className="font-semibold">{factor.name}</p>
+                        <p className="mt-1 text-green-900/80">{factor.description}</p>
+                      </div>
+                    )) : (
+                      <p className="text-sm text-muted-foreground">No lower-risk signals were highlighted by the model.</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -202,6 +277,17 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/30 p-5">
+                <h3 className="mb-4 font-bold">Suggested clinical follow-up</h3>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {clinicianActions.map((action) => (
+                    <div key={action} className="rounded-lg border border-border bg-card p-4 text-sm leading-6 text-muted-foreground">
+                      {action}
+                    </div>
+                  ))}
                 </div>
               </div>
             </motion.div>
