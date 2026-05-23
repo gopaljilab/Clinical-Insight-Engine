@@ -85,7 +85,10 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  // Bind to 0.0.0.0 by default so local containers, Replit, and deployed
+  // ALWAYS serve the app on the port specified in the environment variable PORT.
+  // Other ports are firewalled. Default to 5000 if not specified.
+  // This serves both the API and the client on the only un-firewalled port.
+  // Bind to 0.0.0.0 by default so local containers, Replit, and deployed 
   // environments expose the same listener. Set HOST=127.0.0.1 for local-only use.
   const port = parseInt(process.env.PORT || "5000", 10);
   const host = process.env.HOST || "0.0.0.0";
