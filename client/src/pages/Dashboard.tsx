@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AssessmentResult } from "@/components/AssessmentResult";
+import { CardioGuardLanding } from "@/components/CardioGuardLanding";
 import { useCreateAssessment } from "@/hooks/use-assessments";
 import { Activity, Loader2, AlertCircle, UserCircle } from "lucide-react";
 import { type AssessmentResponse } from "@shared/routes";
@@ -44,7 +45,7 @@ export default function Dashboard() {
     createAssessment(data, {
       onSuccess: (data) => {
         setResult(data);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        document.getElementById("app")?.scrollIntoView({ behavior: "smooth" });
       }
     });
   };
@@ -53,7 +54,10 @@ export default function Dashboard() {
   const isHeartDisease = watch("heartDisease");
 
   return (
-    <AppLayout>
+    <>
+      <CardioGuardLanding />
+      <section id="app" className="scroll-mt-20 border-t border-slate-200">
+        <AppLayout>
       <div className="space-y-8">
         <div>
           <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight">
@@ -243,7 +247,8 @@ export default function Dashboard() {
           </form>
         </div>
       </div>
-    </AppLayout>
+        </AppLayout>
+      </section>
+    </>
   );
 }
-
