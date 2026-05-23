@@ -1,12 +1,52 @@
 import { useState } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
 }
+
+interface RiskFactor {
+  name: string;
+  impact: "positive" | "negative" | string;
+  description: string;
+}
+
+interface FactorBreakdown extends RiskFactor {
+  strength: number;
+  plainReason: string;
+}
+
+const factorReasoning: Record<string, string> = {
+  age: "Risk changes with age because blood vessels and metabolic control can become less resilient over time.",
+  bmi: "BMI helps estimate weight-related strain that can influence blood pressure, insulin resistance, and heart workload.",
+  "hba1c level": "HbA1c reflects longer-term blood sugar control, so higher values can point to sustained metabolic stress.",
+  "blood glucose level": "Blood glucose shows the current sugar level, which can reinforce or soften the overall diabetes risk signal.",
+  hypertension: "High blood pressure increases cardiovascular strain and can raise the chance of future heart complications.",
+  "heart disease": "Prior heart disease is a strong clinical history marker and usually increases baseline cardiovascular risk.",
+  "smoking history": "Smoking history affects blood vessels and inflammation, so current or past exposure can shift risk upward.",
+  gender: "Sex-linked population patterns can slightly shift the model's baseline risk estimate.",
+};
+
+const normalizeFactors = (rawFactors: AssessmentResponse["factors"]): RiskFactor[] => {
+  if (typeof rawFactors === "string") {
+    try {
+      const parsed = JSON.parse(rawFactors);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return Array.isArray(rawFactors) ? rawFactors as RiskFactor[] : [];
+};
+
+const getFactorReason = (factor: RiskFactor) => {
+  const key = factor.name.trim().toLowerCase();
+  return factorReasoning[key] ?? factor.description;
+};
 
 export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [view, setView] = useState<"patient" | "clinician">("patient");
@@ -29,28 +69,23 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     }
   };
 
-  const factors = (() => {
-    if (Array.isArray(assessment.factors)) {
-      return assessment.factors;
-    }
+  const factors = normalizeFactors(assessment.factors);
+  const totalFactors = Math.max(factors.length, 1);
+  const factorBreakdown: FactorBreakdown[] = factors.map((factor, index) => ({
+    ...factor,
+    strength: Math.max(20, Math.round(((totalFactors - index) / totalFactors) * 100)),
+    plainReason: getFactorReason(factor),
+  }));
+  const increasedRiskFactors = factorBreakdown.filter((factor) => factor.impact === "positive");
+  const reducedRiskFactors = factorBreakdown.filter((factor) => factor.impact !== "positive");
 
-    if (typeof assessment.factors === "string") {
-      try {
-        const parsed = JSON.parse(assessment.factors);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    }
-
-    return [];
-  })();
-
-  const chartData = factors.map((f: any) => ({
+  const chartData = factorBreakdown.map((f) => ({
     name: f.name,
-    value: f.impact === 'positive' ? 1 : -1, // Simplified impact for visualization
+    value: f.impact === 'positive' ? f.strength : -f.strength,
     impact: f.impact,
-    description: f.description
+    description: f.description,
+    plainReason: f.plainReason,
+    strength: f.strength,
   }));
 
   const riskScore = Number(assessment.riskScore).toFixed(1);
@@ -131,7 +166,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   <Info className="w-5 h-5 text-primary" /> What this means for you
                 </h3>
                 <div className="grid gap-4 md:grid-cols-2">
-                  {factors.map((factor: any, i: number) => (
+                  {factorBreakdown.map((factor, i) => (
                     <div key={i} className="flex gap-3 bg-card p-4 rounded-lg shadow-sm border border-border/50">
                       {factor.impact === 'positive' ? (
                         <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
@@ -157,6 +192,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   </div>
                 ))}
               </div>
+
+              <ExplainabilityPanel
+                factors={factorBreakdown}
+                increasedRiskFactors={increasedRiskFactors}
+                reducedRiskFactors={reducedRiskFactors}
+              />
             </motion.div>
           ) : (
             <motion.div
@@ -282,8 +323,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                               <div className="bg-popover text-popover-foreground border border-border p-3 rounded-lg shadow-xl text-sm max-w-xs">
                                 <p className="font-bold mb-1">{data.name}</p>
                                 <p className="text-muted-foreground">{data.description}</p>
+                                <p className="text-muted-foreground mt-2">{data.plainReason}</p>
                                 <p className={`mt-2 font-semibold ${data.impact === 'positive' ? 'text-red-500' : 'text-green-500'}`}>
-                                  Impact: {data.impact === 'positive' ? 'Increases Risk' : 'Decreases Risk'}
+                                  Impact: {data.impact === 'positive' ? 'Increases Risk' : 'Decreases Risk'} ({data.strength}% relative strength)
                                 </p>
                               </div>
                             );
@@ -301,6 +343,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
               </div>
 
+              <ExplainabilityPanel
+                factors={factorBreakdown}
+                increasedRiskFactors={increasedRiskFactors}
+                reducedRiskFactors={reducedRiskFactors}
+              />
+
               <div className="rounded-xl border border-border bg-muted/30 p-5">
                 <h3 className="mb-4 font-bold">Suggested clinical follow-up</h3>
                 <div className="grid gap-3 md:grid-cols-3">
@@ -316,5 +364,90 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
         </AnimatePresence>
       </div>
     </motion.div>
+  );
+}
+
+function ExplainabilityPanel({
+  factors,
+  increasedRiskFactors,
+  reducedRiskFactors,
+}: {
+  factors: FactorBreakdown[];
+  increasedRiskFactors: FactorBreakdown[];
+  reducedRiskFactors: FactorBreakdown[];
+}) {
+  if (factors.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-sm">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-5">
+        <div>
+          <h3 className="font-bold text-lg flex items-center gap-2">
+            <Info className="w-5 h-5 text-primary" /> Explainability breakdown
+          </h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Relative contribution is scaled from the model's returned factor ranking for this assessment.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-red-700">
+            <TrendingUp className="w-3.5 h-3.5" />
+            {increasedRiskFactors.length} raised
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-green-700">
+            <TrendingDown className="w-3.5 h-3.5" />
+            {reducedRiskFactors.length} reduced
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {factors.map((factor) => {
+          const increasesRisk = factor.impact === "positive";
+          return (
+            <div
+              key={`${factor.name}-${factor.impact}`}
+              className="rounded-lg border border-border/70 bg-muted/20 p-4"
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="font-semibold text-foreground">{factor.name}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{factor.plainReason}</p>
+                </div>
+                <span
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
+                    increasesRisk
+                      ? "bg-red-50 text-red-700 border border-red-200"
+                      : "bg-green-50 text-green-700 border border-green-200"
+                  }`}
+                >
+                  {increasesRisk ? (
+                    <TrendingUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <TrendingDown className="w-3.5 h-3.5" />
+                  )}
+                  {increasesRisk ? "Increases risk" : "Reduces risk"}
+                </span>
+              </div>
+
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-xs font-medium text-muted-foreground mb-1.5">
+                  <span>Relative contribution</span>
+                  <span>{factor.strength}%</span>
+                </div>
+                <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
+                    style={{ width: `${factor.strength}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
