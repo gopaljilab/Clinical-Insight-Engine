@@ -20,10 +20,31 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     }
   };
 
-  // Safe parse factors if they come as string or object
-  const factors = typeof assessment.factors === 'string' 
-    ? JSON.parse(assessment.factors) 
-    : assessment.factors;
+  const getRiskColorHex = (category: string) => {
+    switch (category.toUpperCase()) {
+      case "LOW": return "#16a34a";
+      case "MODERATE": return "#d97706";
+      case "HIGH": return "#dc2626";
+      default: return "#2563eb";
+    }
+  };
+
+  const factors = (() => {
+    if (Array.isArray(assessment.factors)) {
+      return assessment.factors;
+    }
+
+    if (typeof assessment.factors === "string") {
+      try {
+        const parsed = JSON.parse(assessment.factors);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  })();
 
   const chartData = factors.map((f: any) => ({
     name: f.name,

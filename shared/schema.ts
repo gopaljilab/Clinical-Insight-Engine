@@ -1,6 +1,12 @@
-import { pgTable, text, serial, integer, boolean, numeric, timestamp, json } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+export type AssessmentFactor = {
+  name: string;
+  impact: "positive" | "negative";
+  description: string;
+};
 
 export const assessments = pgTable("assessments", {
   id: serial("id").primaryKey(),
@@ -9,16 +15,16 @@ export const assessments = pgTable("assessments", {
   hypertension: boolean("hypertension").notNull(),
   heartDisease: boolean("heart_disease").notNull(),
   smokingHistory: text("smoking_history").notNull(), // 'never', 'current', 'former', etc.
-  bmi: numeric("bmi").notNull(),
-  hba1cLevel: numeric("hba1c_level").notNull(),
-  bloodGlucoseLevel: numeric("blood_glucose_level").notNull(),
+  bmi: text("bmi").notNull(),
+  hba1cLevel: text("hba1c_level").notNull(),
+  bloodGlucoseLevel: text("blood_glucose_level").notNull(),
   
   // Model Outputs
-  riskScore: numeric("risk_score").notNull(), // 0-100 percentage
+  riskScore: text("risk_score").notNull(), // 0-100 percentage
   riskCategory: text("risk_category").notNull(), // 'LOW', 'MODERATE', 'HIGH'
-  factors: json("factors").notNull(), // Array of { name, impact: 'positive' | 'negative', description }
-  confidenceInterval: text("confidence_interval"),
-  modelConfidence: numeric("model_confidence"),
+  factors: jsonb("factors").$type<AssessmentFactor[]>().notNull(),
+  confidenceInterval: jsonb("confidence_interval").$type<string | null>(),
+  modelConfidence: text("model_confidence"),
   
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -35,6 +41,8 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   riskScore: true,
   riskCategory: true,
   factors: true,
+  confidenceInterval: true,
+  modelConfidence: true,
   createdAt: true
 });
 
