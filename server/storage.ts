@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { getDb } from "./db";
 import { assessments, type Assessment, type InsertAssessment } from "@shared/schema";
 
 export interface IStorage {
@@ -14,6 +14,7 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getAssessments(): Promise<Assessment[]> {
+    const db = getDb();
     return await db.select().from(assessments);
   }
 
@@ -24,6 +25,7 @@ export class DatabaseStorage implements IStorage {
     confidenceInterval?: string,
     modelConfidence?: string 
   }): Promise<Assessment> {
+    const db = getDb();
     const [created] = await db.insert(assessments).values(assessment).returning();
     return created;
   }

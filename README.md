@@ -172,6 +172,11 @@ npm run migrate
 npm run db:migrate
 ```
 
+The server runs a PostgreSQL preflight check before mounting routes. If startup
+prints `Database startup check failed`, confirm that PostgreSQL is running,
+`DATABASE_URL` points to the same database, and the migration command above has
+created the required tables.
+
 ### 6️⃣ Python Environment Setup
 
 #### Linux/macOS

@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { DatabaseStartupError, verifyDatabaseConnection } from "./db";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -60,6 +61,19 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  try {
+    await verifyDatabaseConnection();
+  } catch (error) {
+    if (error instanceof DatabaseStartupError) {
+      console.error(error.message);
+    } else {
+      console.error("Unexpected database startup error:", error);
+    }
+
+    process.exitCode = 1;
+    return;
+  }
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
