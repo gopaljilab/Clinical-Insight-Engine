@@ -5,8 +5,13 @@ server/public
 vite.config.ts.*
 *.tar.gz
 /venv/
+__pycache__/
+*.py[cod]
 *.log
 *.env
+.env
+.env.local
+.env.*.local
 .idea/
 *.sublime-project
 *.sublime-workspace

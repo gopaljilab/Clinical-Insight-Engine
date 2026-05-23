@@ -113,6 +113,46 @@ If `.env.example` doesn't exist, create `.env` manually:
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/clinical_insight_engine
 ```
 
+### Developer Environment & Local Access
+
+For local frontend authentication testing, create a `.env.local` file in the project root. This file is ignored by git and should never be committed.
+
+```env
+NODE_ENV=development
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+DEV_CLINICIAN_EMAIL=developer@cardioguard.local
+DEV_CLINICIAN_PASSWORD=DevSecurePassword123!
+
+NEXT_PUBLIC_LOCAL_ENCRYPTION_KEY=your_local_32_character_secret_key_here
+```
+
+#### Environment Setup
+
+- Keep database and server secrets in `.env`.
+- Keep local-only seeded clinician credentials in `.env.local`.
+- Restart the dev server after changing `.env.local` so Vite can reload local development variables.
+- Do not add public demo credentials to UI, docs, screenshots, or pull requests.
+
+#### Local Login Workflow
+
+1. Start the app locally with the normal development command.
+2. Open `http://localhost:3000` or the configured local app URL.
+3. Click `Login` or `Go to App`.
+4. Enter the `.env.local` seeded clinician email and password.
+5. Complete the simulated OTP step.
+6. The app redirects to `/dashboard`.
+
+#### Developer Notice Behavior
+
+In development mode, the login form shows a small amber notice:
+
+```text
+Development Environment: Use local .env.local seeded clinician credentials to bypass or test dashboard integrations.
+```
+
+This notice and local seeded credential support are development-only. Production builds do not expose `DEV_CLINICIAN_EMAIL` or `DEV_CLINICIAN_PASSWORD` to the client.
+
 ### 4️⃣ PostgreSQL Database Setup
 
 #### Linux (Ubuntu/Debian)
@@ -226,11 +266,11 @@ py -c "from analyze import create_synthetic_data; create_synthetic_data()"
 
 ### 8️⃣ Start the Application
 
-#### Frontend (React + Vite)
+#### Full-Stack Development Server
 ```bash
 npm run dev
 ```
-Frontend runs at: `http://localhost:5173`
+The Express server runs both the API and Vite-powered React app. It defaults to `http://localhost:5000` unless `PORT` is set in `.env`; use `PORT=3000` if you want the local URL to match `NEXT_PUBLIC_APP_URL=http://localhost:3000`.
 
 #### ML Pipeline (Training)
 ```bash

@@ -1,9 +1,9 @@
 import type { Express } from "express";
 import type { Server } from "http";
-import { storage } from "./storage";
+import { storage, type AssessmentCreateInput } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { writeFileSync, unlinkSync } from "fs";
+import { existsSync, writeFileSync, unlinkSync } from "fs";
 import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -12,21 +12,29 @@ import path from "path";
 
 const execFileAsync = promisify(execFile);
 
+function getPythonExecutable() {
+  const candidates = process.platform === "win32"
+    ? [path.resolve(".venv", "Scripts", "python.exe"), path.resolve("venv", "Scripts", "python.exe")]
+    : [path.resolve(".venv", "bin", "python"), path.resolve("venv", "bin", "python")];
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? "python3";
+}
+
 async function seedDatabase() {
   const existing = await storage.getAssessments();
   if (existing.length === 0) {
     console.log("Seeding database with sample assessments...");
     
-    const samples = [
+    const samples: AssessmentCreateInput[] = [
       {
         gender: "Male",
         age: 45,
         hypertension: false,
         heartDisease: false,
         smokingHistory: "never",
-        bmi: "24.5",
-        hba1cLevel: "5.2",
-        bloodGlucoseLevel: "95",
+        bmi: 24.5,
+        hba1cLevel: 5.2,
+        bloodGlucoseLevel: 95,
         riskScore: "12.3",
         riskCategory: "LOW",
         factors: [
@@ -41,9 +49,9 @@ async function seedDatabase() {
         hypertension: true,
         heartDisease: false,
         smokingHistory: "former",
-        bmi: "31.2",
-        hba1cLevel: "6.8",
-        bloodGlucoseLevel: "145",
+        bmi: 31.2,
+        hba1cLevel: 6.8,
+        bloodGlucoseLevel: 145,
         riskScore: "48.7",
         riskCategory: "MODERATE",
         factors: [
@@ -58,9 +66,9 @@ async function seedDatabase() {
         hypertension: true,
         heartDisease: true,
         smokingHistory: "current",
-        bmi: "35.8",
-        hba1cLevel: "8.2",
-        bloodGlucoseLevel: "198",
+        bmi: 35.8,
+        hba1cLevel: 8.2,
+        bloodGlucoseLevel: 198,
         riskScore: "76.4",
         riskCategory: "HIGH",
         factors: [
@@ -93,7 +101,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       try {
        // Call Python script to perform the logistic regression analysis
         const { stdout, stderr } = await execFileAsync(
-          "python3",
+          getPythonExecutable(),
           ["analyze.py", "predict_file", tempFile],
           {
             timeout: 30000
@@ -123,7 +131,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           riskCategory: prediction.riskCategory,
           factors: prediction.factors,
           confidenceInterval: prediction.confidenceInterval,
-          modelConfidence: String(prediction.modelConfidence)
+          modelConfidence:
+            prediction.modelConfidence == null
+              ? undefined
+              : String(prediction.modelConfidence)
         });
         
         // Return both the DB assessment record and the rich prediction data (with advice)
