@@ -5,8 +5,6 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 DATA_FILE = "diabetes_dataset.csv"
 
@@ -49,6 +47,9 @@ def generate_correlation_heatmap(df, output_path="correlation_heatmap.png"):
     """
     Generate and save a correlation heatmap for numeric dataset columns.
     """
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
     numeric_df = df.select_dtypes(include=["number"])
 
     if numeric_df.empty:
