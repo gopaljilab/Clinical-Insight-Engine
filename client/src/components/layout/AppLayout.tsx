@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Activity, ClipboardList, HeartPulse } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
@@ -13,7 +13,23 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+
+  useEffect(() => {
+    const sessionStr = localStorage.getItem("cardioguard-auth-session");
+    if (!sessionStr) {
+      setLocation("/");
+    } else {
+      try {
+        const session = JSON.parse(sessionStr);
+        if (!session.authenticated) {
+          setLocation("/");
+        }
+      } catch (e) {
+        setLocation("/");
+      }
+    }
+  }, [setLocation]);
 
   const navItems = [
     { href: "/dashboard", label: "New Assessment", icon: Activity },
