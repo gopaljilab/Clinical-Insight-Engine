@@ -9,8 +9,25 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import os from "os";
 import path from "path";
+import { rateLimit } from "express-rate-limit";
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Rate limiter for the ML assessment endpoint.
+ * This endpoint spawns a Python subprocess for each request, which is resource-intensive.
+ * Limits to 5 requests per minute per IP to prevent DoS attacks.
+ */
+const assessmentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  limit: 5, // 5 requests per IP per window
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many assessment requests. Please try again later.",
+    retryAfter: 60, // seconds
+  },
+});
 
 function getPythonExecutable() {
   const candidates = process.platform === "win32"
@@ -90,7 +107,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Seed database on startup
   seedDatabase().catch(console.error);
   
-  app.post(api.assessments.create.path, async (req, res) => {
+  app.post(api.assessments.create.path, assessmentLimiter, async (req, res) => {
     try {
       const input = api.assessments.create.input.parse(req.body);
       
