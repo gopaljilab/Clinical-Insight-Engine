@@ -75,8 +75,20 @@ def generate_correlation_heatmap(df, output_path="correlation_heatmap.png"):
     print(f"Correlation heatmap saved as {output_path}")
 
 
+import pickle
+
+MODEL_CACHE_FILE = "model_cache.pkl"
+
 def get_model():
-    """Loads data, preprocesses it, and trains a logistic regression model."""
+    """Loads data, preprocesses it, and trains a logistic regression model, or loads from cache."""
+    if os.path.exists(MODEL_CACHE_FILE):
+        try:
+            with open(MODEL_CACHE_FILE, "rb") as f:
+                cached = pickle.load(f)
+                return cached["model"], cached["scaler"], cached["features"]
+        except Exception as e:
+            print(f"Failed to load cached model: {e}", file=sys.stderr)
+
     if not os.path.exists(DATA_FILE):
         return None, None, None
     
@@ -116,6 +128,12 @@ def get_model():
     model = LogisticRegression(class_weight='balanced')
     model.fit(X_scaled, y)
     
+    try:
+        with open(MODEL_CACHE_FILE, "wb") as f:
+            pickle.dump({"model": model, "scaler": scaler, "features": features}, f)
+    except Exception as e:
+        print(f"Failed to cache model: {e}", file=sys.stderr)
+        
     return model, scaler, features
 
 def interpret_prediction(model, scaler, features, input_data):
