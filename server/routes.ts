@@ -3,13 +3,15 @@ import type { Server } from "http";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { existsSync, writeFileSync, unlinkSync } from "fs";
+import { existsSync } from "fs";
+import { writeFile, unlink } from "fs/promises";
 import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
+import { rateLimit } from "express-rate-limit";
 
 const execFileAsync = promisify(execFile);
 
@@ -18,6 +20,23 @@ const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
+
+
+/**
+ * Rate limiter for the ML assessment endpoint.
+ * This endpoint spawns a Python subprocess for each request, which is resource-intensive.
+ * Limits to 5 requests per minute per IP to prevent DoS attacks.
+ */
+const assessmentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  limit: 5, // 5 requests per IP per window
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many assessment requests. Please try again later.",
+    retryAfter: 60, // seconds
+  },
+});
 
 function getPythonExecutable() {
   const candidates = process.platform === "win32"
@@ -97,13 +116,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Seed database on startup
   seedDatabase().catch(console.error);
   
-  app.post(api.assessments.create.path, async (req, res) => {
+  app.post(api.assessments.create.path, assessmentLimiter, async (req, res) => {
     try {
       const input = api.assessments.create.input.parse(req.body);
       
       // Save input to a temporary file to pass to the Python script
       const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
-      writeFileSync(tempFile, JSON.stringify(input));
+      await writeFile(tempFile, JSON.stringify(input));
       
       try {
         // Call Python script to perform the logistic regression analysis
@@ -163,7 +182,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       } finally {
         try {
-          unlinkSync(tempFile);
+          await unlink(tempFile);
         } catch (e) {}
       }
 
