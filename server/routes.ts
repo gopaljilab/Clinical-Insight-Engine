@@ -9,8 +9,15 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import os from "os";
 import path from "path";
+import { fileURLToPath } from "url";
 
 const execFileAsync = promisify(execFile);
+
+// ESM-compatible path resolution for analyze.py
+// Resolve relative to this source file, not process.cwd()
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
 
 function getPythonExecutable() {
   const candidates = process.platform === "win32"
@@ -99,10 +106,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       writeFileSync(tempFile, JSON.stringify(input));
       
       try {
-       // Call Python script to perform the logistic regression analysis
-        const { stdout, stderr } = await execFileAsync(
-          getPythonExecutable(),
-          ["analyze.py", "predict_file", tempFile],
+        // Call Python script to perform the logistic regression analysis
+         const { stdout, stderr } = await execFileAsync(
+           getPythonExecutable(),
+           [analyzePyPath, "predict_file", tempFile],
           {
             timeout: 30000
           }
