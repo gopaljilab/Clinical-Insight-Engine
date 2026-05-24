@@ -344,8 +344,15 @@ function OtpForm({ onVerify }: { onVerify: () => void }) {
     inputRefs.current[Math.min(digits.length, 5)]?.focus();
   };
 
+  const handleFormSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (isComplete) {
+      onVerify();
+    }
+  };
+
   return (
-    <div className="text-center">
+    <form onSubmit={handleFormSubmit} className="text-center">
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-[#2563EB]">
         <LockKeyhole className="h-8 w-8" aria-hidden="true" />
       </div>
@@ -377,15 +384,14 @@ function OtpForm({ onVerify }: { onVerify: () => void }) {
       </div>
 
       <button
-        type="button"
-        onClick={onVerify}
+        type="submit"
         disabled={!isComplete}
         className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-5 py-4 text-base font-black text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/25 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:scale-100"
       >
         Verify & Continue
         <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
       </button>
-    </div>
+    </form>
   );
 }
 
