@@ -70,8 +70,7 @@ app.use((req, res, next) => {
       console.error("Unexpected database startup error:", error);
     }
 
-    process.exitCode = 1;
-    return;
+    process.exit(1);
   }
 
   await registerRoutes(httpServer, app);
