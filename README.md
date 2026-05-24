@@ -187,21 +187,62 @@ psql postgres -c "CREATE DATABASE clinical_insight_engine;"
 ```
 
 #### Windows
-1. Download PostgreSQL from [postgresql.org](https://www.postgresql.org/download/windows/)
-2. Install with default settings (remember the password for `postgres` user)
-3. Open **SQL Shell (psql)** or **pgAdmin** and run:
+
+#Install PostgreSQL
+Download and install PostgreSQL from the official website:
+
+https://www.postgresql.org/download/windows/
+
+During installation, use:
+- Username: `postgres`
+- Password: `postgres`
+- Port: `5432`
+
+#Create Database
+After installation, create a database named:
 
 ```sql
--- If password is different, update .env accordingly
-CREATE DATABASE clinical_insight_engine;
+clinical_insight_engine
 ```
 
-Or via PowerShell (if `psql` is in PATH):
-```powershell
-psql -U postgres -d postgres -c "CREATE DATABASE clinical_insight_engine;"
+You can create it using pgAdmin or PostgreSQL command line tools.
+
+#Configure Environment Variable
+Update your `.env` file:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/clinical_insight_engine
 ```
 
-### 5️⃣ Database Migration
+#Push Database Schema
+Run:
+
+```bash
+npm run db:push
+```
+
+#Start Development Server
+Run:
+
+```bash
+npm run dev
+```
+
+#Troubleshooting
+If you see:
+
+```text
+PostgreSQL is unreachable
+```
+
+Make sure:
+- PostgreSQL service is running
+- Username/password are correct
+- Database exists
+- Port `5432` is available
+```
+
+#### 5️⃣ Database Migration
 Create the required tables:
 
 ```bash
