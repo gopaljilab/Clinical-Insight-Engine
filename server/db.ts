@@ -34,7 +34,7 @@ function getDatabaseUrl() {
 
 export function getPool() {
   if (!poolInstance) {
-    poolInstance = new Pool({ connectionString: getDatabaseUrl() });
+    poolInstance = new Pool({ connectionString: getDatabaseUrl(), connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000 });
   }
 
   return poolInstance;
