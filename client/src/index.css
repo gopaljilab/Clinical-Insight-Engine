@@ -4,123 +4,19 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --font-sans: 'Plus Jakarta Sans', sans-serif;
-    --font-display: 'Outfit', sans-serif;
-
-    /* Healthcare Dashboard Theme - Clean, Trustworthy, Professional */
-    --background: 210 33% 99%;
-    --foreground: 222 47% 11%;
-    
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    
-    /* Medical Blue */
-    --primary: 217 91% 60%;
-    --primary-foreground: 210 40% 98%;
-    
-    /* Soft Blue for secondary actions */
-    --secondary: 214 32% 91%;
-    --secondary-foreground: 222 47% 11%;
-    
-    --muted: 214 32% 91%;
-    --muted-foreground: 215 16% 47%;
-    
-    --accent: 214 32% 91%;
-    --accent-foreground: 222 47% 11%;
-    
-    --destructive: 348 83% 47%;
-    --destructive-foreground: 210 40% 98%;
-
-    /* Risk Categories */
-    --risk-low: 142 71% 45%;
-    --risk-moderate: 38 92% 50%;
-    --risk-high: 348 83% 47%;
-
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 217 91% 60%;
-
-    --radius: 0.75rem;
-
-    /* Elevation for hover states */
-    --elevate-1: rgba(0,0,0, 0.03);
-    --elevate-2: rgba(0,0,0, 0.08);
-  }
-
-  .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
-    
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-    
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-    
-    --secondary: 217 32% 17%;
-    --secondary-foreground: 210 40% 98%;
-    
-    --muted: 217 32% 17%;
-    --muted-foreground: 215 20.2% 65.1%;
-    
-    --accent: 217 32% 17%;
-    --accent-foreground: 210 40% 98%;
-    
-    --destructive: 348 83% 47%;
-    --destructive-foreground: 210 40% 98%;
-    
-    --border: 217 32% 17%;
-    --input: 217 32% 17%;
-    --ring: 224 76% 48%;
-
-    --elevate-1: rgba(255,255,255, 0.05);
-    --elevate-2: rgba(255,255,255, 0.1);
-  }
-
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-family: var(--font-sans);
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
-    @apply font-semibold tracking-tight text-foreground;
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-@layer utilities {
-  .hover-elevate {
-    position: relative;
-    z-index: 0;
-  }
-  .hover-elevate::after {
-    content: "";
-    pointer-events: none;
-    position: absolute;
-    inset: 0px;
-    border-radius: inherit;
-    z-index: 999;
-  }
-  .hover-elevate:hover::after {
-    background-color: var(--elevate-1);
-  }
-  .hover-elevate:active::after {
-    background-color: var(--elevate-2);
-  }
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+}
 
-  .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-white/20 shadow-lg shadow-black/5;
-  }
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
 }
