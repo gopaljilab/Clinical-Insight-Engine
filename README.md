@@ -106,6 +106,9 @@ cp .env.example .env
 
 # Windows (PowerShell)
 Copy-Item .env.example .env
+
+# Windows (Command Prompt - cmd)
+copy .env.example .env
 ```
 
 If `.env.example` doesn't exist, create `.env` manually:
