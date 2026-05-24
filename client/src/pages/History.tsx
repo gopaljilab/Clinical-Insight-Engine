@@ -36,6 +36,12 @@ export default function History() {
     return isValid(dateObj) ? format(dateObj, 'MMM d, yyyy') : "Unknown";
   };
 
+  const formatAssessmentDate = (dateVal: any) => {
+    if (!dateVal) return "Unknown";
+    const dateObj = new Date(dateVal);
+    return isValid(dateObj) ? format(dateObj, 'MMM d, yyyy') : "Unknown";
+  };
+
   return (
     <AppLayout>
       <div className="space-y-8">
