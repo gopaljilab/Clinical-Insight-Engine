@@ -92,6 +92,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 setLocation("/");
               }}
               className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-xl transition-all duration-200 border border-red-100"
+              aria-label="Sign out of CardioGuard workspace"
+              title="Sign out"
             >
               <LogOut className="w-3.5 h-3.5" />
               Sign Out
