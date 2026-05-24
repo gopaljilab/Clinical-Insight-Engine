@@ -7,19 +7,22 @@ export interface IStorage {
   createAssessment(assessment: any): Promise<Assessment>; 
 }
 
+// Type for creating assessments with pre-computed model outputs (used in seeding)
+export type AssessmentCreateInput = InsertAssessment & { 
+  riskScore: string, 
+  riskCategory: string, 
+  factors: any,
+  confidenceInterval?: string,
+  modelConfidence?: string 
+};
+
 export class DatabaseStorage implements IStorage {
   async getAssessments(): Promise<Assessment[]> {
     const db = getDb(); // 2. This works great now!
     return await db.select().from(assessments);
   }
 
-  async createAssessment(assessment: InsertAssessment & { 
-    riskScore: string, 
-    riskCategory: string, 
-    factors: any,
-    confidenceInterval?: string,
-    modelConfidence?: string 
-  }): Promise<Assessment> {
+  async createAssessment(assessment: AssessmentCreateInput): Promise<Assessment> {
     const db = getDb(); 
 // Cast the values to 'any' to satisfy Drizzle's strict type checker
 const [created] = await db.insert(assessments).values(assessment as any).returning();    return created;
