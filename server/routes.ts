@@ -86,11 +86,35 @@ async function seedDatabase() {
   }
 }
 
+const ipLimits = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const MAX_REQUESTS = 10;
+
+function rateLimiter(req: any, res: any, next: any) {
+  const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  const limit = ipLimits.get(ip);
+
+  if (!limit || now > limit.resetTime) {
+    ipLimits.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return next();
+  }
+
+  if (limit.count >= MAX_REQUESTS) {
+    return res.status(429).json({
+      message: "Too many requests. Please try again after a minute."
+    });
+  }
+
+  limit.count += 1;
+  next();
+}
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Seed database on startup
   seedDatabase().catch(console.error);
   
-  app.post(api.assessments.create.path, async (req, res) => {
+  app.post(api.assessments.create.path, rateLimiter, async (req, res) => {
     try {
       const input = api.assessments.create.input.parse(req.body);
       
