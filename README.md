@@ -289,10 +289,10 @@ py analyze.py
 #### Backend API (if separate)
 ```bash
 # Linux/macOS
-python3 main.py
+npm run dev
 
 # Windows
-py main.py
+npm run dev
 ```
 
 ---
