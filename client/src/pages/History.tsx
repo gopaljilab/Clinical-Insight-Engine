@@ -17,10 +17,18 @@ export default function History() {
     }
   };
 
-  const filteredAssessments = assessments?.filter(a => 
-    a.gender.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    a.riskCategory.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredAssessments = assessments?.filter(a => {
+    const term = searchTerm.toLowerCase();
+    return (
+      a.gender.toLowerCase().includes(term) ||
+      a.riskCategory.toLowerCase().includes(term) ||
+      a.smokingHistory.toLowerCase().includes(term) ||
+      String(a.age).includes(term) ||
+      String(a.bmi).includes(term) ||
+      String(a.hba1cLevel).includes(term) ||
+      String(a.bloodGlucoseLevel).includes(term)
+    );
+  }) || [];
 
   return (
     <AppLayout>
