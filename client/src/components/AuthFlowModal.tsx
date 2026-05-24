@@ -111,7 +111,7 @@ function SecurityNotice() {
           </div>
         </div>
       </div>
-    </div>
+    </form>
   );
 }
 
@@ -126,7 +126,7 @@ function DevelopmentNotice() {
           Development Environment: Use local .env.local seeded clinician credentials to bypass or test dashboard integrations.
         </p>
       </div>
-    </div>
+    </form>
   );
 }
 
@@ -314,6 +314,13 @@ function OtpForm({ onVerify }: { onVerify: () => void }) {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const isComplete = otp.every(Boolean);
+
+  const handleFormSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (isComplete) {
+      onVerify();
+    }
+  };
 
   const updateDigit = (index: number, value: string) => {
     const digit = value.replace(/\D/g, "").slice(-1);
@@ -522,6 +529,6 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
           </div>
         </section>
       </motion.div>
-    </div>
+    </form>
   );
 }
