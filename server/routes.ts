@@ -3,7 +3,8 @@ import type { Server } from "http";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { existsSync, writeFileSync, unlinkSync } from "fs";
+import { existsSync } from "fs";
+import { writeFile, unlink } from "fs/promises";
 import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -96,7 +97,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       // Save input to a temporary file to pass to the Python script
       const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
-      writeFileSync(tempFile, JSON.stringify(input));
+      await writeFile(tempFile, JSON.stringify(input));
       
       try {
        // Call Python script to perform the logistic regression analysis
@@ -156,7 +157,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       } finally {
         try {
-          unlinkSync(tempFile);
+          await unlink(tempFile);
         } catch (e) {}
       }
 
