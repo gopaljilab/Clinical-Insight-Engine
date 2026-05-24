@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, ClipboardList, HeartPulse } from "lucide-react";
+import { Activity, ClipboardList, HeartPulse, LogOut } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -70,6 +70,16 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <span className="text-xs text-slate-500 font-semibold">Cardiology</span>
               </div>
             </div>
+            <button
+              onClick={() => {
+                localStorage.removeItem("cardioguard-auth-session");
+                setLocation("/");
+              }}
+              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-xl transition-all duration-200 border border-red-100"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
+            </button>
             <p className="mt-3 text-xs font-medium leading-5 text-slate-400">
               Local workspace secured with simulated 2FA.
             </p>
