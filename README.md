@@ -483,27 +483,62 @@ deactivate
 
 ```
 Clinical-Insight-Engine/
-├── client/                  # React frontend
-│   ├── src/
-│   │   ├── components/      # Reusable UI components
-│   │   ├── pages/           # Route-level page components
-│   │   ├── hooks/           # Custom React hooks
-│   │   └── lib/             # Utilities & API client
-│   └── index.html
-├── server/                  # Express.js backend
-│   ├── index.ts             # Server entry point
-│   ├── routes.ts            # API route definitions
-│   └── db/                  # Drizzle ORM schemas & config
-├── shared/                  # Shared types & validation schemas
-│   └── schema.ts            # Zod schemas (used by both client & server)
-├── analyze.py               # ML pipeline — training & inference
-├── diabetes_dataset.csv     # Training dataset
-├── drizzle.config.ts        # Drizzle ORM configuration
-├── package.json             # Node.js dependencies & scripts
-├── requirements.txt         # Python dependencies
-├── tailwind.config.ts       # Tailwind CSS configuration
-├── vite.config.ts           # Vite bundler configuration
-└── tsconfig.json            # TypeScript configuration
+│
+├── client/                        # React frontend
+│   └── src/
+│       ├── components/            # Reusable UI components
+│       ├── pages/                 # Route-level page components
+│       ├── hooks/                 # Custom React hooks
+│       │   ├── use-assessments.ts # TanStack Query hooks for API calls
+│       │   └── use-toast.ts       # Toast notification state
+│       ├── lib/                   # Utilities & API client
+│       │   ├── queryClient.ts     # Global fetch config + React Query setup
+│       │   └── utils.ts           # cn() Tailwind class merge utility
+│       └── utils/
+│           ├── search_filters.ts  # Patient search & filter logic
+│           └── date_fix.ts        # Safe date parser helper
+│
+├── server/                        # Express.js backend
+│   ├── index.ts                   # Server entry point & startup
+│   ├── routes.ts                  # API route definitions
+│   ├── storage.ts                 # Data access layer (DB queries)
+│   ├── db.ts                      # Drizzle ORM + PostgreSQL pool
+│   ├── static.ts                  # Serves built React frontend
+│   ├── vite.ts                    # Vite dev server integration (HMR)
+│   └── db_fix.ts                  # Clean process exit on DB errors
+│
+├── shared/                        # Shared between client & server
+│   ├── schema.ts                  # Drizzle DB schema + Zod types
+│   └── routes.ts                  # Shared API request/response schemas
+│
+├── script/
+│   └── build.ts                   # esbuild + Vite production build script
+│
+├── attached_assets/               # Static assets (dataset, images)
+│   └── diabetes_dataset.csv
+│
+├── analyze.py                     # ML pipeline — training & inference
+├── main.py                        # Python entry point
+├── diabetes_dataset.csv           # Training dataset (root copy)
+├── correlation_heatmap.png        # Diabetes feature correlation heatmap
+├── patient.json                   # Sample patient input for CLI prediction
+│
+├── drizzle.config.ts              # Drizzle ORM configuration
+├── vite.config.ts                 # Vite bundler configuration
+├── tailwind.config.ts             # Tailwind CSS configuration
+├── tsconfig.json                  # TypeScript configuration
+├── postcss.config.js              # PostCSS configuration
+├── components.json                # shadcn/ui component registry
+├── pyproject.toml                 # Python project metadata
+├── requirements.txt               # Python dependencies
+├── package.json                   # Node.js dependencies & scripts
+├── package-lock.json              # Locked dependency versions
+├── uv.lock                        # uv Python lock file
+│
+├── README.md                      # Project documentation
+├── ANALYSIS_README.md             # ML analysis documentation
+├── CONTRIBUTING.md                # Contribution guidelines
+└── CODE_OF_CONDUCT.md             # Community code of conduct
 ```
 
 ---
@@ -519,7 +554,7 @@ Clinical-Insight-Engine/
 ### Example Request
 
 ```bash
-curl -X POST http://localhost:5173/api/assessments \
+curl -X POST http://localhost:3000/api/assessments \
   -H "Content-Type: application/json" \
   -d '{
     "gender": "Female",
