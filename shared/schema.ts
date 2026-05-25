@@ -30,12 +30,14 @@ export const assessments = pgTable("assessments", {
 });
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
-  age: z.coerce.number().min(0).max(120),
-  bmi: z.coerce.number().min(10).max(100),
-  hba1cLevel: z.coerce.number().min(3).max(20),
-  bloodGlucoseLevel: z.coerce.number().min(50).max(500),
-  hypertension: z.boolean(),
-  heartDisease: z.boolean(),
+  gender: z.enum(["Male", "Female", "Other"], { required_error: "Please select a gender" }),
+  age: z.coerce.number().min(1, "Age must be greater than 0").max(120, "Age is too high"),
+  hypertension: z.boolean().default(false),
+  heartDisease: z.boolean().default(false),
+  smokingHistory: z.enum(["never", "No Info", "current", "former", "ever", "not current"], { required_error: "Please select smoking history" }),
+  bmi: z.coerce.number().min(10, "BMI must be between 10 and 60").max(60, "BMI must be between 10 and 60"),
+  hba1cLevel: z.coerce.number().min(3, "HbA1c must be between 3 and 15").max(15, "HbA1c must be between 3 and 15"),
+  bloodGlucoseLevel: z.coerce.number().min(50, "Blood glucose must be between 50 and 400").max(400, "Blood glucose must be between 50 and 400"),
 }).omit({
   id: true,
   riskScore: true,
