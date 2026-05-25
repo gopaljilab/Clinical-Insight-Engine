@@ -1,124 +1,291 @@
-![License](https://img.shields.io/github/license/gopaljilab/Clinical-Insight-Engine)
-![Stars](https://img.shields.io/github/stars/gopaljilab/Clinical-Insight-Engine)
-![Issues](https://img.shields.io/github/issues/gopaljilab/Clinical-Insight-Engine)
-![Last Commit](https://img.shields.io/github/last-commit/gopaljilab/Clinical-Insight-Engine)
-# 🩺 Clinical Insight Engine  
-## Clinical Decision Support for Preventive Diabetes Risk Assessment
+<div align="center">
 
-**Clinical Insight Engine** is a full-stack clinical decision support system designed to surface early diabetes risk signals from routine patient data.  
-It combines a **Python-based interpretable machine learning model** with a **modern React frontend**, presenting results differently for **clinicians** and **patients**.
+# 🩺 Clinical Insight Engine
 
-🎯 The project emphasizes **interpretability, confidence-aware predictions, and ethical ML**, rather than black-box diagnosis.
+### Clinical Decision Support for Preventive Diabetes Risk Assessment
 
-⚠️ **Disclaimer**  
-This system is intended for **educational and research purposes only** and does **not** provide medical diagnoses.
+> *Interpretable ML + Modern React — built for clinicians and patients alike*
+
+<p align="center">
+  
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React" />
+  <img src="https://img.shields.io/badge/Express.js-4-000000?style=flat-square&logo=express&logoColor=white" alt="Express" />
+  <img src="https://img.shields.io/badge/PostgreSQL-14+-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/scikit--learn-ML-F7931E?style=flat-square&logo=scikitlearn&logoColor=white" alt="scikit-learn" />
+  <img src="https://img.shields.io/badge/GSSoC-2026-orange?style=flat-square" alt="GSSoC" />
+</p>
+
+<p align="center">
+  
+  ![Stars](https://img.shields.io/github/stars/gopaljilab/Clinical-Insight-Engine?style=social)
+  ![Forks](https://img.shields.io/github/forks/gopaljilab/Clinical-Insight-Engine?style=social)
+  ![Issues](https://img.shields.io/github/issues/gopaljilab/Clinical-Insight-Engine?style=social)
+  ![Contributors](https://img.shields.io/github/contributors/gopaljilab/Clinical-Insight-Engine?style=social)
+
+</p>
+
+</div>
+
+> [!WARNING]
+> **Medical Disclaimer** — This system is intended for **educational and research purposes only**. It does **not** provide medical diagnoses and should not be used as a substitute for professional medical advice.
+
+---
+
+## 📑 Table of Contents
+
+- [Why Clinical Insight Engine?](#-why-clinical-insight-engine)
+- [Key Features](#-key-features)
+- [Architecture](#-architecture)
+- [Tech Stack](#-tech-stack)
+- [Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#1--clone--install)
+  - [Database Setup](#3--database-setup)
+  - [Python Environment](#4--python-environment)
+  - [Prepare Dataset](#5--dataset-preparation)
+  - [Run the App](#6--launch)
+  - [Shutdown](#7--shutting-down)
+- [Project Structure](#-project-structure)
+- [API Reference](#-api-reference)
+- [ML Pipeline](#-ml-pipeline)
+- [Single-Patient Prediction](#-single-patient-prediction-cli)
+- [Environment Variables](#-environment-variables)
+- [Troubleshooting](#-troubleshooting)
+- [Roadmap](#-roadmap)
+- [Contributing](#-contributing)
+- [Contributors](#-contributors)
+
+---
+
+## 💡 Why Clinical Insight Engine?
+
+Diabetes affects over **500 million** adults worldwide, yet early risk signals are often buried in routine clinical data. Clinical Insight Engine bridges that gap:
+
+| Problem | Our Approach |
+|---|---|
+| Risk models are opaque black boxes | **Interpretable** Logistic Regression with per-feature impact scores |
+| Results are one-size-fits-all | **Dual-view** output — detailed for clinicians, simplified for patients |
+| Predictions lack context | **Confidence-aware** assessments with actionable follow-up recommendations |
+| Patient data sits in silos | **Longitudinal tracking** with full assessment history |
 
 ---
 
 ## ✨ Key Features
 
-### 🔹 Core Functionality
+### 🧾 Risk Assessment Form
+Collects clinically relevant inputs:
 
-#### 🧾 Risk Assessment Form
-Inputs include:
-- Age, gender
-- Hypertension and heart disease status
-- Smoking history
-- BMI
-- HbA1c level
-- Blood glucose level
+```
+Age · Gender · Hypertension · Heart Disease · Smoking History · BMI · HbA1c · Blood Glucose
+```
 
-#### 👥 Dual-View Results
+### 👥 Dual-View Results
 
-**Clinician View**
+<table>
+<tr>
+<td width="50%">
+
+**🩻 Clinician View**
 - Exact risk percentage (0–100%)
-- Top contributing factors with impact analysis
+- Top contributing factors with impact scores
 - Model confidence indicators
-- Suggested follow-up actions
+- Suggested clinical follow-up actions
+- Interactive factor contribution charts
 
-**Patient View**
-- Simplified risk category (**LOW / MODERATE / HIGH**)
-- Plain-language explanation of risk factors
-- Preventive lifestyle recommendations
+</td>
+<td width="50%">
 
-#### 🕒 Assessment History
-- Stores previous assessments with timestamps
-- Enables longitudinal tracking of patient risk
+**🧑‍⚕️ Patient View**
+- Simplified category: `LOW` / `MODERATE` / `HIGH`
+- Plain-language explanation of risk drivers
+- Personalized preventive lifestyle guidance
 
-#### 📊 Data Visualization
-- Interactive bar charts showing factor contributions
-- Available in clinician view for transparency
+</td>
+</tr>
+</table>
 
----
+### 🕒 Assessment History
+- Stores assessments with full timestamps
+- Enables longitudinal patient risk tracking over time
 
-## 🏗️ System Architecture
-
-### Frontend (`client/`)
-- React + TypeScript
-- Vite for fast development
-- Tailwind CSS with dark mode support
-- TanStack Query for server state management
-- React Hook Form + Zod validation
-- Recharts for data visualization
-- Framer Motion for animations
-
-### Backend (`server/`)
-- Express.js REST API
-- PostgreSQL database via Drizzle ORM
-- Python integration for ML inference
-- Zod-based route and schema validation
-
-### Machine Learning (`analyze.py`)
-- Logistic Regression (scikit-learn)
-- Feature engineering and preprocessing
-- StandardScaler for normalization
+### 📊 Data Visualization
+- Interactive bar charts for factor contributions
+- Diabetes correlation heatmap for data exploration
 
 ---
 
-## ✅ Prerequisites
+## 🏗 Architecture
 
-- Node.js 18+ (LTS) + npm
-- Python 3.10+
-- PostgreSQL 14+ (local)
-- Git
+```mermaid
+graph TB
+    subgraph Client["🖥️ Client — React + TypeScript"]
+        UI["Risk Assessment Form"]
+        CV["Clinician View"]
+        PV["Patient View"]
+        VIZ["Data Visualizations"]
+        HIST["Assessment History"]
+    end
+
+    subgraph Server["⚙️ Server — Express.js"]
+        API["REST API Routes"]
+        VAL["Zod Validation"]
+        ORM["Drizzle ORM"]
+        PY["Python Bridge"]
+    end
+
+    subgraph ML["🧠 ML Pipeline — Python"]
+        PROC["Data Preprocessing"]
+        MODEL["Logistic Regression"]
+        INTERP["Feature Interpretation"]
+        CACHE["Model Cache (pickle)"]
+    end
+
+    subgraph DB["🗄️ PostgreSQL"]
+        ASSESS["Assessments Table"]
+    end
+
+    Client -->|"HTTP Requests"| API
+    API --> VAL --> ORM
+    API --> PY -->|"spawn process"| ML
+    ORM --> DB
+    ML -->|"risk scores + factors"| PY
+    CACHE -.->|"load cached model"| MODEL
+```
+
+---
+
+## 🛠 Tech Stack
+
+<table>
+  <thead>
+    <tr>
+      <th>Layer</th>
+      <th>Technology</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="7"><strong>Frontend</strong></td>
+      <td>React 18 + TypeScript</td>
+      <td>UI framework with type safety</td>
+    </tr>
+    <tr>
+      <td>Vite</td>
+      <td>Lightning-fast dev server & bundler</td>
+    </tr>
+    <tr>
+      <td>Tailwind CSS</td>
+      <td>Utility-first styling with dark mode</td>
+    </tr>
+    <tr>
+      <td>TanStack Query</td>
+      <td>Server state & cache management</td>
+    </tr>
+    <tr>
+      <td>React Hook Form + Zod</td>
+      <td>Form handling with schema validation</td>
+    </tr>
+    <tr>
+      <td>Recharts</td>
+      <td>Interactive data visualizations</td>
+    </tr>
+    <tr>
+      <td>Framer Motion</td>
+      <td>Smooth UI animations</td>
+    </tr>
+    <tr>
+      <td rowspan="4"><strong>Backend</strong></td>
+      <td>Express.js</td>
+      <td>REST API server</td>
+    </tr>
+    <tr>
+      <td>Drizzle ORM</td>
+      <td>Type-safe database queries</td>
+    </tr>
+    <tr>
+      <td>PostgreSQL 14+</td>
+      <td>Relational data storage</td>
+    </tr>
+    <tr>
+      <td>Zod</td>
+      <td>Runtime schema validation</td>
+    </tr>
+    <tr>
+      <td rowspan="4"><strong>ML Pipeline</strong></td>
+      <td>Python 3.10+</td>
+      <td>ML runtime environment</td>
+    </tr>
+    <tr>
+      <td>scikit-learn</td>
+      <td>Logistic Regression model</td>
+    </tr>
+    <tr>
+      <td>pandas / NumPy</td>
+      <td>Data manipulation & preprocessing</td>
+    </tr>
+    <tr>
+      <td>pickle</td>
+      <td>Model & scaler caching</td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+| Tool | Version | Check | Download |
+|---|---|---|---|
+| Node.js | 18+ LTS | `node -v` | [nodejs.org](https://nodejs.org) |
+| npm | 9+ | `npm -v` | bundled with Node |
+| Python | 3.10+ | `python3 --version` | [python.org](https://python.org) |
+| PostgreSQL | 14+ | `psql --version` | [postgresql.org](https://postgresql.org) |
+| Git | Any | `git --version` | [git-scm.com](https://git-scm.com) |
 
 ---
 
 ## ⚙️ Installation & Setup
 
-### 1️⃣ Clone the Repository
+### 1. 📥 Clone & Install
+
 ```bash
 git clone https://github.com/gopaljilab/Clinical-Insight-Engine.git
 cd Clinical-Insight-Engine
-```
-
-### 2️⃣ Install Node Dependencies
-```bash
 npm install
 ```
 
-### 3️⃣ Create Environment File
-Create a `.env` file in the project root:
+### 2. 🔐 Environment Configuration
 
+**Linux / macOS**
 ```bash
-# Linux/macOS
 cp .env.example .env
+```
 
-# Windows (PowerShell)
+**Windows (PowerShell)**
+```powershell
 Copy-Item .env.example .env
+```
 
-# Windows (Command Prompt - cmd)
+**Windows (Command Prompt)**
+```cmd
 copy .env.example .env
 ```
 
-If `.env.example` doesn't exist, create `.env` manually:
+If `.env.example` doesn't exist, create `.env` manually and add:
+
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/clinical_insight_engine
 ```
 
-### Developer Environment & Local Access
+<details>
+<summary><strong>🧪 Developer Authentication Setup (optional)</strong></summary>
 
-For local frontend authentication testing, create a `.env.local` file in the project root. This file is ignored by git and should never be committed.
+For local frontend authentication testing, create a `.env.local` file (git-ignored):
 
 ```env
 NODE_ENV=development
@@ -130,193 +297,261 @@ DEV_CLINICIAN_PASSWORD=DevSecurePassword123!
 NEXT_PUBLIC_LOCAL_ENCRYPTION_KEY=your_local_32_character_secret_key_here
 ```
 
-#### Environment Setup
+> **Rules of thumb:**
+> - `🔒 .env` → database & server secrets only
+> - `🔒 .env.local` → local seeded credentials only (never commit)
+> - Restart the dev server after editing `.env.local` so Vite reloads variables
+> - Never paste demo credentials into UI, docs, screenshots, or PRs
 
-- Keep database and server secrets in `.env`.
-- Keep local-only seeded clinician credentials in `.env.local`.
-- Restart the dev server after changing `.env.local` so Vite can reload local development variables.
-- Do not add public demo credentials to UI, docs, screenshots, or pull requests.
+#### 🖥️ Local Login Workflow
 
-#### Local Login Workflow
+1. Start the app with `npm run dev`
+2. Open `http://localhost:3000`
+3. Click **Login** or **Go to App**
+4. Enter your `.env.local` seeded credentials
+5. Complete the simulated OTP step
+6. You'll be redirected to `/dashboard`
 
-1. Start the app locally with the normal development command.
-2. Open `http://localhost:3000` or the configured local app URL.
-3. Click `Login` or `Go to App`.
-4. Enter the `.env.local` seeded clinician email and password.
-5. Complete the simulated OTP step.
-6. The app redirects to `/dashboard`.
+> In development mode, the login form shows a small amber notice reminding you to use local seeded credentials. This banner and the `DEV_*` variables are **never exposed in production builds.**
 
-#### Developer Notice Behavior
+</details>
 
-In development mode, the login form shows a small amber notice:
+### 3. 🗄 Database Setup
 
-```text
-Development Environment: Use local .env.local seeded clinician credentials to bypass or test dashboard integrations.
-```
+<details>
+<summary><strong>🐧 Linux (Ubuntu / Debian)</strong></summary>
 
-This notice and local seeded credential support are development-only. Production builds do not expose `DEV_CLINICIAN_EMAIL` or `DEV_CLINICIAN_PASSWORD` to the client.
-
-### 4️⃣ PostgreSQL Database Setup
-
-#### Linux (Ubuntu/Debian)
 ```bash
 # Install PostgreSQL
-sudo apt update
-sudo apt install postgresql postgresql-contrib
+sudo apt update && sudo apt install postgresql postgresql-contrib
 
-# Start service
+# Start & enable the service
 sudo systemctl start postgresql
 sudo systemctl enable postgresql
 
-# Create database
+# Create database & set password
 sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres';"
 sudo -u postgres psql -c "CREATE DATABASE clinical_insight_engine;"
 ```
 
-#### macOS (Homebrew)
+</details>
+
+<details>
+<summary><strong>🍎 macOS (Homebrew)</strong></summary>
+
 ```bash
 # Install PostgreSQL
 brew install postgresql
 
-# Start service
+# Start the service
 brew services start postgresql
 
-# Create database
+# Create database & set password
 psql postgres -c "ALTER USER postgres WITH PASSWORD 'postgres';"
 psql postgres -c "CREATE DATABASE clinical_insight_engine;"
 ```
 
-#### Windows
+</details>
 
-#Install PostgreSQL
-Download and install PostgreSQL from the official website:
+<details>
+<summary><strong>🪟 Windows</strong></summary>
 
-https://www.postgresql.org/download/windows/
-
-During installation, use:
-- Username: `postgres`
-- Password: `postgres`
-- Port: `5432`
-
-#Create Database
-After installation, create a database named:
-
-```sql
-clinical_insight_engine
-```
-
-You can create it using pgAdmin or PostgreSQL command line tools.
-
-#Configure Environment Variable
-Update your `.env` file:
+1. Download and install PostgreSQL from [postgresql.org/download/windows](https://www.postgresql.org/download/windows/)
+2. During installation, use:
+   - **Username:** `postgres`
+   - **Password:** `postgres`
+   - **Port:** `5432`
+3. Create a database named `clinical_insight_engine` using **pgAdmin** or the PostgreSQL CLI.
+4. Update your `.env` file:
 
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/clinical_insight_engine
 ```
 
-#Push Database Schema
-Run:
+</details>
+
+Push the database schema:
 
 ```bash
 npm run db:push
 ```
 
-#Start Development Server
-Run:
+> The server runs a **PostgreSQL preflight check** on startup. If you see `Database startup check failed`, verify that:
+> - PostgreSQL service is running
+> - `DATABASE_URL` in `.env` is correct
+> - The migration above has been run
+> - Port `5432` is not blocked
 
-```bash
-npm run dev
-```
+### 4. 🐍 Python Environment
 
-#Troubleshooting
-If you see:
+<details>
+<summary><strong>🐧 Linux / 🍎 macOS</strong></summary>
 
-```text
-PostgreSQL is unreachable
-```
-
-Make sure:
-- PostgreSQL service is running
-- Username/password are correct
-- Database exists
-- Port `5432` is available
-```
-
-#### 5️⃣ Database Migration
-Create the required tables:
-
-```bash
-npm run db:push
-```
-
-
-
-The server runs a PostgreSQL preflight check before mounting routes. If startup
-prints `Database startup check failed`, confirm that PostgreSQL is running,
-`DATABASE_URL` points to the same database, and the migration command above has
-created the required tables.
-
-### 6️⃣ Python Environment Setup
-
-#### Linux/macOS
 ```bash
 # Create virtual environment
 python3 -m venv .venv
 
-# Activate environment
+# Activate
 source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# If requirements.txt doesn't exist, install manually:
+# If requirements.txt is missing:
 # pip install numpy pandas scikit-learn
 ```
 
-#### Windows (PowerShell)
+</details>
+
+<details>
+<summary><strong>🪟 Windows (PowerShell)</strong></summary>
+
 ```powershell
 # Create virtual environment
 py -m venv .venv
 
-# Activate environment
+# Activate
 .\.venv\Scripts\Activate.ps1
 
 # Install dependencies
 pip install -r requirements.txt
 
-# If requirements.txt doesn't exist, install manually:
+# If requirements.txt is missing:
 # pip install numpy pandas scikit-learn
 ```
 
-### 7️⃣ Dataset Preparation
+</details>
 
-If dataset exists in project:
+### 5. 📊 Dataset Preparation
+
+**If the dataset already exists in the project:**
+
 ```bash
-# Linux/macOS
+# Linux / macOS
 cp attached_assets/diabetes_dataset.csv ./diabetes_dataset.csv
 
 # Windows (PowerShell)
 Copy-Item attached_assets/diabetes_dataset.csv ./diabetes_dataset.csv
 ```
 
-If dataset is missing, generate synthetic data:
+**If the dataset is missing, generate synthetic data:**
+
 ```bash
-# Linux/macOS
+# Linux / macOS
 python3 -c "from analyze import create_synthetic_data; create_synthetic_data()"
 
 # Windows
 py -c "from analyze import create_synthetic_data; create_synthetic_data()"
 ```
 
-### 8️⃣ Start the Application
+### 6. 🚀 Launch
 
-#### Full-Stack Development Server
 ```bash
+# Start the full-stack dev server
 npm run dev
 ```
-Frontend runs at: `http://localhost:5173`
 
-#### ML Pipeline (Training)
+| Service | URL |
+|---|---|
+| **Frontend** | http://localhost:5173 |
+| **Backend API** | http://localhost:3000 |
+
+### 7. 🛑 Shutting Down
+
+**Stop the dev server:**
+```
+Ctrl + C
+```
+
+**Deactivate the Python environment:**
+```bash
+deactivate
+```
+
+---
+
+## 📁 Project Structure
+
+```
+Clinical-Insight-Engine/
+├── client/                  # React frontend
+│   ├── src/
+│   │   ├── components/      # Reusable UI components
+│   │   ├── pages/           # Route-level page components
+│   │   ├── hooks/           # Custom React hooks
+│   │   └── lib/             # Utilities & API client
+│   └── index.html
+├── server/                  # Express.js backend
+│   ├── index.ts             # Server entry point
+│   ├── routes.ts            # API route definitions
+│   └── db/                  # Drizzle ORM schemas & config
+├── shared/                  # Shared types & validation schemas
+│   └── schema.ts            # Zod schemas (used by both client & server)
+├── analyze.py               # ML pipeline — training & inference
+├── diabetes_dataset.csv     # Training dataset
+├── drizzle.config.ts        # Drizzle ORM configuration
+├── package.json             # Node.js dependencies & scripts
+├── requirements.txt         # Python dependencies
+├── tailwind.config.ts       # Tailwind CSS configuration
+├── vite.config.ts           # Vite bundler configuration
+└── tsconfig.json            # TypeScript configuration
+```
+
+---
+
+## 📡 API Reference
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/assessments` | Submit a new risk assessment |
+| `GET` | `/api/assessments` | Retrieve assessment history |
+| `GET` | `/api/assessments/:id` | Get a specific assessment by ID |
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:5173/api/assessments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gender": "Female",
+    "age": 52,
+    "hypertension": true,
+    "heartDisease": false,
+    "smokingHistory": "former",
+    "bmi": 30.1,
+    "hba1cLevel": 6.4,
+    "bloodGlucoseLevel": 148
+  }'
+```
+
+---
+
+## 🧠 ML Pipeline
+
+The machine learning pipeline (`analyze.py`) implements an **interpretable** risk assessment model:
+
+```mermaid
+graph LR
+    A["📂 Raw Data"] --> B["🧹 Cleaning & Validation"]
+    B --> C["⚙️ Feature Engineering"]
+    C --> D["📏 StandardScaler"]
+    D --> E["📊 Logistic Regression"]
+    E --> F["🎯 Risk Score 0–100%"]
+    E --> G["📋 Feature Importance"]
+    F --> H["💾 Cached Model"]
+    G --> H
+```
+
+| Step | Details |
+|---|---|
+| **Data Cleaning** | Filters unrealistic values (BMI < 10, glucose < 50, HbA1c < 3) and replaces with medians |
+| **Encoding** | Gender → binary; Smoking history → one-hot encoding |
+| **Scaling** | `StandardScaler` on age, BMI, HbA1c, blood glucose |
+| **Model** | `LogisticRegression` with balanced class weights |
+| **Caching** | Trained model + scaler serialized via `pickle` for fast inference |
+
+### Train the Model (Optional)
+
 ```bash
 # Linux/macOS
 python3 analyze.py
@@ -325,24 +560,13 @@ python3 analyze.py
 py analyze.py
 ```
 
-#### Backend API (if separate)
-```bash
-# Linux/macOS
-npm run dev
-
-# Windows
-npm run dev
-```
-
 ---
 
-## 🧪 Single-Patient Prediction (Optional)
+## 🔬 Single-Patient Prediction (CLI)
 
 Create a patient JSON file:
 
-#### Linux/macOS
-```bash
-cat > patient.json << 'EOF'
+```json
 {
   "gender": "Female",
   "age": 52,
@@ -353,26 +577,10 @@ cat > patient.json << 'EOF'
   "hba1cLevel": 6.4,
   "bloodGlucoseLevel": 148
 }
-EOF
-```
-
-#### Windows (PowerShell)
-```powershell
-@'
-{
-  "gender": "Female",
-  "age": 52,
-  "hypertension": true,
-  "heartDisease": false,
-  "smokingHistory": "former",
-  "bmi": 30.1,
-  "hba1cLevel": 6.4,
-  "bloodGlucoseLevel": 148
-}
-'@ | Out-File -FilePath patient.json -Encoding utf8
 ```
 
 Run prediction:
+
 ```bash
 # Linux/macOS
 python3 analyze.py predict_file patient.json
@@ -383,35 +591,104 @@ py analyze.py predict_file patient.json
 
 ---
 
-## 🛑 Shutdown
+## 🔑 Environment Variables
 
-### 1️⃣ Stop Development Server
-Press `Ctrl + C` in the terminal running `npm run dev`
+| Variable | File | Description |
+|---|---|---|
+| `DATABASE_URL` | `.env` | PostgreSQL connection string |
+| `NODE_ENV` | `.env.local` | Set to `development` for local dev features |
+| `DEV_CLINICIAN_EMAIL` | `.env.local` | Seeded clinician email (dev only) |
+| `DEV_CLINICIAN_PASSWORD` | `.env.local` | Seeded clinician password (dev only) |
+| `NEXT_PUBLIC_LOCAL_ENCRYPTION_KEY` | `.env.local` | Local encryption key (dev only) |
 
-### 2️⃣ Deactivate Python Environment
-```bash
-# Linux/macOS
-deactivate
-
-# Windows
-deactivate
-```
+> **Security:** `.env.local` is git-ignored and should **never** be committed. Production builds do not expose dev credentials.
 
 ---
 
-## 🔮 Future Enhancements
+## ❓ Troubleshooting
 
-- Longitudinal patient risk tracking
-- Counterfactual reasoning ("What change reduces risk most?")
-- Cohort discovery and population-level insights
-- Integration with Electronic Health Records (EHR)
-- Advanced bias detection and fairness metrics
-- Cloud deployment (Vercel / Render)
+<details>
+<summary><strong>"PostgreSQL is unreachable"</strong></summary>
+
+- Verify PostgreSQL is running: `sudo systemctl status postgresql` (Linux) or `brew services list` (macOS)
+- Confirm `DATABASE_URL` in `.env` matches your local credentials
+- Ensure port `5432` is not blocked by another process
+- Check that the `clinical_insight_engine` database exists
+
+</details>
+
+<details>
+<summary><strong>"Database startup check failed"</strong></summary>
+
+- Run `npm run db:push` to create/update the required tables
+- Verify your `.env` file is in the project root (not inside `server/` or `client/`)
+
+</details>
+
+<details>
+<summary><strong>Python model errors</strong></summary>
+
+- Ensure the virtual environment is activated: `source .venv/bin/activate`
+- Verify dependencies: `pip install -r requirements.txt`
+- If `diabetes_dataset.csv` is missing, copy it: `cp attached_assets/diabetes_dataset.csv ./`
+- Or generate synthetic data: `python3 -c "from analyze import create_synthetic_data; create_synthetic_data()"`
+
+</details>
+
+<details>
+<summary><strong>Port conflicts</strong></summary>
+
+- The dev server defaults to port **5173** (Vite)
+- If occupied, Vite will automatically pick the next available port
+- Check for processes: `lsof -i :5173` (Linux/macOS) or `netstat -ano | findstr :5173` (Windows)
+
+</details>
 
 ---
 
-## 👤 Author
+## 🗺 Roadmap
 
-**Gopal Gupta**  
-Computer Science Engineer  
-Full-Stack Developer | Data Science & ML Enthusiast
+- [ ] 📈 Longitudinal patient risk tracking across visits
+- [ ] 💡 Counterfactual reasoning — *"What single change reduces risk most?"*
+- [ ] 🔬 Cohort discovery and population-level insights
+- [ ] 🏥 Integration with Electronic Health Records (EHR)
+- [ ] ⚖️ Advanced bias detection and ML fairness metrics
+- [ ] ☁️ Cloud deployment (Vercel / Render)
+
+---
+
+## 🤝 Contributing
+
+We love contributions! Whether it's a bug fix, a new feature, or improved docs — **every PR makes a difference**.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feat/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feat/amazing-feature`)
+5. Open a Pull Request
+
+Please read our [**Contributing Guide**](CONTRIBUTING.md) and [**Code of Conduct**](CODE_OF_CONDUCT.md) before submitting.
+
+---
+
+## 👥 Contributors
+
+<a href="https://github.com/gopaljilab/Clinical-Insight-Engine/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=gopaljilab/Clinical-Insight-Engine" alt="Contributors" />
+</a>
+
+---
+
+## 👤 Author - [![GitHub](https://img.shields.io/badge/GitHub-gopaljilab-181717?style=flat-square&logo=github)](https://github.com/gopaljilab)
+
+
+**Gopal Gupta**
+*Computer Science Engineer · Full-Stack Developer · Data Science & ML Enthusiast*
+
+<div align="center">
+
+*Built with ❤️ for better preventive healthcare*
+
+⭐ **Star this repo** if you find it useful — it helps others discover the project!
+
+</div>
