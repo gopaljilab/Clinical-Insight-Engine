@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./clinical_insight_banner.png" alt="Clinical Insight Engine Banner" width="100%" />
+</p>
+
 <div align="center">
 
 # 🩺 Clinical Insight Engine
@@ -5,6 +9,8 @@
 ### Clinical Decision Support for Preventive Diabetes Risk Assessment
 
 > *Interpretable ML + Modern React — built for clinicians and patients alike*
+
+</div>
 
 <p align="center">
   
@@ -26,7 +32,10 @@
 
 </p>
 
-</div>
+<p align="center">
+  A full-stack clinical decision support system that surfaces <strong>early diabetes risk signals</strong> from routine patient data.<br />
+  Combines an <strong>interpretable ML model</strong> with a <strong>modern React frontend</strong>, presenting results tailored for both <strong>clinicians</strong> and <strong>patients</strong>.
+</p>
 
 > [!WARNING]
 > **Medical Disclaimer** — This system is intended for **educational and research purposes only**. It does **not** provide medical diagnoses and should not be used as a substitute for professional medical advice.
