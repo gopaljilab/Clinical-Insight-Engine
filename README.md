@@ -315,7 +315,7 @@ NEXT_PUBLIC_LOCAL_ENCRYPTION_KEY=your_local_32_character_secret_key_here
 #### 🖥️ Local Login Workflow
 
 1. Start the app with `npm run dev`
-2. Open `http://localhost:3000`
+2. Open `http://localhost:5173`
 3. Click **Login** or **Go to App**
 4. Enter your `.env.local` seeded credentials
 5. Complete the simulated OTP step
@@ -405,9 +405,6 @@ source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
-
-# If requirements.txt is missing:
-# pip install numpy pandas scikit-learn
 ```
 
 </details>
@@ -424,9 +421,6 @@ py -m venv .venv
 
 # Install dependencies
 pip install -r requirements.txt
-
-# If requirements.txt is missing:
-# pip install numpy pandas scikit-learn
 ```
 
 </details>
