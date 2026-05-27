@@ -20,9 +20,6 @@ import {
 
 export type AuthMode = "login" | "register";
 
-declare const __DEV_CLINICIAN_EMAIL__: string;
-declare const __DEV_CLINICIAN_PASSWORD__: string;
-
 interface AuthFlowModalProps {
   initialMode: AuthMode;
   isOpen: boolean;
@@ -111,7 +108,7 @@ function SecurityNotice() {
           </div>
         </div>
       </div>
-    </form>
+    </div>
   );
 }
 
@@ -126,7 +123,7 @@ function DevelopmentNotice() {
           Development Environment: Use local .env.local seeded clinician credentials to bypass or test dashboard integrations.
         </p>
       </div>
-    </form>
+    </div>
   );
 }
 
@@ -221,6 +218,8 @@ function LoginForm({
   onPasswordChange,
   onSubmit,
   onSwitch,
+  isLoading,
+  error,
 }: {
   email: string;
   password: string;
@@ -228,10 +227,18 @@ function LoginForm({
   onPasswordChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onSwitch: () => void;
+  isLoading?: boolean;
+  error?: string | null;
 }) {
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       <DevelopmentNotice />
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      )}
 
       <TextInput
         icon={Mail}
@@ -263,10 +270,23 @@ function LoginForm({
 
       <button
         type="submit"
-        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-5 py-4 text-base font-black text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/25 focus:outline-none focus:ring-4 focus:ring-blue-200"
+        disabled={isLoading}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-5 py-4 text-base font-black text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/25 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:scale-100"
       >
-        Sign In
-        <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+        {isLoading ? (
+          <>
+            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Signing In...
+          </>
+        ) : (
+          <>
+            Sign In
+            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+          </>
+        )}
       </button>
 
       <p className="text-center text-sm font-semibold text-slate-500">
@@ -314,13 +334,6 @@ function OtpForm({ onVerify }: { onVerify: () => void }) {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const isComplete = otp.every(Boolean);
-
-  const handleFormSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    if (isComplete) {
-      onVerify();
-    }
-  };
 
   const updateDigit = (index: number, value: string) => {
     const digit = value.replace(/\D/g, "").slice(-1);
@@ -409,7 +422,8 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [pendingEmail, setPendingEmail] = useState("");
-  const [isLocalDevSession, setIsLocalDevSession] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -417,7 +431,8 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
     setMode(initialMode);
     setStep("form");
     setPendingEmail("");
-    setIsLocalDevSession(false);
+    setError(null);
+    setIsLoading(false);
 
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -429,34 +444,39 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
 
   if (!isOpen) return null;
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError(null);
+
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
-    const matchesLocalDevCredentials =
-      import.meta.env.DEV &&
-      Boolean(__DEV_CLINICIAN_EMAIL__) &&
-      Boolean(__DEV_CLINICIAN_PASSWORD__) &&
-      email === __DEV_CLINICIAN_EMAIL__ &&
-      password === __DEV_CLINICIAN_PASSWORD__;
 
-    setPendingEmail(email);
-    setIsLocalDevSession(matchesLocalDevCredentials);
-    setStep("otp");
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Invalid email or password.");
+      }
+
+      setPendingEmail(email);
+      setStep("otp");
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleVerify = () => {
-    localStorage.setItem(
-      "cardioguard-auth-session",
-      JSON.stringify({
-        authenticated: true,
-        email: pendingEmail || loginEmail,
-        authSource: isLocalDevSession ? "local-development" : "simulated",
-        isLocalDevelopment: isLocalDevSession,
-        verifiedAt: new Date().toISOString(),
-      }),
-    );
     onClose();
     setLocation("/dashboard");
   };
@@ -506,6 +526,8 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
                     onPasswordChange={setLoginPassword}
                     onSubmit={handleSubmit}
                     onSwitch={() => setMode("register")}
+                    isLoading={isLoading}
+                    error={error}
                   />
                 ) : (
                   <RegisterForm onSubmit={handleSubmit} onSwitch={() => setMode("login")} />
@@ -529,6 +551,6 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
           </div>
         </section>
       </motion.div>
-    </form>
+    </div>
   );
 }
