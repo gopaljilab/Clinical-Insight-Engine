@@ -2,6 +2,8 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { api } from "@shared/routes";
+import { requireAuth } from "./auth";
+import { fileURLToPath } from "url";
 import { z } from "zod";
 import { existsSync } from "fs";
 import { writeFile, unlink } from "fs/promises";
@@ -10,7 +12,6 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import os from "os";
 import path from "path";
-import { fileURLToPath } from "url";
 import { rateLimit } from "express-rate-limit";
 
 const execFileAsync = promisify(execFile);
@@ -158,6 +159,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post(api.assessments.create.path, rateLimiter, async (req, res) => {
+  
+  app.post(api.assessments.create.path, requireAuth, rateLimiter, async (req, res) => {
     try {
       const input = api.assessments.create.input.parse(req.body);
       
@@ -242,7 +245,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.get(api.assessments.list.path, async (req, res) => {
+  app.get(api.assessments.list.path, requireAuth, async (req, res) => {
     try {
       const assessments = await storage.getAssessments();
       res.json(assessments);
