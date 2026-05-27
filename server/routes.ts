@@ -4,7 +4,7 @@ import { storage, type AssessmentCreateInput } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { existsSync } from "fs";
-import { writeFile, unlink } from "fs/promises";
+import { mkdtemp, writeFile, unlink, rm } from "fs/promises";
 import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -161,10 +161,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const input = api.assessments.create.input.parse(req.body);
       
-      // Save input to a temporary file to pass to the Python script
-      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
+      // Save input to a temp dir with restricted permissions (0o700) instead of
+      // world-readable os.tmpdir() to protect PHI from other system users/processes
+      const tempDir = await mkdtemp(path.join(os.tmpdir(), "clin-"));
+      const tempFile = path.join(tempDir, `${randomUUID()}.json`);
       await writeFile(tempFile, JSON.stringify(input));
-      
+
       try {
         // Call Python script to perform the logistic regression analysis
          const { stdout, stderr } = await execFileAsync(
@@ -174,7 +176,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             timeout: 30000
           }
         );
-        
+
         let prediction;
         try {
           prediction = JSON.parse(stdout.trim());
@@ -187,10 +189,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.error("Failed to parse python output:", stdout, stderr);
           throw new Error("Failed to process prediction.");
         }
-        
+
         // Ensure non-diagnostic framing in response
         prediction.disclaimer = "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions.";
-        
+
         // Save the assessment to the database
         const assessment = await storage.createAssessment({
           ...input,
@@ -203,7 +205,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               ? undefined
               : String(prediction.modelConfidence)
         });
-        
+
         // Return both the DB assessment record and the rich prediction data (with advice)
         res.status(201).json({ ...assessment, prediction });
 
@@ -222,9 +224,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         });
 
       } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {}
+        // Securely clean up the restricted temp directory and all its contents
+        await rm(tempDir, { recursive: true, force: true }).catch(() => {});
       }
 
     } catch (err) {
