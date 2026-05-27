@@ -1,6 +1,6 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, ClipboardList, HeartPulse, LogOut } from "lucide-react";
+import { Activity, ClipboardList, HeartPulse, LogOut, Loader2 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -14,38 +14,29 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
+  const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const sessionStr = localStorage.getItem("cardioguard-auth-session");
-    if (!sessionStr) {
-      setLocation("/");
-    } else {
-      try {
-        const session = JSON.parse(sessionStr);
-        if (!session.authenticated) {
-          setLocation("/");
-        }
-      } catch (e) {
-        setLocation("/");
-      }
-    }
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((res) => {
+        if (!res.ok) throw new Error("Not authenticated");
+        return res.json();
+      })
+      .then((data) => setUser(data.user))
+      .catch(() => setLocation("/"))
+      .finally(() => setChecking(false));
   }, [setLocation]);
 
-  useEffect(() => {
-    const sessionStr = localStorage.getItem("cardioguard-auth-session");
-    if (!sessionStr) {
-      setLocation("/");
-    } else {
-      try {
-        const session = JSON.parse(sessionStr);
-        if (!session.authenticated) {
-          setLocation("/");
-        }
-      } catch (e) {
-        setLocation("/");
-      }
-    }
-  }, [setLocation]);
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (!user) return null;
 
   const navItems = [
     { href: "/dashboard", label: "New Assessment", icon: Activity },
@@ -95,16 +86,16 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="m-4 border-t border-slate-100 pt-4">
             <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3">
               <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-blue-700 font-black text-sm border border-slate-100 shadow-sm">
-                Dr
+                {user.name?.charAt(0) || "Dr"}
               </div>
               <div className="flex min-w-0 flex-col">
-                <span className="text-sm font-black text-[#1E293B] leading-tight">Dr. Smith</span>
+                <span className="text-sm font-black text-[#1E293B] leading-tight">{user.name || user.email}</span>
                 <span className="text-xs text-slate-500 font-semibold">Cardiology</span>
               </div>
             </div>
             <button
-              onClick={() => {
-                localStorage.removeItem("cardioguard-auth-session");
+              onClick={async () => {
+                await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
                 setLocation("/");
               }}
               className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-xl transition-all duration-200 border border-red-100"
