@@ -1,9 +1,9 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, ClipboardList, HeartPulse, LogOut } from "lucide-react";
+import { Activity, ClipboardList, HeartPulse, LogOut, Loader2 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import ThemeToggle from "../ThemeToggle"; // adjust path if necessary
+import ThemeToggle from "../ThemeToggle";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,21 +15,18 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
+  const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const sessionStr = localStorage.getItem("cardioguard-auth-session");
-    if (!sessionStr) {
-      setLocation("/");
-    } else {
-      try {
-        const session = JSON.parse(sessionStr);
-        if (!session.authenticated) {
-          setLocation("/");
-        }
-      } catch (e) {
-        setLocation("/");
-      }
-    }
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((res) => {
+        if (!res.ok) throw new Error("Not authenticated");
+        return res.json();
+      })
+      .then((data) => setUser(data.user))
+      .catch(() => setLocation("/"))
+      .finally(() => setChecking(false));
   }, [setLocation]);
 
   const navItems = [
@@ -81,17 +78,22 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="m-4 border-t border-slate-100 dark:border-gray-800 pt-4">
             <div className="flex items-center gap-3 rounded-2xl bg-slate-50 dark:bg-gray-800 p-3 transition-colors">
               <div className="w-10 h-10 rounded-2xl bg-white dark:bg-gray-700 flex items-center justify-center text-blue-700 dark:text-blue-400 font-black text-sm border border-slate-100 dark:border-gray-600 shadow-sm">
-                Dr
+                {user?.name ? user.name.charAt(0).toUpperCase() : "Dr"}
               </div>
               <div className="flex min-w-0 flex-col">
-                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight">Dr. Smith</span>
+                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight">
+                  {user?.name || "Dr. Smith"}
+                </span>
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Cardiology</span>
               </div>
             </div>
             <button
               onClick={() => {
-                localStorage.removeItem("cardioguard-auth-session");
-                setLocation("/");
+                fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+                  .finally(() => {
+                    localStorage.removeItem("cardioguard-auth-session");
+                    setLocation("/");
+                  });
               }}
               className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 bg-red-50 dark:bg-red-950 hover:bg-red-100 dark:hover:bg-red-900 rounded-xl transition-all duration-200 border border-red-100 dark:border-red-900"
               aria-label="Sign out of CardioGuard workspace"
