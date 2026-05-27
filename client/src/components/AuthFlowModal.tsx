@@ -111,7 +111,7 @@ function SecurityNotice() {
           </div>
         </div>
       </div>
-    </form>
+    </div>
   );
 }
 
@@ -126,7 +126,7 @@ function DevelopmentNotice() {
           Development Environment: Use local .env.local seeded clinician credentials to bypass or test dashboard integrations.
         </p>
       </div>
-    </form>
+    </div>
   );
 }
 
@@ -351,13 +351,6 @@ function OtpForm({ onVerify }: { onVerify: () => void }) {
     inputRefs.current[Math.min(digits.length, 5)]?.focus();
   };
 
-  const handleFormSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    if (isComplete) {
-      onVerify();
-    }
-  };
-
   return (
     <form onSubmit={handleFormSubmit} className="text-center">
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-[#2563EB]">
@@ -529,6 +522,6 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
           </div>
         </section>
       </motion.div>
-    </form>
+    </div>
   );
 }

@@ -26,20 +26,9 @@ export default function History() {
       String(a.age).includes(term) ||
       String(a.bmi).includes(term) ||
       String(a.hba1cLevel).includes(term) ||
-      String(a.bloodGlucoseLevel).includes(term) ||
-      a.smokingHistory.toLowerCase().includes(term) ||
-      String(a.age).includes(term) ||
-      String(a.bmi).includes(term) ||
-      String(a.hba1cLevel).includes(term) ||
       String(a.bloodGlucoseLevel).includes(term)
     );
   }) || [];
-
-  const formatAssessmentDate = (dateVal: any) => {
-    if (!dateVal) return "Unknown";
-    const dateObj = new Date(dateVal);
-    return isValid(dateObj) ? format(dateObj, 'MMM d, yyyy') : "Unknown";
-  };
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";

@@ -1,0 +1,70 @@
+/* Light Mode */
+:root,
+[data-theme="light"] {
+  --color-bg-primary:        #ffffff;
+  --color-bg-secondary:      #f5f7fa;
+  --color-bg-tertiary:       #eef0f5;
+  --color-surface:           #ffffff;
+  --color-surface-hover:     #f5f7fa;
+  --color-text-primary:      #0f1117;
+  --color-text-secondary:    #4a5068;
+  --color-text-muted:        #8892a4;
+  --color-border:            #dde1ea;
+  --color-border-strong:     #bbc0cc;
+  --color-accent:            #0f7c6e;
+  --color-accent-hover:      #0d6b60;
+  --color-accent-subtle:     #e0f4f1;
+  --color-success:           #1a7f5a;
+  --color-success-bg:        #e6f6ef;
+  --color-warning:           #a05c00;
+  --color-warning-bg:        #fff6e5;
+  --color-danger:            #b91c1c;
+  --color-danger-bg:         #fef2f2;
+  --color-info:              #1d60b0;
+  --color-info-bg:           #eff6ff;
+  --color-toggle-track:      #dde1ea;
+  --color-toggle-border:     #bbc0cc;
+  --color-toggle-thumb:      #ffffff;
+  --color-toggle-icon:       #a05c00;
+  --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md:   0 4px 12px rgba(0, 0, 0, 0.10);
+  --shadow-lg:   0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Dark Mode */
+[data-theme="dark"] {
+  --color-bg-primary:        #0d1117;
+  --color-bg-secondary:      #161b22;
+  --color-bg-tertiary:       #1c2230;
+  --color-surface:           #161b22;
+  --color-surface-hover:     #1c2230;
+  --color-text-primary:      #e6edf3;
+  --color-text-secondary:    #8b949e;
+  --color-text-muted:        #6e7681;
+  --color-border:            #2a3040;
+  --color-border-strong:     #3d4555;
+  --color-accent:            #29c7b0;
+  --color-accent-hover:      #33d4bc;
+  --color-accent-subtle:     #0d2e2a;
+  --color-success:           #3fb77a;
+  --color-success-bg:        #0c2218;
+  --color-warning:           #e5a428;
+  --color-warning-bg:        #231700;
+  --color-danger:            #f87171;
+  --color-danger-bg:         #2d0f0f;
+  --color-info:              #60a5fa;
+  --color-info-bg:           #0c1a2e;
+  --color-toggle-track:      #2a3040;
+  --color-toggle-border:     #3d4555;
+  --color-toggle-thumb:      #1c2230;
+  --color-toggle-icon:       #93c5fd;
+  --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.30);
+  --shadow-md:   0 4px 12px rgba(0, 0, 0, 0.40);
+  --shadow-lg:   0 8px 24px rgba(0, 0, 0, 0.50);
+}
+
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
