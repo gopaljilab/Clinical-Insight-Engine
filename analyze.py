@@ -5,8 +5,10 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+import joblib
 
 DATA_FILE = "diabetes_dataset.csv"
+MODEL_FILE = "diabetes_model.joblib"
 
 def create_synthetic_data():
     """Generates synthetic dataset to mimic the provided assignment data."""
@@ -75,65 +77,65 @@ def generate_correlation_heatmap(df, output_path="correlation_heatmap.png"):
     print(f"Correlation heatmap saved as {output_path}")
 
 
-import pickle
-
-MODEL_CACHE_FILE = "model_cache.pkl"
-
-def get_model():
-    """Loads data, preprocesses it, and trains a logistic regression model, or loads from cache."""
-    if os.path.exists(MODEL_CACHE_FILE):
-        try:
-            with open(MODEL_CACHE_FILE, "rb") as f:
-                cached = pickle.load(f)
-                return cached["model"], cached["scaler"], cached["features"]
-        except Exception as e:
-            print(f"Failed to load cached model: {e}", file=sys.stderr)
-
+def train_model_pipeline():
+    """Loads data, preprocesses it, and trains a logistic regression model from scratch."""
     if not os.path.exists(DATA_FILE):
         return None, None, None
     
     df = pd.read_csv(DATA_FILE)
     
-    # Check for missing values and unrealistic zeros (Step 1 requirement)
-    # Handling strategy: replace with median for clinical measurements if unrealistic
+    # Check for missing values and unrealistic zeros
     clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
     for col in clinical_cols:
-        # Define unrealistic thresholds
         thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50}
         invalid_mask = (df[col] < thresholds[col]) | (df[col].isna())
         if invalid_mask.any():
             df.loc[invalid_mask, col] = df[col].median()
 
-    # Step 2: Data Cleaning & Preprocessing
-    # Encode categorical variables: gender (binary: Female=0, Male=1)
-    # Note: Assignment says drop or map Other appropriately. We'll map to 0 (majority) or drop.
+    # Data Cleaning & Preprocessing
     df = df[df['gender'] != 'Other'] 
     df['gender_Male'] = (df['gender'] == 'Male').astype(int)
     
-    # smoking_history (one-hot encode with drop='first')
     smoking_dummies = pd.get_dummies(df['smoking_history'], prefix='smoke', drop_first=True)
     df = pd.concat([df, smoking_dummies], axis=1)
     
-    # Prepare features
     features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'gender_Male'] + list(smoking_dummies.columns)
     
     X = df[features]
     y = df['diabetes']
     
-    # Standardize numeric features (age, bmi, HbA1c_level, blood_glucose_level) using StandardScaler
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
-    # Step 3: Model Building
     model = LogisticRegression(class_weight='balanced')
     model.fit(X_scaled, y)
     
-    try:
-        with open(MODEL_CACHE_FILE, "wb") as f:
-            pickle.dump({"model": model, "scaler": scaler, "features": features}, f)
-    except Exception as e:
-        print(f"Failed to cache model: {e}", file=sys.stderr)
-        
+    return model, scaler, features
+
+
+def save_pretrained_model():
+    """Train the model pipeline and serialize the artifacts to disk using joblib."""
+    model, scaler, features = train_model_pipeline()
+    if model is None:
+        print("Failed to train model. Ensure diabetes_dataset.csv is present.")
+        return False
+    joblib.dump((model, scaler, features), MODEL_FILE)
+    print(f"Model successfully serialized to {MODEL_FILE}")
+    return True
+
+
+def get_model():
+    """Load pre-trained model, scaler, and features from disk using joblib."""
+    if os.path.exists(MODEL_FILE):
+        try:
+            return joblib.load(MODEL_FILE)
+        except Exception as e:
+            print(f"Failed to load pre-trained model: {e}", file=sys.stderr)
+
+    # Fallback: train on the fly if no saved model exists
+    model, scaler, features = train_model_pipeline()
+    if model is not None:
+        save_pretrained_model()
     return model, scaler, features
 
 def interpret_prediction(model, scaler, features, input_data):
@@ -230,17 +232,24 @@ if __name__ == "__main__":
         model, scaler, features = get_model()
         result = interpret_prediction(model, scaler, features, data)
         print(json.dumps(result))
+    elif len(sys.argv) > 1 and sys.argv[1] == "train":
+        if not os.path.exists(DATA_FILE):
+            print("Dataset not found. Creating synthetic dataset...")
+            create_synthetic_data()
+        success = save_pretrained_model()
+        if success:
+            model, scaler, features = get_model()
+            print(f"Features used: {features}")
+            print(f"Model Coefficients (Weights): {model.coef_[0]}")
     else:
         # Step 1-6: Execution when run directly
         print("Running complete exploratory and modeling pipeline...\n")
-        model, scaler, features = get_model()
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")
             create_synthetic_data()
         model, scaler, features = get_model()
         if model is None:
             print("Failed to load dataset.")
-
         else:
             df = pd.read_csv(DATA_FILE)
             generate_correlation_heatmap(df)
