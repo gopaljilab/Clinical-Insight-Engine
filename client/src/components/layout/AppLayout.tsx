@@ -31,22 +31,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }, [setLocation]);
 
-  useEffect(() => {
-    const sessionStr = localStorage.getItem("cardioguard-auth-session");
-    if (!sessionStr) {
-      setLocation("/");
-    } else {
-      try {
-        const session = JSON.parse(sessionStr);
-        if (!session.authenticated) {
-          setLocation("/");
-        }
-      } catch (e) {
-        setLocation("/");
-      }
-    }
-  }, [setLocation]);
-
   const navItems = [
     { href: "/dashboard", label: "New Assessment", icon: Activity },
     { href: "/history", label: "Patient History", icon: ClipboardList },
