@@ -111,7 +111,7 @@ function SecurityNotice() {
           </div>
         </div>
       </div>
-    </form>
+    </div>
   );
 }
 
@@ -126,7 +126,7 @@ function DevelopmentNotice() {
           Development Environment: Use local .env.local seeded clinician credentials to bypass or test dashboard integrations.
         </p>
       </div>
-    </form>
+    </div>
   );
 }
 
@@ -529,6 +529,6 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
           </div>
         </section>
       </motion.div>
-    </form>
+    </div>
   );
 }
