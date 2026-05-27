@@ -1,8 +1,17 @@
-// server/storage.ts
-import { getDb } from "./db"; // 1. Changed to import getDb instead of db
-import { assessments, type Assessment, type InsertAssessment, type AssessmentFactor } from "@shared/schema";
+import { getDb } from "./db";
+import {
+  assessments,
+  type Assessment,
+  type InsertAssessment,
+  type AssessmentFactor
+} from "@shared/schema";
+import { desc } from "drizzle-orm";
 
-// Type for creating assessments with pre-computed model outputs (used in seeding)
+export interface IStorage {
+  getAssessments(limit?: number, offset?: number): Promise<Assessment[]>;
+  createAssessment(assessment: any): Promise<Assessment>;
+}
+
 export type AssessmentCreateInput = InsertAssessment & {
   riskScore: string;
   riskCategory: string;
@@ -11,30 +20,32 @@ export type AssessmentCreateInput = InsertAssessment & {
   modelConfidence?: string;
 };
 
-export interface IStorage {
-  getAssessments(): Promise<Assessment[]>;
-  createAssessment(assessment: any): Promise<Assessment>; 
-}
-
-// Type for creating assessments with pre-computed model outputs (used in seeding)
-export type AssessmentCreateInput = InsertAssessment & { 
-  riskScore: string, 
-  riskCategory: string, 
-  factors: any,
-  confidenceInterval?: string,
-  modelConfidence?: string 
-};
-
 export class DatabaseStorage implements IStorage {
-  async getAssessments(): Promise<Assessment[]> {
-    const db = getDb(); // 2. This works great now!
-    return await db.select().from(assessments);
+  async getAssessments(
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<Assessment[]> {
+    const db = getDb();
+
+    return await db
+      .select()
+      .from(assessments)
+      .orderBy(desc(assessments.createdAt))
+      .limit(limit)
+      .offset(offset);
   }
 
-  async createAssessment(assessment: AssessmentCreateInput): Promise<Assessment> {
-    const db = getDb(); 
-// Cast the values to 'any' to satisfy Drizzle's strict type checker
-const [created] = await db.insert(assessments).values(assessment as any).returning();    return created;
+  async createAssessment(
+    assessment: AssessmentCreateInput
+  ): Promise<Assessment> {
+    const db = getDb();
+
+    const [created] = await db
+      .insert(assessments)
+      .values(assessment)
+      .returning();
+
+    return created;
   }
 }
 
