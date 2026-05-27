@@ -139,7 +139,24 @@ function rateLimiter(req: any, res: any, next: any) {
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Seed database on startup
   seedDatabase().catch(console.error);
-  
+
+  // Health check endpoint for monitoring and orchestration
+  app.get("/api/health", async (_req, res) => {
+    try {
+      await storage.getAssessments();
+      res.json({
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        version: process.env.npm_package_version || "1.0.0",
+      });
+    } catch (e) {
+      res.status(503).json({
+        status: "unhealthy",
+        error: String(e),
+      });
+    }
+  });
+
   app.post(api.assessments.create.path, rateLimiter, async (req, res) => {
     try {
       const input = api.assessments.create.input.parse(req.body);
