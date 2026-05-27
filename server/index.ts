@@ -1,7 +1,10 @@
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
+import session from "express-session";
+import createMemoryStore from "memorystore";
 import { DatabaseStartupError, verifyDatabaseConnection } from "./db";
 import { registerRoutes } from "./routes";
+import { createAuthRouter } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
@@ -13,6 +16,23 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+const MemoryStore = createMemoryStore(session);
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "clinical-insight-engine-dev-secret",
+    resave: false,
+    saveUninitialized: false,
+    store: new MemoryStore({ checkPeriod: 86400000 }),
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  }),
+);
 
 app.use(
   express.json({
@@ -96,6 +116,9 @@ app.use((req, res, next) => {
 
     process.exit(1);
   }
+
+  // Register auth routes BEFORE API routes so session is available
+  app.use("/api/auth", createAuthRouter());
 
   await registerRoutes(httpServer, app);
 
