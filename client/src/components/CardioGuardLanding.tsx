@@ -53,8 +53,8 @@ const featureCards = [
 const heroBadges = ["Clinical AI", "Early Risk Detection", "Real-Time Analytics"];
 
 const footerLinks = [
-  { href: "#security", label: "Privacy Policy" },
-  { href: "#security", label: "Terms" },
+  { href: "/privacy-policy", label: "Privacy Policy" },
+  { href: "/terms", label: "Terms" },
   { href: "mailto:hello@cardioguard.ai", label: "Contact" },
 ];
 
