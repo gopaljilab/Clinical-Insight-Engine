@@ -208,8 +208,6 @@ export default function Dashboard() {
                     <option value="No Info">No Info</option>
                     <option value="current">current</option>
                     <option value="former">former</option>
-                    <option value="ever">ever</option>
-                    <option value="not current">not current</option>
                   </select>
                   {errors.smokingHistory && <p className="text-sm text-red-600 mt-1">{errors.smokingHistory.message}</p>}
                 </div>
