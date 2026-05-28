@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import session from "express-session";
@@ -15,6 +16,12 @@ const httpServer = createServer(app);
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
+  }
+}
+
+declare module "express" {
+  interface Locals {
+    cspNonce: string;
   }
 }
 
@@ -45,24 +52,22 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
-// CSP nonce middleware — generates a unique nonce per request for script-src
+// Nonce middleware - generates a unique cryptographic nonce per request for CSP
 app.use((_req, res, next) => {
-  res.locals.nonce = crypto.randomBytes(16).toString("base64");
+  res.locals.cspNonce = crypto.randomBytes(16).toString("hex");
   next();
 });
 
-// Security headers via helmet - uses per-request nonce for script-src
+// Security headers via helmet
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: (req, res) => {
-          const nonce = (res as any).locals?.nonce || "";
-          const src = ["'self'"];
-          if (nonce) src.push(`'nonce-${nonce}'`);
-          return src;
-        },
+        scriptSrc: [
+          "'self'",
+          (_req, res) => `'nonce-${res.locals.cspNonce}'`,
+        ],
         styleSrc: [
           "'self'",
           "'unsafe-inline'",

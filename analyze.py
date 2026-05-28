@@ -1,6 +1,7 @@
 import sys
 import json
 import os
+import hashlib
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -113,29 +114,59 @@ def train_model_pipeline():
     return model, scaler, features
 
 
+def _compute_dataset_hash(filepath: str) -> str | None:
+    """Compute SHA-256 hash of the dataset file contents."""
+    if not os.path.exists(filepath):
+        return None
+    hasher = hashlib.sha256()
+    with open(filepath, 'rb') as f:
+        for chunk in iter(lambda: f.read(65536), b''):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
 def save_pretrained_model():
     """Train the model pipeline and serialize the artifacts to disk using joblib."""
     model, scaler, features = train_model_pipeline()
     if model is None:
         print("Failed to train model. Ensure diabetes_dataset.csv is present.")
         return False
-    joblib.dump((model, scaler, features), MODEL_FILE)
+    dataset_hash = _compute_dataset_hash(DATA_FILE)
+    joblib.dump((model, scaler, features, dataset_hash), MODEL_FILE)
     print(f"Model successfully serialized to {MODEL_FILE}")
     return True
 
 
 def get_model():
-    """Load pre-trained model, scaler, and features from disk using joblib."""
+    """Load pre-trained model, scaler, and features from disk with dataset change detection.
+
+    Computes a SHA-256 hash of the current dataset and compares it against the
+    hash stored at training time. If the dataset has changed (or no valid cache
+    exists), the model is retrained automatically.
+    """
+    current_hash = _compute_dataset_hash(DATA_FILE)
+
     if os.path.exists(MODEL_FILE):
         try:
-            return joblib.load(MODEL_FILE)
+            model_data = joblib.load(MODEL_FILE)
+            # Support legacy 3-tuple format and new 4-tuple format
+            if isinstance(model_data, tuple) and len(model_data) >= 3:
+                model, scaler, features = model_data[:3]
+                cached_hash = model_data[3] if len(model_data) >= 4 else None
+
+                # If hashes match, the cached model is still valid
+                if current_hash is not None and current_hash == cached_hash:
+                    return model, scaler, features
+
+                print("Dataset has changed. Retraining model...", file=sys.stderr)
         except Exception as e:
             print(f"Failed to load pre-trained model: {e}", file=sys.stderr)
 
-    # Fallback: train on the fly if no saved model exists
+    # No valid cache — train from scratch
     model, scaler, features = train_model_pipeline()
     if model is not None:
-        save_pretrained_model()
+        joblib.dump((model, scaler, features, current_hash), MODEL_FILE)
+        print(f"Model trained and saved to {MODEL_FILE}")
     return model, scaler, features
 
 def interpret_prediction(model, scaler, features, input_data):
