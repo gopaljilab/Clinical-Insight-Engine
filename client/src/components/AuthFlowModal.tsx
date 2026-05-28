@@ -98,9 +98,9 @@ function SecurityNotice() {
       <div className="flex items-start gap-3">
         <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-[#2563EB]" aria-hidden="true" />
         <div>
-          <p className="text-sm font-bold text-[#1E293B]">Your data is encrypted end-to-end using AES-256 standards.</p>
+          <p className="text-sm font-bold text-[#1E293B]">Your session is protected with secure HTTP-only cookies and server-side authentication.</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {["HIPAA Compliant", "GDPR Secure"].map((badge) => (
+            {["Session Auth", "HTTP-only Cookies", "Demo Environment"].map((badge) => (
               <span key={badge} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
                 {badge}
               </span>
