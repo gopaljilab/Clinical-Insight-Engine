@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -66,6 +66,25 @@ export default function Dashboard() {
 
   const isHypertension = watch("hypertension");
   const isHeartDisease = watch("heartDisease");
+
+  // Load draft from history quick-reload
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cardioguard-assessment-draft");
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft) {
+        Object.entries(draft).forEach(([k, v]) => {
+          try {
+            // @ts-ignore
+            setValue(k as any, v, { shouldDirty: true });
+          } catch (e) {}
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [setValue]);
 
   return (
     <AppLayout>
