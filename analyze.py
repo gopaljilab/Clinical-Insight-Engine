@@ -253,7 +253,7 @@ def interpret_prediction(model, scaler, features, input_data):
         "clinicianAdvice": clinician_advice,
         "patientAdvice": patient_advice,
         "confidenceInterval": confidence_interval,
-        "modelConfidence": 0.85 # Simplified constant for prototype
+        "modelConfidence": round(float(max(prob, 1 - prob)), 4)
     }
 
 if __name__ == "__main__":
