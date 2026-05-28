@@ -26,6 +26,7 @@ export const assessments = pgTable("assessments", {
   confidenceInterval: jsonb("confidence_interval").$type<string | null>(),
   modelConfidence: text("model_confidence"),
   
+  createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

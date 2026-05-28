@@ -260,7 +260,8 @@ export async function registerRoutes(
             modelConfidence:
               prediction.modelConfidence == null
                 ? undefined
-                : String(prediction.modelConfidence)
+                : String(prediction.modelConfidence),
+            createdBy: userId
           });
 
           // Return both the DB assessment record and the rich prediction data
@@ -317,7 +318,8 @@ export async function registerRoutes(
 
   app.get(api.assessments.list.path, requireAuth, async (req, res) => {
     try {
-      const assessments = await storage.getAssessments();
+      const userEmail = req.session.user?.email;
+      const assessments = await storage.getAssessments(50, 0, userEmail);
 
       res.json(assessments);
 
