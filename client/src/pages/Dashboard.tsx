@@ -169,7 +169,7 @@ export default function Dashboard() {
                 <div className="space-y-2">
                   <label className={labelClass}>Gender</label>
                   <div className="grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1">
-                    {["Male", "Female", "Other"].map((g) => (
+                    {["Male", "Female"].map((g) => (
                       <label key={g} className="flex-1 cursor-pointer">
                         <input type="radio" value={g} {...register("gender")} className="peer sr-only" />
                         <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 hover:text-blue-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow-sm">

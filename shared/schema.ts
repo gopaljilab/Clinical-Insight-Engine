@@ -10,7 +10,7 @@ export type AssessmentFactor = {
 
 export const assessments = pgTable("assessments", {
   id: serial("id").primaryKey(),
-  gender: text("gender").notNull(), // 'Male', 'Female', 'Other'
+  gender: text("gender").notNull(), // 'Male', 'Female'
   age: integer("age").notNull(),
   hypertension: boolean("hypertension").notNull(),
   heartDisease: boolean("heart_disease").notNull(),
@@ -30,7 +30,7 @@ export const assessments = pgTable("assessments", {
 });
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
-  gender: z.enum(["Male", "Female", "Other"], { required_error: "Please select a gender" }),
+  gender: z.enum(["Male", "Female"], { required_error: "Please select a gender" }),
   age: z.coerce.number().min(1, "Age must be greater than 0").max(120, "Age is too high"),
   hypertension: z.boolean().default(false),
   heartDisease: z.boolean().default(false),
