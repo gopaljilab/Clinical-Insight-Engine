@@ -29,6 +29,18 @@ export function AppLayout({ children }: AppLayoutProps) {
       .finally(() => setChecking(false));
   }, [setLocation]);
 
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } finally {
+      setIsSigningOut(false);
+      setLocation("/");
+    }
+  };
+
   const navItems = [
     { href: "/dashboard", label: "New Assessment", icon: Activity },
     { href: "/history", label: "Patient History", icon: ClipboardList },
@@ -74,16 +86,34 @@ export function AppLayout({ children }: AppLayoutProps) {
               })}
             </nav>
           </div>
-          <div className="m-4 border-t border-slate-100 pt-4">
-            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3">
-              <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-blue-700 font-black text-sm border border-slate-100 shadow-sm">
+          <div className="m-4 border-t border-slate-100 dark:border-gray-800 pt-4 space-y-3">
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 dark:bg-gray-800 p-3">
+              <div className="w-10 h-10 rounded-2xl bg-white dark:bg-gray-700 flex items-center justify-center text-blue-700 dark:text-blue-400 font-black text-sm border border-slate-100 dark:border-gray-600 shadow-sm">
                 {user?.name?.charAt(0) || "Dr"}
               </div>
               <div className="flex min-w-0 flex-col">
-                <span className="text-sm font-black text-[#1E293B] leading-tight">{user?.name || user?.email}</span>
-                <span className="text-xs text-slate-500 font-semibold">Cardiology</span>
+                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight">{user?.name || user?.email}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Cardiology</span>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={isSigningOut}
+              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Sign out of CardioGuard workspace"
+              title="Sign out"
+            >
+              {isSigningOut ? (
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <LogOut className="w-4 h-4" aria-hidden="true" />
+              )}
+              {isSigningOut ? "Signing out..." : "Sign Out"}
+            </button>
+            <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 font-semibold">
+              Local workspace secured with simulated 2FA
+            </p>
           </div>
         </div>
       </aside>

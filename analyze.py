@@ -197,12 +197,15 @@ def interpret_prediction(model, scaler, features, input_data):
     # Calculate feature contributions for this individual (coefficient * scaled value)
     contributions = model.coef_[0] * X_input[0]
     
-    # Calculate confidence interval (simplified bootstrapping or heuristic)
-    # Since we use Logistic Regression, the probability itself represents confidence.
-    # We'll provide a 95% CI heuristic: prob +/- 1.96 * SE (simplified)
-    # For a prototype, we'll use a +/- 3% margin or similar
-    lower_ci = max(0, risk_score - 3.5)
-    upper_ci = min(100, risk_score + 3.5)
+    # Calculate confidence interval using the standard error of the predicted probability.
+    # For a Bernoulli proportion p, SE = sqrt(p * (1 - p)).
+    # Multiplying by 1.96 gives an approximate 95% CI.
+    # This produces a wider interval for borderline predictions (p near 0.5)
+    # and a narrower interval for high-confidence predictions (p near 0 or 1).
+    se = (prob * (1 - prob)) ** 0.5
+    margin = round(1.96 * se * 100, 1)
+    lower_ci = round(max(0, risk_score - margin), 1)
+    upper_ci = round(min(100, risk_score + margin), 1)
     confidence_interval = f"{lower_ci}% - {upper_ci}%"
 
     # Get top 3 factors
