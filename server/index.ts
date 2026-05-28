@@ -3,7 +3,7 @@ import helmet from "helmet";
 import session from "express-session";
 import crypto from "crypto";
 import createMemoryStore from "memorystore";
-import { DatabaseStartupError, verifyDatabaseConnection } from "./db";
+import { DatabaseStartupError, verifyDatabaseConnection, closePool } from "./db";
 import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
 import { serveStatic } from "./static";
@@ -126,6 +126,7 @@ app.use((req, res, next) => {
       console.error("Unexpected database startup error:", error);
     }
 
+    await closePool();
     process.exit(1);
   }
 

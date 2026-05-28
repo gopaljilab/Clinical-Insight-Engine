@@ -448,22 +448,39 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-        credentials: "include",
-      });
+      if (mode === "register") {
+        const fullName = String(formData.get("fullName") ?? "");
+        const licenseNumber = String(formData.get("licenseNumber") ?? "");
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Invalid email or password.");
+        const response = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fullName, email, password, licenseNumber }),
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || "Registration failed. Please try again.");
+        }
+      } else {
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || "Invalid email or password.");
+        }
       }
 
       setPendingEmail(email);
       setStep("otp");
     } catch (err: any) {
-      setError(err.message || "Login failed. Please try again.");
+      setError(err.message || "Authentication failed. Please try again.");
     } finally {
       setIsLoading(false);
     }

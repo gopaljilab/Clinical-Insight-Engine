@@ -58,3 +58,15 @@ export async function verifyDatabaseConnection() {
     );
   }
 }
+
+export async function closePool(): Promise<void> {
+  if (poolInstance) {
+    try {
+      await poolInstance.end();
+    } catch (error) {
+      console.error("Error closing database pool:", error);
+    }
+    poolInstance = undefined;
+    dbInstance = undefined;
+  }
+}

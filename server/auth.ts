@@ -10,8 +10,21 @@ declare module "express-session" {
   }
 }
 
+interface RegisteredUser {
+  fullName: string;
+  email: string;
+  password: string;
+  licenseNumber: string;
+}
+
 /**
- * Creates an authentication router with login, logout, and session-check endpoints.
+ * In-memory store for registered users.
+ * In production, this should be replaced with a persistent database.
+ */
+const registeredUsers = new Map<string, RegisteredUser>();
+
+/**
+ * Creates an authentication router with login, register, logout, and session-check endpoints.
  *
  * In development mode, credentials are validated against environment variables
  * (DEV_CLINICIAN_EMAIL / DEV_CLINICIAN_PASSWORD). In production, this serves
@@ -21,8 +34,47 @@ export function createAuthRouter(): Router {
   const router = Router();
 
   /**
+   * POST /api/auth/register
+   * Validates registration fields, creates a new user account, and establishes a session.
+   */
+  router.post("/register", (req: Request, res: Response) => {
+    const { fullName, email, password, licenseNumber } = req.body || {};
+
+    if (!fullName || !email || !password || !licenseNumber) {
+      return res.status(400).json({
+        message: "Full name, email, password, and license number are required.",
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: "Invalid email format." });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters." });
+    }
+
+    if (registeredUsers.has(email)) {
+      return res.status(409).json({ message: "An account with this email already exists." });
+    }
+
+    registeredUsers.set(email, { fullName, email, password, licenseNumber });
+
+    req.session.user = {
+      email,
+      name: fullName,
+    };
+
+    return res.status(201).json({
+      success: true,
+      user: { email, name: fullName },
+    });
+  });
+
+  /**
    * POST /api/auth/login
-   * Validates email/password against server-side env vars and creates a session.
+   * Validates email/password against server-side env vars or registered users and creates a session.
    */
   router.post("/login", (req: Request, res: Response) => {
     const { email, password } = req.body || {};
@@ -43,6 +95,19 @@ export function createAuthRouter(): Router {
       return res.json({
         success: true,
         user: { email, name: "Dr. Smith" },
+      });
+    }
+
+    const registeredUser = registeredUsers.get(email);
+    if (registeredUser && registeredUser.password === password) {
+      req.session.user = {
+        email,
+        name: registeredUser.fullName,
+      };
+
+      return res.json({
+        success: true,
+        user: { email, name: registeredUser.fullName },
       });
     }
 
