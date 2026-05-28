@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 
-export type AuthMode = "login" | "register";
+export type { AuthMode } from "@/types/auth";
 
 interface AuthFlowModalProps {
   initialMode: AuthMode;
