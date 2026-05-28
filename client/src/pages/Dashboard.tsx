@@ -164,9 +164,15 @@ export default function Dashboard() {
 
                 <div className="space-y-2">
                   <label className={labelClass}>Age</label>
-                  <input 
-                    type="number" 
-                    {...register("age")} 
+                  <input
+                    type="number"
+                    min="0"
+                    {...register("age")}
+                    onKeyDown={(e) => {
+                    if (e.key === "-") {
+                        e.preventDefault();
+                      }
+                    }}
                     className={inputClass}
                     placeholder="e.g. 45"
                   />
@@ -199,9 +205,16 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className={labelClass}>BMI (kg/m²)</label>
-                    <input 
-                      type="number" step="0.1"
-                      {...register("bmi")} 
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      {...register("bmi")}
+                      onKeyDown={(e) => {
+                        if (e.key === "-") {
+                          e.preventDefault();
+                        }
+                      }}
                       className={inputClass}
                       placeholder="e.g. 25.0"
                     />
@@ -210,9 +223,16 @@ export default function Dashboard() {
                   
                   <div className="space-y-2">
                     <label className={labelClass}>HbA1c Level (%)</label>
-                    <input 
-                      type="number" step="0.1"
-                      {...register("hba1cLevel")} 
+                   <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      {...register("hba1cLevel")}
+                      onKeyDown={(e) => {
+                        if (e.key === "-") {
+                          e.preventDefault();
+                        }
+                      }}
                       className={inputClass}
                       placeholder="e.g. 5.7"
                     />
@@ -222,9 +242,15 @@ export default function Dashboard() {
 
                 <div className="space-y-2">
                   <label className={labelClass}>Blood Glucose Level (mg/dL)</label>
-                  <input 
-                    type="number" 
-                    {...register("bloodGlucoseLevel")} 
+                  <input
+                    type="number"
+                    min="0"
+                    {...register("bloodGlucoseLevel")}
+                    onKeyDown={(e) => {
+                      if (e.key === "-") {
+                        e.preventDefault();
+                      }
+                    }}
                     className={inputClass}
                     placeholder="e.g. 100"
                   />
