@@ -175,8 +175,10 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Seed database on startup
-  seedDatabase().catch(console.error);
+  // Seed database on startup — development only to prevent fake data in production
+  if (process.env.NODE_ENV !== "production") {
+    seedDatabase().catch(console.error);
+  }
 
   app.post(
     api.assessments.create.path,
