@@ -10,7 +10,6 @@ import {
   Linkedin,
   LockKeyhole,
   Mail,
-  PlayCircle,
   ShieldCheck,
   Stethoscope,
   Workflow,
@@ -255,8 +254,7 @@ export function CardioGuardLanding() {
                   href="#features"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white/80 px-7 py-4 text-base font-black text-[#1E293B] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2563EB] hover:text-[#2563EB] hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-100"
                 >
-                  <PlayCircle className="h-5 w-5 text-[#2563EB]" aria-hidden="true" />
-                  Watch Video
+                  See Features
                 </a>
               </div>
 
