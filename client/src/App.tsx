@@ -8,7 +8,8 @@ import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import History from "./pages/History";
 import LoginPage from "./pages/LoginPage";
-
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Terms from "./pages/Terms";
 function Router() {
   return (
     <Switch>
@@ -16,11 +17,12 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/history" component={History} />
       <Route path="/login" component={LoginPage} />
+      <Route path="/privacy-policy" component={PrivacyPolicy} />
+      <Route path="/terms" component={Terms} />
       <Route component={NotFound} />
     </Switch>
   );
 }
-
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -31,5 +33,4 @@ function App() {
     </QueryClientProvider>
   );
 }
-
 export default App;

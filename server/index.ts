@@ -1,8 +1,9 @@
+import crypto from "crypto";
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import session from "express-session";
-import createMemoryStore from "memorystore";
-import { DatabaseStartupError, verifyDatabaseConnection, closePool } from "./db";
+import connectPgSimple from "connect-pg-simple";
+import { DatabaseStartupError, verifyDatabaseConnection, closePool, getPool } from "./db";
 import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
 import { serveStatic } from "./static";
@@ -17,14 +18,24 @@ declare module "http" {
   }
 }
 
-const MemoryStore = createMemoryStore(session);
+declare module "express" {
+  interface Locals {
+    cspNonce: string;
+  }
+}
+
+const PgSession = connectPgSimple(session);
 
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "clinical-insight-engine-dev-secret",
     resave: false,
     saveUninitialized: false,
-    store: new MemoryStore({ checkPeriod: 86400000 }),
+    store: new PgSession({
+      pool: getPool(),
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -44,13 +55,22 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Nonce middleware - generates a unique cryptographic nonce per request for CSP
+app.use((_req, res, next) => {
+  res.locals.cspNonce = crypto.randomBytes(16).toString("hex");
+  next();
+});
+
 // Security headers via helmet
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: [
+          "'self'",
+          (_req, res) => `'nonce-${res.locals.cspNonce}'`,
+        ],
         styleSrc: [
           "'self'",
           "'unsafe-inline'",
