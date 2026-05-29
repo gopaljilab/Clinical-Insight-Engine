@@ -26,9 +26,25 @@ declare module "express" {
 
 const PgSession = connectPgSimple(session);
 
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  if (process.env.NODE_ENV === "production") {
+    console.error(
+      "FATAL: SESSION_SECRET environment variable is not set.\n" +
+      "       Refusing to start in production without a secure session secret.\n" +
+      "       Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+    );
+    process.exit(1);
+  }
+  console.warn(
+    "WARNING: SESSION_SECRET is not set. Using insecure development fallback.\n" +
+    "         Set SESSION_SECRET in production to a secure random value."
+  );
+}
+
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "clinical-insight-engine-dev-secret",
+    secret: sessionSecret || "clinical-insight-engine-dev-secret",
     resave: false,
     saveUninitialized: false,
     store: new PgSession({
