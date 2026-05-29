@@ -242,9 +242,9 @@ export function CardioGuardLanding() {
               </p>
 
               <div className="mt-9 flex flex-col gap-4 sm:flex-row">
-                
+                <a
                   href="mailto:hello@cardioguard.ai"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-7 py-4 text-base font-black text-white shadow-xl shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blue-700 hover:shadow-2xl hover:shadow-blue-600/30 focus:outline-none focus:ring-4 focus:ring-blue-200"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-7 py-4 text-base font-black text-white shadow-xl shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blue-700 hover:shadow-2xl hover:shadow-blue-600/25 focus:outline-none focus:ring-4 focus:ring-blue-200"
                 >
                   Request a Demo
                   <ArrowRight className="h-5 w-5" aria-hidden="true" />

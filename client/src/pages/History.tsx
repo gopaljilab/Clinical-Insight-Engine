@@ -7,6 +7,7 @@ import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
 import { FileText, RotateCw } from "lucide-react";
 import { useLocation } from "wouter";
+import { advancedFilter } from "@/utils/search_filters";
 
 export default function History() {
   const { data: assessments, isLoading, error } = useAssessments();
@@ -59,18 +60,7 @@ export default function History() {
     }, 250);
   }
 
-  const filteredAssessments = assessments?.filter(a => {
-    const term = searchTerm.toLowerCase();
-    return (
-      a.gender.toLowerCase().includes(term) ||
-      a.riskCategory.toLowerCase().includes(term) ||
-      a.smokingHistory.toLowerCase().includes(term) ||
-      String(a.age).includes(term) ||
-      String(a.bmi).includes(term) ||
-      String(a.hba1cLevel).includes(term) ||
-      String(a.bloodGlucoseLevel).includes(term)
-    );
-  }) || [];
+  const filteredAssessments = assessments ? advancedFilter(assessments, searchTerm) : [];
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
