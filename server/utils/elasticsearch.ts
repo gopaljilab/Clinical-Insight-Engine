@@ -1,13 +1,27 @@
 import { Client } from "@elastic/elasticsearch";
 
-const esClient = new Client({
-  node: process.env.ELASTICSEARCH_URL || "http://localhost:9200",
-  auth: {
-    apiKey: process.env.ELASTICSEARCH_API_KEY || "api-key"
-  }
-});
+const { ELASTICSEARCH_URL, ELASTICSEARCH_API_KEY } = process.env;
+
+let esClient: Client | null = null;
+
+if (!ELASTICSEARCH_URL || !ELASTICSEARCH_API_KEY) {
+  console.error(
+    "Elasticsearch is disabled: ELASTICSEARCH_URL and ELASTICSEARCH_API_KEY must be set."
+  );
+} else {
+  esClient = new Client({
+    node: ELASTICSEARCH_URL,
+    auth: {
+      apiKey: ELASTICSEARCH_API_KEY
+    }
+  });
+}
 
 export const indexMedicalDocument = async (id: string, doc: any) => {
+  if (!esClient) {
+    console.error("Elasticsearch indexing skipped: client is not configured.");
+    return;
+  }
   try {
     await esClient.index({
       index: "medical_records",
@@ -20,6 +34,10 @@ export const indexMedicalDocument = async (id: string, doc: any) => {
 };
 
 export const searchMedicalDocuments = async (queryText: string) => {
+  if (!esClient) {
+    console.error("Elasticsearch search skipped: client is not configured.");
+    return [];
+  }
   try {
     const result = await esClient.search({
       index: "medical_records",
