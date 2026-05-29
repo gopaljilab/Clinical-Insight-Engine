@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [, setLocation] = useLocation();
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
 
@@ -23,7 +25,7 @@ export default function LoginPage() {
     return newErrors;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
@@ -32,11 +34,24 @@ export default function LoginPage() {
     }
     setErrors({});
     setIsLoading(true);
-    // Simulate API call (no backend needed for now)
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrors({ email: data.message || "Invalid email or password." });
+        return;
+      }
+      setLocation("/dashboard");
+    } catch {
+      setErrors({ email: "Unable to connect to server. Please try again." });
+    } finally {
       setIsLoading(false);
-      alert("Login successful! (Frontend only - no backend connected yet)");
-    }, 1500);
+    }
   };
 
   return (

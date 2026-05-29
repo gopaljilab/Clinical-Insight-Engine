@@ -29,6 +29,18 @@ export function AppLayout({ children }: AppLayoutProps) {
       .finally(() => setChecking(false));
   }, [setLocation]);
 
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } finally {
+      setIsSigningOut(false);
+      setLocation("/");
+    }
+  };
+
   const navItems = [
     { href: "/dashboard", label: "New Assessment", icon: Activity },
     { href: "/history", label: "Patient History", icon: ClipboardList },
@@ -74,50 +86,33 @@ export function AppLayout({ children }: AppLayoutProps) {
               })}
             </nav>
           </div>
-
-          </div>
-
-          <div className="m-4 border-t border-slate-100 dark:border-gray-800 pt-4">
-            {(() => {
-              const clinicianName = user.name || user.email;
-              return (
-                <div className="flex items-center gap-3 rounded-2xl bg-slate-50 dark:bg-gray-800 p-3 transition-colors">
-                  <div className="w-10 h-10 rounded-2xl bg-white dark:bg-gray-700 flex items-center justify-center text-blue-700 dark:text-blue-400 font-black text-sm border border-slate-100 dark:border-gray-600 shadow-sm">
-                    {clinicianName?.charAt(0) || "Dr"}
-                  </div>
-                  <div className="flex min-w-0 flex-col">
-                    <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight">{clinicianName}</span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Cardiology</span>
-                  </div>
-                </div>
-              );
-            })()}
+          <div className="m-4 border-t border-slate-100 dark:border-gray-800 pt-4 space-y-3">
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 dark:bg-gray-800 p-3">
+              <div className="w-10 h-10 rounded-2xl bg-white dark:bg-gray-700 flex items-center justify-center text-blue-700 dark:text-blue-400 font-black text-sm border border-slate-100 dark:border-gray-600 shadow-sm">
+                {user?.name?.charAt(0) || "Dr"}
+              </div>
+              <div className="flex min-w-0 flex-col">
+                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight">{user?.name || user?.email}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Cardiology</span>
+              </div>
+            </div>
             <button
-              onClick={async () => {
-                await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-                setLocation("/");
-              }}
-              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 bg-red-50 dark:bg-red-950 hover:bg-red-100 dark:hover:bg-red-900 rounded-xl transition-all duration-200 border border-red-100 dark:border-red-900"
+              type="button"
+              onClick={handleSignOut}
+              disabled={isSigningOut}
+              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Sign out of CardioGuard workspace"
               title="Sign out"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              Sign Out
+              {isSigningOut ? (
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <LogOut className="w-4 h-4" aria-hidden="true" />
+              )}
+              {isSigningOut ? "Signing out..." : "Sign Out"}
             </button>
-            <p className="mt-3 text-xs font-medium leading-5 text-slate-400 dark:text-slate-500">
-              Local workspace secured with simulated 2FA.
-            </p>
-          </div>
-              }}
-              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 bg-red-50 dark:bg-red-950 hover:bg-red-100 dark:hover:bg-red-900 rounded-xl transition-all duration-200 border border-red-100 dark:border-red-900"
-              aria-label="Sign out of CardioGuard workspace"
-              title="Sign out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Sign Out
-            </button>
-            <p className="mt-3 text-xs font-medium leading-5 text-slate-400 dark:text-slate-500">
-              Local workspace secured with simulated 2FA.
+            <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 font-semibold">
+              Local workspace secured with simulated 2FA
             </p>
           </div>
         </div>

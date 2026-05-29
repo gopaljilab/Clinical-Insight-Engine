@@ -247,7 +247,7 @@ export default function Dashboard() {
                     </h3>
                     <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                       <div className="space-y-2">
-                        <label className={labelClass}>BMI (kg/m²)</label>
+                        <label className={labelClass}>BMI (kg/mï¿½)</label>
                         <input type="number" step="0.1" {...register("bmi")} className={inputClass} placeholder="e.g. 25.0" />
                         {errors.bmi && <p className="text-sm text-red-600 mt-1">{errors.bmi.message}</p>}
                       </div>

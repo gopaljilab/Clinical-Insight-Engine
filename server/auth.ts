@@ -1,4 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
+import { randomInt } from "crypto";
 
 // Extend express-session to include user data
 declare module "express-session" {
@@ -10,8 +11,36 @@ declare module "express-session" {
   }
 }
 
+interface RegisteredUser {
+  fullName: string;
+  email: string;
+  password: string;
+  licenseNumber: string;
+}
+
 /**
- * Creates an authentication router with login, logout, and session-check endpoints.
+ * In-memory store for registered users.
+ * In production, this should be replaced with a persistent database.
+ */
+const registeredUsers = new Map<string, RegisteredUser>();
+
+interface PendingOtp {
+  otp: string;
+  expiresAt: number;
+}
+
+/**
+ * In-memory OTP store keyed by email.
+ * Each entry expires after 10 minutes.
+ */
+const pendingOtps = new Map<string, PendingOtp>();
+
+function generateOtp(): string {
+  return randomInt(100000, 999999).toString();
+}
+
+/**
+ * Creates an authentication router with login, register, logout, and session-check endpoints.
  *
  * In development mode, credentials are validated against environment variables
  * (DEV_CLINICIAN_EMAIL / DEV_CLINICIAN_PASSWORD). In production, this serves
@@ -21,8 +50,45 @@ export function createAuthRouter(): Router {
   const router = Router();
 
   /**
+   * POST /api/auth/register
+   * Validates registration fields, creates a new user account, and establishes a session.
+   */
+  router.post("/register", (req: Request, res: Response) => {
+    const { fullName, email, password, licenseNumber } = req.body || {};
+
+    if (!fullName || !email || !password || !licenseNumber) {
+      return res.status(400).json({
+        message: "Full name, email, password, and license number are required.",
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: "Invalid email format." });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters." });
+    }
+
+    if (registeredUsers.has(email)) {
+      return res.status(409).json({ message: "An account with this email already exists." });
+    }
+
+    registeredUsers.set(email, { fullName, email, password, licenseNumber });
+
+    const otp = generateOtp();
+    pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+
+    // In production, send OTP via email. For development, return it in the response.
+    console.log(`[DEV] OTP for ${email}: ${otp}`);
+
+    return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+  });
+
+  /**
    * POST /api/auth/login
-   * Validates email/password against server-side env vars and creates a session.
+   * Validates email/password against server-side env vars or registered users and creates a session.
    */
   router.post("/login", (req: Request, res: Response) => {
     const { email, password } = req.body || {};
@@ -34,19 +100,65 @@ export function createAuthRouter(): Router {
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
     const devPassword = process.env.DEV_CLINICIAN_PASSWORD || "";
 
-    if (email === devEmail && password === devPassword) {
-      req.session.user = {
-        email,
-        name: "Dr. Smith",
-      };
+    let userName: string | null = null;
 
-      return res.json({
-        success: true,
-        user: { email, name: "Dr. Smith" },
-      });
+    if (email === devEmail && password === devPassword) {
+      userName = "Dr. Smith";
+    } else {
+      const registeredUser = registeredUsers.get(email);
+      if (registeredUser && registeredUser.password === password) {
+        userName = registeredUser.fullName;
+      }
     }
 
-    return res.status(401).json({ message: "Invalid email or password." });
+    if (!userName) {
+      return res.status(401).json({ message: "Invalid email or password." });
+    }
+
+    const otp = generateOtp();
+    pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+
+    // In production, send OTP via email. For development, return it in the response.
+    console.log(`[DEV] OTP for ${email}: ${otp}`);
+
+    return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+  });
+
+  /**
+   * POST /api/auth/verify-otp
+   * Verifies the OTP sent after login/register and establishes a session.
+   */
+  router.post("/verify-otp", (req: Request, res: Response) => {
+    const { email, otp } = req.body || {};
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: "Email and OTP are required." });
+    }
+
+    const pending = pendingOtps.get(email);
+
+    if (!pending) {
+      return res.status(400).json({ message: "No pending verification found for this email." });
+    }
+
+    if (Date.now() > pending.expiresAt) {
+      pendingOtps.delete(email);
+      return res.status(400).json({ message: "OTP has expired. Please sign in again." });
+    }
+
+    if (pending.otp !== otp) {
+      return res.status(401).json({ message: "Invalid OTP. Please try again." });
+    }
+
+    pendingOtps.delete(email);
+
+    const registeredUser = registeredUsers.get(email);
+    const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
+    const name = email === devEmail ? "Dr. Smith" : (registeredUser?.fullName ?? email);
+
+    req.session.user = { email, name };
+
+    return res.json({ success: true, user: { email, name } });
   });
 
   /**
