@@ -10,7 +10,7 @@ export type AssessmentFactor = {
 
 export const assessments = pgTable("assessments", {
   id: serial("id").primaryKey(),
-  gender: text("gender").notNull(), // 'Male', 'Female', 'Other'
+  gender: text("gender").notNull(), // 'Male', 'Female'
   age: integer("age").notNull(),
   hypertension: boolean("hypertension").notNull(),
   heartDisease: boolean("heart_disease").notNull(),
@@ -30,11 +30,11 @@ export const assessments = pgTable("assessments", {
 });
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
-  gender: z.enum(["Male", "Female", "Other"], { required_error: "Please select a gender" }),
+  gender: z.enum(["Male", "Female"], { required_error: "Please select a gender" }),
   age: z.coerce.number().min(1, "Age must be greater than 0").max(120, "Age is too high"),
   hypertension: z.boolean().default(false),
   heartDisease: z.boolean().default(false),
-  smokingHistory: z.enum(["never", "No Info", "current", "former", "ever", "not current"], { required_error: "Please select smoking history" }),
+  smokingHistory: z.enum(["never", "No Info", "current", "former"], { required_error: "Please select smoking history" }),
   bmi: z.coerce.number().min(10, "BMI must be between 10 and 60").max(60, "BMI must be between 10 and 60"),
   hba1cLevel: z.coerce.number().min(3, "HbA1c must be between 3 and 15").max(15, "HbA1c must be between 3 and 15"),
   bloodGlucoseLevel: z.coerce.number().min(50, "Blood glucose must be between 50 and 400").max(400, "Blood glucose must be between 50 and 400"),

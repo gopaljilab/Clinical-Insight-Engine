@@ -10,7 +10,6 @@ import {
   Linkedin,
   LockKeyhole,
   Mail,
-  PlayCircle,
   ShieldCheck,
   Stethoscope,
   Workflow,
@@ -53,8 +52,8 @@ const featureCards = [
 const heroBadges = ["Clinical AI", "Early Risk Detection", "Real-Time Analytics"];
 
 const footerLinks = [
-  { href: "#security", label: "Privacy Policy" },
-  { href: "#security", label: "Terms" },
+  { href: "/privacy-policy", label: "Privacy Policy" },
+  { href: "/terms", label: "Terms" },
   { href: "mailto:hello@cardioguard.ai", label: "Contact" },
 ];
 
@@ -243,20 +242,18 @@ export function CardioGuardLanding() {
               </p>
 
               <div className="mt-9 flex flex-col gap-4 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => setAuthMode("register")}
+                
+                  href="mailto:hello@cardioguard.ai"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-7 py-4 text-base font-black text-white shadow-xl shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blue-700 hover:shadow-2xl hover:shadow-blue-600/30 focus:outline-none focus:ring-4 focus:ring-blue-200"
                 >
                   Request a Demo
                   <ArrowRight className="h-5 w-5" aria-hidden="true" />
-                </button>
+                </a>
                 <a
                   href="#features"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white/80 px-7 py-4 text-base font-black text-[#1E293B] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2563EB] hover:text-[#2563EB] hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-100"
                 >
-                  <PlayCircle className="h-5 w-5 text-[#2563EB]" aria-hidden="true" />
-                  Watch Video
+                  See Features
                 </a>
               </div>
 
