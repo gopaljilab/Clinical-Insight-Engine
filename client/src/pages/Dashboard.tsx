@@ -70,7 +70,7 @@ export default function Dashboard() {
   // Load draft from history quick-reload
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("cardioguard-assessment-draft");
+      const raw = localStorage.getItem("clinical-insight-assessment-draft");
       if (!raw) return;
       const draft = JSON.parse(raw);
       if (draft) {

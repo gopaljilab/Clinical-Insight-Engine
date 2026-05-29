@@ -69,7 +69,7 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: [
           "'self'",
-          (_req, res) => `'nonce-${res.locals.cspNonce}'`,
+          (_req: Request, res: Response) => `'nonce-${res.locals.cspNonce}'`,
         ],
         styleSrc: [
           "'self'",
