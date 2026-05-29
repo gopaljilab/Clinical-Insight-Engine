@@ -1,5 +1,5 @@
-import { CardioGuardLanding } from "@/components/CardioGuardLanding";
+import { ClinicalInsightLanding } from "@/components/ClinicalInsightLanding";
 
 export default function Landing() {
-  return <CardioGuardLanding />;
+  return <ClinicalInsightLanding />;
 }
