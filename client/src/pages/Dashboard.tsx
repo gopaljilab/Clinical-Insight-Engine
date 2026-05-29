@@ -59,6 +59,7 @@ export default function Dashboard() {
     createAssessment(data, {
       onSuccess: (data) => {
         setResult(data);
+        localStorage.removeItem("cardioguard-assessment-draft");
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     });
@@ -85,6 +86,14 @@ export default function Dashboard() {
       // ignore
     }
   }, [setValue]);
+
+  // Autosave draft on form changes
+  const formData = watch();
+  useEffect(() => {
+    if (formData && (formData.age || formData.bmi || formData.hba1cLevel || formData.bloodGlucoseLevel || formData.hypertension || formData.heartDisease)) {
+      localStorage.setItem("cardioguard-assessment-draft", JSON.stringify(formData));
+    }
+  }, [formData]);
 
   return (
     <AppLayout>
