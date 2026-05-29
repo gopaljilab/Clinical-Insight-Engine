@@ -35,7 +35,7 @@ export default function History() {
     };
 
     try {
-      localStorage.setItem("cardioguard-assessment-draft", JSON.stringify(draft));
+      localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(draft));
       setLocation("/dashboard");
     } catch (e) {
       console.error("Failed to set draft:", e);

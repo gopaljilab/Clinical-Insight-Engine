@@ -33,6 +33,28 @@ export const api = {
         200: z.array(z.custom<typeof assessments.$inferSelect>()),
       },
     },
+    preview: {
+      method: "POST" as const,
+      path: "/api/assessments/preview" as const,
+      input: insertAssessmentSchema,
+      responses: {
+        200: z.object({
+          riskScore: z.number(),
+          riskCategory: z.string(),
+          factors: z.array(
+            z.object({
+              name: z.string(),
+              impact: z.string(),
+              description: z.string(),
+            })
+          ),
+          confidenceInterval: z.string().nullable().optional(),
+          modelConfidence: z.number().nullable().optional(),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
   },
 };
 
@@ -51,3 +73,4 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
 export type AssessmentInput = z.infer<typeof api.assessments.create.input>;
 export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]>;
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
+export type AssessmentPreviewResponse = z.infer<typeof api.assessments.preview.responses[200]>;
