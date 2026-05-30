@@ -7,10 +7,12 @@ import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
 import { FileText, RotateCw } from "lucide-react";
 import { useLocation } from "wouter";
+import { advancedFilter } from "@/utils/search_filters";
 
 export default function History() {
   const { data: assessments, isLoading, error } = useAssessments();
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState<string>("date-desc");
 
   const getRiskBadge = (category: string) => {
     const key = (category || "").toUpperCase();
@@ -59,18 +61,30 @@ export default function History() {
     }, 250);
   }
 
-  const filteredAssessments = assessments?.filter(a => {
-    const term = searchTerm.toLowerCase();
-    return (
-      a.gender.toLowerCase().includes(term) ||
-      a.riskCategory.toLowerCase().includes(term) ||
-      a.smokingHistory.toLowerCase().includes(term) ||
-      String(a.age).includes(term) ||
-      String(a.bmi).includes(term) ||
-      String(a.hba1cLevel).includes(term) ||
-      String(a.bloodGlucoseLevel).includes(term)
-    );
-  }) || [];
+  const filteredAssessments = assessments ? advancedFilter(assessments, searchTerm) : [];
+
+  const sortedAssessments = [...filteredAssessments].sort((a, b) => {
+    switch (sortBy) {
+      case "date-desc":
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      case "date-asc":
+        return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+      case "risk-desc":
+        return Number(b.riskScore) - Number(a.riskScore);
+      case "risk-asc":
+        return Number(a.riskScore) - Number(b.riskScore);
+      case "age-desc":
+        return b.age - a.age;
+      case "age-asc":
+        return a.age - b.age;
+      case "bmi-desc":
+        return Number(b.bmi) - Number(a.bmi);
+      case "bmi-asc":
+        return Number(a.bmi) - Number(b.bmi);
+      default:
+        return 0;
+    }
+  });
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
@@ -91,15 +105,31 @@ export default function History() {
             </p>
           </div>
 
-          <div className="relative">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input 
-              type="text" 
-              placeholder="Search history..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full md:w-64"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative">
+              <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input 
+                type="text" 
+                placeholder="Search history..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full sm:w-64"
+              />
+            </div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full sm:w-48 text-sm font-semibold text-foreground cursor-pointer"
+            >
+              <option value="date-desc">Newest First</option>
+              <option value="date-asc">Oldest First</option>
+              <option value="risk-desc">Risk: High to Low</option>
+              <option value="risk-asc">Risk: Low to High</option>
+              <option value="age-desc">Age: Oldest First</option>
+              <option value="age-asc">Age: Youngest First</option>
+              <option value="bmi-desc">BMI: High to Low</option>
+              <option value="bmi-asc">BMI: Low to High</option>
+            </select>
           </div>
         </div>
 
@@ -142,7 +172,7 @@ export default function History() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredAssessments.map((assessment) => (
+                  {sortedAssessments.map((assessment) => (
                     <tr key={assessment.id} className="hover:bg-muted/30 transition-colors text-sm">
                       <td className="p-4 whitespace-nowrap">
                         {formatAssessmentDate(assessment.createdAt)}

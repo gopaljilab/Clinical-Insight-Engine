@@ -26,25 +26,23 @@ declare module "express" {
 
 const PgSession = connectPgSimple(session);
 
-const sessionSecret = process.env.SESSION_SECRET;
-if (!sessionSecret) {
-  if (process.env.NODE_ENV === "production") {
-    console.error(
-      "FATAL: SESSION_SECRET environment variable is not set.\n" +
-      "       Refusing to start in production without a secure session secret.\n" +
-      "       Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
-    );
-    process.exit(1);
+function getSessionSecret() {
+  const secret = process.env.SESSION_SECRET;
+
+  if (secret) {
+    return secret;
   }
-  console.warn(
-    "WARNING: SESSION_SECRET is not set. Using insecure development fallback.\n" +
-    "         Set SESSION_SECRET in production to a secure random value."
-  );
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET is required in production.");
+  }
+
+  return "clinical-insight-engine-dev-secret";
 }
 
 app.use(
   session({
-    secret: sessionSecret || "clinical-insight-engine-dev-secret",
+    secret: getSessionSecret(),
     resave: false,
     saveUninitialized: false,
     store: new PgSession({
@@ -85,7 +83,9 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: [
           "'self'",
-          (_req: Request, res: Response) => `'nonce-${res.locals.cspNonce}'`,
+          "'unsafe-eval'",
+          "'unsafe-inline'",
+          (_req: any, res: any) => `'nonce-${res.locals.cspNonce}',`
         ],
         styleSrc: [
           "'self'",
@@ -102,6 +102,14 @@ app.use(
     crossOriginEmbedderPolicy: false,
   }),
 );
+
+function summarizeApiResponse(body: Record<string, any>) {
+  if (!body || typeof body !== "object") {
+    return "[non-object response]";
+  }
+
+  return `[response keys: ${Object.keys(body).join(", ") || "none"}]`;
+}
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -130,7 +138,7 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        logLine += ` :: ${summarizeApiResponse(capturedJsonResponse)}`;
       }
 
       log(logLine);
