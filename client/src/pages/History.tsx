@@ -1,4 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
+import { useToast } from "@/hooks/use-toast";
 import { useAssessments } from "@/hooks/use-assessments";
 import { format, isValid } from "date-fns";
 import { Loader2, Search, Calendar, User, Activity } from "lucide-react";
@@ -11,6 +12,7 @@ import { advancedFilter } from "@/utils/search_filters";
 
 export default function History() {
   const { data: assessments, isLoading, error } = useAssessments();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
 
@@ -49,7 +51,11 @@ export default function History() {
 
     const w = window.open("", "_blank", "noopener,noreferrer");
     if (!w) {
-      alert("Please allow popups to enable PDF export.");
+      toast({
+        title: "Popups blocked",
+        description: "Please allow popups for this site to enable PDF export.",
+        variant: "destructive",
+      });
       return;
     }
 
