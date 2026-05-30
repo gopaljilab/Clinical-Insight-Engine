@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomInt } from "crypto";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 // Extend express-session to include user data
 declare module "express-session" {
