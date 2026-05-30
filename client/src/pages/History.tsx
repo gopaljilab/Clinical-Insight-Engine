@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/hooks/use-assessments";
 import { format, isValid } from "date-fns";
+import { safeParseDate } from "@/utils/date_fix";
 import { Loader2, Search, Calendar, User, Activity } from "lucide-react";
 import { useState } from "react";
 import StatusPill from "@/components/ui/StatusPill";
@@ -88,8 +89,8 @@ export default function History() {
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
-    const dateObj = new Date(dateVal);
-    return isValid(dateObj) ? format(dateObj, 'MMM d, yyyy') : "Unknown";
+    const dateObj = safeParseDate(String(dateVal));
+    return dateObj && isValid(dateObj) ? format(dateObj, 'MMM d, yyyy') : "Unknown";
   };
 
   return (
