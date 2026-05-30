@@ -2,9 +2,12 @@ import { getDb } from "./db";
 import { eq, desc } from "drizzle-orm";
 import {
   assessments,
+  users,
   type Assessment,
   type InsertAssessment,
   type AssessmentFactor,
+  type User,
+  type InsertUser
 } from "@shared/schema";
 
 
@@ -12,6 +15,9 @@ import {
 export interface IStorage {
   getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<Assessment[]>;
   createAssessment(assessment: any): Promise<Assessment>;
+  createUser(data: InsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserById(id: string): Promise<User | undefined>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
@@ -19,10 +25,8 @@ export type AssessmentCreateInput = InsertAssessment & {
   riskScore: number;
   riskCategory: string;
   factors: AssessmentFactor[];
-  confidenceInterval?: string | null;
-  modelConfidence?: number | null;
-
-  // Audit
+  confidenceInterval?: string;
+  modelConfidence?: number;
   createdBy: string;
 };
 
@@ -39,10 +43,14 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(assessments)
-      .where(createdBy ? eq(assessments.createdBy, createdBy) : undefined)
       .orderBy(desc(assessments.createdAt))
-      .limit(limit)
-      .offset(offset);
+      .$dynamic();
+
+    if (createdBy) {
+      query = query.where(eq(assessments.createdBy, createdBy));
+    }
+
+    return await query.limit(limit).offset(offset);
   }
 
   async createAssessment(
@@ -57,6 +65,24 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return created;
+  }
+
+  async createUser(data: InsertUser): Promise<User> {
+    const db = getDb();
+    const [user] = await db.insert(users).values(data).returning();
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const db = getDb();
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    const db = getDb();
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 }
 
