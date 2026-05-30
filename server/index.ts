@@ -8,6 +8,7 @@ import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
 
 const app = express();
 const httpServer = createServer(app);
@@ -68,6 +69,7 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+app.use(loggingAnomalyMiddleware);
 
 // Nonce middleware - generates a unique cryptographic nonce per request for CSP
 app.use((_req, res, next) => {
