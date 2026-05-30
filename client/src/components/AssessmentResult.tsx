@@ -91,12 +91,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const riskScore = Number(assessment.riskScore).toFixed(1);
   const positiveFactors = factors.filter((f: any) => f.impact === "positive");
   const protectiveFactors = factors.filter((f: any) => f.impact !== "positive");
-  const patientGuidance = [
+  const patientGuidance = assessment.prediction?.patientAdvice ?? [
     "Review these results with a qualified clinician before making medical decisions.",
     "Focus first on the highlighted risk factors that can be changed through care planning.",
     "Track BMI, HbA1c, and blood glucose over time so future assessments have context.",
   ];
-  const clinicianActions = [
+  const clinicianActions = assessment.prediction?.clinicianAdvice ?? [
     "Confirm risk category against the patient's full history and current medication profile.",
     "Use the factor breakdown to prioritize follow-up labs, counselling, or referrals.",
     "Compare this assessment with prior visits to identify meaningful trajectory changes.",
