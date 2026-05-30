@@ -76,17 +76,22 @@ app.use((_req, res, next) => {
 });
 
 // Security headers via helmet
+const scriptSrcDirective: Array<string | ((req: any, res: any) => string)> = [
+  "'self'",
+  (_req: any, res: any) => `'nonce-${res.locals.cspNonce}'`
+];
+
+// Vite HMR requires eval in development mode
+if (process.env.NODE_ENV !== "production") {
+  scriptSrcDirective.push("'unsafe-eval'");
+}
+
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: [
-          "'self'",
-          "'unsafe-eval'",
-          "'unsafe-inline'",
-          (_req: any, res: any) => `'nonce-${res.locals.cspNonce}',`
-        ],
+        scriptSrc: scriptSrcDirective,
         styleSrc: [
           "'self'",
           "'unsafe-inline'",
