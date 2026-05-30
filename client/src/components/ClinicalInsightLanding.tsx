@@ -54,13 +54,13 @@ const heroBadges = ["Clinical AI", "Early Risk Detection", "Real-Time Analytics"
 const footerLinks = [
   { href: "/privacy-policy", label: "Privacy Policy" },
   { href: "/terms", label: "Terms" },
-  { href: "mailto:hello@cardioguard.ai", label: "Contact" },
+  { href: "mailto:support@clinicalinsight.org", label: "Contact" },
 ];
 
 const socialLinks = [
   { href: "https://www.linkedin.com", icon: Linkedin, label: "LinkedIn" },
   { href: "https://github.com/gopaljilab/Clinical-Insight-Engine", icon: Github, label: "GitHub" },
-  { href: "mailto:hello@cardioguard.ai", icon: Mail, label: "Email" },
+  { href: "mailto:support@clinicalinsight.org", icon: Mail, label: "Email" },
 ];
 
 const fadeUp = {
@@ -76,7 +76,7 @@ function BrandMark() {
         <HeartPulse className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-white p-0.5 text-[#2563EB]" aria-hidden="true" />
       </div>
       <div className="leading-tight">
-        <p className="text-lg font-black tracking-tight text-[#1E293B]">CardioGuard</p>
+        <p className="text-lg font-black tracking-tight text-[#1E293B]">Clinical Insight</p>
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Clinical AI</p>
       </div>
     </div>
@@ -162,14 +162,14 @@ function DashboardPreview() {
   );
 }
 
-export function CardioGuardLanding() {
+export function ClinicalInsightLanding() {
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/60 to-white text-slate-600">
       <header className="sticky top-0 z-50 border-b border-white/70 bg-white/80 backdrop-blur-xl">
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-6 lg:px-8">
-          <a href="#" aria-label="CardioGuard home">
+          <a href="#" aria-label="Clinical Insight home">
             <BrandMark />
           </a>
 
@@ -235,15 +235,15 @@ export function CardioGuardLanding() {
               </div>
 
               <h1 className="max-w-4xl text-4xl font-black leading-[1.04] tracking-tight text-[#1E293B] sm:text-5xl lg:text-6xl">
-                AI-Driven Preventive Cardiology & Diabetes Risk Assessment
+                AI-Driven Preventive Diabetes Risk Assessment
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600 sm:text-xl">
-                Empower your clinic with instant, data-backed patient risk models to detect cardiovascular disease and diabetes before symptoms appear.
+                Empower your clinic with instant, data-backed patient risk models to detect diabetes before symptoms appear.
               </p>
 
               <div className="mt-9 flex flex-col gap-4 sm:flex-row">
                 <a
-                  href="mailto:hello@cardioguard.ai"
+                  href="mailto:support@clinicalinsight.org"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-7 py-4 text-base font-black text-white shadow-xl shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blue-700 hover:shadow-2xl hover:shadow-blue-600/30 focus:outline-none focus:ring-4 focus:ring-blue-200"
                 >
                   Request a Demo
@@ -324,7 +324,7 @@ export function CardioGuardLanding() {
                 Risk assessment that fits the pace of modern clinics
               </h2>
               <p className="mt-5 text-lg leading-8 text-slate-600">
-                CardioGuard turns routine patient inputs into clear, explainable guidance for clinicians and patient-facing conversations.
+                Clinical Insight turns routine patient inputs into clear, explainable guidance for clinicians and patient-facing conversations.
               </p>
             </motion.div>
 
@@ -368,7 +368,7 @@ export function CardioGuardLanding() {
               </p>
             </div>
             <a
-              href="mailto:hello@cardioguard.ai"
+              href="mailto:support@clinicalinsight.org"
               className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-base font-black text-[#1E293B] shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blue-50 focus:outline-none focus:ring-4 focus:ring-white/30"
             >
               Contact Sales
@@ -383,7 +383,7 @@ export function CardioGuardLanding() {
           <div>
             <BrandMark />
             <p className="mt-4 max-w-md text-sm leading-6 text-slate-500">
-              Copyright 2026 CardioGuard. Built for clinical decision support, not diagnosis.
+              Copyright 2026 Clinical Insight. Built for clinical decision support, not diagnosis.
             </p>
           </div>
 

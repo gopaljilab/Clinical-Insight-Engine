@@ -18,7 +18,8 @@ import {
   X,
 } from "lucide-react";
 
-export type { AuthMode } from "@/types/auth";
+import type { AuthMode } from "@/types/auth";
+export type { AuthMode };
 
 interface AuthFlowModalProps {
   initialMode: AuthMode;
@@ -47,7 +48,7 @@ function AuthBrandPanel() {
               <HeartPulse className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-[#2563EB] p-0.5 text-white" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-xl font-black tracking-tight">CardioGuard</p>
+              <p className="text-xl font-black tracking-tight">Clinical Insight</p>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-100">Secure Clinical AI</p>
             </div>
           </div>
@@ -58,7 +59,7 @@ function AuthBrandPanel() {
               Protected workflows for preventive cardiometabolic care.
             </h2>
             <p className="mt-5 text-base leading-7 text-blue-100">
-              CardioGuard helps clinics identify high-risk cardiovascular patients before symptoms emerge.
+              Clinical Insight helps clinics identify high-risk diabetes patients before symptoms emerge.
             </p>
           </div>
         </div>
@@ -567,7 +568,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
                   <p className="mt-3 text-sm leading-6 text-slate-500">
                     {mode === "login"
                       ? "Access patient risk models, longitudinal insights, and clinical decision support tools."
-                      : "Start a secure CardioGuard workspace for preventive cardiology and diabetes screening."}
+                      : "Start a secure Clinical Insight workspace for preventive diabetes screening."}
                   </p>
                 </div>
 

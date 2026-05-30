@@ -10,7 +10,7 @@ export default function PrivacyPolicy() {
             <ShieldCheck className="h-6 w-6" aria-hidden="true" />
           </div>
           <div>
-            <p className="text-lg font-black tracking-tight text-[#1E293B]">CardioGuard</p>
+            <p className="text-lg font-black tracking-tight text-[#1E293B]">Clinical Insight</p>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Clinical AI</p>
           </div>
         </div>
@@ -22,14 +22,14 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-xl font-black text-[#1E293B]">1. Overview</h2>
             <p className="mt-3">
-              CardioGuard is a clinical decision support demo tool. This privacy policy describes how data entered into the application is handled during a session.
+              Clinical Insight is a clinical decision support demo tool. This privacy policy describes how data entered into the application is handled during a session.
             </p>
           </section>
 
           <section>
             <h2 className="text-xl font-black text-[#1E293B]">2. Data Collection</h2>
             <p className="mt-3">
-              CardioGuard collects clinical inputs (age, BMI, HbA1c, blood glucose, smoking history, and related vitals) solely to generate risk assessments. No data is shared with third parties.
+              Clinical Insight collects clinical inputs (age, BMI, HbA1c, blood glucose, smoking history, and related vitals) solely to generate risk assessments. No data is shared with third parties.
             </p>
           </section>
 
@@ -44,8 +44,8 @@ export default function PrivacyPolicy() {
             <h2 className="text-xl font-black text-[#1E293B]">4. Contact</h2>
             <p className="mt-3">
               For privacy-related enquiries, contact us at{" "}
-              <a href="mailto:hello@cardioguard.ai" className="font-bold text-[#2563EB] hover:text-blue-700">
-                hello@cardioguard.ai
+              <a href="mailto:support@clinicalinsight.org" className="font-bold text-[#2563EB] hover:text-blue-700">
+                support@clinicalinsight.org
               </a>.
             </p>
           </section>
