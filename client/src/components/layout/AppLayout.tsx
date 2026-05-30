@@ -97,8 +97,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 {user?.name?.charAt(0) || "Dr"}
               </div>
               <div className="flex min-w-0 flex-col">
-                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight">{user?.name || user?.email}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Endocrinology</span>
+                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight truncate">{user?.name || "Clinician"}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold truncate">{user?.email || "clinical@insight-engine.dev"}</span>
               </div>
             </div>
             <button
