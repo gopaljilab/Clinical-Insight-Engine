@@ -35,16 +35,13 @@ export class DatabaseStorage implements IStorage {
   ): Promise<Assessment[]> {
     const db = getDb();
 
-    let query = db
+    return await db
       .select()
       .from(assessments)
-      .orderBy(desc(assessments.createdAt));
-
-    if (createdBy) {
-      query = query.where(eq(assessments.createdBy, createdBy));
-    }
-
-    return await query.limit(limit).offset(offset);
+      .where(createdBy ? eq(assessments.createdBy, createdBy) : undefined)
+      .orderBy(desc(assessments.createdAt))
+      .limit(limit)
+      .offset(offset);
   }
 
   async createAssessment(
