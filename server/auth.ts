@@ -60,7 +60,9 @@ export function createAuthRouter(): Router {
    * Validates registration fields, creates a new user account, and establishes a session.
    */
   router.post("/register", (req: Request, res: Response) => {
-    const { fullName, email, password, licenseNumber } = req.body || {};
+    const { fullName, licenseNumber } = req.body || {};
+    const email = (req.body?.email ?? "").trim().toLowerCase();
+    const password = req.body?.password ?? "";
 
     if (!fullName || !email || !password || !licenseNumber) {
       return res.status(400).json({
@@ -102,7 +104,9 @@ export function createAuthRouter(): Router {
    * Validates email/password against server-side env vars or registered users and creates a session.
    */
   router.post("/login", (req: Request, res: Response) => {
-    const { email, password } = req.body || {};
+    const rawEmail = req.body?.email ?? "";
+    const email = rawEmail.trim().toLowerCase();
+    const password = req.body?.password ?? "";
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required." });
@@ -140,7 +144,8 @@ export function createAuthRouter(): Router {
    * Verifies the OTP sent after login/register and establishes a session.
    */
   router.post("/verify-otp", (req: Request, res: Response) => {
-    const { email, otp } = req.body || {};
+    const { otp } = req.body || {};
+    const email = (req.body?.email ?? "").trim().toLowerCase();
 
     if (!email || !otp) {
       return res.status(400).json({ message: "Email and OTP are required." });
