@@ -137,6 +137,12 @@ export function createAuthRouter(): Router {
       if (existingDbUser) {
         return res.status(409).json({ message: "An account with this email already exists." });
       }
+    registeredUsers.set(email, {
+      fullName,
+      email,
+      passwordHash: hashPassword(password),
+      licenseNumber
+    });
 
       // Create DB user
       const passwordHash = hashPassword(password);
@@ -200,7 +206,7 @@ export function createAuthRouter(): Router {
     } else {
       // Check in-memory store (legacy)
       const registeredUser = registeredUsers.get(email);
-      if (registeredUser && registeredUser.password === password) {
+      if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
         userName = registeredUser.fullName;
       }
 
