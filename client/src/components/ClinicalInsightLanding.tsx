@@ -160,7 +160,7 @@ function DashboardPreview() {
   );
 }
 
-export function CardioGuardLanding() {
+export function ClinicalInsightLanding() {
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
 
   return (
