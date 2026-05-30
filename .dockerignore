@@ -1,0 +1,38 @@
+# Node dependencies
+node_modules
+npm-debug.log*
+
+# Python environment
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Production builds
+dist
+
+# OS files
+.DS_Store
+
+# Git
+.git
+.github
+
+# Configuration files
+.editorconfig
+.prettierrc
+.nvmrc
+components.json
+tsconfig.json
+postcss.config.js
+tailwind.config.ts
+vite.config.ts
+drizzle.config.ts
+
+# Environment secrets
+.env
+.env.local
+.env.development
+.env.production

@@ -314,7 +314,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                     <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                       <ReferenceLine x={0} stroke="#cbd5e1" />
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={80} tick={{ fill: '#64748b', fontSize: 12 }} />
+                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: '#64748b', fontSize: 12 }} />
                       <Tooltip 
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {

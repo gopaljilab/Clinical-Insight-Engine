@@ -5,14 +5,21 @@ import {
   type InsertAssessment,
   type AssessmentFactor
 } from "@shared/schema";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 export interface IStorage {
-  getAssessments(limit?: number, offset?: number): Promise<Assessment[]>;
+  getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<Assessment[]>;
   createAssessment(assessment: any): Promise<Assessment>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
+  riskScore: number;
+  riskCategory: string;
+  factors: AssessmentFactor[];
+  confidenceInterval?: string;
+  modelConfidence?: number;
+  createdBy?: string;
+  createdBy: string;
   riskScore: string;
   riskCategory: string;
   factors: AssessmentFactor[];
@@ -23,16 +30,21 @@ export type AssessmentCreateInput = InsertAssessment & {
 export class DatabaseStorage implements IStorage {
   async getAssessments(
     limit: number = 50,
-    offset: number = 0
+    offset: number = 0,
+    createdBy?: string
   ): Promise<Assessment[]> {
     const db = getDb();
 
-    return await db
+    let query = db
       .select()
       .from(assessments)
-      .orderBy(desc(assessments.createdAt))
-      .limit(limit)
-      .offset(offset);
+      .orderBy(desc(assessments.createdAt));
+
+    if (createdBy) {
+      query = query.where(eq(assessments.createdBy, createdBy));
+    }
+
+    return await query.limit(limit).offset(offset);
   }
 
   async createAssessment(
@@ -42,7 +54,7 @@ export class DatabaseStorage implements IStorage {
 
     const [created] = await db
       .insert(assessments)
-      .values(assessment)
+      .values(assessment as any)
       .returning();
 
     return created;

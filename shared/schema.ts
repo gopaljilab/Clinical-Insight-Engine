@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, doublePrecision, uuid, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -15,18 +15,20 @@ export const assessments = pgTable("assessments", {
   hypertension: boolean("hypertension").notNull(),
   heartDisease: boolean("heart_disease").notNull(),
   smokingHistory: text("smoking_history").notNull(), // 'never', 'current', 'former', etc.
-  bmi: text("bmi").notNull(),
-  hba1cLevel: text("hba1c_level").notNull(),
-  bloodGlucoseLevel: text("blood_glucose_level").notNull(),
+  bmi: doublePrecision("bmi").notNull(),
+  hba1cLevel: doublePrecision("hba1c_level").notNull(),
+  bloodGlucoseLevel: doublePrecision("blood_glucose_level").notNull(),
   
   // Model Outputs
-  riskScore: text("risk_score").notNull(), // 0-100 percentage
+  riskScore: doublePrecision("risk_score").notNull(), // 0-100 percentage
   riskCategory: text("risk_category").notNull(), // 'LOW', 'MODERATE', 'HIGH'
   factors: jsonb("factors").$type<AssessmentFactor[]>().notNull(),
   confidenceInterval: jsonb("confidence_interval").$type<string | null>(),
-  modelConfidence: text("model_confidence"),
+  modelConfidence: doublePrecision("model_confidence"),
   
+  createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
+  userId: text("user_id"),
 });
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
@@ -40,6 +42,7 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   bloodGlucoseLevel: z.coerce.number().min(50, "Blood glucose must be between 50 and 400").max(400, "Blood glucose must be between 50 and 400"),
 }).omit({
   id: true,
+  userId: true,
   riskScore: true,
   riskCategory: true,
   factors: true,
@@ -50,3 +53,50 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
 
 export type Assessment = typeof assessments.$inferSelect;
 export type InsertAssessment = z.infer<typeof insertAssessmentSchema>;
+
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  medicalLicenseNumber: varchar("medical_license_number", { length: 100 }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  isActive: boolean("is_active").default(true),
+  emailVerified: boolean("email_verified").default(false),
+  role: varchar("role", { length: 50 }).default("provider"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const userTermsAcceptance = pgTable("user_terms_acceptance", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  accepted: boolean("accepted").default(true).notNull(),
+  termsVersion: varchar("terms_version", { length: 50 }),
+  acceptedAt: timestamp("accepted_at").defaultNow().notNull(),
+});
+
+export const loginAuditLogs = pgTable("login_audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id),
+  ipAddress: varchar("ip_address", { length: 100 }),
+  userAgent: text("user_agent"),
+  loginStatus: varchar("login_status", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  token: text("token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
