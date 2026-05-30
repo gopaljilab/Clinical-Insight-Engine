@@ -49,7 +49,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex flex-col md:flex-row transition-colors duration-300">
       {/* Sidebar */}
-      <aside className="w-full md:w-64 lg:w-72 bg-white dark:bg-gray-900 border-r border-slate-100 dark:border-gray-800 flex shrink-0 md:h-screen sticky top-0 z-10 shadow-sm shadow-slate-900/[0.02] dark:shadow-gray-950/50 transition-colors duration-300">
+      <aside className="print:hidden w-full md:w-64 lg:w-72 bg-white dark:bg-gray-900 border-r border-slate-100 dark:border-gray-800 flex shrink-0 md:h-screen sticky top-0 z-10 shadow-sm shadow-slate-900/[0.02] dark:shadow-gray-950/50 transition-colors duration-300">
         <div className="flex h-full w-full flex-col justify-between">
           <div>
             <div className="p-6 flex items-center gap-3 border-b border-slate-100 dark:border-gray-800">

@@ -4,10 +4,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AssessmentResult } from "@/components/AssessmentResult";
-import { useCreateAssessment } from "@/hooks/use-assessments";
-import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UserCircle } from "lucide-react";
+import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
+import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UserCircle, Info } from "lucide-react";
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
 import { insertAssessmentSchema } from "@shared/schema";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 
 const formSchema = insertAssessmentSchema.pick({
   gender: true,
@@ -30,11 +31,7 @@ const labelClass = "text-sm font-bold text-[#1E293B]";
 const sectionHeadingClass =
   "flex items-center gap-2 border-b border-slate-100 pb-3 text-sm font-black uppercase tracking-[0.14em] text-slate-500";
 
-const dashboardStats = [
-  { label: "Assessment Speed", value: "2 min", icon: Clock3 },
-  { label: "Model Status", value: "Ready", icon: ShieldCheck },
-  { label: "Risk Signals", value: "7 inputs", icon: TrendingUp },
-];
+// dashboardStats removed and calculated dynamically inside the component
 
 function getRiskBadgeClass(category?: string) {
   switch ((category ?? "").toUpperCase()) {
@@ -56,11 +53,28 @@ export default function Dashboard() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const { mutate: createAssessment, isPending, error } = useCreateAssessment();
 
+  const { data: assessments } = useAssessments();
+
+  const stats = useMemo(() => {
+    const list = assessments ?? [];
+    const total = list.length;
+    const avgRisk = total > 0 ? list.reduce((sum, item) => sum + Number(item.riskScore), 0) / total : 0;
+    const highRisk = total > 0 ? (list.filter(item => (item.riskCategory || "").toUpperCase() === "HIGH").length / total) * 100 : 0;
+
+    return [
+      { label: "Total Assessments", value: String(total), icon: Activity },
+      { label: "Average Risk Score", value: `${avgRisk.toFixed(1)}%`, icon: TrendingUp },
+      { label: "High Risk Cases", value: `${highRisk.toFixed(0)}%`, icon: AlertCircle },
+    ];
+  }, [assessments]);
+
   const {
     register,
     handleSubmit,
     formState: { errors },
     watch,
+    setValue,
+    reset,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -79,7 +93,7 @@ export default function Dashboard() {
     createAssessment(data, {
       onSuccess: (data) => {
         setResult(data);
-        localStorage.removeItem("cardioguard-assessment-draft");
+        localStorage.removeItem("clinical-insight-assessment-draft");
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     });
@@ -90,6 +104,25 @@ export default function Dashboard() {
   const isHeartDisease = watch("heartDisease");
 
   const parsedForPreview = useMemo(() => formSchema.safeParse(watchedValues), [watchedValues]);
+
+  // Load draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("clinical-insight-assessment-draft");
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft) {
+        Object.entries(draft).forEach(([k, v]) => {
+          try {
+            // @ts-ignore
+            setValue(k as any, v, { shouldDirty: true });
+          } catch (e) {}
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [setValue]);
 
   useEffect(() => {
     if (!parsedForPreview.success || result) {
@@ -112,23 +145,6 @@ export default function Dashboard() {
           body: JSON.stringify(parsedForPreview.data),
           signal: controller.signal,
         });
-
-        const raw = localStorage.getItem("clinical-insight-assessment-draft");
-        if (raw) {
-          try {
-            const draft = JSON.parse(raw);
-            if (draft) {
-              Object.entries(draft).forEach(([k, v]) => {
-                try {
-                  // @ts-ignore
-                  setValue(k as any, v, { shouldDirty: true });
-                } catch (e) {}
-              });
-            }
-          } catch {
-            // ignore draft parse errors
-          }
-        }
 
         const data = await response.json();
 
@@ -154,25 +170,17 @@ export default function Dashboard() {
     };
   }, [parsedForPreview, result]);
 
-  const onSubmit = (data: FormData) => {
-    createAssessment(data, {
-      onSuccess: (created) => {
-        setResult(created);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      },
-    });
-  };
-
   // Autosave draft on form changes
   const formData = watch();
   useEffect(() => {
     if (formData && (formData.age || formData.bmi || formData.hba1cLevel || formData.bloodGlucoseLevel || formData.hypertension || formData.heartDisease)) {
-      localStorage.setItem("cardioguard-assessment-draft", JSON.stringify(formData));
+      localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(formData));
     }
   }, [formData]);
 
   return (
-    <AppLayout>
+    <TooltipProvider>
+      <AppLayout>
       <div className="space-y-8">
         <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
@@ -187,7 +195,7 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:min-w-[460px]">
-            {dashboardStats.map((stat) => {
+            {stats.map((stat) => {
               const Icon = stat.icon;
               return (
                 <div
@@ -256,7 +264,19 @@ export default function Dashboard() {
                       </div>
 
                       <div className="space-y-2">
-                        <label className={labelClass}>Age</label>
+                        <div className="flex items-center gap-1.5">
+                          <label className={labelClass}>Age</label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                <Info className="w-3.5 h-3.5" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs max-w-[200px]">Model is optimized for adults aged 18-80. Risk typically increases with age.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                         <input type="number" {...register("age")} className={inputClass} placeholder="e.g. 45" />
                         {errors.age && <p className="text-sm text-red-600 mt-1">{errors.age.message}</p>}
                       </div>
@@ -282,19 +302,70 @@ export default function Dashboard() {
                     </h3>
                     <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                       <div className="space-y-2">
-                        <label className={labelClass}>BMI (kg/m�)</label>
+                        <div className="flex items-center gap-1.5">
+                          <label className={labelClass}>BMI (kg/m²)</label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                <Info className="w-3.5 h-3.5" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="text-xs max-w-[200px] space-y-1">
+                                <p className="font-bold">Body Mass Index:</p>
+                                <p>• Normal: 18.5 - 24.9</p>
+                                <p>• Overweight: 25.0 - 29.9</p>
+                                <p>• Obese: ≥ 30.0</p>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                         <input type="number" step="0.1" {...register("bmi")} className={inputClass} placeholder="e.g. 25.0" />
                         {errors.bmi && <p className="text-sm text-red-600 mt-1">{errors.bmi.message}</p>}
                       </div>
 
                       <div className="space-y-2">
-                        <label className={labelClass}>HbA1c Level (%)</label>
+                        <div className="flex items-center gap-1.5">
+                          <label className={labelClass}>HbA1c Level (%)</label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                <Info className="w-3.5 h-3.5" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="text-xs max-w-[200px] space-y-1">
+                                <p className="font-bold">Glycated Hemoglobin:</p>
+                                <p>• Normal: &lt; 5.7%</p>
+                                <p>• Prediabetes: 5.7% - 6.4%</p>
+                                <p>• Diabetes: ≥ 6.5%</p>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                         <input type="number" step="0.1" {...register("hba1cLevel")} className={inputClass} placeholder="e.g. 5.7" />
                         {errors.hba1cLevel && <p className="text-sm text-red-600 mt-1">{errors.hba1cLevel.message}</p>}
                       </div>
 
                       <div className="space-y-2 lg:col-span-2">
-                        <label className={labelClass}>Blood Glucose Level (mg/dL)</label>
+                        <div className="flex items-center gap-1.5">
+                          <label className={labelClass}>Blood Glucose Level (mg/dL)</label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                <Info className="w-3.5 h-3.5" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="text-xs max-w-[200px] space-y-1">
+                                <p className="font-bold">Fasting Blood Sugar:</p>
+                                <p>• Normal: &lt; 100 mg/dL</p>
+                                <p>• Prediabetes: 100 - 125 mg/dL</p>
+                                <p>• Diabetes: ≥ 126 mg/dL</p>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                         <input type="number" {...register("bloodGlucoseLevel")} className={inputClass} placeholder="e.g. 100" />
                         {errors.bloodGlucoseLevel && <p className="text-sm text-red-600 mt-1">{errors.bloodGlucoseLevel.message}</p>}
                       </div>
@@ -337,7 +408,17 @@ export default function Dashboard() {
                   </p>
                 </div>
 
-                <div className="mt-8 border-t border-slate-100 pt-6 flex justify-end">
+                <div className="mt-8 border-t border-slate-100 pt-6 flex flex-col md:flex-row justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      reset();
+                      localStorage.removeItem("clinical-insight-assessment-draft");
+                    }}
+                    className="w-full md:w-auto px-8 py-4 rounded-xl font-bold text-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 transition-all duration-200"
+                  >
+                    Reset Form
+                  </button>
                   <button
                     type="submit"
                     disabled={isPending || result !== null}
@@ -420,6 +501,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-    </AppLayout>
+      </AppLayout>
+    </TooltipProvider>
   );
 }
