@@ -1,28 +1,18 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomInt } from "crypto";
+import bcrypt from "bcrypt";
+import { storage } from "./storage";
 
 // Extend express-session to include user data
 declare module "express-session" {
   interface SessionData {
     user?: {
+      id: string;
       email: string;
       name: string;
     };
   }
 }
-
-interface RegisteredUser {
-  fullName: string;
-  email: string;
-  password: string;
-  licenseNumber: string;
-}
-
-/**
- * In-memory store for registered users.
- * In production, this should be replaced with a persistent database.
- */
-const registeredUsers = new Map<string, RegisteredUser>();
 
 interface PendingOtp {
   otp: string;
@@ -48,9 +38,8 @@ function logDevOtp(email: string, otp: string) {
 /**
  * Creates an authentication router with login, register, logout, and session-check endpoints.
  *
- * In development mode, credentials are validated against environment variables
- * (DEV_CLINICIAN_EMAIL / DEV_CLINICIAN_PASSWORD). In production, this serves
- * as the auth gateway for all protected API routes.
+ * In development mode, credentials are validated against the database.
+ * This serves as the auth gateway for all protected API routes.
  */
 export function createAuthRouter(): Router {
   const router = Router();
@@ -59,7 +48,7 @@ export function createAuthRouter(): Router {
    * POST /api/auth/register
    * Validates registration fields, creates a new user account, and establishes a session.
    */
-  router.post("/register", (req: Request, res: Response) => {
+  router.post("/register", async (req: Request, res: Response) => {
     const { fullName, email, password, licenseNumber } = req.body || {};
 
     if (!fullName || !email || !password || !licenseNumber) {
@@ -77,21 +66,23 @@ export function createAuthRouter(): Router {
       return res.status(400).json({ message: "Password must be at least 8 characters." });
     }
 
-    if (registeredUsers.has(email)) {
+    const existing = await storage.getUserByEmail(email);
+    if (existing) {
       return res.status(409).json({ message: "An account with this email already exists." });
     }
 
-    registeredUsers.set(email, {
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await storage.createUser({
       fullName,
       email,
-      passwordHash: hashPassword(password),
-      licenseNumber
+      passwordHash,
+      medicalLicenseNumber: licenseNumber,
     });
 
     const otp = generateOtp();
     pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
 
-    // In production, send OTP via email. For development, return it in the response.
     logDevOtp(email, otp);
 
     return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
@@ -99,9 +90,9 @@ export function createAuthRouter(): Router {
 
   /**
    * POST /api/auth/login
-   * Validates email/password against server-side env vars or registered users and creates a session.
+   * Validates email/password against database records and creates a session.
    */
-  router.post("/login", (req: Request, res: Response) => {
+  router.post("/login", async (req: Request, res: Response) => {
     const { email, password } = req.body || {};
 
     if (!email || !password) {
@@ -111,25 +102,24 @@ export function createAuthRouter(): Router {
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
     const devPassword = process.env.DEV_CLINICIAN_PASSWORD || "";
 
-    let userName: string | null = null;
+    let userFullName: string | null = null;
 
     if (email === devEmail && password === devPassword) {
-      userName = "Dr. Smith";
+      userFullName = "Dr. Smith";
     } else {
-      const registeredUser = registeredUsers.get(email);
-      if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-        userName = registeredUser.fullName;
+      const user = await storage.getUserByEmail(email);
+      if (user && (await bcrypt.compare(password, user.passwordHash))) {
+        userFullName = user.fullName;
       }
     }
 
-    if (!userName) {
+    if (!userFullName) {
       return res.status(401).json({ message: "Invalid email or password." });
     }
 
     const otp = generateOtp();
     pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
 
-    // In production, send OTP via email. For development, return it in the response.
     logDevOtp(email, otp);
 
     return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
@@ -139,7 +129,7 @@ export function createAuthRouter(): Router {
    * POST /api/auth/verify-otp
    * Verifies the OTP sent after login/register and establishes a session.
    */
-  router.post("/verify-otp", (req: Request, res: Response) => {
+  router.post("/verify-otp", async (req: Request, res: Response) => {
     const { email, otp } = req.body || {};
 
     if (!email || !otp) {
@@ -163,13 +153,26 @@ export function createAuthRouter(): Router {
 
     pendingOtps.delete(email);
 
-    const registeredUser = registeredUsers.get(email);
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
-    const name = email === devEmail ? "Dr. Smith" : (registeredUser?.fullName ?? email);
 
-    req.session.user = { email, name };
+    let id: string;
+    let name: string;
 
-    return res.json({ success: true, user: { email, name } });
+    if (email === devEmail) {
+      name = "Dr. Smith";
+      id = "dev";
+    } else {
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
+      id = user.id;
+      name = user.fullName;
+    }
+
+    req.session.user = { id, email, name };
+
+    return res.json({ success: true, user: { id, email, name } });
   });
 
   /**
