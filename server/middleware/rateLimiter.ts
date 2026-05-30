@@ -6,11 +6,11 @@ const MAX_REQUESTS = 60;
 const MAX_TRACKED_CLIENTS = 1000;
 
 function pruneExpiredRecords(now: number) {
-  for (const [clientId, record] of requestStore.entries()) {
+  requestStore.forEach((record, clientId) => {
     if (now > record.resetTime) {
       requestStore.delete(clientId);
     }
-  }
+  });
 }
 
 function trimRequestStore(now: number) {
