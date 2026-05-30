@@ -53,12 +53,17 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className="flex h-full w-full flex-col justify-between">
           <div>
             <div className="p-6 flex items-center gap-3 border-b border-slate-100 dark:border-gray-800">
-              <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/15">
+              <Link
+                href="/dashboard"
+                className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/15 hover:opacity-95 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Go to main dashboard"
+                title="Go to main dashboard"
+              >
                 <HeartPulse className="w-6 h-6" />
                 <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900 bg-emerald-400" />
-              </div>
+              </Link>
               <div className="flex-1 min-w-0">
-                <h1 className="text-lg font-black leading-tight text-[#1E293B] dark:text-gray-100 truncate">CardioGuard</h1>
+                <h1 className="text-lg font-black leading-tight text-[#1E293B] dark:text-gray-100 truncate">Clinical Insight</h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Preventive Risk Tool</p>
               </div>
               <ThemeToggle />
@@ -93,7 +98,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               </div>
               <div className="flex min-w-0 flex-col">
                 <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight">{user?.name || user?.email}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Cardiology</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Endocrinology</span>
               </div>
             </div>
             <button
@@ -101,7 +106,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               onClick={handleSignOut}
               disabled={isSigningOut}
               className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Sign out of CardioGuard workspace"
+              aria-label="Sign out of Clinical Insight workspace"
               title="Sign out"
             >
               {isSigningOut ? (

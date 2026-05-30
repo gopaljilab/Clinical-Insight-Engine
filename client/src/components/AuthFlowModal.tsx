@@ -18,7 +18,8 @@ import {
   X,
 } from "lucide-react";
 
-export type { AuthMode } from "@/types/auth";
+import type { AuthMode } from "@/types/auth";
+export type { AuthMode };
 
 interface AuthFlowModalProps {
   initialMode: AuthMode;
@@ -47,7 +48,7 @@ function AuthBrandPanel() {
               <HeartPulse className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-[#2563EB] p-0.5 text-white" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-xl font-black tracking-tight">CardioGuard</p>
+              <p className="text-xl font-black tracking-tight">Clinical Insight</p>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-100">Secure Clinical AI</p>
             </div>
           </div>
@@ -58,7 +59,7 @@ function AuthBrandPanel() {
               Protected workflows for preventive cardiometabolic care.
             </h2>
             <p className="mt-5 text-base leading-7 text-blue-100">
-              CardioGuard helps clinics identify high-risk cardiovascular patients before symptoms emerge.
+              Clinical Insight helps clinics identify high-risk diabetes patients before symptoms emerge.
             </p>
           </div>
         </div>
@@ -334,6 +335,8 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resentAt, setResentAt] = useState<number | null>(null);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const isComplete = otp.every(Boolean);
 
@@ -343,14 +346,30 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
     setError(null);
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/verify-otp", {
+      // Try DB-backed verification first
+      const response = await fetch("/api/auth/verify-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp: otp.join("") }),
+        body: JSON.stringify({ email, code: otp.join("") }),
         credentials: "include",
       });
+
       if (!response.ok) {
         const data = await response.json();
+        // If user not found in DB, fall back to in-memory OTP
+        if (response.status === 404) {
+          const legacyResponse = await fetch("/api/auth/verify-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, otp: otp.join("") }),
+            credentials: "include",
+          });
+          if (!legacyResponse.ok) {
+            const legacyData = await legacyResponse.json();
+            throw new Error(legacyData.message || "Verification failed. Please try again.");
+          }
+          return onVerify();
+        }
         throw new Error(data.message || "Verification failed. Please try again.");
       }
       onVerify();
@@ -358,6 +377,34 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
       setError(err.message || "Verification failed. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setIsResending(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to resend code.");
+      }
+
+      const data = await response.json();
+      setResentAt(Date.now());
+      if (data.devOtp) {
+        setError(`[DEV] New code: ${data.devOtp}`); // visible in dev
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to resend code. Please try again.");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -447,6 +494,23 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
           </>
         )}
       </button>
+
+      <div className="mt-6 text-center">
+        <p className="text-sm text-slate-500">
+          Didn&apos;t receive the code?{" "}
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={isResending}
+            className="font-bold text-[#2563EB] transition-all duration-200 hover:text-blue-700 disabled:opacity-50"
+          >
+            {isResending ? "Sending..." : "Resend code"}
+          </button>
+        </p>
+        {resentAt && (
+          <p className="mt-1 text-xs text-slate-400">Code resent. Please check your email.</p>
+        )}
+      </div>
     </form>
   );
 }
@@ -567,7 +631,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
                   <p className="mt-3 text-sm leading-6 text-slate-500">
                     {mode === "login"
                       ? "Access patient risk models, longitudinal insights, and clinical decision support tools."
-                      : "Start a secure CardioGuard workspace for preventive cardiology and diabetes screening."}
+                      : "Start a secure Clinical Insight workspace for preventive diabetes screening."}
                   </p>
                 </div>
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Logo } from "@/components/ui/Logo";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -75,10 +76,7 @@ function BrandMark() {
         <ShieldCheck className="h-6 w-6" aria-hidden="true" />
         <HeartPulse className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-white p-0.5 text-[#2563EB]" aria-hidden="true" />
       </div>
-      <div className="leading-tight">
-        <p className="text-lg font-black tracking-tight text-[#1E293B]">CardioGuard</p>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Clinical AI</p>
-      </div>
+      <Logo size="sm" theme="light" />
     </div>
   );
 }
@@ -162,7 +160,7 @@ function DashboardPreview() {
   );
 }
 
-export function CardioGuardLanding() {
+export function ClinicalInsightLanding() {
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
 
   return (
@@ -243,7 +241,7 @@ export function CardioGuardLanding() {
 
               <div className="mt-9 flex flex-col gap-4 sm:flex-row">
                 
-                  href="mailto:hello@cardioguard.ai"
+                  <a href="mailto:hello@cardioguard.ai"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-7 py-4 text-base font-black text-white shadow-xl shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blue-700 hover:shadow-2xl hover:shadow-blue-600/30 focus:outline-none focus:ring-4 focus:ring-blue-200"
                 >
                   Request a Demo
@@ -367,8 +365,7 @@ export function CardioGuardLanding() {
                 Flexible demo plans for clinics, hospitals, and digital health teams evaluating AI-assisted cardiometabolic screening.
               </p>
             </div>
-            <a
-              href="mailto:hello@cardioguard.ai"
+            <a href="mailto:hello@cardioguard.ai"
               className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-base font-black text-[#1E293B] shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blue-50 focus:outline-none focus:ring-4 focus:ring-white/30"
             >
               Contact Sales

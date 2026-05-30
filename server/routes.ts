@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage, type AssessmentCreateInput } from "./storage";
-import { requireAuth } from "./auth";
+import { requireAuth, requireVerified } from "./auth";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { existsSync } from "fs";
@@ -73,8 +73,11 @@ async function seedDatabase() {
   if (existing.length === 0) {
     console.log("Seeding database with sample assessments...");
 
+    const seedUserId = "seed@clinical-insight-engine.dev";
+
     const samples: AssessmentCreateInput[] = [
       {
+        createdBy: seedUserId,
         gender: "Male",
         age: 45,
         hypertension: false,
@@ -83,7 +86,7 @@ async function seedDatabase() {
         bmi: 24.5,
         hba1cLevel: 5.2,
         bloodGlucoseLevel: 95,
-        riskScore: "12.3",
+        riskScore: 12.3,
         riskCategory: "LOW",
         factors: [
           {
@@ -104,6 +107,7 @@ async function seedDatabase() {
         ]
       },
       {
+        createdBy: seedUserId,
         gender: "Female",
         age: 62,
         hypertension: true,
@@ -112,7 +116,7 @@ async function seedDatabase() {
         bmi: 31.2,
         hba1cLevel: 6.8,
         bloodGlucoseLevel: 145,
-        riskScore: "48.7",
+        riskScore: 48.7,
         riskCategory: "MODERATE",
         factors: [
           {
@@ -133,6 +137,7 @@ async function seedDatabase() {
         ]
       },
       {
+        createdBy: seedUserId,
         gender: "Male",
         age: 58,
         hypertension: true,
@@ -141,7 +146,7 @@ async function seedDatabase() {
         bmi: 35.8,
         hba1cLevel: 8.2,
         bloodGlucoseLevel: 198,
-        riskScore: "76.4",
+        riskScore: 76.4,
         riskCategory: "HIGH",
         factors: [
           {
@@ -181,8 +186,93 @@ export async function registerRoutes(
   }
 
   app.post(
+    api.assessments.preview.path,
+    requireAuth,
+    requireVerified,
+    assessmentLimiter,
+    async (req, res) => {
+      try {
+        const input = api.assessments.preview.input.parse(req.body);
+
+        const tempFile = path.join(
+          os.tmpdir(),
+          `${randomUUID()}.json`
+        );
+
+        await writeFile(tempFile, JSON.stringify(input));
+
+        try {
+          const { stdout, stderr } = await execFileAsync(
+            getPythonExecutable(),
+            [analyzePyPath, "predict_file", tempFile],
+            {
+              timeout: 30000
+            }
+          );
+
+          let prediction;
+
+          try {
+            prediction = JSON.parse(stdout.trim());
+          } catch (e) {
+            console.error(
+              "Failed to parse python output (preview):",
+              stdout,
+              stderr
+            );
+            throw new Error("Failed to process prediction preview.");
+          }
+
+          if (prediction.error) {
+            return res.status(400).json({
+              message: prediction.error
+            });
+          }
+
+          return res.json({
+            riskScore: prediction.riskScore,
+            riskCategory: prediction.riskCategory,
+            factors: prediction.factors ?? [],
+            confidenceInterval: prediction.confidenceInterval ?? null,
+            modelConfidence: prediction.modelConfidence ?? null
+          });
+        } catch (error: any) {
+          console.error("Python ML preview execution failed:", error);
+
+          if (error.killed || error.signal === "SIGTERM") {
+            return res.status(408).json({
+              message: "Clinical assessment preview timed out."
+            });
+          }
+
+          return res.status(500).json({
+            message: "Failed to generate clinical preview."
+          });
+        } finally {
+          try {
+            await unlink(tempFile);
+          } catch (e) {}
+        }
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({
+            message: err.errors[0].message
+          });
+        }
+
+        console.error("Error creating assessment preview:", err);
+
+        return res.status(500).json({
+          message: "Internal server error"
+        });
+      }
+    }
+  );
+
+  app.post(
     api.assessments.create.path,
     requireAuth,
+    requireVerified,
     assessmentLimiter,
     async (req, res) => {
       let requestFingerprint: string | null = null;
@@ -255,14 +345,15 @@ export async function registerRoutes(
           // Save the assessment to the database
           const assessment = await storage.createAssessment({
             ...input,
-            riskScore: String(prediction.riskScore),
+            riskScore: Number(prediction.riskScore),
             riskCategory: prediction.riskCategory,
             factors: prediction.factors,
             confidenceInterval: prediction.confidenceInterval,
             modelConfidence:
               prediction.modelConfidence == null
                 ? undefined
-                : String(prediction.modelConfidence)
+                : Number(prediction.modelConfidence),
+            createdBy: userId
           });
 
           // Return both the DB assessment record and the rich prediction data
@@ -317,9 +408,10 @@ export async function registerRoutes(
     }
   );
 
-  app.get(api.assessments.list.path, requireAuth, async (req, res) => {
+  app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
     try {
-      const assessments = await storage.getAssessments();
+      const userEmail = req.session.user?.email;
+      const assessments = await storage.getAssessments(50, 0, userEmail);
 
       res.json(assessments);
 
