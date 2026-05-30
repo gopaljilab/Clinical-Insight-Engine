@@ -73,8 +73,11 @@ async function seedDatabase() {
   if (existing.length === 0) {
     console.log("Seeding database with sample assessments...");
 
+    const seedUserId = "seed@clinical-insight-engine.dev";
+
     const samples: AssessmentCreateInput[] = [
       {
+        userId: seedUserId,
         gender: "Male",
         age: 45,
         hypertension: false,
@@ -104,6 +107,7 @@ async function seedDatabase() {
         ]
       },
       {
+        userId: seedUserId,
         gender: "Female",
         age: 62,
         hypertension: true,
@@ -133,6 +137,7 @@ async function seedDatabase() {
         ]
       },
       {
+        userId: seedUserId,
         gender: "Male",
         age: 58,
         hypertension: true,
@@ -255,6 +260,7 @@ export async function registerRoutes(
           // Save the assessment to the database
           const assessment = await storage.createAssessment({
             ...input,
+            userId,
             riskScore: String(prediction.riskScore),
             riskCategory: prediction.riskCategory,
             factors: prediction.factors,
@@ -319,7 +325,8 @@ export async function registerRoutes(
 
   app.get(api.assessments.list.path, requireAuth, async (req, res) => {
     try {
-      const assessments = await storage.getAssessments();
+      const userId = req.session.user?.email;
+      const assessments = await storage.getAssessments(userId);
 
       res.json(assessments);
 

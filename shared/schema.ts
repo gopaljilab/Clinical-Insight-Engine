@@ -27,6 +27,7 @@ export const assessments = pgTable("assessments", {
   modelConfidence: text("model_confidence"),
   
   createdAt: timestamp("created_at").defaultNow(),
+  userId: text("user_id"),
 });
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
@@ -40,6 +41,7 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   bloodGlucoseLevel: z.coerce.number().min(50, "Blood glucose must be between 50 and 400").max(400, "Blood glucose must be between 50 and 400"),
 }).omit({
   id: true,
+  userId: true,
   riskScore: true,
   riskCategory: true,
   factors: true,

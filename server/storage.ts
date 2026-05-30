@@ -5,14 +5,15 @@ import {
   type InsertAssessment,
   type AssessmentFactor
 } from "@shared/schema";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 export interface IStorage {
-  getAssessments(limit?: number, offset?: number): Promise<Assessment[]>;
+  getAssessments(userId?: string, limit?: number, offset?: number): Promise<Assessment[]>;
   createAssessment(assessment: any): Promise<Assessment>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
+  userId: string;
   riskScore: string;
   riskCategory: string;
   factors: AssessmentFactor[];
@@ -22,17 +23,22 @@ export type AssessmentCreateInput = InsertAssessment & {
 
 export class DatabaseStorage implements IStorage {
   async getAssessments(
+    userId?: string,
     limit: number = 50,
     offset: number = 0
   ): Promise<Assessment[]> {
     const db = getDb();
 
-    return await db
+    let query = db
       .select()
       .from(assessments)
-      .orderBy(desc(assessments.createdAt))
-      .limit(limit)
-      .offset(offset);
+      .orderBy(desc(assessments.createdAt));
+
+    if (userId) {
+      query = query.where(eq(assessments.userId, userId));
+    }
+
+    return await query.limit(limit).offset(offset);
   }
 
   async createAssessment(
