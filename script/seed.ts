@@ -55,10 +55,10 @@ async function seed() {
         hypertension: false,
         heartDisease: false,
         smokingHistory: "never",
-        bmi: "24.5",
-        hba1cLevel: "5.2",
-        bloodGlucoseLevel: "95",
-        riskScore: "12.3",
+        bmi: 24.5,
+        hba1cLevel: 5.2,
+        bloodGlucoseLevel: 95,
+        riskScore: 12.3,
         riskCategory: "LOW",
         factors: [
           { name: "Age", impact: "positive", description: "Increases risk" },
@@ -66,7 +66,7 @@ async function seed() {
           { name: "Hba1c Level", impact: "negative", description: "Lowers risk" }
         ],
         confidenceInterval: "8.5% - 16.1%",
-        modelConfidence: "0.8770"
+        modelConfidence: 0.8770
       },
       {
         gender: "Female",
@@ -74,10 +74,10 @@ async function seed() {
         hypertension: true,
         heartDisease: false,
         smokingHistory: "former",
-        bmi: "31.2",
-        hba1cLevel: "6.8",
-        bloodGlucoseLevel: "145",
-        riskScore: "48.7",
+        bmi: 31.2,
+        hba1cLevel: 6.8,
+        bloodGlucoseLevel: 145,
+        riskScore: 48.7,
         riskCategory: "MODERATE",
         factors: [
           { name: "Hba1c Level", impact: "positive", description: "Increases risk" },
@@ -85,7 +85,7 @@ async function seed() {
           { name: "Hypertension", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "38.9% - 58.5%",
-        modelConfidence: "0.5130"
+        modelConfidence: 0.5130
       },
       {
         gender: "Male",
@@ -93,10 +93,10 @@ async function seed() {
         hypertension: true,
         heartDisease: true,
         smokingHistory: "current",
-        bmi: "35.8",
-        hba1cLevel: "8.2",
-        bloodGlucoseLevel: "198",
-        riskScore: "76.4",
+        bmi: 35.8,
+        hba1cLevel: 8.2,
+        bloodGlucoseLevel: 198,
+        riskScore: 76.4,
         riskCategory: "HIGH",
         factors: [
           { name: "Hba1c Level", impact: "positive", description: "Increases risk" },
@@ -104,7 +104,7 @@ async function seed() {
           { name: "Heart Disease", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "68.1% - 84.7%",
-        modelConfidence: "0.7640"
+        modelConfidence: 0.7640
       },
       {
         gender: "Female",
@@ -112,17 +112,17 @@ async function seed() {
         hypertension: false,
         heartDisease: false,
         smokingHistory: "never",
-        bmi: "21.0",
-        hba1cLevel: "4.8",
-        bloodGlucoseLevel: "85",
-        riskScore: "1.2",
+        bmi: 21.0,
+        hba1cLevel: 4.8,
+        bloodGlucoseLevel: 85,
+        riskScore: 1.2,
         riskCategory: "LOW",
         factors: [
           { name: "Hba1c Level", impact: "negative", description: "Lowers risk" },
           { name: "Bmi", impact: "negative", description: "Lowers risk" }
         ],
         confidenceInterval: "0.1% - 2.3%",
-        modelConfidence: "0.9880"
+        modelConfidence: 0.9880
       },
       {
         gender: "Male",
@@ -130,16 +130,16 @@ async function seed() {
         hypertension: false,
         heartDisease: false,
         smokingHistory: "never",
-        bmi: "23.5",
-        hba1cLevel: "5.1",
-        bloodGlucoseLevel: "90",
-        riskScore: "2.1",
+        bmi: 23.5,
+        hba1cLevel: 5.1,
+        bloodGlucoseLevel: 90,
+        riskScore: 2.1,
         riskCategory: "LOW",
         factors: [
           { name: "Hba1c Level", impact: "negative", description: "Lowers risk" }
         ],
         confidenceInterval: "0.5% - 3.7%",
-        modelConfidence: "0.9790"
+        modelConfidence: 0.9790
       },
       {
         gender: "Female",
@@ -147,16 +147,16 @@ async function seed() {
         hypertension: false,
         heartDisease: false,
         smokingHistory: "former",
-        bmi: "22.0",
-        hba1cLevel: "5.3",
-        bloodGlucoseLevel: "92",
-        riskScore: "3.4",
+        bmi: 22.0,
+        hba1cLevel: 5.3,
+        bloodGlucoseLevel: 92,
+        riskScore: 3.4,
         riskCategory: "LOW",
         factors: [
           { name: "Hba1c Level", impact: "negative", description: "Lowers risk" }
         ],
         confidenceInterval: "1.1% - 5.7%",
-        modelConfidence: "0.9660"
+        modelConfidence: 0.9660
       },
       {
         gender: "Male",
@@ -164,17 +164,17 @@ async function seed() {
         hypertension: true,
         heartDisease: false,
         smokingHistory: "former",
-        bmi: "27.5",
-        hba1cLevel: "5.9",
-        bloodGlucoseLevel: "105",
-        riskScore: "24.5",
+        bmi: 27.5,
+        hba1cLevel: 5.9,
+        bloodGlucoseLevel: 105,
+        riskScore: 24.5,
         riskCategory: "MODERATE",
         factors: [
           { name: "Hypertension", impact: "positive", description: "Increases risk" },
           { name: "Bmi", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "16.1% - 32.9%",
-        modelConfidence: "0.7550"
+        modelConfidence: 0.7550
       },
       {
         gender: "Female",
@@ -182,17 +182,17 @@ async function seed() {
         hypertension: false,
         heartDisease: false,
         smokingHistory: "current",
-        bmi: "29.0",
-        hba1cLevel: "6.1",
-        bloodGlucoseLevel: "110",
-        riskScore: "31.2",
+        bmi: 29.0,
+        hba1cLevel: 6.1,
+        bloodGlucoseLevel: 110,
+        riskScore: 31.2,
         riskCategory: "MODERATE",
         factors: [
           { name: "Bmi", impact: "positive", description: "Increases risk" },
           { name: "Hba1c Level", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "22.1% - 40.3%",
-        modelConfidence: "0.6880"
+        modelConfidence: 0.6880
       },
       {
         gender: "Male",
@@ -200,16 +200,16 @@ async function seed() {
         hypertension: false,
         heartDisease: true,
         smokingHistory: "never",
-        bmi: "26.2",
-        hba1cLevel: "5.8",
-        bloodGlucoseLevel: "102",
-        riskScore: "28.7",
+        bmi: 26.2,
+        hba1cLevel: 5.8,
+        bloodGlucoseLevel: 102,
+        riskScore: 28.7,
         riskCategory: "MODERATE",
         factors: [
           { name: "Heart Disease", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "19.8% - 37.6%",
-        modelConfidence: "0.7130"
+        modelConfidence: 0.7130
       },
       {
         gender: "Female",
@@ -217,17 +217,17 @@ async function seed() {
         hypertension: true,
         heartDisease: true,
         smokingHistory: "never",
-        bmi: "31.5",
-        hba1cLevel: "7.2",
-        bloodGlucoseLevel: "145",
-        riskScore: "78.4",
+        bmi: 31.5,
+        hba1cLevel: 7.2,
+        bloodGlucoseLevel: 145,
+        riskScore: 78.4,
         riskCategory: "HIGH",
         factors: [
           { name: "Hba1c Level", impact: "positive", description: "Increases risk" },
           { name: "Heart Disease", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "70.3% - 86.5%",
-        modelConfidence: "0.7840"
+        modelConfidence: 0.7840
       },
       {
         gender: "Male",
@@ -235,17 +235,17 @@ async function seed() {
         hypertension: true,
         heartDisease: true,
         smokingHistory: "former",
-        bmi: "33.0",
-        hba1cLevel: "8.1",
-        bloodGlucoseLevel: "180",
-        riskScore: "92.1",
+        bmi: 33.0,
+        hba1cLevel: 8.1,
+        bloodGlucoseLevel: 180,
+        riskScore: 92.1,
         riskCategory: "HIGH",
         factors: [
           { name: "Hba1c Level", impact: "positive", description: "Increases risk" },
           { name: "Age", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "86.8% - 97.4%",
-        modelConfidence: "0.9210"
+        modelConfidence: 0.9210
       },
       {
         gender: "Male",
@@ -253,17 +253,17 @@ async function seed() {
         hypertension: false,
         heartDisease: false,
         smokingHistory: "current",
-        bmi: "35.5",
-        hba1cLevel: "6.8",
-        bloodGlucoseLevel: "135",
-        riskScore: "65.3",
+        bmi: 35.5,
+        hba1cLevel: 6.8,
+        bloodGlucoseLevel: 135,
+        riskScore: 65.3,
         riskCategory: "HIGH",
         factors: [
           { name: "Bmi", impact: "positive", description: "Increases risk" },
           { name: "Hba1c Level", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "56.0% - 74.6%",
-        modelConfidence: "0.6530"
+        modelConfidence: 0.6530
       },
       {
         gender: "Female",
@@ -271,16 +271,16 @@ async function seed() {
         hypertension: false,
         heartDisease: false,
         smokingHistory: "never",
-        bmi: "20.5",
-        hba1cLevel: "5.2",
-        bloodGlucoseLevel: "88",
-        riskScore: "12.4",
+        bmi: 20.5,
+        hba1cLevel: 5.2,
+        bloodGlucoseLevel: 88,
+        riskScore: 12.4,
         riskCategory: "LOW",
         factors: [
           { name: "Age", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "8.6% - 16.2%",
-        modelConfidence: "0.8760"
+        modelConfidence: 0.8760
       },
       {
         gender: "Female",
@@ -288,16 +288,16 @@ async function seed() {
         hypertension: false,
         heartDisease: false,
         smokingHistory: "never",
-        bmi: "38.2",
-        hba1cLevel: "5.8",
-        bloodGlucoseLevel: "115",
-        riskScore: "22.1",
+        bmi: 38.2,
+        hba1cLevel: 5.8,
+        bloodGlucoseLevel: 115,
+        riskScore: 22.1,
         riskCategory: "MODERATE",
         factors: [
           { name: "Bmi", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "13.9% - 30.3%",
-        modelConfidence: "0.7790"
+        modelConfidence: 0.7790
       },
       {
         gender: "Male",
@@ -305,16 +305,16 @@ async function seed() {
         hypertension: true,
         heartDisease: false,
         smokingHistory: "current",
-        bmi: "25.8",
-        hba1cLevel: "5.6",
-        bloodGlucoseLevel: "98",
-        riskScore: "20.8",
+        bmi: 25.8,
+        hba1cLevel: 5.6,
+        bloodGlucoseLevel: 98,
+        riskScore: 20.8,
         riskCategory: "MODERATE",
         factors: [
           { name: "Hypertension", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "12.8% - 28.8%",
-        modelConfidence: "0.7920"
+        modelConfidence: 0.7920
       },
       {
         gender: "Male",
@@ -322,17 +322,17 @@ async function seed() {
         hypertension: false,
         heartDisease: false,
         smokingHistory: "never",
-        bmi: "24.0",
-        hba1cLevel: "11.5",
-        bloodGlucoseLevel: "310",
-        riskScore: "99.8",
+        bmi: 24.0,
+        hba1cLevel: 11.5,
+        bloodGlucoseLevel: 310,
+        riskScore: 99.8,
         riskCategory: "HIGH",
         factors: [
           { name: "Hba1c Level", impact: "positive", description: "Increases risk" },
           { name: "Blood Glucose Level", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "99.4% - 100.0%",
-        modelConfidence: "0.9980"
+        modelConfidence: 0.9980
       },
       {
         gender: "Female",
@@ -340,17 +340,17 @@ async function seed() {
         hypertension: true,
         heartDisease: true,
         smokingHistory: "former",
-        bmi: "29.8",
-        hba1cLevel: "6.5",
-        bloodGlucoseLevel: "128",
-        riskScore: "68.2",
+        bmi: 29.8,
+        hba1cLevel: 6.5,
+        bloodGlucoseLevel: 128,
+        riskScore: 68.2,
         riskCategory: "HIGH",
         factors: [
           { name: "Hba1c Level", impact: "positive", description: "Increases risk" },
           { name: "Heart Disease", impact: "positive", description: "Increases risk" }
         ],
         confidenceInterval: "59.1% - 77.3%",
-        modelConfidence: "0.6820"
+        modelConfidence: 0.6820
       }
     ];
 
