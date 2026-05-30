@@ -18,7 +18,8 @@ import {
   X,
 } from "lucide-react";
 
-export type AuthMode = "login" | "register";
+import type { AuthMode } from "@/types/auth";
+export type { AuthMode };
 
 interface AuthFlowModalProps {
   initialMode: AuthMode;
@@ -47,7 +48,7 @@ function AuthBrandPanel() {
               <HeartPulse className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-[#2563EB] p-0.5 text-white" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-xl font-black tracking-tight">CardioGuard</p>
+              <p className="text-xl font-black tracking-tight">Clinical Insight</p>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-100">Secure Clinical AI</p>
             </div>
           </div>
@@ -58,7 +59,7 @@ function AuthBrandPanel() {
               Protected workflows for preventive cardiometabolic care.
             </h2>
             <p className="mt-5 text-base leading-7 text-blue-100">
-              CardioGuard helps clinics identify high-risk cardiovascular patients before symptoms emerge.
+              Clinical Insight helps clinics identify high-risk diabetes patients before symptoms emerge.
             </p>
           </div>
         </div>
@@ -98,9 +99,9 @@ function SecurityNotice() {
       <div className="flex items-start gap-3">
         <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-[#2563EB]" aria-hidden="true" />
         <div>
-          <p className="text-sm font-bold text-[#1E293B]">Your data is encrypted end-to-end using AES-256 standards.</p>
+          <p className="text-sm font-bold text-[#1E293B]">Your session is protected with secure HTTP-only cookies and server-side authentication.</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {["HIPAA Compliant", "GDPR Secure"].map((badge) => (
+            {["Session Auth", "HTTP-only Cookies", "Demo Environment"].map((badge) => (
               <span key={badge} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
                 {badge}
               </span>
@@ -330,10 +331,36 @@ function RegisterForm({ onSubmit, onSwitch }: { onSubmit: (event: FormEvent<HTML
   );
 }
 
-function OtpForm({ onVerify }: { onVerify: () => void }) {
+function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const isComplete = otp.every(Boolean);
+
+  const handleFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!isComplete) return;
+    setError(null);
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp: otp.join("") }),
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Verification failed. Please try again.");
+      }
+      onVerify();
+    } catch (err: any) {
+      setError(err.message || "Verification failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const updateDigit = (index: number, value: string) => {
     const digit = value.replace(/\D/g, "").slice(-1);
@@ -373,6 +400,11 @@ function OtpForm({ onVerify }: { onVerify: () => void }) {
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
         We&apos;ve sent a secure verification code to your email.
       </p>
+      {error && (
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="mt-8 flex justify-center gap-2 sm:gap-3" aria-label="Six digit verification code">
         {otp.map((digit, index) => (
@@ -398,11 +430,23 @@ function OtpForm({ onVerify }: { onVerify: () => void }) {
 
       <button
         type="submit"
-        disabled={!isComplete}
+        disabled={!isComplete || isLoading}
         className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-5 py-4 text-base font-black text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/25 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:scale-100"
       >
-        Verify & Continue
-        <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+        {isLoading ? (
+          <>
+            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Verifying...
+          </>
+        ) : (
+          <>
+            Verify & Continue
+            <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+          </>
+        )}
       </button>
     </form>
   );
@@ -524,7 +568,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
                   <p className="mt-3 text-sm leading-6 text-slate-500">
                     {mode === "login"
                       ? "Access patient risk models, longitudinal insights, and clinical decision support tools."
-                      : "Start a secure CardioGuard workspace for preventive cardiology and diabetes screening."}
+                      : "Start a secure Clinical Insight workspace for preventive diabetes screening."}
                   </p>
                 </div>
 
@@ -547,7 +591,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
               </motion.div>
             ) : (
               <motion.div key="otp" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
-                <OtpForm onVerify={handleVerify} />
+                <OtpForm onVerify={handleVerify} email={pendingEmail} />
                 <button
                   type="button"
                   onClick={() => setStep("form")}
