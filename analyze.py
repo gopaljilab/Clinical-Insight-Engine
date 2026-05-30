@@ -2,6 +2,8 @@ import sys
 import json
 import os
 import hashlib
+import tempfile
+import time
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -10,6 +12,9 @@ import joblib
 
 DATA_FILE = "diabetes_dataset.csv"
 MODEL_FILE = "diabetes_model.joblib"
+LOCK_FILE = MODEL_FILE + ".lock"
+LOCK_TIMEOUT = 60
+LOCK_POLL_INTERVAL = 0.1
 
 def create_synthetic_data():
     """Generates synthetic dataset to mimic the provided assignment data."""
@@ -125,16 +130,86 @@ def _compute_dataset_hash(filepath: str) -> str | None:
     return hasher.hexdigest()
 
 
+def _acquire_lock(timeout=LOCK_TIMEOUT):
+    """Acquire an exclusive lock on the model file using a sidecar lock file.
+
+    Blocks up to `timeout` seconds, polling every 100ms.
+    Returns True if the lock was acquired, False if the timeout was reached.
+    """
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        try:
+            fd = os.open(LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+            with os.fdopen(fd, 'w') as f:
+                f.write(str(os.getpid()))
+            return True
+        except FileExistsError:
+            _clean_stale_lock()
+            time.sleep(LOCK_POLL_INTERVAL)
+    return False
+
+
+def _release_lock():
+    """Release the exclusive lock."""
+    try:
+        if os.path.exists(LOCK_FILE):
+            os.remove(LOCK_FILE)
+    except OSError:
+        pass
+
+
+def _clean_stale_lock():
+    """Remove the lock file if it is older than 5 minutes (stale from a crash)."""
+    try:
+        mtime = os.path.getmtime(LOCK_FILE)
+        if time.time() - mtime > 300:
+            os.remove(LOCK_FILE)
+    except OSError:
+        pass
+
+
+def _atomic_write(filepath, data):
+    """Write data atomically to filepath using a temporary file and rename.
+
+    Uses tempfile.mkstemp in the same directory as the target file to
+    ensure an atomic os.replace() on the same filesystem. This prevents
+    concurrent readers from seeing a partially written file.
+    """
+    dirpath = os.path.dirname(filepath) or '.'
+    fd, tmp_path = tempfile.mkstemp(dir=dirpath, suffix='.tmp')
+    try:
+        os.close(fd)
+        joblib.dump(data, tmp_path)
+        os.replace(tmp_path, filepath)
+    except BaseException:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 def save_pretrained_model():
-    """Train the model pipeline and serialize the artifacts to disk using joblib."""
-    model, scaler, features = train_model_pipeline()
-    if model is None:
-        print("Failed to train model. Ensure diabetes_dataset.csv is present.")
+    """Train the model pipeline and atomically serialize the artifacts to disk.
+
+    Acquires a file lock and uses an atomic write (tempfile + os.replace)
+    to prevent cache corruption from concurrent access.
+    """
+    if not _acquire_lock():
+        print("Could not acquire lock for saving model.", file=sys.stderr)
         return False
-    dataset_hash = _compute_dataset_hash(DATA_FILE)
-    joblib.dump((model, scaler, features, dataset_hash), MODEL_FILE)
-    print(f"Model successfully serialized to {MODEL_FILE}")
-    return True
+    try:
+        model, scaler, features = train_model_pipeline()
+        if model is None:
+            print("Failed to train model. Ensure diabetes_dataset.csv is present.")
+            return False
+        dataset_hash = _compute_dataset_hash(DATA_FILE)
+        _atomic_write(MODEL_FILE, (model, scaler, features, dataset_hash))
+        print(f"Model successfully serialized to {MODEL_FILE}")
+        return True
+    finally:
+        _release_lock()
 
 
 def get_model():
@@ -143,31 +218,51 @@ def get_model():
     Computes a SHA-256 hash of the current dataset and compares it against the
     hash stored at training time. If the dataset has changed (or no valid cache
     exists), the model is retrained automatically.
+
+    Uses file locking and atomic writes to prevent cache corruption when
+    multiple processes concurrently access the model file.
     """
     current_hash = _compute_dataset_hash(DATA_FILE)
 
+    # Try to load the cached model without locking first (fast path)
     if os.path.exists(MODEL_FILE):
         try:
             model_data = joblib.load(MODEL_FILE)
-            # Support legacy 3-tuple format and new 4-tuple format
             if isinstance(model_data, tuple) and len(model_data) >= 3:
                 model, scaler, features = model_data[:3]
                 cached_hash = model_data[3] if len(model_data) >= 4 else None
-
-                # If hashes match, the cached model is still valid
                 if current_hash is not None and current_hash == cached_hash:
                     return model, scaler, features
-
                 print("Dataset has changed. Retraining model...", file=sys.stderr)
         except Exception as e:
             print(f"Failed to load pre-trained model: {e}", file=sys.stderr)
 
-    # No valid cache — train from scratch
-    model, scaler, features = train_model_pipeline()
-    if model is not None:
-        joblib.dump((model, scaler, features, current_hash), MODEL_FILE)
-        print(f"Model trained and saved to {MODEL_FILE}")
-    return model, scaler, features
+    # Acquire lock before retraining and writing
+    if not _acquire_lock():
+        print("Could not acquire lock for model retraining.", file=sys.stderr)
+        return None, None, None
+
+    try:
+        # Double-check after acquiring lock: another process may have
+        # already retrained and written a fresh model while we waited
+        if os.path.exists(MODEL_FILE):
+            try:
+                model_data = joblib.load(MODEL_FILE)
+                if isinstance(model_data, tuple) and len(model_data) >= 3:
+                    cached_hash = model_data[3] if len(model_data) >= 4 else None
+                    if current_hash is not None and current_hash == cached_hash:
+                        return model_data[0], model_data[1], model_data[2]
+            except Exception:
+                pass
+
+        # No valid cache — train from scratch and atomically write
+        model, scaler, features = train_model_pipeline()
+        if model is not None:
+            _atomic_write(MODEL_FILE, (model, scaler, features, current_hash))
+            print(f"Model trained and saved to {MODEL_FILE}")
+        return model, scaler, features
+    finally:
+        _release_lock()
 
 def interpret_prediction(model, scaler, features, input_data):
     """Interprets a single patient's data, yielding clinician and patient views."""
