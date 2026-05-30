@@ -1,11 +1,13 @@
 import { getDb } from "./db";
+import { eq, desc } from "drizzle-orm";
 import {
   assessments,
   type Assessment,
   type InsertAssessment,
-  type AssessmentFactor
+  type AssessmentFactor,
 } from "@shared/schema";
-import { desc, eq } from "drizzle-orm";
+
+
 
 export interface IStorage {
   getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<Assessment[]>;
@@ -13,19 +15,18 @@ export interface IStorage {
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
+  // Server-side fields (model outputs)
   riskScore: number;
   riskCategory: string;
   factors: AssessmentFactor[];
-  confidenceInterval?: string;
-  modelConfidence?: number;
-  createdBy?: string;
+  confidenceInterval?: string | null;
+  modelConfidence?: number | null;
+
+  // Audit
   createdBy: string;
-  riskScore: string;
-  riskCategory: string;
-  factors: AssessmentFactor[];
-  confidenceInterval?: string;
-  modelConfidence?: string;
 };
+
+
 
 export class DatabaseStorage implements IStorage {
   async getAssessments(
@@ -47,6 +48,7 @@ export class DatabaseStorage implements IStorage {
   async createAssessment(
     assessment: AssessmentCreateInput
   ): Promise<Assessment> {
+
     const db = getDb();
 
     const [created] = await db

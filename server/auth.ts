@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { randomInt } from "crypto";
+import { randomInt, timingSafeEqual } from "crypto";
+import bcrypt from "bcrypt";
 
 // Extend express-session to include user data
 declare module "express-session" {
@@ -14,9 +15,20 @@ declare module "express-session" {
 interface RegisteredUser {
   fullName: string;
   email: string;
-  password: string;
+  passwordHash: string;
   licenseNumber: string;
 }
+
+function hashPassword(password: string): string {
+  const saltRounds = 12;
+  // NOTE: bcrypt.hash is async; for this in-memory auth router keep it synchronous by using bcrypt's sync API.
+  return bcrypt.hashSync(password, saltRounds);
+}
+
+function verifyPassword(password: string, passwordHash: string): boolean {
+  return bcrypt.compareSync(password, passwordHash);
+}
+
 
 /**
  * In-memory store for registered users.
