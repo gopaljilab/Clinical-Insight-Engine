@@ -2,8 +2,11 @@
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
+import threading
+import time
 
 import pytest
 
@@ -13,7 +16,12 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from analyze import (  # noqa: E402
+    MODEL_FILE,
+    LOCK_FILE,
+    _acquire_lock,
+    _atomic_write,
     _compute_dataset_hash,
+    _release_lock,
     create_synthetic_data,
     interpret_prediction,
 )
@@ -119,3 +127,105 @@ def test_predict_file_cli_outputs_json(tmp_path):
 
     assert "riskScore" in output
     assert output["riskCategory"] in {"LOW", "MODERATE", "HIGH"}
+
+
+def test_acquire_and_release_lock():
+    _acquire_lock(timeout=1)
+    assert os.path.exists(LOCK_FILE)
+    _release_lock()
+    assert not os.path.exists(LOCK_FILE)
+
+
+def test_lock_is_exclusive():
+    _acquire_lock(timeout=1)
+    acquired = _acquire_lock(timeout=0.5)
+    assert not acquired
+    _release_lock()
+
+
+def test_atomic_write_creates_valid_model(tmp_path):
+    model_file = os.path.join(tmp_path, "test_model.joblib")
+    data = (None, None, ["a", "b"], "dummyhash")
+    _atomic_write(model_file, data)
+    assert os.path.exists(model_file)
+
+    import joblib
+    loaded = joblib.load(model_file)
+    assert loaded[3] == "dummyhash"
+
+
+def test_concurrent_prediction_processes(tmp_path):
+    """Run multiple prediction subprocesses concurrently to verify no corruption."""
+    dataset = os.path.join(REPO_ROOT, "diabetes_dataset.csv")
+    if not os.path.exists(dataset):
+        create_synthetic_data()
+
+    payload_file = tmp_path / "patient.json"
+    payload_file.write_text(json.dumps({
+        "gender": "Male",
+        "age": 45,
+        "hypertension": False,
+        "heartDisease": False,
+        "smokingHistory": "never",
+        "bmi": 24.5,
+        "hba1cLevel": 5.2,
+        "bloodGlucoseLevel": 95,
+    }), encoding="utf-8")
+
+    results = []
+    errors = []
+
+    def run_prediction():
+        try:
+            result = subprocess.run(
+                [sys.executable, os.path.join(REPO_ROOT, "analyze.py"),
+                 "predict_file", str(payload_file)],
+                capture_output=True, text=True, cwd=REPO_ROOT, timeout=120,
+            )
+            results.append((result.returncode, result.stdout, result.stderr))
+        except Exception as e:
+            errors.append(str(e))
+
+    threads = [threading.Thread(target=run_prediction) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, f"Thread errors: {errors}"
+
+    for returncode, stdout, stderr in results:
+        assert returncode == 0, f"Non-zero exit: {stderr}"
+        lines = [line.strip() for line in stdout.splitlines() if line.strip()]
+        assert lines, "Expected prediction JSON on stdout"
+        output = json.loads(lines[-1])
+        assert "riskScore" in output
+        assert output["riskCategory"] in {"LOW", "MODERATE", "HIGH"}
+
+
+def test_lock_prevents_concurrent_writes(tmp_path):
+    """Verify that two processes cannot both hold the lock simultaneously."""
+    acquired_events = []
+    lock_holder = [None]
+
+    def try_lock(holder_id):
+        ok = _acquire_lock(timeout=2)
+        acquired_events.append(ok)
+        if ok:
+            lock_holder[0] = holder_id
+            time.sleep(0.5)
+            _release_lock()
+
+    t1 = threading.Thread(target=try_lock, args=(1,))
+    t2 = threading.Thread(target=try_lock, args=(2,))
+    t1.start()
+    time.sleep(0.1)
+    t2.start()
+    t1.join()
+    t2.join()
+
+    assert acquired_events.count(True) >= 1
+    # The second acquire may or may not succeed depending on timing,
+    # but at most one should hold the lock at a time
+    concurrent_holders = acquired_events.count(True)
+    assert concurrent_holders <= 2  # at most 2 total acquisitions

@@ -73,8 +73,11 @@ async function seedDatabase() {
   if (existing.length === 0) {
     console.log("Seeding database with sample assessments...");
 
+    const seedUserId = "seed@clinical-insight-engine.dev";
+
     const samples: AssessmentCreateInput[] = [
       {
+        createdBy: seedUserId,
         gender: "Male",
         age: 45,
         hypertension: false,
@@ -83,7 +86,7 @@ async function seedDatabase() {
         bmi: 24.5,
         hba1cLevel: 5.2,
         bloodGlucoseLevel: 95,
-        riskScore: "12.3",
+        riskScore: 12.3,
         riskCategory: "LOW",
         factors: [
           {
@@ -104,6 +107,7 @@ async function seedDatabase() {
         ]
       },
       {
+        createdBy: seedUserId,
         gender: "Female",
         age: 62,
         hypertension: true,
@@ -112,7 +116,7 @@ async function seedDatabase() {
         bmi: 31.2,
         hba1cLevel: 6.8,
         bloodGlucoseLevel: 145,
-        riskScore: "48.7",
+        riskScore: 48.7,
         riskCategory: "MODERATE",
         factors: [
           {
@@ -133,6 +137,7 @@ async function seedDatabase() {
         ]
       },
       {
+        createdBy: seedUserId,
         gender: "Male",
         age: 58,
         hypertension: true,
@@ -141,7 +146,7 @@ async function seedDatabase() {
         bmi: 35.8,
         hba1cLevel: 8.2,
         bloodGlucoseLevel: 198,
-        riskScore: "76.4",
+        riskScore: 76.4,
         riskCategory: "HIGH",
         factors: [
           {
@@ -338,14 +343,14 @@ export async function registerRoutes(
           // Save the assessment to the database
           const assessment = await storage.createAssessment({
             ...input,
-            riskScore: String(prediction.riskScore),
+            riskScore: Number(prediction.riskScore),
             riskCategory: prediction.riskCategory,
             factors: prediction.factors,
             confidenceInterval: prediction.confidenceInterval,
             modelConfidence:
               prediction.modelConfidence == null
                 ? undefined
-                : String(prediction.modelConfidence),
+                : Number(prediction.modelConfidence),
             createdBy: userId
           });
 

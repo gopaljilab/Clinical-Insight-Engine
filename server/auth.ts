@@ -39,6 +39,12 @@ function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
 
+function logDevOtp(email: string, otp: string) {
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[DEV] OTP for ${email}: ${otp}`);
+  }
+}
+
 /**
  * Creates an authentication router with login, register, logout, and session-check endpoints.
  *
@@ -81,7 +87,7 @@ export function createAuthRouter(): Router {
     pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
 
     // In production, send OTP via email. For development, return it in the response.
-    console.log(`[DEV] OTP for ${email}: ${otp}`);
+    logDevOtp(email, otp);
 
     return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
   });
@@ -119,7 +125,7 @@ export function createAuthRouter(): Router {
     pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
 
     // In production, send OTP via email. For development, return it in the response.
-    console.log(`[DEV] OTP for ${email}: ${otp}`);
+    logDevOtp(email, otp);
 
     return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
   });

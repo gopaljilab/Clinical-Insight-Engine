@@ -61,6 +61,7 @@ export default function Dashboard() {
     handleSubmit,
     formState: { errors },
     watch,
+    setValue,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -75,11 +76,40 @@ export default function Dashboard() {
     },
   });
 
+  const onSubmit = (data: FormData) => {
+    createAssessment(data, {
+      onSuccess: (data) => {
+        setResult(data);
+        localStorage.removeItem("clinical-insight-assessment-draft");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
+  };
+
   const watchedValues = watch();
   const isHypertension = watch("hypertension");
   const isHeartDisease = watch("heartDisease");
 
   const parsedForPreview = useMemo(() => formSchema.safeParse(watchedValues), [watchedValues]);
+
+  // Load draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("clinical-insight-assessment-draft");
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft) {
+        Object.entries(draft).forEach(([k, v]) => {
+          try {
+            // @ts-ignore
+            setValue(k as any, v, { shouldDirty: true });
+          } catch (e) {}
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [setValue]);
 
   useEffect(() => {
     if (!parsedForPreview.success || result) {
@@ -101,16 +131,6 @@ export default function Dashboard() {
           credentials: "include",
           body: JSON.stringify(parsedForPreview.data),
           signal: controller.signal,
-    try {
-      const raw = localStorage.getItem("clinical-insight-assessment-draft");
-      if (!raw) return;
-      const draft = JSON.parse(raw);
-      if (draft) {
-        Object.entries(draft).forEach(([k, v]) => {
-          try {
-            // @ts-ignore
-            setValue(k as any, v, { shouldDirty: true });
-          } catch (e) {}
         });
 
         const data = await response.json();
@@ -137,14 +157,13 @@ export default function Dashboard() {
     };
   }, [parsedForPreview, result]);
 
-  const onSubmit = (data: FormData) => {
-    createAssessment(data, {
-      onSuccess: (created) => {
-        setResult(created);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      },
-    });
-  };
+  // Autosave draft on form changes
+  const formData = watch();
+  useEffect(() => {
+    if (formData && (formData.age || formData.bmi || formData.hba1cLevel || formData.bloodGlucoseLevel || formData.hypertension || formData.heartDisease)) {
+      localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(formData));
+    }
+  }, [formData]);
 
   return (
     <AppLayout>
