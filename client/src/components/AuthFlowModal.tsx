@@ -335,6 +335,8 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resentAt, setResentAt] = useState<number | null>(null);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const isComplete = otp.every(Boolean);
 
@@ -344,14 +346,30 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
     setError(null);
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/verify-otp", {
+      // Try DB-backed verification first
+      const response = await fetch("/api/auth/verify-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp: otp.join("") }),
+        body: JSON.stringify({ email, code: otp.join("") }),
         credentials: "include",
       });
+
       if (!response.ok) {
         const data = await response.json();
+        // If user not found in DB, fall back to in-memory OTP
+        if (response.status === 404) {
+          const legacyResponse = await fetch("/api/auth/verify-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, otp: otp.join("") }),
+            credentials: "include",
+          });
+          if (!legacyResponse.ok) {
+            const legacyData = await legacyResponse.json();
+            throw new Error(legacyData.message || "Verification failed. Please try again.");
+          }
+          return onVerify();
+        }
         throw new Error(data.message || "Verification failed. Please try again.");
       }
       onVerify();
@@ -359,6 +377,34 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
       setError(err.message || "Verification failed. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setIsResending(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to resend code.");
+      }
+
+      const data = await response.json();
+      setResentAt(Date.now());
+      if (data.devOtp) {
+        setError(`[DEV] New code: ${data.devOtp}`); // visible in dev
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to resend code. Please try again.");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -448,6 +494,23 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
           </>
         )}
       </button>
+
+      <div className="mt-6 text-center">
+        <p className="text-sm text-slate-500">
+          Didn&apos;t receive the code?{" "}
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={isResending}
+            className="font-bold text-[#2563EB] transition-all duration-200 hover:text-blue-700 disabled:opacity-50"
+          >
+            {isResending ? "Sending..." : "Resend code"}
+          </button>
+        </p>
+        {resentAt && (
+          <p className="mt-1 text-xs text-slate-400">Code resent. Please check your email.</p>
+        )}
+      </div>
     </form>
   );
 }
