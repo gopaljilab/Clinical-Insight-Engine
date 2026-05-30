@@ -22,9 +22,9 @@ Closes #<!-- Issue number -->
 
 <!-- List the key changes made in this PR -->
 
-- 
-- 
-- 
+-
+-
+-
 
 ## Screenshots (if applicable)
 
