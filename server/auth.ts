@@ -39,6 +39,12 @@ function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
 
+function logDevOtp(email: string, otp: string) {
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[DEV] OTP for ${email}: ${otp}`);
+  }
+}
+
 /**
  * Creates an authentication router with login, register, logout, and session-check endpoints.
  *

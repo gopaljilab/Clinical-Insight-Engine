@@ -61,6 +61,8 @@ export default function Dashboard() {
     handleSubmit,
     formState: { errors },
     watch,
+    setValue,
+    reset,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -79,7 +81,7 @@ export default function Dashboard() {
     createAssessment(data, {
       onSuccess: (data) => {
         setResult(data);
-        localStorage.removeItem("cardioguard-assessment-draft");
+        localStorage.removeItem("clinical-insight-assessment-draft");
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     });
@@ -90,6 +92,25 @@ export default function Dashboard() {
   const isHeartDisease = watch("heartDisease");
 
   const parsedForPreview = useMemo(() => formSchema.safeParse(watchedValues), [watchedValues]);
+
+  // Load draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("clinical-insight-assessment-draft");
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft) {
+        Object.entries(draft).forEach(([k, v]) => {
+          try {
+            // @ts-ignore
+            setValue(k as any, v, { shouldDirty: true });
+          } catch (e) {}
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [setValue]);
 
   useEffect(() => {
     if (!parsedForPreview.success || result) {
@@ -112,23 +133,6 @@ export default function Dashboard() {
           body: JSON.stringify(parsedForPreview.data),
           signal: controller.signal,
         });
-
-        const raw = localStorage.getItem("clinical-insight-assessment-draft");
-        if (raw) {
-          try {
-            const draft = JSON.parse(raw);
-            if (draft) {
-              Object.entries(draft).forEach(([k, v]) => {
-                try {
-                  // @ts-ignore
-                  setValue(k as any, v, { shouldDirty: true });
-                } catch (e) {}
-              });
-            }
-          } catch {
-            // ignore draft parse errors
-          }
-        }
 
         const data = await response.json();
 
@@ -154,20 +158,11 @@ export default function Dashboard() {
     };
   }, [parsedForPreview, result]);
 
-  const onSubmit = (data: FormData) => {
-    createAssessment(data, {
-      onSuccess: (created) => {
-        setResult(created);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      },
-    });
-  };
-
   // Autosave draft on form changes
   const formData = watch();
   useEffect(() => {
     if (formData && (formData.age || formData.bmi || formData.hba1cLevel || formData.bloodGlucoseLevel || formData.hypertension || formData.heartDisease)) {
-      localStorage.setItem("cardioguard-assessment-draft", JSON.stringify(formData));
+      localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(formData));
     }
   }, [formData]);
 
@@ -337,7 +332,17 @@ export default function Dashboard() {
                   </p>
                 </div>
 
-                <div className="mt-8 border-t border-slate-100 pt-6 flex justify-end">
+                <div className="mt-8 border-t border-slate-100 pt-6 flex flex-col md:flex-row justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      reset();
+                      localStorage.removeItem("clinical-insight-assessment-draft");
+                    }}
+                    className="w-full md:w-auto px-8 py-4 rounded-xl font-bold text-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 transition-all duration-200"
+                  >
+                    Reset Form
+                  </button>
                   <button
                     type="submit"
                     disabled={isPending || result !== null}
