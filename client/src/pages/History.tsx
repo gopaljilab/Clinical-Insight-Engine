@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/hooks/use-assessments";
 import { format, isValid } from "date-fns";
-import { Loader2, Search, Calendar, User, Activity } from "lucide-react";
+import { Loader2, Search, Calendar, User, Activity, X } from "lucide-react";
 import { useState } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
@@ -113,8 +113,18 @@ export default function History() {
                 placeholder="Search history..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full sm:w-64"
+                className="pl-10 pr-10 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full sm:w-64"
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded-full hover:bg-muted"
+                  aria-label="Clear search query"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
             <select
               value={sortBy}
