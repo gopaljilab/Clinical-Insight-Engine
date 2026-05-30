@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-<<<<<<< HEAD
 import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer } from "lucide-react";
-=======
-import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download } from "lucide-react";
->>>>>>> feat/export-json
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AssessmentResultProps {
