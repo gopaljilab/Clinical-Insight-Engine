@@ -4,6 +4,7 @@ import { Activity, ClipboardList, HeartPulse, LogOut, Loader2 } from "lucide-rea
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import ThemeToggle from "../ThemeToggle";
+import { useToast } from "@/hooks/use-toast";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -17,6 +18,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
   const [checking, setChecking] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
@@ -28,6 +30,38 @@ export function AppLayout({ children }: AppLayoutProps) {
       .catch(() => setLocation("/"))
       .finally(() => setChecking(false));
   }, [setLocation]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let timeoutId: number;
+    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+    const resetTimer = () => {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        toast({
+          title: "Session Inactivity Warning",
+          description: "You have been inactive. For your security, you will be logged out soon if inactivity continues.",
+          variant: "destructive",
+        });
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
+    events.forEach((event) => {
+      window.addEventListener(event, resetTimer);
+    });
+
+    resetTimer();
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      events.forEach((event) => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [user, toast]);
 
   const [isSigningOut, setIsSigningOut] = useState(false);
 
