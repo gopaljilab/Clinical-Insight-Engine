@@ -6,6 +6,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("rememberedEmail");
+    if (saved) {
+      setEmail(saved);
+      setRememberMe(true);
+    }
+  }, []);
   const [, setLocation] = useLocation();
   const [errors, setErrors] = useState<{ email?: string; password?: string; otp?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -38,6 +46,11 @@ export default function LoginPage() {
       return;
     }
     setErrors({});
+    if (rememberMe) {
+      localStorage.setItem("rememberedEmail", email);
+    } else {
+      localStorage.removeItem("rememberedEmail");
+    }
     setIsLoading(true);
     try {
       const res = await fetch("/api/auth/login", {

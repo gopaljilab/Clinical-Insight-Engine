@@ -202,11 +202,11 @@ def save_pretrained_model():
     try:
         model, scaler, features = train_model_pipeline()
         if model is None:
-            print("Failed to train model. Ensure diabetes_dataset.csv is present.")
+            print("Failed to train model. Ensure diabetes_dataset.csv is present.", file=sys.stderr)
             return False
         dataset_hash = _compute_dataset_hash(DATA_FILE)
         _atomic_write(MODEL_FILE, (model, scaler, features, dataset_hash))
-        print(f"Model successfully serialized to {MODEL_FILE}")
+        print(f"Model successfully serialized to {MODEL_FILE}", file=sys.stderr)
         return True
     finally:
         _release_lock()
@@ -259,7 +259,7 @@ def get_model():
         model, scaler, features = train_model_pipeline()
         if model is not None:
             _atomic_write(MODEL_FILE, (model, scaler, features, current_hash))
-            print(f"Model trained and saved to {MODEL_FILE}")
+            print(f"Model trained and saved to {MODEL_FILE}", file=sys.stderr)
         return model, scaler, features
     finally:
         _release_lock()
