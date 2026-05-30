@@ -255,10 +255,52 @@ graph TB
 | Python | 3.10+ | `python3 --version` | [python.org](https://python.org) |
 | PostgreSQL | 14+ | `psql --version` | [postgresql.org](https://postgresql.org) |
 | Git | Any | `git --version` | [git-scm.com](https://git-scm.com) |
+| Docker | 20+ | `docker --version` | [docker.com](https://www.docker.com) |
+| Docker Compose | 2+ | `docker compose version` | bundled with Docker |
 
 ---
 
-## ⚙️ Installation & Setup
+## 🐳 Fast Setup with Docker (Recommended)
+
+If you have Docker installed, you can skip the manual installation of Node.js, Python, and PostgreSQL entirely. Running the application requires just a single command.
+
+### 1. Launching the App
+Simply run the following command in the project root:
+
+```bash
+docker compose up
+```
+
+This command will:
+* Spin up a PostgreSQL 16 database container with persistent storage.
+* Build the app container including Node.js 20 and a Python 3 virtual environment with all scikit-learn/pandas dependencies.
+* Wait for the database to be healthy, then run migrations (`npm run db:push`).
+* Automatically seed the database with sample clinical assessments (in development mode).
+* Launch the full-stack server with live-reloading (HMR) enabled.
+
+Once started, open your browser and navigate to:
+* **Web App & REST API:** [http://localhost:3000](http://localhost:3000)
+
+### 2. Stop the App
+To stop the services while preserving your data:
+```bash
+docker compose down
+```
+
+To stop the services and completely reset the database (deleting persistent volumes):
+```bash
+docker compose down -v
+```
+
+### 3. Rebuilding after Updates
+If you update `package.json` or `requirements.txt` dependencies, trigger a clean rebuild:
+```bash
+docker compose up --build
+```
+
+---
+
+## ⚙️ Manual Installation & Setup
 
 ### 1. 📥 Clone & Install
 
