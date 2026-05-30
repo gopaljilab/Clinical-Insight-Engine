@@ -489,6 +489,23 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
 
+
+    // Client-side validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (mode === "register") {
+      const fullNameVal = String(formData.get("fullName") ?? "");
+      const licenseNumberVal = String(formData.get("licenseNumber") ?? "");
+      if (!fullNameVal.trim()) { setError("Full name is required."); return; }
+      if (!licenseNumberVal.trim()) { setError("Medical license number is required."); return; }
+    }
     setIsLoading(true);
 
     try {
