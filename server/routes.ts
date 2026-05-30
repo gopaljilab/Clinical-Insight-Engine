@@ -73,8 +73,11 @@ async function seedDatabase() {
   if (existing.length === 0) {
     console.log("Seeding database with sample assessments...");
 
+    const seedUserId = "seed@clinical-insight-engine.dev";
+
     const samples: AssessmentCreateInput[] = [
       {
+        createdBy: seedUserId,
         gender: "Male",
         age: 45,
         hypertension: false,
@@ -104,6 +107,7 @@ async function seedDatabase() {
         ]
       },
       {
+        createdBy: seedUserId,
         gender: "Female",
         age: 62,
         hypertension: true,
@@ -133,6 +137,7 @@ async function seedDatabase() {
         ]
       },
       {
+        createdBy: seedUserId,
         gender: "Male",
         age: 58,
         hypertension: true,
