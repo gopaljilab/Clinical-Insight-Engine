@@ -35,6 +35,22 @@ interface PendingOtp {
  */
 const pendingOtps = new Map<string, PendingOtp>();
 
+// Periodic cleanup to prevent memory leak from unverified OTPs
+const OTP_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
+const otpCleanupTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [email, record] of pendingOtps.entries()) {
+    if (now > record.expiresAt) {
+      pendingOtps.delete(email);
+    }
+  }
+}, OTP_CLEANUP_INTERVAL_MS);
+
+// Allow Node process to exit cleanly without waiting for the interval
+if (otpCleanupTimer.unref) {
+  otpCleanupTimer.unref();
+}
+
 function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
