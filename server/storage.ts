@@ -16,15 +16,9 @@ export type AssessmentCreateInput = InsertAssessment & {
   riskScore: number;
   riskCategory: string;
   factors: AssessmentFactor[];
-  confidenceInterval?: string;
+  confidenceInterval?: string | null;
   modelConfidence?: number;
-  createdBy?: string;
   createdBy: string;
-  riskScore: string;
-  riskCategory: string;
-  factors: AssessmentFactor[];
-  confidenceInterval?: string;
-  modelConfidence?: string;
 };
 
 export class DatabaseStorage implements IStorage {
