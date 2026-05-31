@@ -31,23 +31,36 @@ function trimRequestStore(now: number) {
   }
 }
 
+// Periodic cleanup to prevent memory leak from unique IPs that never return.
+// Runs every minute to remove entries whose rate limit window has expired.
+const cleanupTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of requestStore.entries()) {
+    if (now > record.resetTime) {
+      requestStore.delete(ip);
+    }
+  }
+}, WINDOW_MS);
+
+// Allow Node process to exit cleanly without waiting for the interval
+if (cleanupTimer.unref) {
+  cleanupTimer.unref();
+}
+
 export const publicApiRateLimiter = (req: Request, res: Response, next: NextFunction) => {
   const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
   const now = Date.now();
   trimRequestStore(now);
 
   const record = requestStore.get(ip as string);
-
   if (!record || now > record.resetTime) {
     requestStore.set(ip as string, { count: 1, resetTime: now + WINDOW_MS });
     return next();
   }
-
   if (record.count >= MAX_REQUESTS) {
     console.warn(`[RATE LIMIT EXCEEDED] DDoS protection triggered for IP: ${ip}`);
     return res.status(429).json({ error: "Too many requests. Public API limit exceeded." });
   }
-
   record.count += 1;
   next();
 };

@@ -331,8 +331,8 @@ function RegisterForm({ onSubmit, onSwitch }: { onSubmit: (event: FormEvent<HTML
   );
 }
 
-function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+function OtpForm({ onVerify, email, devOtp }: { onVerify: () => void; email: string; devOtp?: string }) {
+  const [otp, setOtp] = useState(devOtp ? devOtp.split("").slice(0, 6) : ["", "", "", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
@@ -446,6 +446,11 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
         We&apos;ve sent a secure verification code to your email.
       </p>
+      {devOtp && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-700">
+          🔧 Dev mode: OTP auto-filled — <span className="font-mono">{devOtp}</span>
+        </div>
+      )}
       {error && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
           {error}
@@ -522,6 +527,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [pendingEmail, setPendingEmail] = useState("");
+  const [devOtp, setDevOtp] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -552,39 +558,60 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
 
+
+    // Client-side validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (mode === "register") {
+      const fullNameVal = String(formData.get("fullName") ?? "");
+      const licenseNumberVal = String(formData.get("licenseNumber") ?? "");
+      if (!fullNameVal.trim()) { setError("Full name is required."); return; }
+      if (!licenseNumberVal.trim()) { setError("Medical license number is required."); return; }
+    }
     setIsLoading(true);
 
     try {
+      let authResponse: Response;
+
       if (mode === "register") {
         const fullName = String(formData.get("fullName") ?? "");
         const licenseNumber = String(formData.get("licenseNumber") ?? "");
 
-        const response = await fetch("/api/auth/register", {
+        authResponse = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fullName, email, password, licenseNumber }),
           credentials: "include",
         });
 
-        if (!response.ok) {
-          const data = await response.json();
+        if (!authResponse.ok) {
+          const data = await authResponse.json();
           throw new Error(data.message || "Registration failed. Please try again.");
         }
       } else {
-        const response = await fetch("/api/auth/login", {
+        authResponse = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
           credentials: "include",
         });
 
-        if (!response.ok) {
-          const data = await response.json();
+        if (!authResponse.ok) {
+          const data = await authResponse.json();
           throw new Error(data.message || "Invalid email or password.");
         }
       }
 
+      const responseData = await authResponse.json();
       setPendingEmail(email);
+      if (responseData?.devOtp) setDevOtp(responseData.devOtp);
       setStep("otp");
     } catch (err: any) {
       setError(err.message || "Authentication failed. Please try again.");
@@ -654,7 +681,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
               </motion.div>
             ) : (
               <motion.div key="otp" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
-                <OtpForm onVerify={handleVerify} email={pendingEmail} />
+                <OtpForm onVerify={handleVerify} email={pendingEmail} devOtp={devOtp} />
                 <button
                   type="button"
                   onClick={() => setStep("form")}

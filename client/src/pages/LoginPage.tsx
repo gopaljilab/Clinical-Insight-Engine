@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 
 export default function LoginPage() {
@@ -6,6 +6,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+
+  useEffect(() => {
+    document.title = "Clinical Insight Engine - Sign In";
+  }, []);
   const [, setLocation] = useLocation();
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -19,8 +23,8 @@ export default function LoginPage() {
     }
     if (!password) {
       newErrors.password = "Password is required";
-    } else if (password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
+    } else if (password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters";
     }
     return newErrors;
   };
@@ -33,6 +37,11 @@ export default function LoginPage() {
       return;
     }
     setErrors({});
+    if (rememberMe) {
+      localStorage.setItem("rememberedEmail", email);
+    } else {
+      localStorage.removeItem("rememberedEmail");
+    }
     setIsLoading(true);
     try {
       const res = await fetch("/api/auth/login", {
@@ -194,7 +203,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-xs text-gray-400 mt-6">
-          Clinical Insight Engine © 2026 · Frontend UI only
+          Clinical Insight Engine © {new Date().getFullYear()} · Frontend UI only
         </p>
       </div>
     </div>
