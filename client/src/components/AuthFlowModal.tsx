@@ -331,12 +331,52 @@ function RegisterForm({ onSubmit, onSwitch }: { onSubmit: (event: FormEvent<HTML
   );
 }
 
-function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+function OtpForm({ onVerify, email, devOtp }: { onVerify: () => void; email: string; devOtp?: string }) {
+  const [otp, setOtp] = useState(devOtp ? devOtp.split("").slice(0, 6) : ["", "", "", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [countdown, setCountdown] = useState(600); // 10 minutes in seconds
+  const [resentAt, setResentAt] = useState<number | null>(null);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const isComplete = otp.every(Boolean);
+
+  // Countdown timer
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => setCountdown((c) => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  const formatCountdown = (secs: number) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, "0");
+    const s = (secs % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  };
+
+  const handleResend = async () => {
+    setIsResending(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, _resend: true }),
+        credentials: "include",
+      });
+      if (response.ok) {
+        setCountdown(600);
+        setOtp(["", "", "", "", "", ""]);
+        inputRefs.current[0]?.focus();
+      } else {
+        setError("Failed to resend code. Please try again.");
+      }
+    } catch {
+      setError("Unable to connect. Please try again.");
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   const handleFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -344,14 +384,30 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
     setError(null);
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/verify-otp", {
+      // Try DB-backed verification first
+      const response = await fetch("/api/auth/verify-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp: otp.join("") }),
+        body: JSON.stringify({ email, code: otp.join("") }),
         credentials: "include",
       });
+
       if (!response.ok) {
         const data = await response.json();
+        // If user not found in DB, fall back to in-memory OTP
+        if (response.status === 404) {
+          const legacyResponse = await fetch("/api/auth/verify-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, otp: otp.join("") }),
+            credentials: "include",
+          });
+          if (!legacyResponse.ok) {
+            const legacyData = await legacyResponse.json();
+            throw new Error(legacyData.message || "Verification failed. Please try again.");
+          }
+          return onVerify();
+        }
         throw new Error(data.message || "Verification failed. Please try again.");
       }
       onVerify();
@@ -359,6 +415,34 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
       setError(err.message || "Verification failed. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setIsResending(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to resend code.");
+      }
+
+      const data = await response.json();
+      setResentAt(Date.now());
+      if (data.devOtp) {
+        setError(`[DEV] New code: ${data.devOtp}`); // visible in dev
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to resend code. Please try again.");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -400,6 +484,11 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
         We&apos;ve sent a secure verification code to your email.
       </p>
+      {devOtp && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-700">
+          🔧 Dev mode: OTP auto-filled — <span className="font-mono">{devOtp}</span>
+        </div>
+      )}
       {error && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
           {error}
@@ -448,6 +537,16 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
           </>
         )}
       </button>
+      <div className="mt-4 text-center">
+        <button
+          type="button"
+          onClick={handleResend}
+          disabled={isResending || countdown > 540}
+          className="text-sm font-semibold text-[#2563EB] hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed transition-colors"
+        >
+          {isResending ? "Sending..." : countdown > 540 ? `Resend available in ${formatCountdown(countdown - 540)}` : "Resend OTP"}
+        </button>
+      </div>
     </form>
   );
 }
@@ -459,6 +558,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [pendingEmail, setPendingEmail] = useState("");
+  const [devOtp, setDevOtp] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -489,39 +589,60 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
 
+
+    // Client-side validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (mode === "register") {
+      const fullNameVal = String(formData.get("fullName") ?? "");
+      const licenseNumberVal = String(formData.get("licenseNumber") ?? "");
+      if (!fullNameVal.trim()) { setError("Full name is required."); return; }
+      if (!licenseNumberVal.trim()) { setError("Medical license number is required."); return; }
+    }
     setIsLoading(true);
 
     try {
+      let authResponse: Response;
+
       if (mode === "register") {
         const fullName = String(formData.get("fullName") ?? "");
         const licenseNumber = String(formData.get("licenseNumber") ?? "");
 
-        const response = await fetch("/api/auth/register", {
+        authResponse = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fullName, email, password, licenseNumber }),
           credentials: "include",
         });
 
-        if (!response.ok) {
-          const data = await response.json();
+        if (!authResponse.ok) {
+          const data = await authResponse.json();
           throw new Error(data.message || "Registration failed. Please try again.");
         }
       } else {
-        const response = await fetch("/api/auth/login", {
+        authResponse = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
           credentials: "include",
         });
 
-        if (!response.ok) {
-          const data = await response.json();
+        if (!authResponse.ok) {
+          const data = await authResponse.json();
           throw new Error(data.message || "Invalid email or password.");
         }
       }
 
+      const responseData = await authResponse.json();
       setPendingEmail(email);
+      if (responseData?.devOtp) setDevOtp(responseData.devOtp);
       setStep("otp");
     } catch (err: any) {
       setError(err.message || "Authentication failed. Please try again.");
@@ -591,7 +712,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
               </motion.div>
             ) : (
               <motion.div key="otp" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
-                <OtpForm onVerify={handleVerify} email={pendingEmail} />
+                <OtpForm onVerify={handleVerify} email={pendingEmail} devOtp={devOtp} />
                 <button
                   type="button"
                   onClick={() => setStep("form")}

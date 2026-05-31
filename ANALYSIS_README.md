@@ -224,3 +224,7 @@ This implementation follows best practices from:
 - Clinical prediction models for diabetes screening (ADA guidelines)
 - Interpretable machine learning in healthcare
 - Human-AI collaboration in clinical workflows
+
+
+### Clinical Prediction Data Quality Rules
+- Filter out null blood pressure rows before computing risk maps.

@@ -62,6 +62,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   isActive: boolean("is_active").default(true),
   emailVerified: boolean("email_verified").default(false),
+  emailVerifiedAt: timestamp("email_verified_at"),
   role: varchar("role", { length: 50 }).default("provider"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -90,6 +91,18 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   token: text("token").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const emailVerificationTokens = pgTable("email_verification_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id),
+  verificationCode: varchar("verification_code", { length: 6 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  attemptCount: integer("attempt_count").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

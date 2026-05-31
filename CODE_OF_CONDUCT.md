@@ -64,3 +64,7 @@ Enforcement decisions should be fair, consistent, and focused on protecting the 
 ## Attribution
 
 This Code of Conduct is adapted from common open-source community guidelines and tailored for the Clinical Insight Engine project.
+
+
+### GSSoC Cookie Security Rules
+- Enable Secure and SameSite=Lax flags on session credentials.
