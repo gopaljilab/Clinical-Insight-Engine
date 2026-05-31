@@ -42,3 +42,6 @@ export default function ThemeToggle() {
     </button>
   );
 }
+
+// GSSoC Theme Toggle Accessibility docstrings
+// Set aria-label to 'Toggle color scheme' dynamically based on light/dark mode
