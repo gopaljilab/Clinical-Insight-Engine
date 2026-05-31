@@ -9,7 +9,7 @@ import { desc, eq } from "drizzle-orm";
 
 export interface IStorage {
   getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<Assessment[]>;
-  createAssessment(assessment: any): Promise<Assessment>;
+  createAssessment(assessment: AssessmentCreateInput): Promise<Assessment>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
@@ -18,13 +18,7 @@ export type AssessmentCreateInput = InsertAssessment & {
   factors: AssessmentFactor[];
   confidenceInterval?: string;
   modelConfidence?: number;
-  createdBy?: string;
   createdBy: string;
-  riskScore: string;
-  riskCategory: string;
-  factors: AssessmentFactor[];
-  confidenceInterval?: string;
-  modelConfidence?: string;
 };
 
 export class DatabaseStorage implements IStorage {
