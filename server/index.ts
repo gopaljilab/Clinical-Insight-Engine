@@ -83,9 +83,8 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: [
           "'self'",
-          "'unsafe-eval'",
-          "'unsafe-inline'",
-          (_req: any, res: any) => `'nonce-${res.locals.cspNonce}',`
+          "'strict-dynamic'",
+          (_req: any, res: any) => `'nonce-${res.locals.cspNonce}'`
         ],
         styleSrc: [
           "'self'",
