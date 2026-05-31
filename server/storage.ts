@@ -40,7 +40,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<Assessment[]> {
     const db = getDb();
 
-    return await db
+    let query = db
       .select()
       .from(assessments)
       .orderBy(desc(assessments.createdAt))
