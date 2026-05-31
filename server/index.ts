@@ -214,4 +214,25 @@ app.use((req, res, next) => {
       log(`serving on ${host}:${port}`);
     },
   );
+
+  // Graceful shutdown handler
+  function shutdown(signal: string) {
+    log(`${signal} received — shutting down gracefully`);
+
+    httpServer.close(async () => {
+      log("HTTP server closed");
+      await closePool();
+      log("Database pool closed");
+      process.exit(0);
+    });
+
+    // Force exit if graceful shutdown takes too long
+    setTimeout(() => {
+      console.error("Graceful shutdown timed out — forcing exit");
+      process.exit(1);
+    }, 10000).unref();
+  }
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 })();
