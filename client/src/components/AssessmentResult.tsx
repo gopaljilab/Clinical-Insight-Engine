@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AssessmentResultProps {
@@ -50,6 +50,16 @@ const getFactorReason = (factor: RiskFactor) => {
 
 export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [view, setView] = useState<"patient" | "clinician">("patient");
+
+  const exportToJson = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(assessment, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `diabetes-risk-assessment-${assessment.id ?? "report"}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
 
   const getRiskColor = (category: string) => {
     switch (category.toUpperCase()) {
@@ -109,29 +119,63 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 overflow-hidden flex flex-col"
     >
       {/* Header/Tabs */}
-      <div className="flex border-b border-border/60 bg-muted/30">
-        <button
-          onClick={() => setView("patient")}
-          className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-semibold transition-colors ${
-            view === "patient" 
-              ? "text-primary border-b-2 border-primary bg-background" 
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-          }`}
-        >
-          <UserCircle className="w-4 h-4" />
-          Patient View
-        </button>
-        <button
-          onClick={() => setView("clinician")}
-          className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-semibold transition-colors ${
-            view === "clinician" 
-              ? "text-primary border-b-2 border-primary bg-background" 
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-          }`}
-        >
-          <Stethoscope className="w-4 h-4" />
-          Clinician View
-        </button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 bg-muted/30 p-2.5">
+        <div className="relative flex flex-1 max-w-md bg-muted/65 p-1 gap-1 rounded-xl">
+          <button
+            onClick={() => setView("patient")}
+            className={`relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none ${
+              view === "patient" 
+                ? "text-primary" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <UserCircle className="w-4 h-4" />
+            Patient View
+            {view === "patient" && (
+              <motion.div
+                layoutId="activeTab"
+                className="absolute inset-0 bg-background rounded-lg border border-border/50 shadow-sm z-[-1]"
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
+          </button>
+          <button
+            onClick={() => setView("clinician")}
+            className={`relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none ${
+              view === "clinician" 
+                ? "text-primary" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Stethoscope className="w-4 h-4" />
+            Clinician View
+            {view === "clinician" && (
+              <motion.div
+                layoutId="activeTab"
+                className="absolute inset-0 bg-background rounded-lg border border-border/50 shadow-sm z-[-1]"
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
+          </button>
+        </div>
+        <div className="flex items-center gap-2 justify-end self-stretch print:hidden">
+          <button
+            type="button"
+            onClick={exportToJson}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export JSON
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            Print Report
+          </button>
+        </div>
       </div>
 
       <div className="p-6 md:p-8">
