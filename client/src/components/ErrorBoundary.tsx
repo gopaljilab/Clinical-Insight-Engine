@@ -63,3 +63,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 }
 
 export default ErrorBoundary;
+
+
+// GSSoC Error Boundary Fallback Logger
+// Log client component crash stacks to diagnostic endpoint
