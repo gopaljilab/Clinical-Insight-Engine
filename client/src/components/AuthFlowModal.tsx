@@ -578,36 +578,38 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
     setIsLoading(true);
 
     try {
+      let authResponse: Response;
+
       if (mode === "register") {
         const fullName = String(formData.get("fullName") ?? "");
         const licenseNumber = String(formData.get("licenseNumber") ?? "");
 
-        const response = await fetch("/api/auth/register", {
+        authResponse = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fullName, email, password, licenseNumber }),
           credentials: "include",
         });
 
-        if (!response.ok) {
-          const data = await response.json();
+        if (!authResponse.ok) {
+          const data = await authResponse.json();
           throw new Error(data.message || "Registration failed. Please try again.");
         }
       } else {
-        const response = await fetch("/api/auth/login", {
+        authResponse = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
           credentials: "include",
         });
 
-        if (!response.ok) {
-          const data = await response.json();
+        if (!authResponse.ok) {
+          const data = await authResponse.json();
           throw new Error(data.message || "Invalid email or password.");
         }
       }
 
-      const responseData = await (response as Response).json?.();
+      const responseData = await authResponse.json();
       setPendingEmail(email);
       if (responseData?.devOtp) setDevOtp(responseData.devOtp);
       setStep("otp");

@@ -10,7 +10,7 @@ import History from "./pages/History";
 import LoginPage from "./pages/LoginPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
-import ErrorBoundary from "@/components/ErrorBoundary";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function Router() {
   return (

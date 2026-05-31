@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { randomInt } from "crypto";
-import bcrypt from "bcrypt";
+import { randomInt, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import rateLimit from "express-rate-limit";
 
 // Extend express-session to include user data
 declare module "express-session" {
@@ -18,14 +18,6 @@ interface RegisteredUser {
   email: string;
   passwordHash: string;
   licenseNumber: string;
-}
-
-function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, 10);
-}
-
-function verifyPassword(password: string, hash: string): boolean {
-  return bcrypt.compareSync(password, hash);
 }
 
 /**
@@ -63,21 +55,6 @@ const resendLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many resend requests. Please try again later." },
 });
-
-const SALT_LENGTH = 32;
-const KEY_LENGTH = 64;
-
-function hashPassword(password: string): string {
-  const salt = randomBytes(SALT_LENGTH).toString("hex");
-  const hash = scryptSync(password, salt, KEY_LENGTH).toString("hex");
-  return `${salt}:${hash}`;
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, key] = stored.split(":");
-  const hash = scryptSync(password, salt, KEY_LENGTH);
-  return hash.length === Buffer.from(key, "hex").length && timingSafeEqual(hash, Buffer.from(key, "hex"));
-}
 
 function generateOtp(): string {
   return randomInt(100000, 999999).toString();
