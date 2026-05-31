@@ -120,8 +120,8 @@ export default function History() {
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
-    const dateObj = new Date(dateVal);
-    return isValid(dateObj) ? format(dateObj, 'MMM d, yyyy') : "Unknown";
+    const dateObj = safeParseDate(String(dateVal));
+    return dateObj && isValid(dateObj) ? format(dateObj, 'MMM d, yyyy') : "Unknown";
   };
 
   return (
