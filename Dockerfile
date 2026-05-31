@@ -1,14 +1,9 @@
-FROM node:20-bookworm-slim
+# Stage 1: Build
+FROM node:20-bookworm-slim AS builder
 
-# Set default runtime environment variables
-ENV NODE_ENV=development
-ENV PORT=3000
-ENV PATH="/app/.venv/bin:$PATH"
-
-# Set working directory inside the container
 WORKDIR /app
 
-# Install system dependencies needed for node-postgres, python, and pip package compilation
+# Install system dependencies needed for native modules and Python ML runtime
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -17,22 +12,53 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Create Python virtual environment under /app/.venv to match getPythonExecutable candidate checks
+# Create Python virtual environment
 RUN python3 -m venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy Python requirements and install in the virtual environment
+# Install Python dependencies
 COPY requirements.txt ./
 RUN /app/.venv/bin/pip install --no-cache-dir -r requirements.txt
 
-# Copy package definition and install Node.js dependencies
+# Install all Node.js dependencies (including devDependencies for build)
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copy all application source files
+# Copy source and build the production bundle
 COPY . .
+RUN npm run build
 
-# Expose the default application port
+# Stage 2: Production
+FROM node:20-bookworm-slim
+
+# Set production defaults
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV PATH="/app/.venv/bin:$PATH"
+
+WORKDIR /app
+
+# Install only runtime system dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Python virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Install only production Node.js dependencies
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# Copy built application and required runtime files
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/analyze.py ./analyze.py
+COPY --from=builder /app/attached_assets ./attached_assets
+
 EXPOSE 3000
 
-# Run the development server by default (can be overridden in docker-compose)
-CMD ["npm", "run", "dev"]
+# Run the production server
+CMD ["npm", "run", "start"]
