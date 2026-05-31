@@ -16,6 +16,17 @@ LOCK_FILE = MODEL_FILE + ".lock"
 LOCK_TIMEOUT = 60
 LOCK_POLL_INTERVAL = 0.1
 
+# Resolve paths relative to this script's directory so the files are
+# found regardless of the working directory (e.g., in Docker or when
+# spawned by the Node.js server from a different CWD).
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(SCRIPT_DIR, "attached_assets", "diabetes_dataset.csv")
+# Fall back to the legacy location if attached_assets doesn't have it
+if not os.path.exists(DATA_FILE):
+    DATA_FILE = os.path.join(SCRIPT_DIR, "diabetes_dataset.csv")
+MODEL_FILE = os.path.join(SCRIPT_DIR, "diabetes_model.joblib")
+LOCK_FILE = MODEL_FILE + ".lock"
+
 def create_synthetic_data():
     """Generates synthetic dataset to mimic the provided assignment data."""
     np.random.seed(42)

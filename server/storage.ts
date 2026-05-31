@@ -80,6 +80,10 @@ export class DatabaseStorage implements IStorage {
           (assessments as any).modelConfidence ?? (assessments as any).model_confidence,
         createdAt:
           (assessments as any).createdAt ?? (assessments as any).created_at,
+        createdBy:
+          (assessments as any).createdBy ?? (assessments as any).created_by,
+        userId:
+          (assessments as any).userId ?? (assessments as any).user_id,
       })
       .from(assessments)
       .orderBy(desc((assessments as any).createdAt ?? (assessments as any).created_at))
