@@ -218,31 +218,19 @@ export function createAuthRouter(): Router {
         }
 
         // Check in-memory store (legacy)
+        if (!userFullName) {
+          const registeredUser = registeredUsers.get(email);
+          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+            userFullName = registeredUser.fullName;
+          }
+        }
+      } catch (_err) {
+        // DB not available — fall back to in-memory only
+        console.warn("DB unavailable for login, using in-memory only.");
         const registeredUser = registeredUsers.get(email);
         if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
           userFullName = registeredUser.fullName;
         }
-
-        // Also check DB (fallback)
-        if (!userFullName) {
-          try {
-            const db = getDb();
-            const [dbUser] = await db
-              .select()
-              .from(users)
-              .where(eq(users.email, email))
-              .limit(1);
-
-            if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
-              userFullName = dbUser.fullName;
-            }
-          } catch (_err) {
-            // DB not available — fall back to in-memory only
-            console.warn("DB unavailable for login, using in-memory only.");
-          }
-        }
-      } catch (_err) {
-        console.warn("DB unavailable for login.");
       }
     }
 
