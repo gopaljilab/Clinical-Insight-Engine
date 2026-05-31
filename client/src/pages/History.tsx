@@ -1,7 +1,9 @@
 import { AppLayout } from "@/components/layout/AppLayout";
+import { useToast } from "@/hooks/use-toast";
 import { useAssessments } from "@/hooks/use-assessments";
 import { format, isValid } from "date-fns";
 import { Loader2, Search, X, Activity, FileText, RotateCw, GitCompare } from "lucide-react";
+import { Loader2, Search, Calendar, User, Activity, X, SlidersHorizontal } from "lucide-react";
 import { useState, useEffect } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
@@ -9,6 +11,49 @@ import { useLocation } from "wouter";
 import { advancedFilter } from "@/utils/search_filters";
 import { safeParseDate } from "@/utils/date_fix";
 import { useToast } from "@/hooks/use-toast";
+import {
+  advancedFilter,
+  hasActiveMetricFilters,
+  type MetricKey,
+  type MetricRangeFilters,
+} from "@/utils/search_filters";
+
+const metricFilterConfig: Array<{
+  key: MetricKey;
+  label: string;
+  unit: string;
+  minPlaceholder: string;
+  maxPlaceholder: string;
+}> = [
+  { key: "bmi", label: "BMI", unit: "kg/m2", minPlaceholder: "30", maxPlaceholder: "60" },
+  { key: "hba1cLevel", label: "HbA1c", unit: "%", minPlaceholder: "7.5", maxPlaceholder: "15" },
+  { key: "bloodGlucoseLevel", label: "Blood Glucose", unit: "mg/dL", minPlaceholder: "150", maxPlaceholder: "400" },
+];
+
+type MetricInputState = Record<MetricKey, { min: string; max: string }>;
+
+const emptyMetricInputs: MetricInputState = {
+  bmi: { min: "", max: "" },
+  hba1cLevel: { min: "", max: "" },
+  bloodGlucoseLevel: { min: "", max: "" },
+};
+
+function parseBound(value: string) {
+  const parsed = Number(value);
+  return value.trim() && Number.isFinite(parsed) ? parsed : null;
+}
+
+function toMetricFilters(inputs: MetricInputState): MetricRangeFilters {
+  return Object.fromEntries(
+    Object.entries(inputs).map(([key, range]) => [
+      key,
+      {
+        min: parseBound(range.min),
+        max: parseBound(range.max),
+      },
+    ]),
+  ) as MetricRangeFilters;
+}
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
@@ -145,12 +190,15 @@ export default function History() {
   }, []);
 
   const { data: assessments, isLoading, error } = useAssessments();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [compareModalOpen, setCompareModalOpen] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [metricInputs, setMetricInputs] = useState<MetricInputState>(emptyMetricInputs);
 
   const getRiskBadge = (category: string) => {
     const key = (category || "").toUpperCase();
@@ -199,7 +247,11 @@ export default function History() {
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${assessment.id}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Date:</strong> ${new Date(assessment.createdAt).toLocaleString()}</p><p class="kv"><strong>Risk Score:</strong> ${Number(assessment.riskScore).toFixed(1)}%</p><p class="kv"><strong>Category:</strong> <span class="pill">${assessment.riskCategory}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals & Inputs</h2><table><tbody><tr><td>Age</td><td>${assessment.age}</td></tr><tr><td>BMI</td><td>${assessment.bmi}</td></tr><tr><td>HbA1c</td><td>${assessment.hba1cLevel}%</td></tr><tr><td>Blood Glucose</td><td>${assessment.bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${assessment.hypertension ? 'Yes' : 'No'}</td></tr><tr><td>Heart Disease</td><td>${assessment.heartDisease ? 'Yes' : 'No'}</td></tr><tr><td>Smoking</td><td>${assessment.smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(assessment.factors || []).slice(0,5).map((f:any)=>`<li>${f.name} — ${f.description} (${f.impact})</li>`).join('')}</ul></body></html>`;
     const w = window.open("", "_blank", "noopener,noreferrer");
     if (!w) {
-      toast({ title: "Popups blocked", description: "Please allow popups for this site to enable PDF export.", variant: "destructive" });
+      toast({
+        title: "Popups blocked",
+        description: "Please allow popups for this site to enable PDF export.",
+        variant: "destructive",
+      });
       return;
     }
     w.document.write(html);
@@ -208,7 +260,25 @@ export default function History() {
     setTimeout(() => { w.print(); }, 250);
   }
 
-  const filteredAssessments = assessments ? advancedFilter(assessments, searchTerm) : [];
+  const metricFilters = toMetricFilters(metricInputs);
+  const hasMetricFilters = hasActiveMetricFilters(metricFilters);
+  const hasActiveFilters = searchTerm.trim().length > 0 || hasMetricFilters;
+  const filteredAssessments = assessments ? advancedFilter(assessments, searchTerm, metricFilters) : [];
+
+  function updateMetricInput(key: MetricKey, bound: "min" | "max", value: string) {
+    setMetricInputs((current) => ({
+      ...current,
+      [key]: {
+        ...current[key],
+        [bound]: value,
+      },
+    }));
+  }
+
+  function clearAllFilters() {
+    setSearchTerm("");
+    setMetricInputs(emptyMetricInputs);
+  }
 
   const sortedAssessments = [...filteredAssessments].sort((a, b) => {
     switch (sortBy) {
@@ -266,8 +336,104 @@ export default function History() {
               <option value="bmi-desc">BMI: High to Low</option>
               <option value="bmi-asc">BMI: Low to High</option>
             </select>
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters((current) => !current)}
+              aria-expanded={showAdvancedFilters}
+              aria-controls="advanced-triage-filters"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-card hover:bg-muted/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all text-sm font-semibold text-foreground"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Advanced Filters
+            </button>
           </div>
         </div>
+
+        {showAdvancedFilters && (
+          <section
+            id="advanced-triage-filters"
+            className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+            aria-label="Advanced triage filters"
+          >
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-5">
+              <div>
+                <h2 className="text-lg font-bold text-foreground">Advanced Triage Filters</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Combine numeric boundaries to isolate high-risk patient cohorts instantly.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                disabled={!hasActiveFilters}
+                className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold border border-border bg-white hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-4 focus:ring-blue-100"
+              >
+                Clear All Filters
+              </button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              {metricFilterConfig.map((metric) => (
+                <div key={metric.key} className="rounded-xl border border-border bg-background/60 p-4">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <label className="font-semibold text-foreground">{metric.label}</label>
+                    <span className="text-xs text-muted-foreground">{metric.unit}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
+                        Minimum
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={metricInputs[metric.key].min}
+                        placeholder={metric.minPlaceholder}
+                        onChange={(event) => updateMetricInput(metric.key, "min", event.target.value)}
+                        className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
+                        Maximum
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={metricInputs[metric.key].max}
+                        placeholder={metric.maxPlaceholder}
+                        onChange={(event) => updateMetricInput(metric.key, "max", event.target.value)}
+                        className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {hasActiveFilters && (
+              <div className="flex flex-wrap items-center gap-2 mt-4" aria-label="Active triage filters">
+                {searchTerm.trim() && (
+                  <span className="rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1 text-xs font-semibold">
+                    Text: {searchTerm.trim()}
+                  </span>
+                )}
+                {metricFilterConfig.map((metric) => {
+                  const range = metricInputs[metric.key];
+                  if (!range.min && !range.max) return null;
+                  return (
+                    <span
+                      key={metric.key}
+                      className="rounded-full bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 text-xs font-semibold"
+                    >
+                      {metric.label}: {range.min || "any"} to {range.max || "any"}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
@@ -283,9 +449,13 @@ export default function History() {
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4 text-muted-foreground">
               <Activity className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-foreground mb-2">{searchTerm ? "No Matching Records" : "No Assessments Found"}</h3>
+            <h3 className="text-xl font-bold text-foreground mb-2">
+              {hasActiveFilters ? "No Matching Records" : "No Assessments Found"}
+            </h3>
             <p className="text-muted-foreground max-w-md">
-              {searchTerm ? `No patient records matching "${searchTerm}" were found.` : "There are no patient assessments matching your criteria."}
+              {hasActiveFilters
+                ? "No patient records match the current text search and triage boundaries. Try relaxing one or more filters."
+                : "There are no patient assessments matching your criteria. Go to the dashboard to create a new assessment."}
             </p>
           </div>
         ) : (

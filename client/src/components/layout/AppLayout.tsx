@@ -18,16 +18,17 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
   const [checking, setChecking] = useState(true);
-  const { toast } = useToast();
+  const [networkError, setNetworkError] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
       .then((res) => {
-        if (!res.ok) throw new Error("Not authenticated");
+        if (res.status === 401) { setLocation("/"); return undefined; }
+        if (!res.ok) { setNetworkError(true); return undefined; }
         return res.json();
       })
-      .then((data) => setUser(data.user))
-      .catch(() => setLocation("/"))
+      .then((data) => { if (data) setUser(data.user); })
+      .catch(() => setNetworkError(true))
       .finally(() => setChecking(false));
   }, [setLocation]);
 
@@ -79,6 +80,23 @@ export function AppLayout({ children }: AppLayoutProps) {
     { href: "/dashboard", label: "New Assessment", icon: Activity },
     { href: "/history", label: "Patient History", icon: ClipboardList },
   ];
+
+  if (networkError) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex items-center justify-center">
+        <div className="text-center p-8 rounded-2xl border border-slate-200 bg-white dark:bg-gray-900 dark:border-gray-800 shadow-sm max-w-md">
+          <p className="text-lg font-bold text-slate-800 dark:text-white">Connection error</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Unable to verify your session. Please check your connection and try again.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex flex-col md:flex-row transition-colors duration-300">
