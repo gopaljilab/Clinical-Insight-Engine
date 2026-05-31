@@ -418,33 +418,6 @@ function OtpForm({ onVerify, email, devOtp }: { onVerify: () => void; email: str
     }
   };
 
-  const handleResend = async () => {
-    setIsResending(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/auth/resend-verification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to resend code.");
-      }
-
-      const data = await response.json();
-      setResentAt(Date.now());
-      if (data.devOtp) {
-        setError(`[DEV] New code: ${data.devOtp}`); // visible in dev
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to resend code. Please try again.");
-    } finally {
-      setIsResending(false);
-    }
-  };
 
   const updateDigit = (index: number, value: string) => {
     const digit = value.replace(/\D/g, "").slice(-1);
