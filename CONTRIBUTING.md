@@ -131,3 +131,7 @@ If you cannot run a check because of a local dependency such as PostgreSQL, ment
 ## Community Expectations
 
 Be respectful, patient, and constructive in issues, reviews, and pull requests. Assume good intent, explain technical tradeoffs clearly, and help keep the project welcoming for new contributors.
+
+
+### GSSoC Vitest Mocking Rules
+- Enforce vitest mock timers for reactive assessment intervals.
