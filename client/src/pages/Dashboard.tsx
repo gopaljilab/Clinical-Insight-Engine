@@ -8,7 +8,7 @@ import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
 import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UserCircle, Info } from "lucide-react";
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
 import { insertAssessmentSchema } from "@shared/schema";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const formSchema = insertAssessmentSchema.pick({
   gender: true,
@@ -182,9 +182,9 @@ export default function Dashboard() {
   }, [formData]);
 
   return (
-    <TooltipProvider>
-      <AppLayout>
-      <div className="space-y-8">
+    <AppLayout>
+      <TooltipProvider delayDuration={300}>
+        <div className="space-y-8">
         <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-blue-700">
@@ -504,7 +504,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      </AppLayout>
-    </TooltipProvider>
+      </TooltipProvider>
+    </AppLayout>
   );
 }
