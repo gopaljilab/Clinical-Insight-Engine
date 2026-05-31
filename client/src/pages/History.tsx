@@ -3,15 +3,12 @@ import RiskTrendChart from "@/components/RiskTrendChart";
 import { useToast } from "@/hooks/use-toast";
 import { useAssessments } from "@/hooks/use-assessments";
 import { format, isValid } from "date-fns";
-import { Loader2, Search, X, Activity, FileText, RotateCw, GitCompare, Download } from "lucide-react";
-import { Loader2, Search, Calendar, User, Activity, X, SlidersHorizontal } from "lucide-react";
+import { Loader2, Search, X, Activity, FileText, RotateCw, GitCompare, Download, Calendar, User, SlidersHorizontal } from "lucide-react";
 import { useState, useEffect } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
 import { useLocation } from "wouter";
-import { advancedFilter } from "@/utils/search_filters";
 import { safeParseDate } from "@/utils/date_fix";
-import { useToast } from "@/hooks/use-toast";
 import {
   advancedFilter,
   hasActiveMetricFilters,
