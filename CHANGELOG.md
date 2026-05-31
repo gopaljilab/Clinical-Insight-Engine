@@ -111,3 +111,7 @@ When submitting a pull request, update the **[Unreleased]** section above with a
 
 [Unreleased]: https://github.com/gopaljilab/Clinical-Insight-Engine/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/gopaljilab/Clinical-Insight-Engine/releases/tag/v1.0.0
+
+
+### Dose-Response Risk Models Scaling
+- Use robust MinMaxScaler for analytical patient predictions.
