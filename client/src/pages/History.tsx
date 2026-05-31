@@ -1,4 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
+import RiskTrendChart from "@/components/RiskTrendChart";
 import { useToast } from "@/hooks/use-toast";
 import { useAssessments } from "@/hooks/use-assessments";
 import { format, isValid } from "date-fns";
@@ -195,7 +196,6 @@ export default function History() {
   const [sortBy, setSortBy] = useState<string>("date-desc");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [compareModalOpen, setCompareModalOpen] = useState(false);
-  const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [metricInputs, setMetricInputs] = useState<MetricInputState>(emptyMetricInputs);
@@ -433,6 +433,10 @@ export default function History() {
               </div>
             )}
           </section>
+        )}
+
+        {!isLoading && !error && assessments && assessments.length >= 2 && (
+          <RiskTrendChart assessments={filteredAssessments.length > 0 ? filteredAssessments : assessments} />
         )}
 
         {isLoading ? (
