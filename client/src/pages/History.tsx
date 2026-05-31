@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useToast } from "@/hooks/use-toast";
 import { useAssessments } from "@/hooks/use-assessments";
 import { format, isValid } from "date-fns";
-import { Loader2, Search, X, Activity, FileText, RotateCw, GitCompare } from "lucide-react";
+import { Loader2, Search, X, Activity, FileText, RotateCw, GitCompare, Download } from "lucide-react";
 import { Loader2, Search, Calendar, User, Activity, X, SlidersHorizontal } from "lucide-react";
 import { useState, useEffect } from "react";
 import StatusPill from "@/components/ui/StatusPill";
@@ -195,7 +195,6 @@ export default function History() {
   const [sortBy, setSortBy] = useState<string>("date-desc");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [compareModalOpen, setCompareModalOpen] = useState(false);
-  const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [metricInputs, setMetricInputs] = useState<MetricInputState>(emptyMetricInputs);
@@ -263,6 +262,59 @@ export default function History() {
   const metricFilters = toMetricFilters(metricInputs);
   const hasMetricFilters = hasActiveMetricFilters(metricFilters);
   const hasActiveFilters = searchTerm.trim().length > 0 || hasMetricFilters;
+  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx">("csv");
+  const [isExporting, setIsExporting] = useState(false);
+
+  function exportLedger(data: any[], fmt: "csv" | "xlsx") {
+    setIsExporting(true);
+    try {
+      const headers = ["Date", "Age", "Gender", "BMI", "HbA1c", "Blood Glucose", "Hypertension", "Heart Disease", "Smoking", "Risk Score", "Category", "Confidence Interval"];
+      const rows = data.map(a => [
+        a.createdAt ? format(new Date(a.createdAt), "yyyy-MM-dd") : "",
+        a.age, a.gender, a.bmi, a.hba1cLevel, a.bloodGlucoseLevel,
+        a.hypertension ? "Yes" : "No",
+        a.heartDisease ? "Yes" : "No",
+        a.smokingHistory,
+        Number(a.riskScore).toFixed(1),
+        a.riskCategory,
+        a.confidenceInterval || "",
+      ]);
+
+      if (fmt === "csv") {
+        const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `clinical-insight-export-${format(new Date(), "yyyy-MM-dd")}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        // Simple XLSX using XML SpreadsheetML
+        const xmlRows = [headers, ...rows].map(row =>
+          `<Row>${row.map(v => `<Cell><Data ss:Type="String">${String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</Data></Cell>`).join("")}</Row>`
+        ).join("");
+        const xml = `<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Assessments"><Table>${xmlRows}</Table></Worksheet></Workbook>`;
+        const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `clinical-insight-export-${format(new Date(), "yyyy-MM-dd")}.xls`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+      toast({ title: "Export complete", description: `${data.length} records exported as .${fmt}` });
+    } catch (e) {
+      toast({ title: "Export failed", description: "Unable to generate the export file.", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   const filteredAssessments = assessments ? advancedFilter(assessments, searchTerm, metricFilters) : [];
 
   function updateMetricInput(key: MetricKey, bound: "min" | "max", value: string) {
@@ -336,6 +388,26 @@ export default function History() {
               <option value="bmi-desc">BMI: High to Low</option>
               <option value="bmi-asc">BMI: Low to High</option>
             </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={exportFormat}
+                onChange={e => setExportFormat(e.target.value as "csv" | "xlsx")}
+                className="px-3 py-2.5 rounded-xl border border-border bg-card text-sm font-semibold text-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all cursor-pointer"
+                aria-label="Export format"
+              >
+                <option value="csv">.CSV</option>
+                <option value="xlsx">.XLS</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => exportLedger(sortedAssessments, exportFormat)}
+                disabled={isExporting || sortedAssessments.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-card hover:bg-muted/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all text-sm font-semibold text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Export Ledger
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => setShowAdvancedFilters((current) => !current)}
