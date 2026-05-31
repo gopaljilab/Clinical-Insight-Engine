@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage, type AssessmentCreateInput } from "./storage";
-import { requireAuth } from "./auth";
+import { requireAuth, requireVerified } from "./auth";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { existsSync } from "fs";
@@ -528,6 +528,7 @@ export async function registerRoutes(
   app.post(
     api.assessments.preview.path,
     requireAuth,
+    requireVerified,
     assessmentLimiter,
     async (req, res) => {
       const input = api.assessments.preview.input.parse(req.body);
@@ -594,6 +595,7 @@ export async function registerRoutes(
   app.post(
     api.assessments.create.path,
     requireAuth,
+    requireVerified,
     assessmentLimiter,
     async (req, res) => {
       const userId = req.session.user?.email;
@@ -701,7 +703,7 @@ export async function registerRoutes(
     }
   );
 
-  app.get(api.assessments.list.path, requireAuth, async (req, res) => {
+  app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
     try {
       const userEmail = req.session.user?.email;
       const assessments = await storage.getAssessments(50, 0, userEmail);

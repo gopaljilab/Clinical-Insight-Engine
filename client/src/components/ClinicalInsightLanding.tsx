@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Logo } from "@/components/ui/Logo";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -54,13 +55,13 @@ const heroBadges = ["Clinical AI", "Early Risk Detection", "Real-Time Analytics"
 const footerLinks = [
   { href: "/privacy-policy", label: "Privacy Policy" },
   { href: "/terms", label: "Terms" },
-  { href: "mailto:support@clinicalinsight.org", label: "Contact" },
+  { href: "mailto:hello@cardioguard.ai", label: "Contact" },
 ];
 
 const socialLinks = [
   { href: "https://www.linkedin.com", icon: Linkedin, label: "LinkedIn" },
   { href: "https://github.com/gopaljilab/Clinical-Insight-Engine", icon: Github, label: "GitHub" },
-  { href: "mailto:support@clinicalinsight.org", icon: Mail, label: "Email" },
+  { href: "mailto:hello@cardioguard.ai", icon: Mail, label: "Email" },
 ];
 
 const fadeUp = {
@@ -75,10 +76,7 @@ function BrandMark() {
         <ShieldCheck className="h-6 w-6" aria-hidden="true" />
         <HeartPulse className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-white p-0.5 text-[#2563EB]" aria-hidden="true" />
       </div>
-      <div className="leading-tight">
-        <p className="text-lg font-black tracking-tight text-[#1E293B]">Clinical Insight</p>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Clinical AI</p>
-      </div>
+      <Logo size="sm" theme="light" />
     </div>
   );
 }
@@ -169,7 +167,7 @@ export function ClinicalInsightLanding() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/60 to-white text-slate-600">
       <header className="sticky top-0 z-50 border-b border-white/70 bg-white/80 backdrop-blur-xl">
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-6 lg:px-8">
-          <a href="#" aria-label="Clinical Insight home">
+          <a href="#" aria-label="CardioGuard home">
             <BrandMark />
           </a>
 
@@ -235,10 +233,10 @@ export function ClinicalInsightLanding() {
               </div>
 
               <h1 className="max-w-4xl text-4xl font-black leading-[1.04] tracking-tight text-[#1E293B] sm:text-5xl lg:text-6xl">
-                AI-Driven Preventive Diabetes Risk Assessment
+                AI-Driven Preventive Cardiology & Diabetes Risk Assessment
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600 sm:text-xl">
-                Empower your clinic with instant, data-backed patient risk models to detect diabetes before symptoms appear.
+                Empower your clinic with instant, data-backed patient risk models to detect cardiovascular disease and diabetes before symptoms appear.
               </p>
 
               <div className="mt-9 flex flex-col gap-4 sm:flex-row">
@@ -324,7 +322,7 @@ export function ClinicalInsightLanding() {
                 Risk assessment that fits the pace of modern clinics
               </h2>
               <p className="mt-5 text-lg leading-8 text-slate-600">
-                Clinical Insight turns routine patient inputs into clear, explainable guidance for clinicians and patient-facing conversations.
+                CardioGuard turns routine patient inputs into clear, explainable guidance for clinicians and patient-facing conversations.
               </p>
             </motion.div>
 
@@ -382,7 +380,7 @@ export function ClinicalInsightLanding() {
           <div>
             <BrandMark />
             <p className="mt-4 max-w-md text-sm leading-6 text-slate-500">
-              Copyright 2026 Clinical Insight. Built for clinical decision support, not diagnosis.
+              Copyright 2026 CardioGuard. Built for clinical decision support, not diagnosis.
             </p>
           </div>
 

@@ -85,7 +85,13 @@ def test_interpret_prediction_returns_error_without_model():
 
 
 def test_predict_file_cli_outputs_json(tmp_path):
-    """Smoke test for the predict_file entrypoint used by the API."""
+    """Smoke test for the predict_file entrypoint used by the API.
+
+    Removes any cached model file first to simulate a cold-start
+    (first-ever prediction), which triggers the retrain path in get_model().
+    This ensures diagnostic print() messages go to stderr, not stdout,
+    and the JSON output on stdout remains parseable.
+    """
     payload = {
         "gender": "Male",
         "age": 45,
@@ -103,6 +109,11 @@ def test_predict_file_cli_outputs_json(tmp_path):
     if not os.path.exists(dataset):
         create_synthetic_data()
 
+    # Cold-start: remove any cached model so get_model() must retrain
+    model_file = os.path.join(REPO_ROOT, "diabetes_model.joblib")
+    if os.path.exists(model_file):
+        os.remove(model_file)
+
     import subprocess
 
     result = subprocess.run(
@@ -116,7 +127,8 @@ def test_predict_file_cli_outputs_json(tmp_path):
 
     assert result.returncode == 0, result.stderr
 
-    # First run may log model training to stdout before JSON payload.
+    # Training messages (if any) go to stderr, so stdout should contain
+    # only the JSON payload.  We still take the last line as a safety net.
     stdout_lines = [
         line.strip()
         for line in result.stdout.splitlines()

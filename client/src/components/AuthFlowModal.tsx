@@ -331,10 +331,12 @@ function RegisterForm({ onSubmit, onSwitch }: { onSubmit: (event: FormEvent<HTML
   );
 }
 
-function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+function OtpForm({ onVerify, email, devOtp }: { onVerify: () => void; email: string; devOtp?: string }) {
+  const [otp, setOtp] = useState(devOtp ? devOtp.split("").slice(0, 6) : ["", "", "", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resentAt, setResentAt] = useState<number | null>(null);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const isComplete = otp.every(Boolean);
 
@@ -344,14 +346,30 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
     setError(null);
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/verify-otp", {
+      // Try DB-backed verification first
+      const response = await fetch("/api/auth/verify-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp: otp.join("") }),
+        body: JSON.stringify({ email, code: otp.join("") }),
         credentials: "include",
       });
+
       if (!response.ok) {
         const data = await response.json();
+        // If user not found in DB, fall back to in-memory OTP
+        if (response.status === 404) {
+          const legacyResponse = await fetch("/api/auth/verify-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, otp: otp.join("") }),
+            credentials: "include",
+          });
+          if (!legacyResponse.ok) {
+            const legacyData = await legacyResponse.json();
+            throw new Error(legacyData.message || "Verification failed. Please try again.");
+          }
+          return onVerify();
+        }
         throw new Error(data.message || "Verification failed. Please try again.");
       }
       onVerify();
@@ -359,6 +377,34 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
       setError(err.message || "Verification failed. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setIsResending(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to resend code.");
+      }
+
+      const data = await response.json();
+      setResentAt(Date.now());
+      if (data.devOtp) {
+        setError(`[DEV] New code: ${data.devOtp}`); // visible in dev
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to resend code. Please try again.");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -400,6 +446,11 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
         We&apos;ve sent a secure verification code to your email.
       </p>
+      {devOtp && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-700">
+          🔧 Dev mode: OTP auto-filled — <span className="font-mono">{devOtp}</span>
+        </div>
+      )}
       {error && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
           {error}
@@ -448,6 +499,23 @@ function OtpForm({ onVerify, email }: { onVerify: () => void; email: string }) {
           </>
         )}
       </button>
+
+      <div className="mt-6 text-center">
+        <p className="text-sm text-slate-500">
+          Didn&apos;t receive the code?{" "}
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={isResending}
+            className="font-bold text-[#2563EB] transition-all duration-200 hover:text-blue-700 disabled:opacity-50"
+          >
+            {isResending ? "Sending..." : "Resend code"}
+          </button>
+        </p>
+        {resentAt && (
+          <p className="mt-1 text-xs text-slate-400">Code resent. Please check your email.</p>
+        )}
+      </div>
     </form>
   );
 }
@@ -459,6 +527,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [pendingEmail, setPendingEmail] = useState("");
+  const [devOtp, setDevOtp] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -521,7 +590,9 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
         }
       }
 
+      const responseData = await (response as Response).json?.();
       setPendingEmail(email);
+      if (responseData?.devOtp) setDevOtp(responseData.devOtp);
       setStep("otp");
     } catch (err: any) {
       setError(err.message || "Authentication failed. Please try again.");
@@ -591,7 +662,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
               </motion.div>
             ) : (
               <motion.div key="otp" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
-                <OtpForm onVerify={handleVerify} email={pendingEmail} />
+                <OtpForm onVerify={handleVerify} email={pendingEmail} devOtp={devOtp} />
                 <button
                   type="button"
                   onClick={() => setStep("form")}
