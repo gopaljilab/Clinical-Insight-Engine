@@ -8,11 +8,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("rememberedEmail");
-    if (saved) {
-      setEmail(saved);
-      setRememberMe(true);
-    }
+    document.title = "Clinical Insight Engine - Sign In";
   }, []);
   const [, setLocation] = useLocation();
   const [errors, setErrors] = useState<{ email?: string; password?: string; otp?: string }>({});
@@ -232,6 +228,11 @@ export default function LoginPage() {
           </form>
         </div>
         <p className="text-center text-xs text-gray-400 mt-6">Clinical Insight Engine © 2026 · Frontend UI only</p>
+
+        {/* Footer */}
+        <p className="text-center text-xs text-gray-400 mt-6">
+          Clinical Insight Engine © {new Date().getFullYear()} · Frontend UI only
+        </p>
       </div>
     </div>
   );
