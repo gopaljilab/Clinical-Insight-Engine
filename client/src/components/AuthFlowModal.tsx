@@ -300,9 +300,25 @@ function LoginForm({
   );
 }
 
-function RegisterForm({ onSubmit, onSwitch }: { onSubmit: (event: FormEvent<HTMLFormElement>) => void; onSwitch: () => void }) {
+function RegisterForm({
+  onSubmit,
+  onSwitch,
+  isLoading,
+  error,
+}: {
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSwitch: () => void;
+  isLoading?: boolean;
+  error?: string | null;
+}) {
   return (
     <form onSubmit={onSubmit} className="space-y-5">
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      )}
+
       <TextInput icon={User} label="Full Name" name="fullName" placeholder="Dr. Maya Patel" autoComplete="name" />
       <TextInput icon={Mail} label="Email Address" name="email" type="email" placeholder="clinician@clinic.com" autoComplete="email" />
       <TextInput icon={BadgeCheck} label="Medical License Number / NPI" name="licenseNumber" placeholder="NPI-1234567890" autoComplete="off" />
@@ -315,10 +331,23 @@ function RegisterForm({ onSubmit, onSwitch }: { onSubmit: (event: FormEvent<HTML
 
       <button
         type="submit"
-        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-5 py-4 text-base font-black text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/25 focus:outline-none focus:ring-4 focus:ring-blue-200"
+        disabled={isLoading}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-5 py-4 text-base font-black text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/25 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:scale-100"
       >
-        Create Account
-        <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+        {isLoading ? (
+          <>
+            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Creating Account...
+          </>
+        ) : (
+          <>
+            Create Account
+            <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+          </>
+        )}
       </button>
 
       <p className="text-center text-sm font-semibold text-slate-500">
@@ -647,7 +676,12 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
                     error={error}
                   />
                 ) : (
-                  <RegisterForm onSubmit={handleSubmit} onSwitch={() => setMode("login")} />
+                  <RegisterForm
+                    onSubmit={handleSubmit}
+                    onSwitch={() => setMode("login")}
+                    isLoading={isLoading}
+                    error={error}
+                  />
                 )}
 
                 <SecurityNotice />
