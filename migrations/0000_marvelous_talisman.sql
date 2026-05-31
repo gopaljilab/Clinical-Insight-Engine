@@ -5,15 +5,17 @@ CREATE TABLE "assessments" (
 	"hypertension" boolean NOT NULL,
 	"heart_disease" boolean NOT NULL,
 	"smoking_history" text NOT NULL,
-	"bmi" text NOT NULL,
-	"hba1c_level" text NOT NULL,
-	"blood_glucose_level" text NOT NULL,
-	"risk_score" text NOT NULL,
+	"bmi" double precision NOT NULL,
+	"hba1c_level" double precision NOT NULL,
+	"blood_glucose_level" double precision NOT NULL,
+	"risk_score" double precision NOT NULL,
 	"risk_category" text NOT NULL,
 	"factors" jsonb NOT NULL,
 	"confidence_interval" jsonb,
-	"model_confidence" text,
-	"created_at" timestamp DEFAULT now()
+	"model_confidence" double precision,
+	"created_at" timestamp DEFAULT now(),
+	"created_by" text,
+	"user_id" text
 );
 --> statement-breakpoint
 CREATE TABLE "login_audit_logs" (
