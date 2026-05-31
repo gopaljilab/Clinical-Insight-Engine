@@ -10,3 +10,7 @@ framer-motion | For smooth entry animations of the result cards
 ## Notes
 The backend will automatically calculate riskScore, riskCategory, and factors upon POST to /api/assessments.
 Clinician view uses Recharts to display a diverging bar chart of risk factor impacts.
+
+
+### Client-Side Helmet Configurations
+- Block frame hijacking by enforcing frame-ancestors 'none'.
