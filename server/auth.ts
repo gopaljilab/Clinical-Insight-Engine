@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomInt, randomBytes, scryptSync, timingSafeEqual } from "crypto";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { storage } from "./storage";
 import { getDb } from "./db";
 import { eq, and, gte } from "drizzle-orm";
@@ -57,9 +57,44 @@ interface PendingOtp {
  */
 const pendingOtps = new Map<string, PendingOtp>();
 
+function normalizeRateLimitEmail(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+/**
+ * Builds a stable OTP rate-limit key from the submitted email when present,
+ * falling back to the client IP for malformed or incomplete requests.
+ */
+export function getOtpRateLimitKey(req: Pick<Request, "body" | "ip">): string {
+  const email = normalizeRateLimitEmail(req.body?.email);
+
+  if (email) {
+    return `otp:${email}`;
+  }
+
+  return `otp:ip:${ipKeyGenerator(req.ip ?? "unknown")}`;
+}
+
 /**
  * Rate limiters for verification endpoints.
  */
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many authentication attempts. Please try again later." },
+});
+
+const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 5,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: getOtpRateLimitKey,
+  message: { error: "Too many OTP verification attempts. Please try again later." },
+});
+
 const verifyEmailLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   limit: 10,
@@ -105,7 +140,7 @@ export function createAuthRouter(): Router {
    * Validates registration fields, creates a new user account,
    * generates a verification OTP, and sends it to the user's email.
    */
-  router.post("/register", async (req: Request, res: Response) => {
+  router.post("/register", authLimiter, async (req: Request, res: Response) => {
     const { fullName, licenseNumber } = req.body || {};
     const email = (req.body?.email ?? "").trim().toLowerCase();
     const password = req.body?.password ?? "";
@@ -192,7 +227,7 @@ export function createAuthRouter(): Router {
    * POST /api/auth/login
    * Validates email/password and sends a verification OTP.
    */
-  router.post("/login", async (req: Request, res: Response) => {
+  router.post("/login", authLimiter, async (req: Request, res: Response) => {
     const rawEmail = req.body?.email ?? "";
     const email = rawEmail.trim().toLowerCase();
     const password = req.body?.password ?? "";
@@ -261,7 +296,7 @@ export function createAuthRouter(): Router {
    * POST /api/auth/verify-otp
    * Verifies the OTP sent after login/register and establishes a session.
    */
-  router.post("/verify-otp", async (req: Request, res: Response) => {
+  router.post("/verify-otp", otpLimiter, async (req: Request, res: Response) => {
     const { otp } = req.body || {};
     const email = (req.body?.email ?? "").trim().toLowerCase();
 
@@ -570,5 +605,3 @@ export async function requireVerified(req: Request, res: Response, next: NextFun
     return res.status(500).json({ message: "Failed to verify user status." });
   }
 }
-
-
