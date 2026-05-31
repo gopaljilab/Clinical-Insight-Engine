@@ -33,3 +33,7 @@ When reporting a vulnerability, please include:
 - **Fix / Patch**: We aim to address critical vulnerabilities within 30 days
 
 We appreciate your efforts to keep this project and its users safe. Thank you for practicing responsible disclosure! 🙏
+
+
+### Centralized API Data Redaction
+- Redact medical record numbers (MRNs) in debug level files.
