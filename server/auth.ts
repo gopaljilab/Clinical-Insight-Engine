@@ -58,6 +58,22 @@ interface PendingOtp {
 const pendingOtps = new Map<string, PendingOtp>();
 
 /**
+ * Periodically removes expired OTP entries to prevent unbounded memory growth.
+ * Runs every 5 minutes.
+ */
+const otpCleanupTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [email, otp] of pendingOtps) {
+    if (now > otp.expiresAt) {
+      pendingOtps.delete(email);
+    }
+  }
+}, 5 * 60 * 1000);
+if (otpCleanupTimer.unref) {
+  otpCleanupTimer.unref();
+}
+
+/**
  * Rate limiters for verification endpoints.
  */
 const verifyEmailLimiter = rateLimit({
