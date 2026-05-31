@@ -112,22 +112,29 @@ export default function Dashboard() {
 
   const parsedForPreview = useMemo(() => formSchema.safeParse(watchedValues), [watchedValues]);
 
-  // Load draft from localStorage on mount
+  // Load draft from localStorage on mount — clear immediately after loading
+  // so it only pre-fills the form once (not on every subsequent visit)
   useEffect(() => {
     try {
       const raw = localStorage.getItem("clinical-insight-assessment-draft");
       if (!raw) return;
+      // Remove immediately so stale draft never pre-fills on next visit
+      localStorage.removeItem("clinical-insight-assessment-draft");
       const draft = JSON.parse(raw);
-      if (draft) {
+      if (draft && typeof draft === "object") {
+        const allowedKeys = [
+          "gender", "age", "hypertension", "heartDisease",
+          "smokingHistory", "bmi", "hba1cLevel", "bloodGlucoseLevel",
+        ];
         Object.entries(draft).forEach(([k, v]) => {
+          if (!allowedKeys.includes(k)) return;
           try {
-            // @ts-ignore
-            setValue(k as any, v, { shouldDirty: true });
+            setValue(k as keyof FormData, v as any, { shouldDirty: true });
           } catch (e) {}
         });
       }
     } catch (e) {
-      // ignore
+      // ignore malformed draft
     }
   }, [setValue]);
 
