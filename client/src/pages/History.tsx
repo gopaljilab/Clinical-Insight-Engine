@@ -1,8 +1,8 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/hooks/use-assessments";
-import { format, isValid } from "date-fns";
-import { Loader2, Search, Calendar, User, Activity, X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { format, isValid, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
+import { Loader2, Search, Calendar, User, Activity, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
 import { FileText, RotateCw } from "lucide-react";
@@ -38,6 +38,23 @@ export default function History() {
   const { data: assessments, isLoading, error } = useAssessments();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
+  
+  // Date filter state
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+
+  // Refs to programmatically trigger the pop-up calendar on click
+  const startInputRef = useRef<HTMLInputElement>(null);
+  const endInputRef = useRef<HTMLInputElement>(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const itemsPerPage = 10;
+
+  // Reset pagination window when search/filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortBy, startDate, endDate]);
 
   const getRiskBadge = (category: string) => {
     const key = (category || "").toUpperCase();
@@ -87,8 +104,28 @@ export default function History() {
     }, 250);
   }
 
-  const filteredAssessments = assessments ? advancedFilter(assessments, searchTerm) : [];
+  // 1. Text Search Filtering
+  const textFiltered = assessments ? advancedFilter(assessments, searchTerm) : [];
 
+  // 2. Reactive Date Range Filtering
+  const filteredAssessments = textFiltered.filter((assessment) => {
+    if (!assessment.createdAt) return true;
+    const itemDate = new Date(assessment.createdAt);
+
+    if (startDate) {
+      const startLimit = startOfDay(new Date(startDate));
+      if (isBefore(itemDate, startLimit)) return false;
+    }
+
+    if (endDate) {
+      const endLimit = endOfDay(new Date(endDate));
+      if (isAfter(itemDate, endLimit)) return false;
+    }
+
+    return true;
+  });
+
+  // 3. Sorting Records
   const sortedAssessments = [...filteredAssessments].sort((a, b) => {
     switch (sortBy) {
       case "date-desc":
@@ -112,16 +149,40 @@ export default function History() {
     }
   });
 
+  // 4. Client-side Pagination Slicing
+  const totalRecords = sortedAssessments.length;
+  const totalPages = Math.ceil(totalRecords / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalRecords);
+  const paginatedAssessments = sortedAssessments.slice(startIndex, endIndex);
+
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
     const dateObj = new Date(dateVal);
     return isValid(dateObj) ? format(dateObj, 'MMM d, yyyy') : "Unknown";
   };
 
+  const clearDateFilters = () => {
+    setStartDate("");
+    setEndDate("");
+  };
+
+  const triggerStartPicker = () => {
+    if (startInputRef.current && 'showPicker' in startInputRef.current) {
+      startInputRef.current.showPicker();
+    }
+  };
+
+  const triggerEndPicker = () => {
+    if (endInputRef.current && 'showPicker' in endInputRef.current) {
+      endInputRef.current.showPicker();
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-8">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight">
               Patient History
@@ -131,7 +192,8 @@ export default function History() {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
+            {/* Text Search Field */}
             <div className="relative">
               <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input 
@@ -152,6 +214,60 @@ export default function History() {
                 </button>
               )}
             </div>
+
+            {/* Interactive Click-to-Pick Date-Range Selector */}
+            <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 shadow-sm select-none">
+              <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+              
+              <div 
+                onClick={triggerStartPicker} 
+                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center"
+              >
+                <span className={`text-sm font-medium ${startDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
+                  {startDate ? format(new Date(startDate), "MMM d, yyyy") : "Start Date"}
+                </span>
+                <input
+                  ref={startInputRef}
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="sr-only"
+                  aria-label="Start date"
+                />
+              </div>
+
+              <span className="text-muted-foreground text-xs font-bold px-0.5">to</span>
+
+              <div 
+                onClick={triggerEndPicker} 
+                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center"
+              >
+                <span className={`text-sm font-medium ${endDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
+                  {endDate ? format(new Date(endDate), "MMM d, yyyy") : "End Date"}
+                </span>
+                <input
+                  ref={endInputRef}
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="sr-only"
+                  aria-label="End date"
+                />
+              </div>
+
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={clearDateFilters}
+                  className="text-muted-foreground hover:text-foreground ml-1 p-0.5 rounded-full hover:bg-muted transition-colors"
+                  aria-label="Clear date filters"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Sort Dropdown */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -178,17 +294,17 @@ export default function History() {
           <div className="p-6 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-center">
             Failed to load history. Please try again later.
           </div>
-        ) : filteredAssessments.length === 0 ? (
+        ) : totalRecords === 0 ? (
           <div className="bg-card border border-border border-dashed rounded-2xl p-12 text-center flex flex-col items-center justify-center">
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4 text-muted-foreground">
               <Activity className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-foreground mb-2">
-              {searchTerm ? "No Matching Records" : "No Assessments Found"}
+              {searchTerm || startDate || endDate ? "No Matching Records" : "No Assessments Found"}
             </h3>
             <p className="text-muted-foreground max-w-md">
-              {searchTerm 
-                ? `No patient records matching "${searchTerm}" were found. Try refining your search terms.` 
+              {searchTerm || startDate || endDate 
+                ? "No patient records matching your current filter limits were found. Try refining your parameters." 
                 : "There are no patient assessments matching your criteria. Go to the dashboard to create a new assessment."}
             </p>
           </div>
@@ -212,7 +328,7 @@ export default function History() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {sortedAssessments.map((assessment) => (
+                  {paginatedAssessments.map((assessment) => (
                     <tr key={assessment.id} className="hover:bg-muted/30 transition-colors text-sm">
                       <td className="p-4 whitespace-nowrap">
                         {formatAssessmentDate(assessment.createdAt)}
@@ -228,10 +344,8 @@ export default function History() {
                         <div className="font-bold flex items-center gap-3">
                           <span>{Number(assessment.riskScore).toFixed(1)}%</span>
                           {assessment.confidenceInterval ? (
-                            // confidenceInterval expected as string like "52.4% - 59.4%" or stored object
                             (() => {
                               const ci = assessment.confidenceInterval;
-                              // try parsing "x% - y%"
                               if (typeof ci === 'string') {
                                 const m = ci.match(/([0-9.]+)\s*%?\s*-\s*([0-9.]+)\s*%?/);
                                 if (m) {
@@ -240,7 +354,6 @@ export default function History() {
                                   return <ConfidenceRange low={low} high={high} value={Number(assessment.riskScore)} />;
                                 }
                               }
-                              // If confidenceInterval is an object with numeric low/high
                               if (ci && typeof ci === 'object' && 'low' in ci && 'high' in ci) {
                                 const obj = ci as { low: number; high: number };
                                 if (typeof obj.low === 'number' && typeof obj.high === 'number') {
@@ -271,6 +384,43 @@ export default function History() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Pagination Footer Elements */}
+            <div className="px-4 py-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="text-sm text-muted-foreground font-medium">
+                Showing <span className="font-semibold text-foreground">{totalRecords === 0 ? 0 : startIndex + 1}</span> to{" "}
+                <span className="font-semibold text-foreground">{endIndex}</span> of{" "}
+                <span className="font-semibold text-foreground">{totalRecords}</span> records
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1 text-sm font-semibold px-2">
+                  <span className="text-foreground">Page {currentPage}</span>
+                  <span className="text-muted-foreground">/</span>
+                  <span className="text-muted-foreground">{totalPages}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         )}
