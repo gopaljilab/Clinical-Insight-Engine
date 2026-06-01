@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { insertAssessmentSchema } from "./schema";
 
 const validAssessment = {
+  patientName: "John Doe",
   gender: "Male" as const,
   age: 45,
   hypertension: false,
