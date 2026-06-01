@@ -467,17 +467,33 @@ export default function Dashboard() {
                     Complete required fields to see live risk prediction.
                   </p>
                 )}
-
                 {previewPending && (
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Updating risk preview...
+                  <div className="animate-pulse space-y-5" aria-hidden="true">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 flex flex-col items-center">
+                      <div className="h-3 w-16 bg-slate-200 dark:bg-slate-700 rounded mb-3" />
+                      <div className="h-10 w-24 bg-slate-300 dark:bg-slate-600 rounded mb-3" />
+                      <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded-full" />
+                    </div>
+                    <div className="space-y-3">
+                      <div className="h-3 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                      <div className="space-y-2">
+                        {[1, 2].map((i) => (
+                          <div key={i} className="rounded-xl border border-slate-200 p-3 bg-white/50">
+                            <div className="flex justify-between items-center mb-2">
+                              <div className="h-4 w-28 bg-slate-300 dark:bg-slate-600 rounded" />
+                              <div className="h-3 w-12 bg-slate-200 dark:bg-slate-700 rounded" />
+                            </div>
+                            <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {previewError && <p className="text-sm text-red-600">{previewError}</p>}
 
-                {preview && (
+                {preview && !previewPending && (
                   <>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center">
                       <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Risk Score</p>
