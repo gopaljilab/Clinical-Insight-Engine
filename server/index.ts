@@ -187,11 +187,6 @@ app.use((req, res, next) => {
     .catch((err: any) => log(`ML warmup warning: ${err.message}`, "ml"));
   await registerRoutes(httpServer, app);
 
-  // Register protected patient endpoints
-  app.use("/api/patients", patientsRouter);
-
-  await registerRoutes(httpServer, app);
-
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) {
       return next(err);
