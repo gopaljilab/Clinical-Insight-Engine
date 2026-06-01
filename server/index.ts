@@ -11,6 +11,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { sanitizeDatabaseError } from "./security/sqlProtection";
 import { getJwtSecret } from "./services/auth/tokenValidator";
+import { globalErrorHandler } from "./middleware/errorHandler";
 
 const app = express();
 const httpServer = createServer(app);
@@ -176,25 +177,7 @@ app.use((req, res, next) => {
 
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    if (res.headersSent) {
-      return next(err);
-    }
-
-    // Log the full error internally for debugging, but never send internals to clients
-    console.error("Unhandled server error:", err);
-
-    // Sanitize database errors — prevents table names, SQL syntax, and pg error codes
-    // from reaching the client response body
-    const { statusCode, message } = sanitizeDatabaseError(err);
-
-    // For non-DB errors (e.g. express body-parser), fall back to err.status
-    const finalStatus = (err?.code && typeof err.code === "string" && err.code.length === 5)
-      ? statusCode                            // PostgreSQL error code (5-char alphanumeric)
-      : (err?.status ?? err?.statusCode ?? statusCode);
-
-    return res.status(finalStatus).json({ message });
-  });
+  app.use(globalErrorHandler);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
