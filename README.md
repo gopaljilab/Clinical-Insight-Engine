@@ -776,3 +776,26 @@ Please read our [**Contributing Guide**](CONTRIBUTING.md) and [**Code of Conduct
 
 ### GSSoC Drizzle Migrations Policy
 - All schema changes must go through drizzle-kit generate.
+
+
+---
+
+## Clinical Data Disclaimer
+
+> **Important**: This tool is intended for **research and educational purposes**. It must NOT be used as the sole basis for clinical decisions without review by qualified medical professionals. All predictions are probabilistic and subject to error.
+
+If deploying in a clinical environment:
+- Ensure HIPAA compliance and appropriate data protection measures
+- Implement proper audit logging for all predictions
+- Validate model accuracy on your specific patient population
+- Obtain appropriate IRB approval for research use
+
+---
+
+## Security
+
+[![Security Policy](https://img.shields.io/badge/Security-Policy-red?style=flat-square)](SECURITY.md)
+
+Found a security vulnerability? **Do not open a public issue.** Use [GitHub's private vulnerability reporting](../../security/advisories/new).
+
+---
