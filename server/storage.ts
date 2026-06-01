@@ -44,11 +44,15 @@ export class DatabaseStorage implements IStorage {
   ): Promise<Assessment[]> {
     const db = getDb();
 
-    // Compatibility: allow running even if the assessments table doesn't have created_by.
-    // Keep createdBy arg unused for now.
-    void createdBy;
-
     const filters: any[] = [];
+
+    // Filter by createdBy when provided to ensure users only see their own assessments
+    if (createdBy) {
+      const createdByCol = (assessments as any).createdBy ?? (assessments as any).created_by;
+      if (createdByCol) {
+        filters.push(eq(createdByCol, createdBy));
+      }
+    }
 
 
 
