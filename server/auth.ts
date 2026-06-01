@@ -1,7 +1,12 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { randomInt } from "crypto";
+import { randomInt, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import bcrypt from "bcrypt";
-
+import { rateLimit } from "express-rate-limit";
+import { eq, and, gte } from "drizzle-orm";
+import { storage } from "./storage";
+import { getDb } from "./db";
+import { users, emailVerificationTokens } from "@shared/schema";
+import { sendVerificationCode } from "./email";
 // Extend express-session to include user data
 declare module "express-session" {
   interface SessionData {
@@ -20,13 +25,7 @@ interface RegisteredUser {
   licenseNumber: string;
 }
 
-function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, 10);
-}
-
-function verifyPassword(password: string, hash: string): boolean {
-  return bcrypt.compareSync(password, hash);
-}
+// removed duplicated functions
 
 /**
  * In-memory store for registered users.
@@ -146,8 +145,8 @@ export function createAuthRouter(): Router {
     registeredUsers.set(email, {
       fullName,
       email,
-      passwordHash,
-      medicalLicenseNumber: licenseNumber,
+      passwordHash: hashPassword(password),
+      licenseNumber: licenseNumber,
     });
 
       // Create DB user
@@ -212,12 +211,12 @@ export function createAuthRouter(): Router {
     } else {
       // Check in-memory store (legacy)
       const registeredUser = registeredUsers.get(email);
-      if (registeredUser && bcrypt.compareSync(password, registeredUser.password)) {
-        userName = registeredUser.fullName;
+      if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+        userFullName = registeredUser.fullName;
       }
 
       // Also check DB
-      if (!userName) {
+      if (!userFullName) {
         try {
           const db = getDb();
           const [dbUser] = await db
@@ -227,7 +226,7 @@ export function createAuthRouter(): Router {
             .limit(1);
 
           if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
-            userName = dbUser.fullName;
+            userFullName = dbUser.fullName;
           }
         } catch (err) {
           // DB not available — fall back to in-memory only
@@ -344,7 +343,7 @@ export function createAuthRouter(): Router {
 
       // If already verified, return success
       if (user.emailVerified) {
-        req.session.user = { email: user.email, name: user.fullName };
+        req.session.user = { id: user.id, email: user.email, name: user.fullName };
         return res.json({ success: true, message: "Email already verified." });
       }
 
@@ -408,7 +407,7 @@ export function createAuthRouter(): Router {
         .where(eq(users.id, user.id));
 
       // Create session
-      req.session.user = { email: user.email, name: user.fullName };
+      req.session.user = { id: user.id, email: user.email, name: user.fullName };
 
       return res.json({ success: true, message: "Email verified successfully." });
     } catch (err) {
