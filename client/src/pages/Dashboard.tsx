@@ -89,6 +89,7 @@ export default function Dashboard() {
       patientName: "",
       hypertension: false,
       heartDisease: false,
+      patientName: "",
       smokingHistory: "never",
       gender: "Female",
       age: undefined,
@@ -125,8 +126,7 @@ export default function Dashboard() {
       const draft = JSON.parse(raw);
       if (draft && typeof draft === "object") {
         const allowedKeys = [
-          "patientName",
-          "gender", "age", "hypertension", "heartDisease",
+          "patientName", "gender", "age", "hypertension", "heartDisease",
           "smokingHistory", "bmi", "hba1cLevel", "bloodGlucoseLevel",
         ];
         Object.entries(draft).forEach(([k, v]) => {
