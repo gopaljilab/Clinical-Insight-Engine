@@ -6,7 +6,8 @@ const MAX_REQUESTS = 60;
 const MAX_TRACKED_CLIENTS = 1000;
 
 function pruneExpiredRecords(now: number) {
-  requestStore.forEach((record, clientId) => {
+  const entries = Array.from(requestStore.entries());
+  for (const [clientId, record] of entries) {
     if (now > record.resetTime) {
       requestStore.delete(clientId);
     }

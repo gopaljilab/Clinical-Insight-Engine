@@ -10,14 +10,24 @@ import {
   type User,
   type InsertUser
 } from "@shared/schema";
-
-
-
-
-
+import { desc, eq, ilike, and, or } from "drizzle-orm";
+import type { RiskCategory } from "./validation/searchValidation";
 
 export interface IStorage {
   getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<Assessment[]>;
+  /**
+   * Searches assessments by risk category label using parameterized queries.
+   * Uses Drizzle ORM eq() — user input is NEVER interpolated into SQL strings.
+   */
+  searchAssessments(
+    searchTerm: string,
+    createdBy?: string,
+    riskCategory?: RiskCategory,
+    limit?: number,
+    offset?: number
+  ): Promise<Assessment[]>;
+  /** Returns a single assessment by numeric ID. Authorization must be checked by caller. */
+  getAssessmentById(id: number): Promise<Assessment | undefined>;
   createAssessment(assessment: any): Promise<Assessment>;
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
@@ -78,8 +88,6 @@ export class DatabaseStorage implements IStorage {
           (assessments as any).confidenceInterval ?? (assessments as any).confidence_interval,
         modelConfidence:
           (assessments as any).modelConfidence ?? (assessments as any).model_confidence,
-        createdBy:
-          (assessments as any).createdBy ?? (assessments as any).created_by,
         createdAt:
           (assessments as any).createdAt ?? (assessments as any).created_at,
         createdBy:
@@ -100,6 +108,94 @@ export class DatabaseStorage implements IStorage {
     }
 
     return await query.limit(limit).offset(offset);
+  }
+
+  /**
+   * Searches assessments by risk category label.
+   *
+   * Security: all conditions use Drizzle ORM parameterized helpers (ilike / eq).
+   * User-supplied `searchTerm` is passed as a bound parameter — never concatenated
+   * into a raw SQL string.  This is the primary defence against SQL injection.
+   *
+   * @param searchTerm   Free-text search term (validated upstream by searchValidation.ts)
+   * @param createdBy    Restrict results to this user's own records
+   * @param riskCategory Optional filter: LOW | MODERATE | HIGH
+   * @param limit        Maximum rows to return (default 20)
+   * @param offset       Pagination offset (default 0)
+   */
+  async searchAssessments(
+    searchTerm: string,
+    createdBy?: string,
+    riskCategory?: RiskCategory,
+    limit: number = 20,
+    offset: number = 0
+  ): Promise<Assessment[]> {
+    const db = getDb();
+
+    // Build an array of WHERE conditions — all parameterized by Drizzle ORM.
+    // ilike() maps to: WHERE column ILIKE $1   (PostgreSQL bound parameter)
+    // eq()    maps to: WHERE column = $1
+    const conditions: ReturnType<typeof eq>[] = [];
+
+    // Always scope results to the requesting user when available
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy));
+    }
+
+    // Risk category exact-match filter (parameterized)
+    if (riskCategory) {
+      conditions.push(eq(assessments.riskCategory, riskCategory));
+    }
+
+    // Free-text search across gender and smokingHistory fields
+    // ilike() uses PostgreSQL's case-insensitive LIKE with bound parameters:
+    //   WHERE (gender ILIKE $N OR smoking_history ILIKE $N)
+    // The `searchTerm` value is NEVER interpolated — Drizzle sends it as a placeholder.
+    if (searchTerm && searchTerm.trim() !== "") {
+      const pattern = `%${searchTerm.trim()}%`;
+      conditions.push(
+        or(
+          ilike(assessments.gender, pattern),
+          ilike(assessments.smokingHistory, pattern),
+          ilike(assessments.riskCategory, pattern)
+        ) as ReturnType<typeof eq>
+      );
+    }
+
+    let query = db
+      .select()
+      .from(assessments)
+      .orderBy(desc(assessments.createdAt))
+      .$dynamic();
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    return await query.limit(limit).offset(offset);
+  }
+
+  /**
+   * Retrieves a single assessment by its numeric primary key.
+   * NOTE: This function no longer implicitly scopes by `createdBy`.
+   * Object-Level Authorization must be explicitly checked by the caller using `canAccessPatientRecord`.
+   *
+   * Security: uses Drizzle ORM eq() — parameterized, not string-concatenated.
+   */
+  async getAssessmentById(
+    id: number
+  ): Promise<Assessment | undefined> {
+    const db = getDb();
+
+    const conditions: ReturnType<typeof eq>[] = [eq(assessments.id, id)];
+
+    const [result] = await db
+      .select()
+      .from(assessments)
+      .where(and(...conditions))
+      .limit(1);
+
+    return result;
   }
 
   async createAssessment(

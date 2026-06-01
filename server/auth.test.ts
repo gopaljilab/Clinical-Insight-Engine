@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { scryptSync, randomInt, randomBytes, timingSafeEqual } from "crypto";
+import { getOtpRateLimitKey } from "./auth";
 
 /**
  * Password hashing utilities (inlined from auth.ts for isolated testing).
@@ -54,5 +55,25 @@ describe("OTP generation", () => {
       expect(otp.length).toBe(6);
       expect(/^\d{6}$/.test(otp)).toBe(true);
     }
+  });
+});
+
+describe("OTP rate-limit keys", () => {
+  it("keys OTP attempts by normalized email", () => {
+    const key = getOtpRateLimitKey({
+      body: { email: "  Doctor@Example.COM " },
+      ip: "203.0.113.10",
+    });
+
+    expect(key).toBe("otp:doctor@example.com");
+  });
+
+  it("falls back to the client IP when email is missing", () => {
+    const key = getOtpRateLimitKey({
+      body: {},
+      ip: "203.0.113.10",
+    });
+
+    expect(key).toContain("203.0.113.10");
   });
 });
