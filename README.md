@@ -677,11 +677,15 @@ py analyze.py predict_file patient.json
 |---|---|---|
 | `DATABASE_URL` | `.env` | PostgreSQL connection string |
 | `NODE_ENV` | `.env.local` | Set to `development` for local dev features |
+| `SESSION_SECRET` | `.env` | Required in production for signed Express sessions |
 | `DEV_CLINICIAN_EMAIL` | `.env.local` | Seeded clinician email (dev only) |
 | `DEV_CLINICIAN_PASSWORD` | `.env.local` | Seeded clinician password (dev only) |
 | `NEXT_PUBLIC_LOCAL_ENCRYPTION_KEY` | `.env.local` | Local encryption key (dev only) |
 
 > **Security:** `.env.local` is git-ignored and should **never** be committed. Production builds do not expose dev credentials.
+
+> **Request limits:** JSON and URL-encoded API payloads are limited to `256kb` by default. Add route-specific upload handling before increasing this global limit.
+> **Production sessions:** When the app runs behind a TLS-terminating reverse proxy or load balancer, Express trusts one proxy hop in production so secure session cookies are issued from `X-Forwarded-Proto: https` requests.
 
 ---
 
