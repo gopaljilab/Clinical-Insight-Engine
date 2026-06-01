@@ -153,7 +153,7 @@
     font-family: "Outfit", sans-serif;
     font-weight: 600;
   }
-
+}
 
 @media print {
   body, html, main, .bg-card, .bg-secondary\/50 {
@@ -190,5 +190,4 @@
     width: 100% !important;
     max-width: 100% !important;
   }
-}
 }
