@@ -11,6 +11,7 @@ import { insertAssessmentSchema } from "@shared/schema";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 
 const formSchema = insertAssessmentSchema.pick({
+  patientName: true,
   gender: true,
   age: true,
   hypertension: true,
@@ -85,8 +86,10 @@ export default function Dashboard() {
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      patientName: "",
       hypertension: false,
       heartDisease: false,
+      patientName: "",
       smokingHistory: "never",
       gender: "Female",
       age: undefined,
@@ -123,7 +126,7 @@ export default function Dashboard() {
       const draft = JSON.parse(raw);
       if (draft && typeof draft === "object") {
         const allowedKeys = [
-          "gender", "age", "hypertension", "heartDisease",
+          "patientName", "gender", "age", "hypertension", "heartDisease",
           "smokingHistory", "bmi", "hba1cLevel", "bloodGlucoseLevel",
         ];
         Object.entries(draft).forEach(([k, v]) => {
@@ -176,7 +179,7 @@ export default function Dashboard() {
       } finally {
         setPreviewPending(false);
       }
-    }, 500);
+    }, 1500);
 
     return () => {
       controller.abort();
@@ -187,7 +190,7 @@ export default function Dashboard() {
   // Autosave draft on form changes
   const formData = watch();
   useEffect(() => {
-    if (formData && (formData.age || formData.bmi || formData.hba1cLevel || formData.bloodGlucoseLevel || formData.hypertension || formData.heartDisease)) {
+    if (formData && (formData.patientName || formData.age || formData.bmi || formData.hba1cLevel || formData.bloodGlucoseLevel || formData.hypertension || formData.heartDisease)) {
       localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(formData));
     }
   }, [formData]);
@@ -261,24 +264,17 @@ export default function Dashboard() {
                     <h3 className={sectionHeadingClass}>
                       <UserCircle className="w-5 h-5 text-blue-600" /> Demographics
                     </h3>
-                    <div className="mt-4 space-y-4">
-                      <div className="space-y-2">
-                        <label className={labelClass}>Gender</label>
-                        <div
-                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 transition-all duration-200 ${errors.gender ? "ring-2 ring-red-500 bg-red-50/30" : ""}`}
-                        >
-                          {["Male", "Female"].map((g) => (
-                            <label key={g} className="flex-1 cursor-pointer">
-                              <input type="radio" value={g} {...register("gender")} className="peer sr-only" />
-                              <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 hover:text-blue-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow-sm">
-                                {g}
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-                        {errors.gender && <p className="text-sm text-red-600 mt-1">{errors.gender.message}</p>}
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <div className="space-y-2 md:col-span-2">
+                        <label className={labelClass}>Patient Name</label>
+                        <input
+                          type="text"
+                          {...register("patientName")}
+                          className={getInputClass(!!errors.patientName)}
+                          placeholder="e.g., John Doe"
+                        />
+                        {errors.patientName && <p className="text-sm text-red-600 mt-1">{errors.patientName.message}</p>}
                       </div>
-
 
                       <div className="space-y-2">
                         <div className="flex items-center gap-1.5">
@@ -298,14 +294,37 @@ export default function Dashboard() {
                         {errors.age && <p className="text-sm text-red-600 mt-1">{errors.age.message}</p>}
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-2 md:col-span-3">
+                        <label className={labelClass}>Gender</label>
+                        <div
+                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 transition-all duration-200 ${errors.gender ? "ring-2 ring-red-500 bg-red-50/30" : ""}`}
+                        >
+                          {["Male", "Female"].map((g) => (
+                            <label key={g} className="flex-1 cursor-pointer">
+                              <input type="radio" value={g} {...register("gender")} className="peer sr-only" />
+                              <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 hover:text-blue-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow-sm">
+                                {g}
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                        {errors.gender && <p className="text-sm text-red-600 mt-1">{errors.gender.message}</p>}
+                      </div>
+
+                      <div className="space-y-2 md:col-span-3">
                         <label className={labelClass}>Smoking History</label>
-                        <select {...register("smokingHistory")} className={`${getInputClass(!!errors.smokingHistory)} appearance-none`}>
-                          <option value="never">never</option>
-                          <option value="No Info">No Info</option>
-                          <option value="current">current</option>
-                          <option value="former">former</option>
-                        </select>
+                        <div
+                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 transition-all duration-200 sm:grid-cols-4 ${errors.smokingHistory ? "ring-2 ring-red-500 bg-red-50/30" : ""}`}
+                        >
+                          {["never", "No Info", "current", "former"].map((smoking) => (
+                            <label key={smoking} className="flex-1 cursor-pointer">
+                              <input type="radio" value={smoking} {...register("smokingHistory")} className="peer sr-only" />
+                              <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 hover:text-blue-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow-sm">
+                                {smoking}
+                              </div>
+                            </label>
+                          ))}
+                        </div>
                         {errors.smokingHistory && <p className="text-sm text-red-600 mt-1">{errors.smokingHistory.message}</p>}
                       </div>
                     </div>
