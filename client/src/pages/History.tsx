@@ -120,6 +120,7 @@ export default function History() {
 
   function reloadToForm(assessment: any) {
     const draft = {
+      patientName: assessment.patientName ?? "",
       gender: assessment.gender,
       age: assessment.age,
       hypertension: assessment.hypertension,
@@ -142,7 +143,8 @@ export default function History() {
   }
 
   function exportAsPdf(assessment: any) {
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${assessment.id}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Date:</strong> ${new Date(assessment.createdAt).toLocaleString()}</p><p class="kv"><strong>Risk Score:</strong> ${Number(assessment.riskScore).toFixed(1)}%</p><p class="kv"><strong>Category:</strong> <span class="pill">${assessment.riskCategory}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals & Inputs</h2><table><tbody><tr><td>Age</td><td>${assessment.age}</td></tr><tr><td>BMI</td><td>${assessment.bmi}</td></tr><tr><td>HbA1c</td><td>${assessment.hba1cLevel}%</td></tr><tr><td>Blood Glucose</td><td>${assessment.bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${assessment.hypertension ? "Yes" : "No"}</td></tr><tr><td>Heart Disease</td><td>${assessment.heartDisease ? "Yes" : "No"}</td></tr><tr><td>Smoking</td><td>${assessment.smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(
+    const patientName = assessment.patientName || "Unknown Patient";
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${assessment.id}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Patient:</strong> ${patientName}</p><p class="kv"><strong>Date:</strong> ${new Date(assessment.createdAt).toLocaleString()}</p><p class="kv"><strong>Risk Score:</strong> ${Number(assessment.riskScore).toFixed(1)}%</p><p class="kv"><strong>Category:</strong> <span class="pill">${assessment.riskCategory}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals & Inputs</h2><table><tbody><tr><td>Age</td><td>${assessment.age}</td></tr><tr><td>BMI</td><td>${assessment.bmi}</td></tr><tr><td>HbA1c</td><td>${assessment.hba1cLevel}%</td></tr><tr><td>Blood Glucose</td><td>${assessment.bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${assessment.hypertension ? "Yes" : "No"}</td></tr><tr><td>Heart Disease</td><td>${assessment.heartDisease ? "Yes" : "No"}</td></tr><tr><td>Smoking</td><td>${assessment.smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(
       assessment.factors || []
     )
       .slice(0, 5)
@@ -394,6 +396,7 @@ export default function History() {
                 <thead>
                   <tr className="bg-muted/50 border-b border-border text-xs text-muted-foreground uppercase tracking-wider">
                     <th className="p-4 font-semibold">Date</th>
+                    <th className="p-4 font-semibold">Patient</th>
                     <th className="p-4 font-semibold">Age</th>
                     <th className="p-4 font-semibold">BMI</th>
                     <th className="p-4 font-semibold">HbA1c</th>
@@ -414,6 +417,12 @@ export default function History() {
                     >
                       <td className="p-4 whitespace-nowrap">
                         {formatAssessmentDate(assessment.createdAt)}
+                      </td>
+                      <td className="p-4 font-medium whitespace-nowrap">
+                        <HighlightText
+                          text={assessment.patientName || "Unknown Patient"}
+                          search={searchTerm}
+                        />
                       </td>
                       <td className="p-4">
                         <HighlightText

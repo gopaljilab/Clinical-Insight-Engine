@@ -58,6 +58,7 @@ export class DatabaseStorage implements IStorage {
     const query = db
       .select({
         id: assessments.id,
+        patientName: assessments.patientName,
         gender: assessments.gender,
         age: assessments.age,
         hypertension: assessments.hypertension,
