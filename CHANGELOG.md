@@ -1,5 +1,31 @@
 # Changelog
 
+## [Unreleased]
+
+### Security
+- Added JWT authentication middleware for prediction endpoints (#512)
+- Added input validation schema (Pydantic) for patient prediction API (#512)
+- Documented SECRET_KEY security requirements in config
+- Added file upload MIME type validation guidelines
+
+### Performance
+- Added LRU cache for repeated identical prediction requests (#515)
+- Added model singleton loader — model loaded once at startup (#513)
+- Added recommendation to use vectorized NumPy operations for feature engineering
+
+### Fixed
+- CSV export now sanitizes formula injection characters (#514)
+
+### Documentation
+- Expanded SECURITY.md with clinical data vulnerability categories
+- Added ML model contribution guidelines to CONTRIBUTING.md
+- Added clinical research ethics to CODE_OF_CONDUCT.md
+- Added clinical disclaimer and security badge to README.md
+
+---
+
+# Changelog
+
 All notable changes to **Clinical Insight Engine** will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
