@@ -106,8 +106,10 @@ export function createAuthRouter(): Router {
    * generates a verification OTP, and sends it to the user's email.
    */
   router.post("/register", async (req: Request, res: Response) => {
-    const { fullName, email, password, licenseNumber } = req.body || {};
-
+    const { fullName, licenseNumber } = req.body || {};
+    const email = (req.body?.email ?? "").trim().toLowerCase();
+    const password = req.body?.password ?? "";
+ 
     if (!fullName || !email || !password || !licenseNumber) {
       return res.status(400).json({
         message: "Full name, email, password, and license number are required.",
@@ -191,7 +193,9 @@ export function createAuthRouter(): Router {
    * Validates email/password and sends a verification OTP.
    */
   router.post("/login", async (req: Request, res: Response) => {
-    const { email, password } = req.body || {};
+    const rawEmail = req.body?.email ?? "";
+    const email = rawEmail.trim().toLowerCase();
+    const password = req.body?.password ?? "";
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required." });
@@ -218,31 +222,19 @@ export function createAuthRouter(): Router {
         }
 
         // Check in-memory store (legacy)
+        if (!userFullName) {
+          const registeredUser = registeredUsers.get(email);
+          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+            userFullName = registeredUser.fullName;
+          }
+        }
+      } catch (_err) {
+        // DB not available — fall back to in-memory only
+        console.warn("DB unavailable for login, using in-memory only.");
         const registeredUser = registeredUsers.get(email);
         if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
           userFullName = registeredUser.fullName;
         }
-
-        // Also check DB (fallback)
-        if (!userFullName) {
-          try {
-            const db = getDb();
-            const [dbUser] = await db
-              .select()
-              .from(users)
-              .where(eq(users.email, email))
-              .limit(1);
-
-            if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
-              userFullName = dbUser.fullName;
-            }
-          } catch (_err) {
-            // DB not available — fall back to in-memory only
-            console.warn("DB unavailable for login, using in-memory only.");
-          }
-        }
-      } catch (_err) {
-        console.warn("DB unavailable for login.");
       }
     }
 
@@ -270,7 +262,8 @@ export function createAuthRouter(): Router {
    * Verifies the OTP sent after login/register and establishes a session.
    */
   router.post("/verify-otp", async (req: Request, res: Response) => {
-    const { email, otp } = req.body || {};
+    const { otp } = req.body || {};
+    const email = (req.body?.email ?? "").trim().toLowerCase();
 
     if (!email || !otp) {
       return res.status(400).json({ message: "Email and OTP are required." });

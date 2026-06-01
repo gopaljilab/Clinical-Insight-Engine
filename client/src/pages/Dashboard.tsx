@@ -112,22 +112,29 @@ export default function Dashboard() {
 
   const parsedForPreview = useMemo(() => formSchema.safeParse(watchedValues), [watchedValues]);
 
-  // Load draft from localStorage on mount
+  // Load draft from localStorage on mount — clear immediately after loading
+  // so it only pre-fills the form once (not on every subsequent visit)
   useEffect(() => {
     try {
       const raw = localStorage.getItem("clinical-insight-assessment-draft");
       if (!raw) return;
+      // Remove immediately so stale draft never pre-fills on next visit
+      localStorage.removeItem("clinical-insight-assessment-draft");
       const draft = JSON.parse(raw);
-      if (draft) {
+      if (draft && typeof draft === "object") {
+        const allowedKeys = [
+          "gender", "age", "hypertension", "heartDisease",
+          "smokingHistory", "bmi", "hba1cLevel", "bloodGlucoseLevel",
+        ];
         Object.entries(draft).forEach(([k, v]) => {
+          if (!allowedKeys.includes(k)) return;
           try {
-            // @ts-ignore
-            setValue(k as any, v, { shouldDirty: true });
+            setValue(k as keyof FormData, v as any, { shouldDirty: true });
           } catch (e) {}
         });
       }
     } catch (e) {
-      // ignore
+      // ignore malformed draft
     }
   }, [setValue]);
 
@@ -258,9 +265,9 @@ export default function Dashboard() {
                       <div className="space-y-2">
                         <label className={labelClass}>Gender</label>
                         <div
-                          className={`grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1 transition-all duration-200 ${errors.gender ? "ring-2 ring-red-500 bg-red-50/30" : ""}`}
+                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 transition-all duration-200 ${errors.gender ? "ring-2 ring-red-500 bg-red-50/30" : ""}`}
                         >
-                          {["Male", "Female", "Other"].map((g) => (
+                          {["Male", "Female"].map((g) => (
                             <label key={g} className="flex-1 cursor-pointer">
                               <input type="radio" value={g} {...register("gender")} className="peer sr-only" />
                               <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 hover:text-blue-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow-sm">

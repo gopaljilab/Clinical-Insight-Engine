@@ -1,7 +1,23 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAssessments } from "@/hooks/use-assessments";
-import { format, isValid, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
-import { Loader2, Search, Calendar, User, Activity, X, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  format,
+  isValid,
+  isAfter,
+  isBefore,
+  startOfDay,
+  endOfDay,
+} from "date-fns";
+import {
+  Loader2,
+  Search,
+  Calendar,
+  User,
+  Activity,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
@@ -11,15 +27,21 @@ import { advancedFilter } from "@/utils/search_filters";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
-  
-  const regex = new RegExp(`(${search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+
+  const regex = new RegExp(
+    `(${search.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")})`,
+    "gi"
+  );
   const parts = text.split(regex);
-  
+
   return (
     <>
-      {parts.map((part, i) => 
+      {parts.map((part, i) =>
         regex.test(part) ? (
-          <mark key={i} className="bg-yellow-100 text-[#1E293B] rounded px-0.5 font-bold">
+          <mark
+            key={i}
+            className="bg-yellow-100 text-[#1E293B] rounded px-0.5 font-bold"
+          >
             {part}
           </mark>
         ) : (
@@ -38,7 +60,7 @@ export default function History() {
   const { data: assessments, isLoading, error } = useAssessments();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
-  
+
   // Date filter state
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -59,10 +81,39 @@ export default function History() {
   const getRiskBadge = (category: string) => {
     const key = (category || "").toUpperCase();
     const highlight = <HighlightText text={category} search={searchTerm} />;
-    if (key === "LOW") return <StatusPill variant="low" label="LOW" highlightedLabel={<HighlightText text="LOW" search={searchTerm} />} />;
-    if (key === "MODERATE") return <StatusPill variant="moderate" label="MODERATE" highlightedLabel={<HighlightText text="MODERATE" search={searchTerm} />} />;
-    if (key === "HIGH") return <StatusPill variant="high" label="HIGH" highlightedLabel={<HighlightText text="HIGH" search={searchTerm} />} />;
-    return <StatusPill variant="default" label={category || "Unknown"} highlightedLabel={highlight} />;
+    if (key === "LOW")
+      return (
+        <StatusPill
+          variant="low"
+          label="LOW"
+          highlightedLabel={<HighlightText text="LOW" search={searchTerm} />}
+        />
+      );
+    if (key === "MODERATE")
+      return (
+        <StatusPill
+          variant="moderate"
+          label="MODERATE"
+          highlightedLabel={
+            <HighlightText text="MODERATE" search={searchTerm} />
+          }
+        />
+      );
+    if (key === "HIGH")
+      return (
+        <StatusPill
+          variant="high"
+          label="HIGH"
+          highlightedLabel={<HighlightText text="HIGH" search={searchTerm} />}
+        />
+      );
+    return (
+      <StatusPill
+        variant="default"
+        label={category || "Unknown"}
+        highlightedLabel={highlight}
+      />
+    );
   };
 
   const [, setLocation] = useLocation();
@@ -80,7 +131,10 @@ export default function History() {
     };
 
     try {
-      localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(draft));
+      localStorage.setItem(
+        "clinical-insight-assessment-draft",
+        JSON.stringify(draft)
+      );
       setLocation("/dashboard");
     } catch (e) {
       console.error("Failed to set draft:", e);
@@ -88,7 +142,12 @@ export default function History() {
   }
 
   function exportAsPdf(assessment: any) {
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${assessment.id}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Date:</strong> ${new Date(assessment.createdAt).toLocaleString()}</p><p class="kv"><strong>Risk Score:</strong> ${Number(assessment.riskScore).toFixed(1)}%</p><p class="kv"><strong>Category:</strong> <span class="pill">${assessment.riskCategory}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals & Inputs</h2><table><tbody><tr><td>Age</td><td>${assessment.age}</td></tr><tr><td>BMI</td><td>${assessment.bmi}</td></tr><tr><td>HbA1c</td><td>${assessment.hba1cLevel}%</td></tr><tr><td>Blood Glucose</td><td>${assessment.bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${assessment.hypertension ? 'Yes' : 'No'}</td></tr><tr><td>Heart Disease</td><td>${assessment.heartDisease ? 'Yes' : 'No'}</td></tr><tr><td>Smoking</td><td>${assessment.smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(assessment.factors || []).slice(0,5).map((f:any)=>`<li>${f.name} — ${f.description} (${f.impact})</li>`).join('')}</ul></body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${assessment.id}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Date:</strong> ${new Date(assessment.createdAt).toLocaleString()}</p><p class="kv"><strong>Risk Score:</strong> ${Number(assessment.riskScore).toFixed(1)}%</p><p class="kv"><strong>Category:</strong> <span class="pill">${assessment.riskCategory}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals & Inputs</h2><table><tbody><tr><td>Age</td><td>${assessment.age}</td></tr><tr><td>BMI</td><td>${assessment.bmi}</td></tr><tr><td>HbA1c</td><td>${assessment.hba1cLevel}%</td></tr><tr><td>Blood Glucose</td><td>${assessment.bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${assessment.hypertension ? "Yes" : "No"}</td></tr><tr><td>Heart Disease</td><td>${assessment.heartDisease ? "Yes" : "No"}</td></tr><tr><td>Smoking</td><td>${assessment.smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(
+      assessment.factors || []
+    )
+      .slice(0, 5)
+      .map((f: any) => `<li>${f.name} — ${f.description} (${f.impact})</li>`)
+      .join("")}</ul></body></html>`;
 
     const w = window.open("", "_blank", "noopener,noreferrer");
     if (!w) {
@@ -105,7 +164,9 @@ export default function History() {
   }
 
   // 1. Text Search Filtering
-  const textFiltered = assessments ? advancedFilter(assessments, searchTerm) : [];
+  const textFiltered = assessments
+    ? advancedFilter(assessments, searchTerm)
+    : [];
 
   // 2. Reactive Date Range Filtering
   const filteredAssessments = textFiltered.filter((assessment) => {
@@ -129,9 +190,15 @@ export default function History() {
   const sortedAssessments = [...filteredAssessments].sort((a, b) => {
     switch (sortBy) {
       case "date-desc":
-        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        return (
+          new Date(b.createdAt || 0).getTime() -
+          new Date(a.createdAt || 0).getTime()
+        );
       case "date-asc":
-        return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+        return (
+          new Date(a.createdAt || 0).getTime() -
+          new Date(b.createdAt || 0).getTime()
+        );
       case "risk-desc":
         return Number(b.riskScore) - Number(a.riskScore);
       case "risk-asc":
@@ -159,7 +226,7 @@ export default function History() {
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
     const dateObj = new Date(dateVal);
-    return isValid(dateObj) ? format(dateObj, 'MMM d, yyyy') : "Unknown";
+    return isValid(dateObj) ? format(dateObj, "MMM d, yyyy") : "Unknown";
   };
 
   const clearDateFilters = () => {
@@ -168,13 +235,13 @@ export default function History() {
   };
 
   const triggerStartPicker = () => {
-    if (startInputRef.current && 'showPicker' in startInputRef.current) {
+    if (startInputRef.current && "showPicker" in startInputRef.current) {
       startInputRef.current.showPicker();
     }
   };
 
   const triggerEndPicker = () => {
-    if (endInputRef.current && 'showPicker' in endInputRef.current) {
+    if (endInputRef.current && "showPicker" in endInputRef.current) {
       endInputRef.current.showPicker();
     }
   };
@@ -196,9 +263,9 @@ export default function History() {
             {/* Text Search Field */}
             <div className="relative">
               <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input 
-                type="text" 
-                placeholder="Search history..." 
+              <input
+                type="text"
+                placeholder="Search history..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 pr-10 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full sm:w-64"
@@ -218,13 +285,17 @@ export default function History() {
             {/* Interactive Click-to-Pick Date-Range Selector */}
             <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 shadow-sm select-none">
               <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
-              
-              <div 
-                onClick={triggerStartPicker} 
+
+              <div
+                onClick={triggerStartPicker}
                 className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center"
               >
-                <span className={`text-sm font-medium ${startDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
-                  {startDate ? format(new Date(startDate), "MMM d, yyyy") : "Start Date"}
+                <span
+                  className={`text-sm font-medium ${startDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}
+                >
+                  {startDate
+                    ? format(new Date(startDate), "MMM d, yyyy")
+                    : "Start Date"}
                 </span>
                 <input
                   ref={startInputRef}
@@ -236,14 +307,20 @@ export default function History() {
                 />
               </div>
 
-              <span className="text-muted-foreground text-xs font-bold px-0.5">to</span>
+              <span className="text-muted-foreground text-xs font-bold px-0.5">
+                to
+              </span>
 
-              <div 
-                onClick={triggerEndPicker} 
+              <div
+                onClick={triggerEndPicker}
                 className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center"
               >
-                <span className={`text-sm font-medium ${endDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
-                  {endDate ? format(new Date(endDate), "MMM d, yyyy") : "End Date"}
+                <span
+                  className={`text-sm font-medium ${endDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}
+                >
+                  {endDate
+                    ? format(new Date(endDate), "MMM d, yyyy")
+                    : "End Date"}
                 </span>
                 <input
                   ref={endInputRef}
@@ -300,11 +377,13 @@ export default function History() {
               <Activity className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-foreground mb-2">
-              {searchTerm || startDate || endDate ? "No Matching Records" : "No Assessments Found"}
+              {searchTerm || startDate || endDate
+                ? "No Matching Records"
+                : "No Assessments Found"}
             </h3>
             <p className="text-muted-foreground max-w-md">
-              {searchTerm || startDate || endDate 
-                ? "No patient records matching your current filter limits were found. Try refining your parameters." 
+              {searchTerm || startDate || endDate
+                ? "No patient records matching your current filter limits were found. Try refining your parameters."
                 : "There are no patient assessments matching your criteria. Go to the dashboard to create a new assessment."}
             </p>
           </div>
@@ -329,40 +408,104 @@ export default function History() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {paginatedAssessments.map((assessment) => (
-                    <tr key={assessment.id} className="hover:bg-muted/30 transition-colors text-sm">
+                    <tr
+                      key={assessment.id}
+                      className="hover:bg-muted/30 transition-colors text-sm"
+                    >
                       <td className="p-4 whitespace-nowrap">
                         {formatAssessmentDate(assessment.createdAt)}
                       </td>
-                      <td className="p-4"><HighlightText text={String(assessment.age)} search={searchTerm} /></td>
-                      <td className="p-4 font-medium"><HighlightText text={String(assessment.bmi)} search={searchTerm} /></td>
-                      <td className="p-4 font-medium"><HighlightText text={String(assessment.hba1cLevel)} search={searchTerm} />%</td>
-                      <td className="p-4 font-medium"><HighlightText text={String(assessment.bloodGlucoseLevel)} search={searchTerm} /></td>
-                      <td className="p-4">{assessment.hypertension ? 'Yes' : 'No'}</td>
-                      <td className="p-4">{assessment.heartDisease ? 'Yes' : 'No'}</td>
-                      <td className="p-4"><HighlightText text={assessment.smokingHistory} search={searchTerm} /></td>
+                      <td className="p-4">
+                        <HighlightText
+                          text={String(assessment.age)}
+                          search={searchTerm}
+                        />
+                      </td>
+                      <td className="p-4 font-medium">
+                        <HighlightText
+                          text={String(assessment.bmi)}
+                          search={searchTerm}
+                        />
+                      </td>
+                      <td className="p-4 font-medium">
+                        <HighlightText
+                          text={String(assessment.hba1cLevel)}
+                          search={searchTerm}
+                        />
+                        %
+                      </td>
+                      <td className="p-4 font-medium">
+                        <HighlightText
+                          text={String(assessment.bloodGlucoseLevel)}
+                          search={searchTerm}
+                        />
+                      </td>
+                      <td className="p-4">
+                        {assessment.hypertension ? "Yes" : "No"}
+                      </td>
+                      <td className="p-4">
+                        {assessment.heartDisease ? "Yes" : "No"}
+                      </td>
+                      <td className="p-4">
+                        <HighlightText
+                          text={assessment.smokingHistory}
+                          search={searchTerm}
+                        />
+                      </td>
                       <td className="p-4">
                         <div className="font-bold flex items-center gap-3">
-                          <span>{Number(assessment.riskScore).toFixed(1)}%</span>
-                          {assessment.confidenceInterval ? (
-                            (() => {
-                              const ci = assessment.confidenceInterval;
-                              if (typeof ci === 'string') {
-                                const m = ci.match(/([0-9.]+)\s*%?\s*-\s*([0-9.]+)\s*%?/);
-                                if (m) {
-                                  const low = parseFloat(m[1]);
-                                  const high = parseFloat(m[2]);
-                                  return <ConfidenceRange low={low} high={high} value={Number(assessment.riskScore)} />;
+                          <span>
+                            {Number(assessment.riskScore).toFixed(1)}%
+                          </span>
+                          {assessment.confidenceInterval
+                            ? (() => {
+                                const ci = assessment.confidenceInterval;
+                                if (typeof ci === "string") {
+                                  const m = ci.match(
+                                    /([0-9.]+)\s*%?\s*-\s*([0-9.]+)\s*%?/
+                                  );
+                                  if (m) {
+                                    const low = parseFloat(m[1]);
+                                    const high = parseFloat(m[2]);
+                                    return (
+                                      <ConfidenceRange
+                                        low={low}
+                                        high={high}
+                                        value={Number(assessment.riskScore)}
+                                      />
+                                    );
+                                  }
                                 }
-                              }
-                              if (ci && typeof ci === 'object' && 'low' in ci && 'high' in ci) {
-                                const obj = ci as { low: number; high: number };
-                                if (typeof obj.low === 'number' && typeof obj.high === 'number') {
-                                  return <ConfidenceRange low={obj.low} high={obj.high} value={Number(assessment.riskScore)} />;
+                                if (
+                                  ci &&
+                                  typeof ci === "object" &&
+                                  "low" in ci &&
+                                  "high" in ci
+                                ) {
+                                  const obj = ci as {
+                                    low: number;
+                                    high: number;
+                                  };
+                                  if (
+                                    typeof obj.low === "number" &&
+                                    typeof obj.high === "number"
+                                  ) {
+                                    return (
+                                      <ConfidenceRange
+                                        low={obj.low}
+                                        high={obj.high}
+                                        value={Number(assessment.riskScore)}
+                                      />
+                                    );
+                                  }
                                 }
-                              }
-                              return <span className="text-[10px] text-muted-foreground font-normal">({String(ci)})</span>;
-                            })()
-                          ) : null}
+                                return (
+                                  <span className="text-[10px] text-muted-foreground font-normal">
+                                    ({String(ci)})
+                                  </span>
+                                );
+                              })()
+                            : null}
                         </div>
                       </td>
                       <td className="p-4">
@@ -370,11 +513,17 @@ export default function History() {
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">
-                          <button onClick={() => reloadToForm(assessment)} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white border border-slate-100 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100">
+                          <button
+                            onClick={() => reloadToForm(assessment)}
+                            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white border border-slate-100 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100"
+                          >
                             <RotateCw className="w-4 h-4" />
                             Reload
                           </button>
-                          <button onClick={() => exportAsPdf(assessment)} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white border border-slate-100 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100">
+                          <button
+                            onClick={() => exportAsPdf(assessment)}
+                            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white border border-slate-100 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100"
+                          >
                             <FileText className="w-4 h-4" />
                             Export
                           </button>
@@ -389,15 +538,27 @@ export default function History() {
             {/* Pagination Footer Elements */}
             <div className="px-4 py-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="text-sm text-muted-foreground font-medium">
-                Showing <span className="font-semibold text-foreground">{totalRecords === 0 ? 0 : startIndex + 1}</span> to{" "}
-                <span className="font-semibold text-foreground">{endIndex}</span> of{" "}
-                <span className="font-semibold text-foreground">{totalRecords}</span> records
+                Showing{" "}
+                <span className="font-semibold text-foreground">
+                  {totalRecords === 0 ? 0 : startIndex + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-semibold text-foreground">
+                  {endIndex}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-foreground">
+                  {totalRecords}
+                </span>{" "}
+                records
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(prev - 1, 1))
+                  }
                   disabled={currentPage === 1}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Previous page"
@@ -413,7 +574,9 @@ export default function History() {
 
                 <button
                   type="button"
-                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                  }
                   disabled={currentPage === totalPages}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Next page"
