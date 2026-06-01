@@ -68,3 +68,24 @@ This Code of Conduct is adapted from common open-source community guidelines and
 
 ### GSSoC Cookie Security Rules
 - Enable Secure and SameSite=Lax flags on session credentials.
+
+## Clinical Research Ethics Standards
+
+### Patient Privacy
+- Never share, post, or discuss real patient data in issues, PRs, or public channels
+- Use only synthetic or properly anonymized data in examples and tests
+- Do not attempt to re-identify patients from de-identified datasets
+
+### Responsible AI Principles
+- Be transparent about model limitations and uncertainty
+- Do not overstate the accuracy or reliability of predictions
+- Acknowledge and document known biases in the training data
+- Prioritize patient safety over model performance metrics
+
+### Research Integrity
+- Cite original research and datasets used for model training
+- Do not plagiarize model architectures without attribution
+- Report benchmark results honestly — no cherry-picking favorable conditions
+
+### Enforcement
+Violations of clinical ethics standards are treated with the same seriousness as general Code of Conduct violations and may result in immediate removal from the project.
