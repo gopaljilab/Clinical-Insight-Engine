@@ -53,6 +53,22 @@ const assessmentLimiter = rateLimit({
   },
 });
 
+/**
+ * Separate, more permissive rate limiter for the preview endpoint.
+ * Preview is triggered automatically during form filling and should not
+ * block normal user interaction. Allows 15 requests per minute.
+ */
+const previewLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  limit: 15, // 15 requests per IP per window
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many preview requests. Please wait a moment.",
+    retryAfter: 60,
+  },
+});
+
 function getPythonExecutable() {
   const candidates = process.platform === "win32"
     ? [
@@ -529,7 +545,7 @@ export async function registerRoutes(
     api.assessments.preview.path,
     requireAuth,
     requireVerified,
-    assessmentLimiter,
+    previewLimiter,
     async (req, res) => {
       const input = api.assessments.preview.input.parse(req.body);
       const tempFile = path.join(
