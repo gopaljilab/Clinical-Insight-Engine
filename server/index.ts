@@ -3,17 +3,27 @@ import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import { DatabaseStartupError, verifyDatabaseConnection, closePool, getPool } from "./db";
+import {
+  DatabaseStartupError,
+  verifyDatabaseConnection,
+  closePool,
+  getPool,
+} from "./db";
 import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
 import patientsRouter from "./routes/patients";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { sanitizeDatabaseError } from "./security/sqlProtection";
-import { getJwtSecret } from "./services/auth/tokenValidator";
+import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
+import { getPythonExecutable } from "./routes";
 
 const app = express();
 const httpServer = createServer(app);
+const REQUEST_BODY_LIMIT = "256kb";
+
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", true);
+}
 
 declare module "http" {
   interface IncomingMessage {
@@ -59,18 +69,19 @@ app.use(
       sameSite: "lax",
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
-  }),
+  })
 );
 
 app.use(
   express.json({
+    limit: REQUEST_BODY_LIMIT,
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
-  }),
+  })
 );
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: REQUEST_BODY_LIMIT }));
 app.use(loggingAnomalyMiddleware);
 
 // Nonce middleware - generates a unique cryptographic nonce per request for CSP
@@ -82,7 +93,7 @@ app.use((_req, res, next) => {
 // Security headers via helmet
 const scriptSrcDirective: Array<string | ((req: any, res: any) => string)> = [
   "'self'",
-  (_req: any, res: any) => `'nonce-${res.locals.cspNonce}'`
+  (_req: any, res: any) => `'nonce-${res.locals.cspNonce}'`,
 ];
 
 // Vite HMR requires eval in development mode
@@ -96,11 +107,7 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: scriptSrcDirective,
-        styleSrc: [
-          "'self'",
-          "'unsafe-inline'",
-          "https://fonts.googleapis.com",
-        ],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:"],
         connectSrc: ["'self'", "ws://localhost:*", "ws://127.0.0.1:*"],
@@ -109,7 +116,7 @@ app.use(
       },
     },
     crossOriginEmbedderPolicy: false,
-  }),
+  })
 );
 
 function summarizeApiResponse(body: Record<string, any>) {
@@ -173,13 +180,11 @@ app.use((req, res, next) => {
 
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
-
-  // Fail fast on startup if JWT_SECRET is misconfigured (in production)
-  getJwtSecret();
-
-  // Register protected patient endpoints
-  app.use("/api/patients", patientsRouter);
-
+  // Warm up ML model at startup so first prediction request is fast
+  log("Warming up ML model at startup...", "ml");
+  execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
+    .then(() => log("ML model ready.", "ml"))
+    .catch((err: any) => log(`ML warmup warning: ${err.message}`, "ml"));
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
@@ -215,7 +220,7 @@ app.use((req, res, next) => {
   // ALWAYS serve the app on the port specified in the environment variable PORT.
   // Other ports are firewalled. Default to 5000 if not specified.
   // This serves both the API and the client on the only un-firewalled port.
-  // Bind to 0.0.0.0 by default so local containers, Replit, and deployed 
+  // Bind to 0.0.0.0 by default so local containers, Replit, and deployed
   // environments expose the same listener. Set HOST=127.0.0.1 for local-only use.
   const port = parseInt(process.env.PORT || "5000", 10);
   const host = process.env.HOST || "0.0.0.0";
@@ -227,6 +232,27 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on ${host}:${port}`);
-    },
+    }
   );
+
+  // Graceful shutdown handler
+  function shutdown(signal: string) {
+    log(`${signal} received — shutting down gracefully`);
+
+    httpServer.close(async () => {
+      log("HTTP server closed");
+      await closePool();
+      log("Database pool closed");
+      process.exit(0);
+    });
+
+    // Force exit if graceful shutdown takes too long
+    setTimeout(() => {
+      console.error("Graceful shutdown timed out — forcing exit");
+      process.exit(1);
+    }, 10000).unref();
+  }
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 })();
