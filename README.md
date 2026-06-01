@@ -776,3 +776,4 @@ Please read our [**Contributing Guide**](CONTRIBUTING.md) and [**Code of Conduct
 
 ### GSSoC Drizzle Migrations Policy
 - All schema changes must go through drizzle-kit generate.
+\n<!-- Fix for #383 -->\n
