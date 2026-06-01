@@ -78,10 +78,10 @@ export class DatabaseStorage implements IStorage {
           (assessments as any).confidenceInterval ?? (assessments as any).confidence_interval,
         modelConfidence:
           (assessments as any).modelConfidence ?? (assessments as any).model_confidence,
-        createdAt:
-          (assessments as any).createdAt ?? (assessments as any).created_at,
         createdBy:
           (assessments as any).createdBy ?? (assessments as any).created_by,
+        createdAt:
+          (assessments as any).createdAt ?? (assessments as any).created_at,
         userId:
           (assessments as any).userId ?? (assessments as any).user_id,
       })
