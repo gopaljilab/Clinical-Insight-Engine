@@ -96,6 +96,19 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
 }
 
 export type AssessmentInput = z.infer<typeof api.assessments.create.input>;
-export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]>;
+export type PredictionAdvice = {
+  clinicianAdvice?: string[];
+  patientAdvice?: string[];
+};
+
+export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]> & {
+  prediction?: PredictionAdvice & {
+    riskScore?: number;
+    riskCategory?: string;
+    confidenceInterval?: string | null;
+    modelConfidence?: number | null;
+    disclaimer?: string;
+  };
+};
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
 export type AssessmentPreviewResponse = z.infer<typeof api.assessments.preview.responses[200]>;

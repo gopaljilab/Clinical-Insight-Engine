@@ -5,9 +5,11 @@ type Variant = "low" | "moderate" | "high" | "default";
 export default function StatusPill({
   variant = "default",
   label,
+  highlightedLabel,
 }: {
   variant?: Variant;
   label?: string;
+  highlightedLabel?: React.ReactNode;
 }) {
   const mapping: Record<Variant, { bg: string; text: string }> = {
     low: { bg: "#E6F4EA", text: "#065f46" }, // soft green bg, dark green text
@@ -27,7 +29,7 @@ export default function StatusPill({
       style={{ backgroundColor: bg, color: text }}
       className="px-3 py-1 rounded-full text-xs font-bold tracking-wide"
     >
-      {display}
+      {highlightedLabel ?? display}
     </span>
   );
 }

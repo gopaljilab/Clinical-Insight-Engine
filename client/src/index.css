@@ -155,5 +155,40 @@
   }
 
 
-  
+@media print {
+  body, html, main, .bg-card, .bg-secondary\/50 {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Ensure background colors print correctly on charts/badges */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  aside, nav, button, footer {
+    display: none !important;
+  }
+
+  /* Hide the print/export buttons panel */
+  .flex.items-center.gap-2.justify-end {
+    display: none !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 1.5cm !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
 }

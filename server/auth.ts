@@ -1,6 +1,11 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { randomInt } from "crypto";
-import bcrypt from "bcrypt";
+import { randomInt, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import rateLimit from "express-rate-limit";
+import { storage } from "./storage";
+import { getDb } from "./db";
+import { eq, and, gte } from "drizzle-orm";
+import { users, emailVerificationTokens } from "@shared/schema";
+import { sendVerificationCode } from "./email";
 
 // Extend express-session to include user data
 declare module "express-session" {
@@ -20,12 +25,19 @@ interface RegisteredUser {
   licenseNumber: string;
 }
 
+const SALT_LENGTH = 32;
+const KEY_LENGTH = 64;
+
 function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, 10);
+  const salt = randomBytes(SALT_LENGTH).toString("hex");
+  const hash = scryptSync(password, salt, KEY_LENGTH).toString("hex");
+  return `${salt}:${hash}`;
 }
 
-function verifyPassword(password: string, hash: string): boolean {
-  return bcrypt.compareSync(password, hash);
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, key] = stored.split(":");
+  const hash = scryptSync(password, salt, KEY_LENGTH);
+  return hash.length === Buffer.from(key, "hex").length && timingSafeEqual(hash, Buffer.from(key, "hex"));
 }
 
 /**
@@ -64,21 +76,6 @@ const resendLimiter = rateLimit({
   message: { error: "Too many resend requests. Please try again later." },
 });
 
-const SALT_LENGTH = 32;
-const KEY_LENGTH = 64;
-
-function hashPassword(password: string): string {
-  const salt = randomBytes(SALT_LENGTH).toString("hex");
-  const hash = scryptSync(password, salt, KEY_LENGTH).toString("hex");
-  return `${salt}:${hash}`;
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, key] = stored.split(":");
-  const hash = scryptSync(password, salt, KEY_LENGTH);
-  return hash.length === Buffer.from(key, "hex").length && timingSafeEqual(hash, Buffer.from(key, "hex"));
-}
-
 function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
@@ -109,8 +106,10 @@ export function createAuthRouter(): Router {
    * generates a verification OTP, and sends it to the user's email.
    */
   router.post("/register", async (req: Request, res: Response) => {
-    const { fullName, email, password, licenseNumber } = req.body || {};
-
+    const { fullName, licenseNumber } = req.body || {};
+    const email = (req.body?.email ?? "").trim().toLowerCase();
+    const password = req.body?.password ?? "";
+ 
     if (!fullName || !email || !password || !licenseNumber) {
       return res.status(400).json({
         message: "Full name, email, password, and license number are required.",
@@ -126,11 +125,6 @@ export function createAuthRouter(): Router {
       return res.status(400).json({ message: "Password must be at least 8 characters." });
     }
 
-    const existing = await storage.getUserByEmail(email);
-    if (existing) {
-      return res.status(409).json({ message: "An account with this email already exists." });
-    }
-
     // Check DB for existing user
     try {
       const db = getDb();
@@ -143,15 +137,18 @@ export function createAuthRouter(): Router {
       if (existingDbUser) {
         return res.status(409).json({ message: "An account with this email already exists." });
       }
-    registeredUsers.set(email, {
-      fullName,
-      email,
-      passwordHash,
-      medicalLicenseNumber: licenseNumber,
-    });
+
+      const passwordHash = hashPassword(password);
+
+      registeredUsers.set(email, {
+        fullName,
+        email,
+        passwordHash,
+        licenseNumber,
+      });
+
 
       // Create DB user
-      const passwordHash = hashPassword(password);
       const [newUser] = await db
         .insert(users)
         .values({
@@ -196,7 +193,9 @@ export function createAuthRouter(): Router {
    * Validates email/password and sends a verification OTP.
    */
   router.post("/login", async (req: Request, res: Response) => {
-    const { email, password } = req.body || {};
+    const rawEmail = req.body?.email ?? "";
+    const email = rawEmail.trim().toLowerCase();
+    const password = req.body?.password ?? "";
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required." });
@@ -210,31 +209,35 @@ export function createAuthRouter(): Router {
     if (email === devEmail && password === devPassword) {
       userFullName = "Dr. Smith";
     } else {
-      // Check in-memory store (legacy)
-      const registeredUser = registeredUsers.get(email);
-      if (registeredUser && bcrypt.compareSync(password, registeredUser.password)) {
-        userName = registeredUser.fullName;
-      }
+      try {
+        const db = getDb();
+        const [dbUser] = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, email))
+          .limit(1);
 
-      // Also check DB
-      if (!userName) {
-        try {
-          const db = getDb();
-          const [dbUser] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, email))
-            .limit(1);
+        if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
+          userFullName = dbUser.fullName;
+        }
 
-          if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
-            userName = dbUser.fullName;
+        // Check in-memory store (legacy)
+        if (!userFullName) {
+          const registeredUser = registeredUsers.get(email);
+          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+            userFullName = registeredUser.fullName;
           }
-        } catch (err) {
-          // DB not available — fall back to in-memory only
-          console.warn("DB unavailable for login, using in-memory only.");
+        }
+      } catch (_err) {
+        // DB not available — fall back to in-memory only
+        console.warn("DB unavailable for login, using in-memory only.");
+        const registeredUser = registeredUsers.get(email);
+        if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+          userFullName = registeredUser.fullName;
         }
       }
     }
+
 
     if (!userFullName) {
       return res.status(401).json({ message: "Invalid email or password." });
@@ -259,7 +262,8 @@ export function createAuthRouter(): Router {
    * Verifies the OTP sent after login/register and establishes a session.
    */
   router.post("/verify-otp", async (req: Request, res: Response) => {
-    const { email, otp } = req.body || {};
+    const { otp } = req.body || {};
+    const email = (req.body?.email ?? "").trim().toLowerCase();
 
     if (!email || !otp) {
       return res.status(400).json({ message: "Email and OTP are required." });
@@ -291,7 +295,12 @@ export function createAuthRouter(): Router {
       name = "Dr. Smith";
       id = "dev";
     } else {
-      const user = await storage.getUserByEmail(email);
+      const db = getDb();
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
       if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
@@ -344,7 +353,7 @@ export function createAuthRouter(): Router {
 
       // If already verified, return success
       if (user.emailVerified) {
-        req.session.user = { email: user.email, name: user.fullName };
+        req.session.user = { id: user.id, email: user.email, name: user.fullName };
         return res.json({ success: true, message: "Email already verified." });
       }
 
@@ -408,7 +417,7 @@ export function createAuthRouter(): Router {
         .where(eq(users.id, user.id));
 
       // Create session
-      req.session.user = { email: user.email, name: user.fullName };
+      req.session.user = { id: user.id, email: user.email, name: user.fullName };
 
       return res.json({ success: true, message: "Email verified successfully." });
     } catch (err) {
