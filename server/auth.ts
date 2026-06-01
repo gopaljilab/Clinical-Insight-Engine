@@ -11,6 +11,7 @@ import { sendVerificationCode } from "./email";
 declare module "express-session" {
   interface SessionData {
     user?: {
+      id: string;
       email: string;
       name: string;
     };
@@ -175,6 +176,18 @@ async function establishAuthenticatedSession(
   await saveSession(req);
 }
 
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, key] = stored.split(":");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return timingSafeEqual(Buffer.from(hash), Buffer.from(key));
+}
+
 /**
  * Creates an authentication router with login, register, logout, and session-check endpoints.
  *
@@ -221,12 +234,6 @@ export function createAuthRouter(): Router {
       if (existingDbUser) {
         return res.status(409).json({ message: "An account with this email already exists." });
       }
-    registeredUsers.set(email, {
-      fullName,
-      email,
-      passwordHash: hashPassword(password),
-      licenseNumber: licenseNumber,
-    });
 
       const passwordHash = hashPassword(password);
 
@@ -236,7 +243,6 @@ export function createAuthRouter(): Router {
         passwordHash,
         licenseNumber,
       });
-
 
       // Create DB user
       const [newUser] = await db

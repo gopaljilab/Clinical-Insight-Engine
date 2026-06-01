@@ -4,7 +4,7 @@ import { Activity, ClipboardList, HeartPulse, LogOut, Loader2 } from "lucide-rea
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import ThemeToggle from "../ThemeToggle";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
