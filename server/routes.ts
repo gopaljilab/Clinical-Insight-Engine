@@ -13,11 +13,7 @@ import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { rateLimit } from "express-rate-limit";
-import { searchQuerySchema } from "./validation/searchValidation";
-import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
-import { issueToken } from "./services/auth/tokenValidator";
-import { canAccessPatientRecord } from "./services/authz/patient-access";
-import { logAccessAttempt } from "./security/access-audit";
+import { assessmentsToCsv } from "./utils/csvSanitizer";
 
 const execFileAsync = promisify(execFile);
 
@@ -55,6 +51,22 @@ const assessmentLimiter = rateLimit({
   message: {
     error: "Too many assessment requests. Please try again later.",
     retryAfter: 60, // seconds
+  },
+});
+
+/**
+ * Separate, more permissive rate limiter for the preview endpoint.
+ * Preview is triggered automatically during form filling and should not
+ * block normal user interaction. Allows 15 requests per minute.
+ */
+const previewLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  limit: 15, // 15 requests per IP per window
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many preview requests. Please wait a moment.",
+    retryAfter: 60,
   },
 });
 
@@ -546,7 +558,7 @@ export async function registerRoutes(
     api.assessments.preview.path,
     requireAuth,
     requireVerified,
-    assessmentLimiter,
+    previewLimiter,
     async (req, res) => {
       const input = api.assessments.preview.input.parse(req.body);
       const tempFile = path.join(
@@ -581,7 +593,7 @@ export async function registerRoutes(
           console.warn("Python prediction preview failed, running clinical rule-based fallback:", error);
           prediction = calculateClinicalFallback(input);
         }
-
+        console.log(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
         return res.json({
           riskScore: prediction.riskScore,
           riskCategory: prediction.riskCategory,
@@ -690,7 +702,7 @@ export async function registerRoutes(
               : Number(prediction.modelConfidence),
           createdBy: userId
         });
-
+        console.log(`[AUDIT] prediction created by=${userId} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
         return res.status(201).json({
           ...assessment,
           prediction
@@ -733,6 +745,18 @@ export async function registerRoutes(
       });
     }
   });
+  app.get(
+    "/api/assessments/export.csv",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const userEmail = req.session.user?.email;
+        const assessments = await storage.getAssessments(1000, 0, userEmail);
+
+        const csv = assessmentsToCsv(
+          assessments as unknown as Record<string, unknown>[]
+        );
 
   /**
    * GET /api/assessments/search
