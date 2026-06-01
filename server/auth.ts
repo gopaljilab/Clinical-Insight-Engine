@@ -52,6 +52,10 @@ function normalizeRateLimitEmail(value: unknown): string {
  * Builds a stable OTP rate-limit key from the submitted email when present,
  * falling back to the client IP for malformed or incomplete requests.
  */
+function ipKeyGenerator(ip: string): string {
+  return ip;
+}
+
 export function getOtpRateLimitKey(req: Pick<Request, "body" | "ip">): string {
   const email = normalizeRateLimitEmail(req.body?.email);
 
