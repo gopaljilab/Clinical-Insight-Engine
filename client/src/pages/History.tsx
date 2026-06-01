@@ -78,6 +78,17 @@ export default function History() {
     setCurrentPage(1);
   }, [searchTerm, sortBy, startDate, endDate]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (searchTerm) {
+      params.set("filter", searchTerm);
+    } else {
+      params.delete("filter");
+    }
+    const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+    window.history.replaceState({}, '', newUrl);
+  }, [searchTerm]);
+
   const getRiskBadge = (category: string) => {
     const key = (category || "").toUpperCase();
     const highlight = <HighlightText text={category} search={searchTerm} />;
