@@ -8,7 +8,7 @@ import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
+import { sanitizeDatabaseError } from "./security/sqlProtection";
 
 const app = express();
 const httpServer = createServer(app);
@@ -175,16 +175,23 @@ app.use((req, res, next) => {
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    console.error("Internal Server Error:", err);
-
     if (res.headersSent) {
       return next(err);
     }
 
-    return res.status(status).json({ message });
+    // Log the full error internally for debugging, but never send internals to clients
+    console.error("Unhandled server error:", err);
+
+    // Sanitize database errors — prevents table names, SQL syntax, and pg error codes
+    // from reaching the client response body
+    const { statusCode, message } = sanitizeDatabaseError(err);
+
+    // For non-DB errors (e.g. express body-parser), fall back to err.status
+    const finalStatus = (err?.code && typeof err.code === "string" && err.code.length === 5)
+      ? statusCode                            // PostgreSQL error code (5-char alphanumeric)
+      : (err?.status ?? err?.statusCode ?? statusCode);
+
+    return res.status(finalStatus).json({ message });
   });
 
   // importantly only setup vite in development and after
