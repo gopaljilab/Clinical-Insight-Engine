@@ -18,38 +18,38 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
 import { FileText, RotateCw } from "lucide-react";
 import { useLocation } from "wouter";
 import { advancedFilter } from "@/utils/search_filters";
 
-function HighlightText({ text, search }: { text: string; search: string }) {
-  if (!search.trim()) return <>{text}</>;
+function HighlightText({ text, searchRegex }: { text: string; searchRegex: RegExp | null }) {
+  if (!searchRegex) return <>{text}</>;
 
-  const regex = new RegExp(
-    `(${search.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")})`,
-    "gi"
-  );
-  const parts = text.split(regex);
+  try {
+    const parts = text.split(searchRegex);
 
-  return (
-    <>
-      {parts.map((part, i) =>
-        regex.test(part) ? (
-          <mark
-            key={i}
-            className="bg-yellow-100 text-[#1E293B] rounded px-0.5 font-bold"
-          >
-            {part}
-          </mark>
-        ) : (
-          part
-        )
-      )}
-    </>
-  );
+    return (
+      <>
+        {parts.map((part, i) =>
+          searchRegex.test(part) ? (
+            <mark
+              key={i}
+              className="bg-yellow-100 text-[#1E293B] rounded px-0.5 font-bold"
+            >
+              {part}
+            </mark>
+          ) : (
+            part
+          )
+        )}
+      </>
+    );
+  } catch {
+    return <>{text}</>;
+  }
 }
 
 export default function History() {
@@ -60,6 +60,19 @@ export default function History() {
   const { data: assessments, isLoading, error } = useAssessments();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
+
+  // Memoize the search regex so it's compiled once per search term change
+  const searchRegex = useMemo(() => {
+    if (!searchTerm.trim()) return null;
+    try {
+      return new RegExp(
+        `(${searchTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")})`,
+        "gi"
+      );
+    } catch {
+      return null;
+    }
+  }, [searchTerm]);
 
   // Date filter state
   const [startDate, setStartDate] = useState<string>("");
@@ -80,13 +93,13 @@ export default function History() {
 
   const getRiskBadge = (category: string) => {
     const key = (category || "").toUpperCase();
-    const highlight = <HighlightText text={category} search={searchTerm} />;
+    const highlight = <HighlightText text={category} searchRegex={searchRegex} />;
     if (key === "LOW")
       return (
         <StatusPill
           variant="low"
           label="LOW"
-          highlightedLabel={<HighlightText text="LOW" search={searchTerm} />}
+          highlightedLabel={<HighlightText text="LOW" searchRegex={searchRegex} />}
         />
       );
     if (key === "MODERATE")
@@ -95,7 +108,7 @@ export default function History() {
           variant="moderate"
           label="MODERATE"
           highlightedLabel={
-            <HighlightText text="MODERATE" search={searchTerm} />
+            <HighlightText text="MODERATE" searchRegex={searchRegex} />
           }
         />
       );
@@ -104,7 +117,7 @@ export default function History() {
         <StatusPill
           variant="high"
           label="HIGH"
-          highlightedLabel={<HighlightText text="HIGH" search={searchTerm} />}
+          highlightedLabel={<HighlightText text="HIGH" searchRegex={searchRegex} />}
         />
       );
     return (
@@ -418,26 +431,26 @@ export default function History() {
                       <td className="p-4">
                         <HighlightText
                           text={String(assessment.age)}
-                          search={searchTerm}
+                          searchRegex={searchRegex}
                         />
                       </td>
                       <td className="p-4 font-medium">
                         <HighlightText
                           text={String(assessment.bmi)}
-                          search={searchTerm}
+                          searchRegex={searchRegex}
                         />
                       </td>
                       <td className="p-4 font-medium">
                         <HighlightText
                           text={String(assessment.hba1cLevel)}
-                          search={searchTerm}
+                          searchRegex={searchRegex}
                         />
                         %
                       </td>
                       <td className="p-4 font-medium">
                         <HighlightText
                           text={String(assessment.bloodGlucoseLevel)}
-                          search={searchTerm}
+                          searchRegex={searchRegex}
                         />
                       </td>
                       <td className="p-4">
@@ -449,7 +462,7 @@ export default function History() {
                       <td className="p-4">
                         <HighlightText
                           text={assessment.smokingHistory}
-                          search={searchTerm}
+                          searchRegex={searchRegex}
                         />
                       </td>
                       <td className="p-4">
