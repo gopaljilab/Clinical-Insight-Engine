@@ -131,3 +131,38 @@ If you cannot run a check because of a local dependency such as PostgreSQL, ment
 ## Community Expectations
 
 Be respectful, patient, and constructive in issues, reviews, and pull requests. Assume good intent, explain technical tradeoffs clearly, and help keep the project welcoming for new contributors.
+
+## ML Model Contributions
+
+### Data Requirements
+- Never commit real patient data — use synthetic data only
+- Document the data schema and expected value ranges for each feature
+- Use anonymized datasets for testing and examples
+
+### Model Changes Checklist
+- [ ] Document accuracy change (before/after metrics)
+- [ ] Include cross-validation results in PR description
+- [ ] Model artifacts (`.pkl`, `.joblib`) must NOT be committed
+- [ ] Version models: `model_v2.pkl`, not `model_final.pkl`
+- [ ] Test with null/missing feature values
+
+### Testing ML Code
+```bash
+# Full test suite
+pytest tests/ -v --cov=app --cov-report=term-missing
+
+# Quick prediction sanity check
+python -c "from app.ml import get_model; m = get_model(); print('Model loaded:', type(m))"
+```
+
+### Clinical Accuracy Standards
+- Sensitivity (recall) for positive cases is more critical than overall accuracy
+- Document false positive and false negative rates for every model change
+- Any regression in clinical accuracy requires maintainer sign-off
+
+## Code Quality
+
+- Follow PEP 8; use `black` for formatting
+- Add type hints to all function signatures
+- Use `logging` module — never `print()` in production code
+- Maximum line length: 100 characters
