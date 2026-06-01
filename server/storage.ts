@@ -26,8 +26,8 @@ export interface IStorage {
     limit?: number,
     offset?: number
   ): Promise<Assessment[]>;
-  /** Returns a single assessment by numeric ID, scoped to the owning user. */
-  getAssessmentById(id: number, createdBy?: string): Promise<Assessment | undefined>;
+  /** Returns a single assessment by numeric ID. Authorization must be checked by caller. */
+  getAssessmentById(id: number): Promise<Assessment | undefined>;
   createAssessment(assessment: any): Promise<Assessment>;
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
@@ -88,8 +88,6 @@ export class DatabaseStorage implements IStorage {
           (assessments as any).confidenceInterval ?? (assessments as any).confidence_interval,
         modelConfidence:
           (assessments as any).modelConfidence ?? (assessments as any).model_confidence,
-        createdBy:
-          (assessments as any).createdBy ?? (assessments as any).created_by,
         createdAt:
           (assessments as any).createdAt ?? (assessments as any).created_at,
         createdBy:
@@ -179,21 +177,17 @@ export class DatabaseStorage implements IStorage {
 
   /**
    * Retrieves a single assessment by its numeric primary key.
-   * Results are scoped to the requesting user (createdBy) to prevent cross-user access.
+   * NOTE: This function no longer implicitly scopes by `createdBy`.
+   * Object-Level Authorization must be explicitly checked by the caller using `canAccessPatientRecord`.
    *
    * Security: uses Drizzle ORM eq() — parameterized, not string-concatenated.
    */
   async getAssessmentById(
-    id: number,
-    createdBy?: string
+    id: number
   ): Promise<Assessment | undefined> {
     const db = getDb();
 
     const conditions: ReturnType<typeof eq>[] = [eq(assessments.id, id)];
-
-    if (createdBy) {
-      conditions.push(eq(assessments.createdBy, createdBy));
-    }
 
     const [result] = await db
       .select()

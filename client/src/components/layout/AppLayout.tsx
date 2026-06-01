@@ -16,6 +16,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
+  const { toast } = useToast();
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
   const [checking, setChecking] = useState(true);
   const [networkError, setNetworkError] = useState(false);
