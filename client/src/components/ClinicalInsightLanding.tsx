@@ -380,7 +380,7 @@ export function ClinicalInsightLanding() {
           <div>
             <BrandMark />
             <p className="mt-4 max-w-md text-sm leading-6 text-slate-500">
-              Copyright 2026 CardioGuard. Built for clinical decision support, not diagnosis.
+              Copyright {new Date().getFullYear()} Clinical Insight. Built for clinical decision support, not diagnosis.
             </p>
           </div>
 

@@ -772,3 +772,7 @@ Please read our [**Contributing Guide**](CONTRIBUTING.md) and [**Code of Conduct
 ⭐ **Star this repo** if you find it useful — it helps others discover the project!
 
 </div>
+
+
+### GSSoC Drizzle Migrations Policy
+- All schema changes must go through drizzle-kit generate.

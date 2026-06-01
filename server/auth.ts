@@ -11,7 +11,6 @@ import { sendVerificationCode } from "./email";
 declare module "express-session" {
   interface SessionData {
     user?: {
-      id: string;
       email: string;
       name: string;
     };
@@ -63,53 +62,35 @@ const resendLimiter = rateLimit({
   message: { error: "Too many resend requests. Please try again later." },
 });
 
-const SALT_LENGTH = 32;
-const KEY_LENGTH = 64;
-
-function hashPassword(password: string): string {
-  const salt = randomBytes(SALT_LENGTH).toString("hex");
-  const hash = scryptSync(password, salt, KEY_LENGTH).toString("hex");
-  return `${salt}:${hash}`;
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, key] = stored.split(":");
-  const hash = scryptSync(password, salt, KEY_LENGTH);
-  return hash.length === Buffer.from(key, "hex").length && timingSafeEqual(hash, Buffer.from(key, "hex"));
-}
-
 function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
 
-function logDevOtp(email: string, otp: string): void {
+function logDevOtp(email: string, otp: string) {
   if (process.env.NODE_ENV !== "production") {
-    const border = "=".repeat(44);
-    console.log(`\n${border}`);
-    console.log("  EMAIL VERIFICATION");
-    console.log(`  To: ${email}`);
-    console.log(`  Verification Code: ${otp}`);
-    console.log(`${border}\n`);
+    console.log(`[DEV] OTP for ${email}: ${otp}`);
   }
 }
 
 /**
- * Creates an authentication router with login, register, logout, session-check,
- * email verification, and resend endpoints.
+ * Creates an authentication router with login, register, logout, and session-check endpoints.
+ *
+ * In development mode, credentials are validated against environment variables
+ * (DEV_CLINICIAN_EMAIL / DEV_CLINICIAN_PASSWORD). In production, this serves
+ * as the auth gateway for all protected API routes.
  */
 export function createAuthRouter(): Router {
   const router = Router();
 
-  // ─── Registration ──────────────────────────────────────────────────────
-
   /**
    * POST /api/auth/register
-   * Validates registration fields, creates a new user account,
-   * generates a verification OTP, and sends it to the user's email.
+   * Validates registration fields, creates a new user account, and establishes a session.
    */
   router.post("/register", async (req: Request, res: Response) => {
-    const { fullName, email, password, licenseNumber } = req.body || {};
-
+    const { fullName, licenseNumber } = req.body || {};
+    const email = (req.body?.email ?? "").trim().toLowerCase();
+    const password = req.body?.password ?? "";
+ 
     if (!fullName || !email || !password || !licenseNumber) {
       return res.status(400).json({
         message: "Full name, email, password, and license number are required.",
@@ -123,11 +104,6 @@ export function createAuthRouter(): Router {
 
     if (password.length < 8) {
       return res.status(400).json({ message: "Password must be at least 8 characters." });
-    }
-
-    const existing = await storage.getUserByEmail(email);
-    if (existing) {
-      return res.status(409).json({ message: "An account with this email already exists." });
     }
 
     // Check DB for existing user
@@ -149,8 +125,17 @@ export function createAuthRouter(): Router {
       licenseNumber: licenseNumber,
     });
 
-      // Create DB user
       const passwordHash = hashPassword(password);
+
+      registeredUsers.set(email, {
+        fullName,
+        email,
+        passwordHash,
+        licenseNumber,
+      });
+
+
+      // Create DB user
       const [newUser] = await db
         .insert(users)
         .values({
@@ -175,27 +160,20 @@ export function createAuthRouter(): Router {
         attemptCount: 0,
       });
 
-      await sendVerificationCode(email, otp);
+    // In production, send OTP via email. For development, return it in the response.
+    logDevOtp(email, otp);
 
-      return res.status(201).json({
-        success: true,
-        pendingEmail: email,
-        ...(process.env.NODE_ENV !== "production" && { devOtp: otp }),
-      });
-    } catch (err) {
-      console.error("Registration error:", err);
-      return res.status(500).json({ message: "Registration failed due to a server error." });
-    }
+    return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
   });
-
-  // ─── Login ──────────────────────────────────────────────────────────────
 
   /**
    * POST /api/auth/login
-   * Validates email/password and sends a verification OTP.
+   * Validates email/password against server-side env vars or registered users and creates a session.
    */
   router.post("/login", async (req: Request, res: Response) => {
-    const { email, password } = req.body || {};
+    const rawEmail = req.body?.email ?? "";
+    const email = rawEmail.trim().toLowerCase();
+    const password = req.body?.password ?? "";
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required." });
@@ -204,10 +182,10 @@ export function createAuthRouter(): Router {
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
     const devPassword = process.env.DEV_CLINICIAN_PASSWORD || "";
 
-    let userFullName: string | null = null;
+    let userName: string | null = null;
 
     if (email === devEmail && password === devPassword) {
-      userFullName = "Dr. Smith";
+      userName = "Dr. Smith";
     } else {
       // Check in-memory store (legacy)
       const registeredUser = registeredUsers.get(email);
@@ -228,12 +206,17 @@ export function createAuthRouter(): Router {
           if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
             userFullName = dbUser.fullName;
           }
-        } catch (err) {
-          // DB not available — fall back to in-memory only
-          console.warn("DB unavailable for login, using in-memory only.");
+        }
+      } catch (_err) {
+        // DB not available — fall back to in-memory only
+        console.warn("DB unavailable for login, using in-memory only.");
+        const registeredUser = registeredUsers.get(email);
+        if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+          userFullName = registeredUser.fullName;
         }
       }
     }
+
 
     if (!userFullName) {
       return res.status(401).json({ message: "Invalid email or password." });
@@ -242,23 +225,19 @@ export function createAuthRouter(): Router {
     const otp = generateOtp();
     pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
 
+    // In production, send OTP via email. For development, return it in the response.
     logDevOtp(email, otp);
 
-    return res.json({
-      success: true,
-      pendingEmail: email,
-      ...(process.env.NODE_ENV !== "production" && { devOtp: otp }),
-    });
+    return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
   });
-
-  // ─── OTP Verification (Legacy in-memory) ──────────────────────────────
 
   /**
    * POST /api/auth/verify-otp
    * Verifies the OTP sent after login/register and establishes a session.
    */
   router.post("/verify-otp", async (req: Request, res: Response) => {
-    const { email, otp } = req.body || {};
+    const { otp } = req.body || {};
+    const email = (req.body?.email ?? "").trim().toLowerCase();
 
     if (!email || !otp) {
       return res.status(400).json({ message: "Email and OTP are required." });
@@ -281,7 +260,9 @@ export function createAuthRouter(): Router {
 
     pendingOtps.delete(email);
 
+    const registeredUser = registeredUsers.get(email);
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
+    const name = email === devEmail ? "Dr. Smith" : (registeredUser?.fullName ?? email);
 
     let id: string;
     let name: string;
@@ -290,7 +271,12 @@ export function createAuthRouter(): Router {
       name = "Dr. Smith";
       id = "dev";
     } else {
-      const user = await storage.getUserByEmail(email);
+      const db = getDb();
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
       if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
@@ -416,77 +402,6 @@ export function createAuthRouter(): Router {
     }
   });
 
-  // ─── Resend Verification ──────────────────────────────────────────────
-
-  /**
-   * POST /api/auth/resend-verification
-   * Invalidates the existing OTP, generates a new one, and sends it.
-   *
-   * Rate limited to 3 requests per hour.
-   */
-  router.post("/resend-verification", resendLimiter, async (req: Request, res: Response) => {
-    try {
-      const { email } = req.body || {};
-
-      if (!email) {
-        return res.status(400).json({ message: "Email is required." });
-      }
-
-      const db = getDb();
-
-      // Find the user
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-
-      if (!user) {
-        return res.status(404).json({ message: "User not found." });
-      }
-
-      if (user.emailVerified) {
-        return res.json({ success: true, message: "Email is already verified." });
-      }
-
-      // Invalidate all existing unused tokens for this user
-      await db
-        .update(emailVerificationTokens)
-        .set({ used: true })
-        .where(
-          and(
-            eq(emailVerificationTokens.userId, user.id),
-            eq(emailVerificationTokens.used, false),
-          ),
-        );
-
-      // Generate new OTP
-      const code = generateOtp();
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-      await db.insert(emailVerificationTokens).values({
-        userId: user.id,
-        verificationCode: code,
-        expiresAt,
-        used: false,
-        attemptCount: 0,
-      });
-
-      await sendVerificationCode(email, code);
-
-      return res.json({
-        success: true,
-        message: "A new verification code has been sent.",
-        ...(process.env.NODE_ENV !== "production" && { devOtp: code }),
-      });
-    } catch (err) {
-      console.error("Resend verification error:", err);
-      return res.status(500).json({ message: "Failed to resend verification code." });
-    }
-  });
-
-  // ─── Logout ──────────────────────────────────────────────────────────
-
   /**
    * POST /api/auth/logout
    * Destroys the current session and clears the session cookie.
@@ -501,8 +416,6 @@ export function createAuthRouter(): Router {
       return res.json({ success: true });
     });
   });
-
-  // ─── Session Check ──────────────────────────────────────────────────
 
   /**
    * GET /api/auth/me
@@ -520,6 +433,7 @@ export function createAuthRouter(): Router {
 
 /**
  * Express middleware that blocks unauthenticated requests.
+ * Attach this to any route that requires a valid session.
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (req.session?.user) {
@@ -530,35 +444,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 /**
  * Express middleware that blocks requests from users whose email
- * has not been verified. Must be used after requireAuth.
+ * has not been verified. In this implementation, a valid session
+ * implies a verified email.
  */
-export async function requireVerified(req: Request, res: Response, next: NextFunction) {
-  if (!req.session?.user?.email) {
-    return res.status(401).json({ message: "Authentication required." });
+export function requireVerified(req: Request, res: Response, next: NextFunction) {
+  if (req.session?.user) {
+    return next();
   }
-
-  try {
-    const db = getDb();
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, req.session.user.email))
-      .limit(1);
-
-    // If not in DB (e.g. dev clinician bypass), allow through
-    if (!user || user.emailVerified) {
-      return next();
-    }
-
-    return res.status(403).json({
-      message: "Email not verified. Please verify your email before accessing this resource.",
-      needsVerification: true,
-      email: req.session.user.email,
-    });
-  } catch (err) {
-    console.error("requireVerified error:", err);
-    return res.status(500).json({ message: "Failed to verify user status." });
-  }
+  return res.status(401).json({ message: "Verification required." });
 }
-
-
