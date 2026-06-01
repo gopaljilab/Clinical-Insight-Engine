@@ -11,7 +11,7 @@ function pruneExpiredRecords(now: number) {
     if (now > record.resetTime) {
       requestStore.delete(clientId);
     }
-  });
+  }
 }
 
 function trimRequestStore(now: number) {

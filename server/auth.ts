@@ -11,6 +11,7 @@ import { sendVerificationCode } from "./email";
 declare module "express-session" {
   interface SessionData {
     user?: {
+      id: string;
       email: string;
       name: string;
     };
@@ -158,6 +159,18 @@ async function establishAuthenticatedSession(
   await saveSession(req);
 }
 
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, key] = stored.split(":");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return timingSafeEqual(Buffer.from(hash), Buffer.from(key));
+}
+
 /**
  * Creates an authentication router with login, register, logout, and session-check endpoints.
  *
@@ -204,12 +217,6 @@ export function createAuthRouter(): Router {
       if (existingDbUser) {
         return res.status(409).json({ message: "An account with this email already exists." });
       }
-    registeredUsers.set(email, {
-      fullName,
-      email,
-      passwordHash: hashPassword(password),
-      licenseNumber: licenseNumber,
-    });
 
       const passwordHash = hashPassword(password);
 
@@ -219,7 +226,6 @@ export function createAuthRouter(): Router {
         passwordHash,
         licenseNumber,
       });
-
 
       // Create DB user
       const [newUser] = await db
@@ -246,10 +252,14 @@ export function createAuthRouter(): Router {
         attemptCount: 0,
       });
 
-    // In production, send OTP via email. For development, return it in the response.
-    logDevOtp(email, otp);
+      // In production, send OTP via email. For development, return it in the response.
+      logDevOtp(email, otp);
 
-    return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+      return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+    } catch (error) {
+      console.error("Registration error:", error);
+      return res.status(500).json({ message: "Registration failed due to a server error." });
+    }
   });
 
   /**
@@ -268,10 +278,10 @@ export function createAuthRouter(): Router {
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
     const devPassword = process.env.DEV_CLINICIAN_PASSWORD || "";
 
-    let userName: string | null = null;
+    let userFullName: string | null = null;
 
     if (email === devEmail && password === devPassword) {
-      userName = "Dr. Smith";
+      userFullName = "Dr. Smith";
     } else {
       // Check in-memory store (legacy)
       const registeredUser = registeredUsers.get(email);
@@ -292,13 +302,13 @@ export function createAuthRouter(): Router {
           if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
             userFullName = dbUser.fullName;
           }
-        }
-      } catch (_err) {
-        // DB not available — fall back to in-memory only
-        console.warn("DB unavailable for login, using in-memory only.");
-        const registeredUser = registeredUsers.get(email);
-        if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-          userFullName = registeredUser.fullName;
+        } catch (_err) {
+          // DB not available — fall back to in-memory only
+          console.warn("DB unavailable for login, using in-memory only.");
+          const registeredUser = registeredUsers.get(email);
+          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+            userFullName = registeredUser.fullName;
+          }
         }
       }
     }
@@ -348,7 +358,6 @@ export function createAuthRouter(): Router {
 
     const registeredUser = registeredUsers.get(email);
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
-    const name = email === devEmail ? "Dr. Smith" : (registeredUser?.fullName ?? email);
 
     let id: string;
     let name: string;
