@@ -13,6 +13,7 @@ import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { rateLimit } from "express-rate-limit";
+import { assessmentsToCsv } from "./utils/csvSanitizer";
 
 const execFileAsync = promisify(execFile);
 
@@ -53,7 +54,7 @@ const assessmentLimiter = rateLimit({
   },
 });
 
-function getPythonExecutable() {
+export function getPythonExecutable() {
   const candidates = process.platform === "win32"
     ? [
         path.resolve(".venv", "Scripts", "python.exe"),
@@ -564,7 +565,7 @@ export async function registerRoutes(
           console.warn("Python prediction preview failed, running clinical rule-based fallback:", error);
           prediction = calculateClinicalFallback(input);
         }
-
+        console.log(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
         return res.json({
           riskScore: prediction.riskScore,
           riskCategory: prediction.riskCategory,
@@ -673,7 +674,7 @@ export async function registerRoutes(
               : Number(prediction.modelConfidence),
           createdBy: userId
         });
-
+        console.log(`[AUDIT] prediction created by=${userId} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
         return res.status(201).json({
           ...assessment,
           prediction
@@ -716,6 +717,30 @@ export async function registerRoutes(
       });
     }
   });
+  app.get(
+    "/api/assessments/export.csv",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const userEmail = req.session.user?.email;
+        const assessments = await storage.getAssessments(1000, 0, userEmail);
 
+        const csv = assessmentsToCsv(
+          assessments as unknown as Record<string, unknown>[]
+        );
+
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader(
+          "Content-Disposition",
+          "attachment; filename=assessments.csv"
+        );
+        return res.send(csv);
+      } catch (err) {
+        console.error("CSV export error:", err);
+        return res.status(500).json({ message: "Failed to export CSV." });
+      }
+    }
+  );
   return httpServer;
 }
