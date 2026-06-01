@@ -176,7 +176,7 @@ export default function Dashboard() {
       } finally {
         setPreviewPending(false);
       }
-    }, 500);
+    }, 1500);
 
     return () => {
       controller.abort();
