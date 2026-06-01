@@ -394,6 +394,7 @@ export default function History() {
                 <thead>
                   <tr className="bg-muted/50 border-b border-border text-xs text-muted-foreground uppercase tracking-wider">
                     <th className="p-4 font-semibold">Date</th>
+                    <th className="p-4 font-semibold">Patient</th>
                     <th className="p-4 font-semibold">Age</th>
                     <th className="p-4 font-semibold">BMI</th>
                     <th className="p-4 font-semibold">HbA1c</th>
@@ -515,14 +516,14 @@ export default function History() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => reloadToForm(assessment)}
-                            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white border border-slate-100 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100"
+                            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900"
                           >
                             <RotateCw className="w-4 h-4" />
                             Reload
                           </button>
                           <button
                             onClick={() => exportAsPdf(assessment)}
-                            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white border border-slate-100 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100"
+                            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900"
                           >
                             <FileText className="w-4 h-4" />
                             Export

@@ -26,6 +26,7 @@ export const assessments = pgTable("assessments", {
   confidenceInterval: jsonb("confidence_interval").$type<string | null>(),
   modelConfidence: doublePrecision("model_confidence"),
   
+  patientName: text("patient_name"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   userId: text("user_id"),
@@ -40,6 +41,7 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   bmi: z.coerce.number().min(10, "BMI must be between 10 and 60").max(60, "BMI must be between 10 and 60"),
   hba1cLevel: z.coerce.number().min(3, "HbA1c must be between 3 and 15").max(15, "HbA1c must be between 3 and 15"),
   bloodGlucoseLevel: z.coerce.number().min(50, "Blood glucose must be between 50 and 400").max(400, "Blood glucose must be between 50 and 400"),
+  patientName: z.string().min(1, "Patient name is required").max(100, "Patient name is too long"),
 }).omit({
   id: true,
   userId: true,
