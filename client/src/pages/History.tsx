@@ -561,8 +561,9 @@ export default function History() {
                   {sortedAssessments.map((assessment) => {
                     const isSelected = selectedIds.has(assessment.id);
                     return (
-                      <tr key={assessment.id} className={`hover:bg-muted/30 transition-colors text-sm ${isSelected ? 'bg-primary/5 ring-1 ring-inset ring-primary/20' : ''}`}>
-                        <td className="p-4">
+                      <tr key={assessment.id} className={`group transition-all duration-200 text-sm hover:bg-blue-50/40 dark:hover:bg-blue-950/20 ${isSelected ? 'bg-primary/5 ring-1 ring-inset ring-primary/20' : ''}`}>
+                        <td className="p-4 relative">
+                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600 scale-y-0 group-hover:scale-y-100 transition-transform duration-200 origin-center" />
                           <input
                             type="checkbox"
                             checked={isSelected}
