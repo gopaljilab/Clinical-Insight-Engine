@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or } from "drizzle-orm";
 
 import {
   assessments,
@@ -8,9 +8,8 @@ import {
   type InsertAssessment,
   type AssessmentFactor,
   type User,
-  type InsertUser
+  type InsertUser,
 } from "@shared/schema";
-import { desc, eq, ilike, and, or } from "drizzle-orm";
 import type { RiskCategory } from "./validation/searchValidation";
 
 export interface IStorage {
