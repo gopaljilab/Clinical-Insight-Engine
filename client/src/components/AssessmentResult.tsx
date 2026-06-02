@@ -3,6 +3,7 @@ import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -51,14 +52,8 @@ const getFactorReason = (factor: RiskFactor) => {
 export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [view, setView] = useState<"patient" | "clinician">("patient");
 
-  const exportToJson = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(assessment, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `diabetes-risk-assessment-${assessment.id ?? "report"}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+  const exportToPdf = () => {
+    downloadClinicalAssessmentPdf(assessment);
   };
 
   const getRiskColor = (category: string) => {
@@ -161,11 +156,11 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
         <div className="flex items-center gap-2 justify-end self-stretch print:hidden">
           <button
             type="button"
-            onClick={exportToJson}
+            onClick={exportToPdf}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200"
           >
             <Download className="w-3.5 h-3.5" />
-            Export JSON
+            Export PDF
           </button>
           <button
             type="button"
