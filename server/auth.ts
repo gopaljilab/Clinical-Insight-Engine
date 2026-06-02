@@ -68,6 +68,14 @@ const verifyEmailLimiter = rateLimit({
   message: { error: "Too many verification attempts. Please try again later." },
 });
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 15,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many login/registration attempts. Please try again in 15 minutes." },
+});
+
 const resendLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   limit: 3,
@@ -105,7 +113,7 @@ export function createAuthRouter(): Router {
    * Validates registration fields, creates a new user account,
    * generates a verification OTP, and sends it to the user's email.
    */
-  router.post("/register", async (req: Request, res: Response) => {
+  router.post("/register", authLimiter, async (req: Request, res: Response) => {
     const { fullName, licenseNumber } = req.body || {};
     const email = (req.body?.email ?? "").trim().toLowerCase();
     const password = req.body?.password ?? "";
@@ -192,7 +200,7 @@ export function createAuthRouter(): Router {
    * POST /api/auth/login
    * Validates email/password and sends a verification OTP.
    */
-  router.post("/login", async (req: Request, res: Response) => {
+  router.post("/login", authLimiter, async (req: Request, res: Response) => {
     const rawEmail = req.body?.email ?? "";
     const email = rawEmail.trim().toLowerCase();
     const password = req.body?.password ?? "";
