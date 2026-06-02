@@ -350,7 +350,7 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     """Interprets a single patient's data, yielding clinician and patient views."""
     if model is None:
         return {"error": "Dataset missing. Please ensure diabetes_dataset.csv is present."}
-      cache = get_cache()
+    cache = get_cache()
     cached = cache.get(input_data)
     if cached is not None:
         return cached
@@ -481,7 +481,7 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
                 clinician_advice.append("Consider age-related metabolic changes in the management plan.")
                 patient_advice.append("As you get older, it's more important to stay active and monitor your health.")
         
-    return {
+    result = {
         "riskScore": risk_score,
         "riskCategory": cat,
         "factors": top_factors,
@@ -490,7 +490,8 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
         "confidenceInterval": confidence_interval,
         "modelConfidence": round(float(max(prob, 1 - prob)), 4)
     }
-cache.set(input_data, result)
+    cache.set(input_data, result)
+    return result
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "predict_file":
