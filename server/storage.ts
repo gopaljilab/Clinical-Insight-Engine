@@ -1,6 +1,4 @@
 import { getDb } from "./db";
-import { and, desc, eq, sql } from "drizzle-orm";
-
 import {
   assessments,
   users,
@@ -28,7 +26,7 @@ export interface IStorage {
   ): Promise<Assessment[]>;
   /** Returns a single assessment by numeric ID. Authorization must be checked by caller. */
   getAssessmentById(id: number): Promise<Assessment | undefined>;
-  createAssessment(assessment: any): Promise<Assessment>;
+  createAssessment(assessment: AssessmentCreateInput): Promise<Assessment>;
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
@@ -54,58 +52,39 @@ export class DatabaseStorage implements IStorage {
   ): Promise<Assessment[]> {
     const db = getDb();
 
-    // Compatibility: allow running even if the assessments table doesn't have created_by.
-    // Keep createdBy arg unused for now.
-    void createdBy;
+    const conditions: ReturnType<typeof eq>[] = [];
 
-    const filters: any[] = [];
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy));
+    }
 
-
-
-
-    // Avoid selecting non-existent columns (e.g., created_by in older DB states)
-    // by explicitly selecting only columns known to exist in migrations.
-    const query = db
+    let query = db
       .select({
         id: assessments.id,
         patientName: assessments.patientName,
         gender: assessments.gender,
         age: assessments.age,
         hypertension: assessments.hypertension,
-        heartDisease: (assessments as any).heartDisease ?? (assessments as any).heart_disease,
-        smokingHistory:
-          (assessments as any).smokingHistory ?? (assessments as any).smoking_history,
+        heartDisease: assessments.heartDisease,
+        smokingHistory: assessments.smokingHistory,
         bmi: assessments.bmi,
-        hba1cLevel:
-          (assessments as any).hba1cLevel ?? (assessments as any).hba1c_level,
-        bloodGlucoseLevel:
-          (assessments as any).bloodGlucoseLevel ?? (assessments as any).blood_glucose_level,
-        riskScore:
-          (assessments as any).riskScore ?? (assessments as any).risk_score,
-        riskCategory:
-          (assessments as any).riskCategory ?? (assessments as any).risk_category,
+        hba1cLevel: assessments.hba1cLevel,
+        bloodGlucoseLevel: assessments.bloodGlucoseLevel,
+        riskScore: assessments.riskScore,
+        riskCategory: assessments.riskCategory,
         factors: assessments.factors,
-        confidenceInterval:
-          (assessments as any).confidenceInterval ?? (assessments as any).confidence_interval,
-        modelConfidence:
-          (assessments as any).modelConfidence ?? (assessments as any).model_confidence,
-        createdAt:
-          (assessments as any).createdAt ?? (assessments as any).created_at,
-        createdBy:
-          (assessments as any).createdBy ?? (assessments as any).created_by,
-        userId:
-          (assessments as any).userId ?? (assessments as any).user_id,
+        confidenceInterval: assessments.confidenceInterval,
+        modelConfidence: assessments.modelConfidence,
+        createdAt: assessments.createdAt,
+        createdBy: assessments.createdBy,
+        userId: assessments.userId,
       })
       .from(assessments)
-      .orderBy(desc((assessments as any).createdAt ?? (assessments as any).created_at))
+      .orderBy(desc(assessments.createdAt))
       .$dynamic();
 
-
-
-
-
-    if (filters.length > 0) {
-      return await query.where(and(...filters)).limit(limit).offset(offset);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
     }
 
     return await query.limit(limit).offset(offset);
@@ -207,7 +186,7 @@ export class DatabaseStorage implements IStorage {
 
     const [created] = await db
       .insert(assessments)
-      .values(assessment as any)
+      .values(assessment)
       .returning();
 
     return created;
