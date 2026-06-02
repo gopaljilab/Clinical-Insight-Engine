@@ -33,6 +33,7 @@ export const api = {
     list: {
       method: "GET" as const,
       path: "/api/assessments" as const,
+      /** Query params: limit, offset */
       responses: {
         200: z.array(z.custom<typeof assessments.$inferSelect>()),
       },
