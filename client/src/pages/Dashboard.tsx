@@ -187,10 +187,19 @@ export default function Dashboard() {
   // Autosave draft on form changes
   const formData = watch();
   useEffect(() => {
+    // Stop autosaving once a result is displayed — prevents stale completed
+    // assessment data from pre-filling the form on the next visit.
+    if (result) return;
+
     if (formData && (formData.age || formData.bmi || formData.hba1cLevel || formData.bloodGlucoseLevel || formData.hypertension || formData.heartDisease)) {
-      localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(formData));
+      // Debounce writes to 500ms to avoid a full JSON serialisation and
+      // localStorage.setItem call on every keystroke.
+      const timer = setTimeout(() => {
+        localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(formData));
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [formData]);
+  }, [formData, result]);
 
   return (
     <AppLayout>
