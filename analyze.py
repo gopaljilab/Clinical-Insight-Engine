@@ -239,7 +239,12 @@ def save_pretrained_model():
             print("Failed to train model. Ensure diabetes_dataset.csv is present.", file=sys.stderr)
             return False
         dataset_hash = _compute_dataset_hash(DATA_FILE)
-        _atomic_write(MODEL_FILE, (model, scaler, features, dataset_hash, cov_beta))
+        try:
+            mtime = os.path.getmtime(DATA_FILE)
+            size = os.path.getsize(DATA_FILE)
+        except OSError:
+            mtime, size = None, None
+        _atomic_write(MODEL_FILE, (model, scaler, features, dataset_hash, cov_beta, mtime, size))
         print(f"Model successfully serialized to {MODEL_FILE}", file=sys.stderr)
         return True
     finally:
@@ -249,14 +254,26 @@ def save_pretrained_model():
 def get_model():
     """Load pre-trained model, scaler, and features from disk with dataset change detection.
 
-    Computes a SHA-256 hash of the current dataset and compares it against the
-    hash stored at training time. If the dataset has changed (or no valid cache
-    exists), the model is retrained automatically.
+    Computes a SHA-256 hash of the current dataset only when the file metadata
+    (modification time and size) changes. If the dataset has changed (or no valid
+    cache exists), the model is retrained automatically.
 
     Uses file locking and atomic writes to prevent cache corruption when
     multiple processes concurrently access the model file.
     """
-    current_hash = _compute_dataset_hash(DATA_FILE)
+    try:
+        current_mtime = os.path.getmtime(DATA_FILE)
+        current_size = os.path.getsize(DATA_FILE)
+    except OSError:
+        current_mtime, current_size = None, None
+
+    current_hash = None
+
+    def get_current_hash():
+        nonlocal current_hash
+        if current_hash is None:
+            current_hash = _compute_dataset_hash(DATA_FILE)
+        return current_hash
 
     # Try to load the cached model without locking first (fast path)
     if os.path.exists(MODEL_FILE):
@@ -266,8 +283,26 @@ def get_model():
                 model, scaler, features = model_data[:3]
                 cached_hash = model_data[3] if len(model_data) >= 4 else None
                 cov_beta = model_data[4] if len(model_data) >= 5 else None
-                if current_hash is not None and current_hash == cached_hash and cov_beta is not None:
+                cached_mtime = model_data[5] if len(model_data) >= 6 else None
+                cached_size = model_data[6] if len(model_data) >= 7 else None
+
+                # Fast path: check if metadata matches and is valid
+                if (current_mtime is not None and current_size is not None and
+                    cached_mtime == current_mtime and cached_size == current_size and
+                    cov_beta is not None):
                     return model, scaler, features, cov_beta
+
+                # Fallback: check if the content hash actually changed
+                h = get_current_hash()
+                if h is not None and h == cached_hash and cov_beta is not None:
+                    # Update the cached metadata in MODEL_FILE to avoid hashing next time.
+                    if _acquire_lock():
+                        try:
+                            _atomic_write(MODEL_FILE, (model, scaler, features, h, cov_beta, current_mtime, current_size))
+                        finally:
+                            _release_lock()
+                    return model, scaler, features, cov_beta
+
                 print("Dataset has changed. Retraining model...", file=sys.stderr)
         except Exception as e:
             print(f"Failed to load pre-trained model: {e}", file=sys.stderr)
@@ -286,7 +321,17 @@ def get_model():
                 if isinstance(model_data, tuple) and len(model_data) >= 3:
                     cached_hash = model_data[3] if len(model_data) >= 4 else None
                     cov_beta = model_data[4] if len(model_data) >= 5 else None
-                    if current_hash is not None and current_hash == cached_hash and cov_beta is not None:
+                    cached_mtime = model_data[5] if len(model_data) >= 6 else None
+                    cached_size = model_data[6] if len(model_data) >= 7 else None
+
+                    if (current_mtime is not None and current_size is not None and
+                        cached_mtime == current_mtime and cached_size == current_size and
+                        cov_beta is not None):
+                        return model_data[0], model_data[1], model_data[2], cov_beta
+
+                    h = get_current_hash()
+                    if h is not None and h == cached_hash and cov_beta is not None:
+                        _atomic_write(MODEL_FILE, (model_data[0], model_data[1], model_data[2], h, cov_beta, current_mtime, current_size))
                         return model_data[0], model_data[1], model_data[2], cov_beta
             except Exception:
                 pass
@@ -294,7 +339,8 @@ def get_model():
         # No valid cache — train from scratch and atomically write
         model, scaler, features, cov_beta = train_model_pipeline()
         if model is not None:
-            _atomic_write(MODEL_FILE, (model, scaler, features, current_hash, cov_beta))
+            h = get_current_hash()
+            _atomic_write(MODEL_FILE, (model, scaler, features, h, cov_beta, current_mtime, current_size))
             print(f"Model trained and saved to {MODEL_FILE}", file=sys.stderr)
         return model, scaler, features, cov_beta
     finally:
