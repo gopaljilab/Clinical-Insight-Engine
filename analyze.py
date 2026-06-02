@@ -139,7 +139,7 @@ def train_model_pipeline():
     
     classes = np.unique(y)
     class_weights = len(y) / (len(classes) * np.bincount(y))
-    sample_weights = np.array([class_weights[c] for c in y])
+    sample_weights = class_weights[y.values]
     
     D = sample_weights * p * (1 - p)
     I = np.dot(X_design.T * D, X_design)
