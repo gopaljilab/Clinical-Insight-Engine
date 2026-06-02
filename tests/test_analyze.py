@@ -140,6 +140,47 @@ def test_predict_file_cli_outputs_json(tmp_path):
     assert "riskScore" in output
     assert output["riskCategory"] in {"LOW", "MODERATE", "HIGH"}
 
+def test_interpret_prediction_personalized_advice():
+    """Verify that advice is personalized based on risk factors."""
+    # Mock model and scaler
+    import numpy as np
+    from unittest.mock import MagicMock
+    
+    mock_model = MagicMock()
+    mock_model.predict_proba.return_value = np.array([[0.1, 0.8]]) # 80% risk -> HIGH
+    # index 4 is HbA1c_level in our features list below
+    coefs = np.zeros((1, 10))
+    coefs[0, 4] = 2.0 
+    mock_model.coef_ = coefs
+    mock_model.decision_function.return_value = np.array([1.5])
+    
+    mock_scaler = MagicMock()
+    # features: age, hypertension, heart_disease, bmi, HbA1c_level, blood_glucose_level, gender_Male, ...
+    # Let's say index 4 is HbA1c_level
+    mock_scaler.transform.return_value = np.array([[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]])
+    
+    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'gender_Male', 'smoke_current', 'smoke_former', 'smoke_never']
+    
+    input_data = {
+        "age": 45,
+        "gender": "Male",
+        "hypertension": False,
+        "heartDisease": False,
+        "bmi": 24.5,
+        "hba1cLevel": 9.0,
+        "bloodGlucoseLevel": 100,
+        "smokingHistory": "never",
+    }
+    
+    result = interpret_prediction(mock_model, mock_scaler, features, input_data)
+    
+    assert result["riskCategory"] == "HIGH"
+    # Check if HbA1c advice is present
+    assert any("glycemic control" in advice for advice in result["clinicianAdvice"])
+    assert any("blood sugar" in advice for advice in result["patientAdvice"])
+    
+    # Check if other advice is NOT present (e.g. BMI)
+    assert not any("weight management" in advice for advice in result["clinicianAdvice"])
 
 def test_acquire_and_release_lock():
     _acquire_lock(timeout=1)

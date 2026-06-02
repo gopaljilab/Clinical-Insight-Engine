@@ -367,9 +367,15 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
             impact = "positive" if val > 0 else "negative"
             
             # Map machine learning features to friendly names
-            fname = feat.replace('_', ' ').title()
-            if fname == 'Gender Male': fname = 'Gender'
-            if fname.startswith('Smoke'): fname = 'Smoking History'
+            if feat == 'HbA1c_level':
+                fname = 'HbA1c Level'
+            elif feat == 'bmi':
+                fname = 'BMI'
+            elif feat.startswith('smoke'):
+                fname = 'Smoking History'
+            else:
+                fname = feat.replace('_', ' ').title()
+                if fname == 'Gender Male': fname = 'Gender'
             
             top_factors.append({
                 "name": fname,
@@ -397,6 +403,32 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     else:
         clinician_advice.append("High risk detected. Refer for diagnostic testing and consider intervention.")
         patient_advice.append("Please consult your doctor soon to discuss a detailed prevention plan.")
+
+    # Add factor-specific advice for risk-increasing factors
+    for factor in top_factors:
+        if factor["impact"] == "positive":
+            fname = factor["name"]
+            if fname == "HbA1c Level":
+                clinician_advice.append("Review glycemic control and consider initiating or adjusting therapy.")
+                patient_advice.append("Focus on managing your blood sugar through diet and prescribed medications.")
+            elif fname == "Blood Glucose Level":
+                clinician_advice.append("Immediate follow-up on elevated glucose levels may be necessary.")
+                patient_advice.append("Monitor your daily glucose readings closely and follow your meal plan.")
+            elif fname == "BMI":
+                clinician_advice.append("Discuss weight management strategies and nutritional counseling.")
+                patient_advice.append("Work on achieving a healthier weight through balanced nutrition and regular exercise.")
+            elif fname == "Hypertension":
+                clinician_advice.append("Optimize blood pressure management and monitor for complications.")
+                patient_advice.append("Regularly check your blood pressure and reduce salt intake.")
+            elif fname == "Smoking History":
+                clinician_advice.append("Provide smoking cessation resources and support.")
+                patient_advice.append("Quitting smoking is one of the most effective ways to reduce your diabetes risk.")
+            elif fname == "Heart Disease":
+                clinician_advice.append("Coordinate care with cardiology and manage cardiovascular risk factors.")
+                patient_advice.append("Manage your heart health as it is closely linked to diabetes risk.")
+            elif fname == "Age":
+                clinician_advice.append("Consider age-related metabolic changes in the management plan.")
+                patient_advice.append("As you get older, it's more important to stay active and monitor your health.")
         
     return {
         "riskScore": risk_score,
