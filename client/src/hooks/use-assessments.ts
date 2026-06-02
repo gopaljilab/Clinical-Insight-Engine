@@ -39,11 +39,34 @@ export function useCreateAssessment() {
       });
       
       if (!res.ok) {
-        if (res.status === 400) {
-          const errorData = await res.json();
-          throw new Error(errorData.message || "Validation failed");
+        const contentType = res.headers.get("content-type") || "";
+
+        let serverPayload: any = null;
+        try {
+          serverPayload = contentType.includes("application/json")
+            ? await res.json()
+            : { raw: await res.text() };
+        } catch {
+          try {
+            serverPayload = { raw: await res.text() };
+          } catch {
+            serverPayload = null;
+          }
         }
-        throw new Error("Failed to create assessment");
+
+        console.error("[useCreateAssessment] Request failed", {
+          url: api.assessments.create.path,
+          status: res.status,
+          payload: serverPayload,
+        });
+
+        const message =
+          serverPayload?.message ||
+          serverPayload?.error ||
+          (typeof serverPayload?.raw === "string" ? serverPayload.raw : undefined) ||
+          `Failed to create assessment (HTTP ${res.status})`;
+
+        throw new Error(message);
       }
       
       const responseData = await res.json();
