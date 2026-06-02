@@ -307,7 +307,12 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     input_df['bmi'] = input_data.get('bmi', 25)
     input_df['HbA1c_level'] = input_data.get('hba1cLevel', 5.5)
     input_df['blood_glucose_level'] = input_data.get('bloodGlucoseLevel', 100)
-    input_df['gender_Male'] = 1 if input_data.get('gender') == 'Male' else 0
+    gender_value = input_data.get('gender')
+    # The model was trained exclusively on Male/Female data — 'Other' gender
+    # patients are silently encoded as 0 (Female) since gender_Male is a binary
+    # feature. Emit a warning so this limitation is visible in the response.
+    gender_outside_training_distribution = gender_value not in ('Male', 'Female')
+    input_df['gender_Male'] = 1 if gender_value == 'Male' else 0
     
     smoke_col = f"smoke_{input_data.get('smokingHistory', 'never')}"
     if smoke_col in features:
@@ -392,7 +397,7 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
         clinician_advice.append("High risk detected. Refer for diagnostic testing and consider intervention.")
         patient_advice.append("Please consult your doctor soon to discuss a detailed prevention plan.")
         
-    return {
+    result = {
         "riskScore": risk_score,
         "riskCategory": cat,
         "factors": top_factors,
@@ -401,6 +406,18 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
         "confidenceInterval": confidence_interval,
         "modelConfidence": round(float(max(prob, 1 - prob)), 4)
     }
+
+    # If the submitted gender value is outside the model's training distribution,
+    # attach a warning so clinicians are aware the demographic was not represented
+    # in training data and the result should be interpreted with caution.
+    if gender_outside_training_distribution:
+        result["warning"] = (
+            f"Gender value '{gender_value}' was not present in the model's training data. "
+            "The patient has been encoded as Female for this prediction. "
+            "Results should be interpreted with caution for this demographic."
+        )
+
+    return result
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "predict_file":

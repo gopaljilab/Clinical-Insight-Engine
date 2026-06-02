@@ -32,6 +32,8 @@ export const assessments = pgTable("assessments", {
 });
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
+  // Restricted to Male/Female — the ML model was trained on binary gender data only.
+  // Submitting "Other" would silently encode as Female; we reject it explicitly instead.
   gender: z.enum(["Male", "Female"], { required_error: "Please select a gender" }),
   age: z.coerce.number().min(1, "Age must be greater than 0").max(120, "Age is too high"),
   hypertension: z.boolean().default(false),
