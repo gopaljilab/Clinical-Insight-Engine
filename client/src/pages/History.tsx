@@ -264,8 +264,11 @@ export default function History() {
       <div className="space-y-8">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight">
+            <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight flex items-center gap-3">
               Patient History
+              <span className="text-sm font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200">
+                {totalRecords} Match{totalRecords !== 1 ? 'es' : ''}
+              </span>
             </h1>
             <p className="text-muted-foreground mt-2 text-lg">
               Review past preventive risk assessments.
@@ -281,7 +284,7 @@ export default function History() {
                 placeholder="Search history..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-10 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full sm:w-64"
+                className="pl-10 pr-10 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20 transition-all w-full sm:w-64"
               />
               {searchTerm && (
                 <button
@@ -361,7 +364,7 @@ export default function History() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full sm:w-48 text-sm font-semibold text-foreground cursor-pointer"
+              className="px-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20 transition-all w-full sm:w-48 text-sm font-semibold text-foreground cursor-pointer"
             >
               <option value="date-desc">Newest First</option>
               <option value="date-asc">Oldest First</option>

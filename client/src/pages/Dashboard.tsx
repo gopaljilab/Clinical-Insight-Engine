@@ -5,7 +5,7 @@ import { z } from "zod";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AssessmentResult } from "@/components/AssessmentResult";
 import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
-import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UserCircle, Info } from "lucide-react";
+import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UserCircle, Info, X } from "lucide-react";
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
 import { insertAssessmentSchema } from "@shared/schema";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
@@ -25,7 +25,7 @@ const formSchema = insertAssessmentSchema.pick({
 type FormData = z.infer<typeof formSchema>;
 
 const inputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[#1E293B] placeholder-slate-400 shadow-sm outline-none transition-all duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
+  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[#1E293B] placeholder-slate-400 shadow-sm outline-none transition-all duration-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20";
 
 const getInputClass = (hasError: boolean) =>
   `${inputClass} ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-100 ring-2 ring-red-500/20" : ""}`;
@@ -354,7 +354,14 @@ export default function Dashboard() {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <input type="number" step="0.1" {...register("bmi")} className={getInputClass(!!errors.bmi)} placeholder="e.g. 25.0" />
+                        <div className="relative">
+                          <input type="number" step="0.1" {...register("bmi")} className={getInputClass(!!errors.bmi)} placeholder="e.g. 25.0" />
+                          {watchedValues.bmi && (
+                            <button type="button" onClick={() => setValue("bmi", undefined, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                         {errors.bmi && <p className="text-sm text-red-600 mt-1">{errors.bmi.message}</p>}
                       </div>
 
@@ -377,7 +384,14 @@ export default function Dashboard() {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <input type="number" step="0.1" {...register("hba1cLevel")} className={getInputClass(!!errors.hba1cLevel)} placeholder="e.g. 5.7" />
+                        <div className="relative">
+                          <input type="number" step="0.1" {...register("hba1cLevel")} className={getInputClass(!!errors.hba1cLevel)} placeholder="e.g. 5.7" />
+                          {watchedValues.hba1cLevel && (
+                            <button type="button" onClick={() => setValue("hba1cLevel", undefined, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                         {errors.hba1cLevel && <p className="text-sm text-red-600 mt-1">{errors.hba1cLevel.message}</p>}
                       </div>
 
@@ -400,7 +414,14 @@ export default function Dashboard() {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <input type="number" {...register("bloodGlucoseLevel")} className={getInputClass(!!errors.bloodGlucoseLevel)} placeholder="e.g. 100" />
+                        <div className="relative">
+                          <input type="number" {...register("bloodGlucoseLevel")} className={getInputClass(!!errors.bloodGlucoseLevel)} placeholder="e.g. 100" />
+                          {watchedValues.bloodGlucoseLevel && (
+                            <button type="button" onClick={() => setValue("bloodGlucoseLevel", undefined, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                         {errors.bloodGlucoseLevel && <p className="text-sm text-red-600 mt-1">{errors.bloodGlucoseLevel.message}</p>}
                       </div>
                     </div>
