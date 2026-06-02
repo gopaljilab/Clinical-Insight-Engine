@@ -18,7 +18,7 @@ import {
 
 export interface IStorage {
   getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<Assessment[]>;
-  createAssessment(assessment: any): Promise<Assessment>;
+  createAssessment(assessment: AssessmentCreateInput): Promise<Assessment>;
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
@@ -48,7 +48,7 @@ export class DatabaseStorage implements IStorage {
     // Keep createdBy arg unused for now.
     void createdBy;
 
-    const filters: any[] = [];
+    const filters: ReturnType<typeof eq>[] = [];
 
 
 
@@ -108,7 +108,7 @@ export class DatabaseStorage implements IStorage {
 
     const [created] = await db
       .insert(assessments)
-      .values(assessment as any)
+      .values(assessment)
       .returning();
 
     return created;
