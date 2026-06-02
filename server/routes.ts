@@ -23,6 +23,39 @@ const execFileAsync = promisify(execFile);
  */
 const activeInferenceRequests = new Set<string>();
 
+const predictionFactorSchema = z.object({
+  name: z.string(),
+  impact: z.enum(["positive", "negative"]),
+  description: z.string(),
+});
+
+const pythonPredictionSchema = z.union([
+  z.object({
+    error: z.string().min(1),
+  }),
+  z.object({
+    riskScore: z.coerce.number().min(0).max(100),
+    riskCategory: z.enum(["LOW", "MODERATE", "HIGH"]),
+    factors: z.array(predictionFactorSchema).default([]),
+    confidenceInterval: z.string().nullable().optional(),
+    modelConfidence: z.coerce.number().min(0).max(1).nullable().optional(),
+  }),
+]);
+
+type PythonPrediction = z.infer<typeof pythonPredictionSchema>;
+
+function parsePythonPrediction(stdout: string): PythonPrediction {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(stdout.trim());
+  } catch {
+    throw new Error("Python prediction output was not valid JSON.");
+  }
+
+  return pythonPredictionSchema.parse(parsed);
+}
+
 function generateRequestFingerprint(
   payload: unknown,
   userId: string,
@@ -579,8 +612,8 @@ export async function registerRoutes(
               timeout: 30000
             }
           );
-          prediction = JSON.parse(stdout.trim());
-          if (prediction.error) {
+          prediction = parsePythonPrediction(stdout);
+          if ("error" in prediction) {
             return res.status(400).json({
               message: prediction.error
             });
@@ -668,8 +701,8 @@ export async function registerRoutes(
               timeout: 30000
             }
           );
-          prediction = JSON.parse(stdout.trim());
-          if (prediction.error) {
+          prediction = parsePythonPrediction(stdout);
+          if ("error" in prediction) {
             return res.status(400).json({
               message: prediction.error
             });
