@@ -614,7 +614,10 @@ export async function registerRoutes(
     requireVerified,
     assessmentLimiter,
     async (req, res) => {
-      const userId = req.session.user?.email;
+      // Use the stable user ID (UUID) instead of email as the assessment key.
+      // Email is PII and can change — using it as a DB key causes orphaned
+      // records if the user's email is ever updated.
+      const userId = req.session.user?.id;
       if (!userId) {
         return res.status(401).json({
           message: "Authentication required.",
@@ -721,10 +724,13 @@ export async function registerRoutes(
 
   app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
     try {
-      const userEmail = req.session.user?.email;
-      const assessments = await storage.getAssessments(50, 0, userEmail);
-
-      res.json(assessments);
+      // Use stable user ID instead of email to filter assessments.
+      const userId = req.session.user?.id;
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+      const offset = (page - 1) * limit;
+      const result = await storage.getAssessments(limit, offset, userId);
+      res.json(result);
 
     } catch (err) {
       res.status(500).json({
