@@ -171,6 +171,6 @@ export function issueToken(
       // Algorithm is hardcoded — never sourced from user input or configuration
       algorithm: "HS256",
       expiresIn: expiry,
-    }
+    } as jwt.SignOptions
   );
 }

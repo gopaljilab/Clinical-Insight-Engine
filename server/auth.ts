@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomInt, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import bcrypt from "bcrypt";
-import { ipKeyGenerator, rateLimit } from "express-rate-limit";
+import { rateLimit } from "express-rate-limit";
 import { eq, and, gte } from "drizzle-orm";
 import { storage } from "./storage";
 import { getDb } from "./db";
@@ -14,6 +14,7 @@ declare module "express-session" {
       id: string;
       email: string;
       name: string;
+      role?: string | null;
     };
   }
 }
@@ -178,18 +179,6 @@ async function establishAuthenticatedSession(
   await regenerateSession(req);
   req.session.user = user;
   await saveSession(req);
-}
-
-function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString("hex");
-  const hash = scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${hash}`;
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, key] = stored.split(":");
-  const hash = scryptSync(password, salt, 64).toString("hex");
-  return timingSafeEqual(Buffer.from(hash), Buffer.from(key));
 }
 
 /**
