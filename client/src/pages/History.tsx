@@ -3,6 +3,8 @@ import { useAssessments } from "@/hooks/use-assessments";
 import { format } from "date-fns";
 import { Loader2, Search, Calendar, User, Activity } from "lucide-react";
 import { useState } from "react";
+import AssessmentComparisonCard
+  from "@/components/AssessmentComparisonCard";
 
 export default function History() {
   const { data: assessments, isLoading, error } = useAssessments();
@@ -66,7 +68,10 @@ export default function History() {
               There are no patient assessments matching your criteria. Go to the dashboard to create a new assessment.
             </p>
           </div>
-        ) : (
+       ) : (
+  <>      <AssessmentComparisonCard
+            assessments={assessments || []}
+          />
           <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -116,6 +121,7 @@ export default function History() {
               </table>
             </div>
           </div>
+          </>
         )}
       </div>
     </AppLayout>
