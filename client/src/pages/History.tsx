@@ -57,7 +57,11 @@ export default function History() {
     document.title = "Clinical Insight Engine - Assessment History";
   }, []);
 
-  const { data: assessments, isLoading, error } = useAssessments();
+  const [serverPage, setServerPage] = useState<number>(1);
+  const PAGE_SIZE = 20;
+  const { data: assessmentsResponse, isLoading, error } = useAssessments(serverPage, PAGE_SIZE);
+  const assessments = assessmentsResponse?.data ?? [];
+  const serverTotalPages = assessmentsResponse?.totalPages ?? 1;
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
 
@@ -216,9 +220,15 @@ export default function History() {
     }
   });
 
-  // 4. Client-side Pagination Slicing
+  // 4. Pagination
+  // When no client-side filters are active, use server-side total pages
+  // so users can navigate beyond the current page's 20 records.
+  // When filters are active, paginate the filtered results locally.
+  const hasClientFilters = Boolean(searchTerm || startDate || endDate);
   const totalRecords = sortedAssessments.length;
-  const totalPages = Math.ceil(totalRecords / itemsPerPage) || 1;
+  const totalPages = hasClientFilters
+    ? Math.ceil(totalRecords / itemsPerPage) || 1
+    : serverTotalPages;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, totalRecords);
   const paginatedAssessments = sortedAssessments.slice(startIndex, endIndex);
@@ -556,9 +566,11 @@ export default function History() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.max(prev - 1, 1))
-                  }
+                  onClick={() => {
+                    const newPage = Math.max(currentPage - 1, 1);
+                    setCurrentPage(newPage);
+                    if (!hasClientFilters) setServerPage(Math.max(serverPage - 1, 1));
+                  }}
                   disabled={currentPage === 1}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Previous page"
@@ -574,9 +586,11 @@ export default function History() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                  }
+                  onClick={() => {
+                    const newPage = Math.min(currentPage + 1, totalPages);
+                    setCurrentPage(newPage);
+                    if (!hasClientFilters) setServerPage(Math.min(serverPage + 1, serverTotalPages));
+                  }}
                   disabled={currentPage === totalPages}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Next page"
