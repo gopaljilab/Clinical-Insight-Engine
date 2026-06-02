@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { insertAssessmentSchema, assessments } from "./schema";
 
+/** Allowed risk category values for search filtering. */
+export const RISK_CATEGORIES = ["LOW", "MODERATE", "HIGH"] as const;
+export type RiskCategoryFilter = (typeof RISK_CATEGORIES)[number];
+
 export const errorSchemas = {
   validation: z.object({
     message: z.string(),
@@ -36,6 +40,27 @@ export const api = {
           page: z.number(),
           totalPages: z.number(),
         }),
+      },
+    },
+    search: {
+      method: "GET" as const,
+      path: "/api/assessments/search" as const,
+      /** Query params: q, riskCategory, page, limit */
+      responses: {
+        200: z.array(z.custom<typeof assessments.$inferSelect>()),
+        400: errorSchemas.validation,
+        401: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    getById: {
+      method: "GET" as const,
+      path: "/api/assessments/:id" as const,
+      responses: {
+        200: z.custom<typeof assessments.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+        500: errorSchemas.internal,
       },
     },
     preview: {

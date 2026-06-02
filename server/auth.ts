@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomInt, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import bcrypt from "bcrypt";
-import { rateLimit } from "express-rate-limit";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import { eq, and, gte } from "drizzle-orm";
 import { storage } from "./storage";
 import { getDb } from "./db";
@@ -31,6 +31,23 @@ interface RegisteredUser {
  * In production, this should be replaced with a persistent database.
  */
 const registeredUsers = new Map<string, RegisteredUser>();
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, storedHash: string): boolean {
+  const [salt, key] = storedHash.split(":");
+  if (!salt || !key) {
+    return bcrypt.compareSync(password, storedHash);
+  }
+
+  const hashBuffer = Buffer.from(key, "hex");
+  const candidateBuffer = scryptSync(password, salt, 64);
+  return hashBuffer.length === candidateBuffer.length && timingSafeEqual(hashBuffer, candidateBuffer);
+}
 
 interface PendingOtp {
   otp: string;
@@ -246,10 +263,14 @@ export function createAuthRouter(): Router {
         attemptCount: 0,
       });
 
-    // In production, send OTP via email. For development, return it in the response.
-    logDevOtp(email, otp);
+      // In production, send OTP via email. For development, return it in the response.
+      logDevOtp(email, otp);
 
-    return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+      return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+    } catch (err) {
+      console.error("Registration failed:", err);
+      return res.status(500).json({ message: "Failed to register account." });
+    }
   });
 
   /**
@@ -268,10 +289,10 @@ export function createAuthRouter(): Router {
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
     const devPassword = process.env.DEV_CLINICIAN_PASSWORD || "";
 
-    let userName: string | null = null;
+    let userFullName: string | null = null;
 
     if (email === devEmail && password === devPassword) {
-      userName = "Dr. Smith";
+      userFullName = "Dr. Smith";
     } else {
       // Check in-memory store (legacy)
       const registeredUser = registeredUsers.get(email);
@@ -292,13 +313,13 @@ export function createAuthRouter(): Router {
           if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
             userFullName = dbUser.fullName;
           }
-        }
-      } catch (_err) {
-        // DB not available — fall back to in-memory only
-        console.warn("DB unavailable for login, using in-memory only.");
-        const registeredUser = registeredUsers.get(email);
-        if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-          userFullName = registeredUser.fullName;
+        } catch (_err) {
+          // DB not available — fall back to in-memory only
+          console.warn("DB unavailable for login, using in-memory only.");
+          const registeredUser = registeredUsers.get(email);
+          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+            userFullName = registeredUser.fullName;
+          }
         }
       }
     }
@@ -346,9 +367,7 @@ export function createAuthRouter(): Router {
 
     pendingOtps.delete(email);
 
-    const registeredUser = registeredUsers.get(email);
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
-    const name = email === devEmail ? "Dr. Smith" : (registeredUser?.fullName ?? email);
 
     let id: string;
     let name: string;

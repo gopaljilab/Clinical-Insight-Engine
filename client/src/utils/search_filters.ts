@@ -32,7 +32,7 @@ export function passesMetricFilters(
 
 /**
  * Filters assessments by a search term across all clinically relevant fields.
- * Searches: gender, riskCategory, smokingHistory, age, bmi, hba1cLevel,
+ * Searches: patientName, gender, riskCategory, smokingHistory, age, bmi, hba1cLevel,
  * bloodGlucoseLevel, riskScore, hypertension (yes/no), heartDisease (yes/no).
  */
 export function advancedFilter(
@@ -48,6 +48,7 @@ export function advancedFilter(
     passesMetricFilters(a, metricFilters) &&
     (
       !term ||
+      (a.patientName ?? "").toLowerCase().includes(term) ||
       a.gender.toLowerCase().includes(term) ||
       a.riskCategory.toLowerCase().includes(term) ||
       a.smokingHistory.toLowerCase().includes(term) ||
