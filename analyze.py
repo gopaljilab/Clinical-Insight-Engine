@@ -378,10 +378,36 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     else:
         cat = "HIGH"
         
-    # Generate tailored advice based on category
+    # Generate tailored advice based on category and top contributing risk factors.
+    # Each advice item is personalized to the patient's actual top_factors so
+    # that two patients with the same risk category but different clinical
+    # profiles receive meaningfully different guidance.
     clinician_advice = []
     patient_advice = []
-    
+
+    # Factor-specific advice lookup — keyed on the friendly feature name
+    # produced by the fname mapping above.
+    CLINICIAN_FACTOR_ADVICE = {
+        "Hba1c Level":        "Evaluate HbA1c trend; consider referral to endocrinology if persistently elevated.",
+        "Blood Glucose Level": "Review fasting and post-prandial glucose logs; assess for medication adjustment.",
+        "Bmi":                 "Refer to dietitian/bariatric specialist; set weight-loss target of 5-10% body weight.",
+        "Age":                 "Age is a non-modifiable risk factor; prioritise modifiable factors and increase monitoring frequency.",
+        "Smoking History":     "Provide smoking cessation counselling and prescribe NRT or pharmacotherapy if appropriate.",
+        "Hypertension":        "Optimise blood pressure control; target <130/80 mmHg per ADA guidelines.",
+        "Gender":              "Note sex-specific cardiovascular risk differences when planning intervention.",
+    }
+
+    PATIENT_FACTOR_ADVICE = {
+        "Hba1c Level":        "Your blood sugar control (HbA1c) is a key driver of your risk — work with your doctor to bring it into the target range.",
+        "Blood Glucose Level": "Your blood glucose levels are elevated. Reducing sugary foods and refined carbs can make a real difference.",
+        "Bmi":                 "Your weight is contributing to your risk. Even a small reduction (5-10%) can significantly lower your chances of developing diabetes.",
+        "Age":                 "Your age increases your baseline risk. Staying active and having regular check-ups is especially important.",
+        "Smoking History":     "Smoking is significantly increasing your risk. Quitting is the single most impactful step you can take.",
+        "Hypertension":        "High blood pressure is compounding your risk. Reducing salt, exercising regularly, and taking prescribed medication can help.",
+        "Gender":              "Your biological sex influences your risk profile — discuss personalised targets with your doctor.",
+    }
+
+    # Base advice per category
     if cat == "LOW":
         clinician_advice.append("Monitor annually. No immediate intervention required.")
         patient_advice.append("Keep up the good work! Continue your healthy lifestyle and routine checkups.")
@@ -391,6 +417,18 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     else:
         clinician_advice.append("High risk detected. Refer for diagnostic testing and consider intervention.")
         patient_advice.append("Please consult your doctor soon to discuss a detailed prevention plan.")
+
+    # Append factor-specific advice for each top contributing risk factor
+    for factor in top_factors:
+        fname = factor.get("name", "")
+        if factor.get("impact") == "positive":
+            # Only advise on factors that are increasing risk
+            c_advice = CLINICIAN_FACTOR_ADVICE.get(fname)
+            p_advice = PATIENT_FACTOR_ADVICE.get(fname)
+            if c_advice:
+                clinician_advice.append(c_advice)
+            if p_advice:
+                patient_advice.append(p_advice)
         
     return {
         "riskScore": risk_score,
