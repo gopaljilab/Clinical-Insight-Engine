@@ -14,10 +14,10 @@ export default function NotFound() {
             The page you&apos;re looking for doesn&apos;t exist or has been moved.
           </p>
           <Link
-            href="/dashboard"
+            href="/"
             className="mt-6 inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all duration-200 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
           >
-            Back to Dashboard
+            Back to Home
           </Link>
         </CardContent>
       </Card>
