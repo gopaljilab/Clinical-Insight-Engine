@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { PatientPresentationMode } from "./PatientPresentationMode";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -50,6 +51,7 @@ const getFactorReason = (factor: RiskFactor) => {
 
 export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [view, setView] = useState<"patient" | "clinician">("patient");
+  const [isPresenting, setIsPresenting] = useState(false);
 
   const exportToJson = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(assessment, null, 2));
@@ -161,22 +163,39 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
         <div className="flex items-center gap-2 justify-end self-stretch print:hidden">
           <button
             type="button"
+            onClick={() => setIsPresenting(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
+          >
+            <MonitorPlay className="w-3.5 h-3.5" />
+            Present
+          </button>
+          <button
+            type="button"
             onClick={exportToJson}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
           >
             <Download className="w-3.5 h-3.5" />
-            Export JSON
+            Export
           </button>
           <button
             type="button"
             onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
           >
             <Printer className="w-3.5 h-3.5" />
-            Print Report
+            Print
           </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {isPresenting && (
+          <PatientPresentationMode 
+            assessment={assessment} 
+            onClose={() => setIsPresenting(false)} 
+          />
+        )}
+      </AnimatePresence>
 
       <div className="p-6 md:p-8">
         <AnimatePresence mode="wait">

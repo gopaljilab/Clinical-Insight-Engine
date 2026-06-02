@@ -10,11 +10,24 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 import joblib
 
+from services.safe_csv_reader import read_csv_safely, SafeCSVError
+
 DATA_FILE = "diabetes_dataset.csv"
 MODEL_FILE = "diabetes_model.joblib"
 LOCK_FILE = MODEL_FILE + ".lock"
 LOCK_TIMEOUT = 60
 LOCK_POLL_INTERVAL = 0.1
+
+# Resolve paths relative to this script's directory so the files are
+# found regardless of the working directory (e.g., in Docker or when
+# spawned by the Node.js server from a different CWD).
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(SCRIPT_DIR, "attached_assets", "diabetes_dataset.csv")
+# Fall back to the legacy location if attached_assets doesn't have it
+if not os.path.exists(DATA_FILE):
+    DATA_FILE = os.path.join(SCRIPT_DIR, "diabetes_dataset.csv")
+MODEL_FILE = os.path.join(SCRIPT_DIR, "diabetes_model.joblib")
+LOCK_FILE = MODEL_FILE + ".lock"
 
 def create_synthetic_data():
     """Generates synthetic dataset to mimic the provided assignment data."""
@@ -86,9 +99,13 @@ def generate_correlation_heatmap(df, output_path="correlation_heatmap.png"):
 def train_model_pipeline():
     """Loads data, preprocesses it, and trains a logistic regression model from scratch."""
     if not os.path.exists(DATA_FILE):
-        return None, None, None
+        return None, None, None, None
     
-    df = pd.read_csv(DATA_FILE)
+    try:
+        df = read_csv_safely(DATA_FILE)
+    except SafeCSVError as e:
+        print(f"Error loading dataset: {e}", file=sys.stderr)
+        return None, None, None
     
     # Check for missing values and unrealistic zeros
     clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
@@ -116,7 +133,23 @@ def train_model_pipeline():
     model = LogisticRegression(class_weight='balanced')
     model.fit(X_scaled, y)
     
-    return model, scaler, features
+    # Compute covariance matrix of coefficients (accounting for balanced class weights)
+    X_design = np.hstack([np.ones((X_scaled.shape[0], 1)), X_scaled])
+    p = model.predict_proba(X_scaled)[:, 1]
+    
+    classes = np.unique(y)
+    class_weights = len(y) / (len(classes) * np.bincount(y))
+    sample_weights = np.array([class_weights[c] for c in y])
+    
+    D = sample_weights * p * (1 - p)
+    I = np.dot(X_design.T * D, X_design)
+    C = getattr(model, 'C', 1.0)
+    I_reg = np.eye(X_design.shape[1])
+    I_reg[0, 0] = 0.0  # Do not regularize intercept
+    I += (1.0 / C) * I_reg
+    cov_beta = np.linalg.inv(I)
+    
+    return model, scaler, features, cov_beta
 
 
 def _compute_dataset_hash(filepath: str) -> str | None:
@@ -200,12 +233,12 @@ def save_pretrained_model():
         print("Could not acquire lock for saving model.", file=sys.stderr)
         return False
     try:
-        model, scaler, features = train_model_pipeline()
+        model, scaler, features, cov_beta = train_model_pipeline()
         if model is None:
             print("Failed to train model. Ensure diabetes_dataset.csv is present.", file=sys.stderr)
             return False
         dataset_hash = _compute_dataset_hash(DATA_FILE)
-        _atomic_write(MODEL_FILE, (model, scaler, features, dataset_hash))
+        _atomic_write(MODEL_FILE, (model, scaler, features, dataset_hash, cov_beta))
         print(f"Model successfully serialized to {MODEL_FILE}", file=sys.stderr)
         return True
     finally:
@@ -231,8 +264,9 @@ def get_model():
             if isinstance(model_data, tuple) and len(model_data) >= 3:
                 model, scaler, features = model_data[:3]
                 cached_hash = model_data[3] if len(model_data) >= 4 else None
-                if current_hash is not None and current_hash == cached_hash:
-                    return model, scaler, features
+                cov_beta = model_data[4] if len(model_data) >= 5 else None
+                if current_hash is not None and current_hash == cached_hash and cov_beta is not None:
+                    return model, scaler, features, cov_beta
                 print("Dataset has changed. Retraining model...", file=sys.stderr)
         except Exception as e:
             print(f"Failed to load pre-trained model: {e}", file=sys.stderr)
@@ -240,7 +274,7 @@ def get_model():
     # Acquire lock before retraining and writing
     if not _acquire_lock():
         print("Could not acquire lock for model retraining.", file=sys.stderr)
-        return None, None, None
+        return None, None, None, None
 
     try:
         # Double-check after acquiring lock: another process may have
@@ -250,21 +284,22 @@ def get_model():
                 model_data = joblib.load(MODEL_FILE)
                 if isinstance(model_data, tuple) and len(model_data) >= 3:
                     cached_hash = model_data[3] if len(model_data) >= 4 else None
-                    if current_hash is not None and current_hash == cached_hash:
-                        return model_data[0], model_data[1], model_data[2]
+                    cov_beta = model_data[4] if len(model_data) >= 5 else None
+                    if current_hash is not None and current_hash == cached_hash and cov_beta is not None:
+                        return model_data[0], model_data[1], model_data[2], cov_beta
             except Exception:
                 pass
 
         # No valid cache — train from scratch and atomically write
-        model, scaler, features = train_model_pipeline()
+        model, scaler, features, cov_beta = train_model_pipeline()
         if model is not None:
-            _atomic_write(MODEL_FILE, (model, scaler, features, current_hash))
+            _atomic_write(MODEL_FILE, (model, scaler, features, current_hash, cov_beta))
             print(f"Model trained and saved to {MODEL_FILE}", file=sys.stderr)
-        return model, scaler, features
+        return model, scaler, features, cov_beta
     finally:
         _release_lock()
 
-def interpret_prediction(model, scaler, features, input_data):
+def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     """Interprets a single patient's data, yielding clinician and patient views."""
     if model is None:
         return {"error": "Dataset missing. Please ensure diabetes_dataset.csv is present."}
@@ -292,15 +327,34 @@ def interpret_prediction(model, scaler, features, input_data):
     # Calculate feature contributions for this individual (coefficient * scaled value)
     contributions = model.coef_[0] * X_input[0]
     
-    # Calculate confidence interval using the standard error of the predicted probability.
-    # For a Bernoulli proportion p, SE = sqrt(p * (1 - p)).
-    # Multiplying by 1.96 gives an approximate 95% CI.
-    # This produces a wider interval for borderline predictions (p near 0.5)
-    # and a narrower interval for high-confidence predictions (p near 0 or 1).
-    se = (prob * (1 - prob)) ** 0.5
-    margin = round(1.96 * se * 100, 1)
-    lower_ci = round(max(0, risk_score - margin), 1)
-    upper_ci = round(min(100, risk_score + margin), 1)
+    # Calculate confidence interval
+    if cov_beta is not None:
+        # Calculate standard error of the linear predictor (logit) z_0
+        # prepending 1 for intercept
+        x0 = np.insert(X_input[0], 0, 1.0)
+        variance = x0.dot(cov_beta).dot(x0)
+        se_logit = np.sqrt(max(0.0, variance))
+        
+        # Linear predictor value z0
+        z0 = model.decision_function(X_input)[0]
+        
+        # Calculate 95% CI on logit scale
+        lower_logit = z0 - 1.96 * se_logit
+        upper_logit = z0 + 1.96 * se_logit
+        
+        # Inverse logit (sigmoid function) to map back to probability scale [0, 1]
+        lower_prob = 1.0 / (1.0 + np.exp(-lower_logit))
+        upper_prob = 1.0 / (1.0 + np.exp(-upper_logit))
+        
+        lower_ci = round(max(0.0, min(100.0, lower_prob * 100)), 1)
+        upper_ci = round(max(0.0, min(100.0, upper_prob * 100)), 1)
+    else:
+        # Fallback to binomial standard error if cov_beta is not available
+        se = (prob * (1 - prob)) ** 0.5
+        margin = round(1.96 * se * 100, 1)
+        lower_ci = round(max(0.0, risk_score - margin), 1)
+        upper_ci = round(min(100.0, risk_score + margin), 1)
+        
     confidence_interval = f"{lower_ci}% - {upper_ci}%"
 
     # Get top 3 factors
@@ -358,8 +412,8 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "predict_file":
         with open(sys.argv[2], 'r') as f:
             data = json.load(f)
-        model, scaler, features = get_model()
-        result = interpret_prediction(model, scaler, features, data)
+        model, scaler, features, cov_beta = get_model()
+        result = interpret_prediction(model, scaler, features, data, cov_beta)
         print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):
@@ -367,7 +421,7 @@ if __name__ == "__main__":
             create_synthetic_data()
         success = save_pretrained_model()
         if success:
-            model, scaler, features = get_model()
+            model, scaler, features, cov_beta = get_model()
             print(f"Features used: {features}")
             print(f"Model Coefficients (Weights): {model.coef_[0]}")
     else:
@@ -376,12 +430,15 @@ if __name__ == "__main__":
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")
             create_synthetic_data()
-        model, scaler, features = get_model()
+        model, scaler, features, cov_beta = get_model()
         if model is None:
             print("Failed to load dataset.")
         else:
-            df = pd.read_csv(DATA_FILE)
-            generate_correlation_heatmap(df)
+            try:
+                df = read_csv_safely(DATA_FILE)
+                generate_correlation_heatmap(df)
+            except SafeCSVError as e:
+                print(f"Error generating correlation heatmap: {e}", file=sys.stderr)
             
             print("Model trained successfully.")
             print(f"Features used: {features}")
