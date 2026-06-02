@@ -238,29 +238,34 @@ export function createAuthRouter(): Router {
       });
 
 
-      // Create DB user
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          fullName,
-          email,
-          medicalLicenseNumber: licenseNumber,
-          passwordHash,
-          emailVerified: false,
-          role: "provider",
-        })
-        .returning();
-
-      // Create email verification token
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      await db.insert(emailVerificationTokens).values({
-        userId: newUser.id,
-        verificationCode: otp,
-        expiresAt,
-        used: false,
-        attemptCount: 0,
+      await db.transaction(async (tx) => {
+        // Create DB user
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            fullName,
+            email,
+            medicalLicenseNumber: licenseNumber,
+            passwordHash,
+            emailVerified: false,
+            role: "provider",
+          })
+          .returning();
+
+        // Create email verification token
+        await tx.insert(emailVerificationTokens).values({
+          userId: newUser.id,
+          verificationCode: otp,
+          expiresAt,
+          used: false,
+          attemptCount: 0,
+        });
+
+        // Send verification email
+        await sendVerificationCode(email, otp);
       });
 
       // In production, send OTP via email. For development, return it in the response.
