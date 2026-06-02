@@ -241,3 +241,45 @@ def test_lock_prevents_concurrent_writes(tmp_path):
     # but at most one should hold the lock at a time
     concurrent_holders = acquired_events.count(True)
     assert concurrent_holders <= 2  # at most 2 total acquisitions
+
+
+def test_predict_stdin_outputs_json():
+    """Test that python analyze.py predict_file reads from stdin and returns valid JSON."""
+    payload = {
+        "gender": "Male",
+        "age": 45,
+        "hypertension": False,
+        "heartDisease": False,
+        "smokingHistory": "never",
+        "bmi": 24.5,
+        "hba1cLevel": 5.2,
+        "bloodGlucoseLevel": 95,
+    }
+
+    # Ensure dataset exists
+    dataset = os.path.join(REPO_ROOT, "diabetes_dataset.csv")
+    if not os.path.exists(dataset):
+        create_synthetic_data()
+
+    result = subprocess.run(
+        [sys.executable, os.path.join(REPO_ROOT, "analyze.py"), "predict_file"],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        timeout=120,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    stdout_lines = [
+        line.strip()
+        for line in result.stdout.splitlines()
+        if line.strip()
+    ]
+    assert stdout_lines, "Expected prediction JSON on stdout"
+    output = json.loads(stdout_lines[-1])
+
+    assert "riskScore" in output
+    assert output["riskCategory"] in {"LOW", "MODERATE", "HIGH"}
+

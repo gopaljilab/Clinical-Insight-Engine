@@ -17,6 +17,31 @@ import { assessmentsToCsv } from "./utils/csvSanitizer";
 
 const execFileAsync = promisify(execFile);
 
+function runPythonInference(
+  executable: string,
+  args: string[],
+  inputData: any,
+  timeoutMs: number = 30000
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(executable, args, { timeout: timeoutMs }, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve({ stdout, stderr });
+      }
+    });
+
+    if (child.stdin) {
+      child.stdin.on("error", (err) => {
+        console.error("Stdin write error:", err);
+      });
+      child.stdin.write(JSON.stringify(inputData));
+      child.stdin.end();
+    }
+  });
+}
+
 /**
  * Tracks currently running inference requests to prevent
  * duplicate concurrent ML execution for identical payloads.
@@ -562,22 +587,15 @@ export async function registerRoutes(
     previewLimiter,
     async (req, res) => {
       const input = api.assessments.preview.input.parse(req.body);
-      const tempFile = path.join(
-        os.tmpdir(),
-        `${randomUUID()}.json`
-      );
 
       try {
-        await writeFile(tempFile, JSON.stringify(input));
-
         let prediction;
         try {
-          const { stdout, stderr } = await execFileAsync(
+          const { stdout } = await runPythonInference(
             getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            {
-              timeout: 30000
-            }
+            [analyzePyPath, "predict_file"],
+            input,
+            30000
           );
           prediction = JSON.parse(stdout.trim());
           if (prediction.error) {
@@ -614,10 +632,6 @@ export async function registerRoutes(
         return res.status(500).json({
           message: "Internal server error"
         });
-      } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {}
       }
     }
   );
@@ -636,7 +650,6 @@ export async function registerRoutes(
       }
 
       let requestFingerprint: string | null = null;
-      let tempFile: string | null = null;
 
       try {
         const input = api.assessments.create.input.parse(req.body);
@@ -650,23 +663,15 @@ export async function registerRoutes(
 
         activeInferenceRequests.add(requestFingerprint);
 
-        tempFile = path.join(
-          os.tmpdir(),
-          `${randomUUID()}.json`
-        );
-
-        await writeFile(tempFile, JSON.stringify(input));
-
         let prediction;
         let isFallback = false;
 
         try {
-          const { stdout, stderr } = await execFileAsync(
+          const { stdout } = await runPythonInference(
             getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            {
-              timeout: 30000
-            }
+            [analyzePyPath, "predict_file"],
+            input,
+            30000
           );
           prediction = JSON.parse(stdout.trim());
           if (prediction.error) {
@@ -721,11 +726,6 @@ export async function registerRoutes(
           message: "Failed to generate clinical assessment."
         });
       } finally {
-        if (tempFile) {
-          try {
-            await unlink(tempFile);
-          } catch (e) {}
-        }
         if (requestFingerprint) {
           activeInferenceRequests.delete(requestFingerprint);
         }
