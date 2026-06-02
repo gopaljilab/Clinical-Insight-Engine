@@ -10,6 +10,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 import joblib
 
+from services.safe_csv_reader import read_csv_safely, SafeCSVError
+
 DATA_FILE = "diabetes_dataset.csv"
 MODEL_FILE = "diabetes_model.joblib"
 LOCK_FILE = MODEL_FILE + ".lock"
@@ -99,7 +101,11 @@ def train_model_pipeline():
     if not os.path.exists(DATA_FILE):
         return None, None, None, None
     
-    df = pd.read_csv(DATA_FILE)
+    try:
+        df = read_csv_safely(DATA_FILE)
+    except SafeCSVError as e:
+        print(f"Error loading dataset: {e}", file=sys.stderr)
+        return None, None, None
     
     # Check for missing values and unrealistic zeros
     clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
@@ -445,8 +451,11 @@ if __name__ == "__main__":
         if model is None:
             print("Failed to load dataset.")
         else:
-            df = pd.read_csv(DATA_FILE)
-            generate_correlation_heatmap(df)
+            try:
+                df = read_csv_safely(DATA_FILE)
+                generate_correlation_heatmap(df)
+            except SafeCSVError as e:
+                print(f"Error generating correlation heatmap: {e}", file=sys.stderr)
             
             print("Model trained successfully.")
             print(f"Features used: {features}")

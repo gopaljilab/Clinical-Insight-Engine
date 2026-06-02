@@ -9,6 +9,7 @@ import {
 function assessment(overrides: Partial<Assessment>): Assessment {
   return {
     id: 1,
+    patientName: "Jane Doe",
     gender: "Female",
     age: 48,
     hypertension: false,
@@ -57,6 +58,18 @@ describe("advancedFilter metric triage", () => {
       bmi: { min: 30 },
       bloodGlucoseLevel: { max: 200 },
     });
+
+    expect(matches.map((item) => item.id)).toEqual([2]);
+  });
+
+  it("searches by patient name", () => {
+    const matches = advancedFilter(
+      [
+        assessment({ id: 1, patientName: "Jane Doe" }),
+        assessment({ id: 2, patientName: "John Smith" }),
+      ],
+      "smith",
+    );
 
     expect(matches.map((item) => item.id)).toEqual([2]);
   });
