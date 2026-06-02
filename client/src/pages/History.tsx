@@ -18,12 +18,14 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
 import { FileText, RotateCw } from "lucide-react";
 import { useLocation } from "wouter";
 import { advancedFilter } from "@/utils/search_filters";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import RiskTrendChart from "@/components/RiskTrendChart";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
@@ -72,6 +74,16 @@ export default function History() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 10;
+
+  const [selectedPatientName, setSelectedPatientName] = useState<string | null>(null);
+
+  const selectedPatientHistory = useMemo(() => {
+    if (!selectedPatientName || !assessments) return [];
+    return assessments.filter(a => {
+       const pName = a.patientName || "Unknown Patient";
+       return pName === selectedPatientName;
+    });
+  }, [assessments, selectedPatientName]);
 
   // Reset pagination window when search/filter changes
   useEffect(() => {
@@ -430,10 +442,19 @@ export default function History() {
                         {formatAssessmentDate(assessment.createdAt)}
                       </td>
                       <td className="p-4 font-medium whitespace-nowrap">
-                        <HighlightText
-                          text={assessment.patientName || "Unknown Patient"}
-                          search={searchTerm}
-                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const name = assessment.patientName || "Unknown Patient";
+                            if (name !== "Unknown Patient") setSelectedPatientName(name);
+                          }}
+                          className={assessment.patientName && assessment.patientName !== "Unknown Patient" ? "hover:underline text-primary cursor-pointer focus:outline-none transition-all active:scale-[0.98]" : ""}
+                        >
+                          <HighlightText
+                            text={assessment.patientName || "Unknown Patient"}
+                            search={searchTerm}
+                          />
+                        </button>
                       </td>
                       <td className="p-4">
                         <HighlightText
@@ -608,6 +629,44 @@ export default function History() {
           </div>
         )}
       </div>
+
+      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientName(null)}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto sm:border-l sm:border-slate-200">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="text-2xl font-bold font-display">Longitudinal Trajectory</SheetTitle>
+            <p className="text-sm text-muted-foreground">Patient: <span className="font-semibold text-foreground">{selectedPatientName}</span></p>
+          </SheetHeader>
+          
+          {selectedPatientHistory.length > 0 && (
+            <div className="space-y-6 pb-12">
+              <RiskTrendChart assessments={selectedPatientHistory} />
+              
+              <div className="border border-border rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead className="bg-muted/50 border-b border-border">
+                    <tr>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">Date</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">Risk Score</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">BMI</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">HbA1c</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {selectedPatientHistory.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((a) => (
+                      <tr key={a.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="p-3 whitespace-nowrap">{formatAssessmentDate(a.createdAt)}</td>
+                        <td className="p-3 font-bold text-foreground">{Number(a.riskScore).toFixed(1)}%</td>
+                        <td className="p-3">{Number(a.bmi).toFixed(1)}</td>
+                        <td className="p-3">{Number(a.hba1cLevel).toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </AppLayout>
   );
 }

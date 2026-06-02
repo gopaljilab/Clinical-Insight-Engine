@@ -174,7 +174,7 @@ function saveSession(req: Request): Promise<void> {
 
 async function establishAuthenticatedSession(
   req: Request,
-  user: { id: string; email: string; name: string },
+  user: { id: string; email: string; name: string; role: string },
 ): Promise<void> {
   await regenerateSession(req);
   req.session.user = user;
@@ -370,10 +370,12 @@ export function createAuthRouter(): Router {
 
     let id: string;
     let name: string;
+    let role: string;
 
     if (email === devEmail) {
       name = "Dr. Smith";
       id = "dev";
+      role = "provider";
     } else {
       const db = getDb();
       const [user] = await db
@@ -386,10 +388,11 @@ export function createAuthRouter(): Router {
       }
       id = user.id;
       name = user.fullName;
+      role = user.role ?? "provider";
     }
 
     try {
-      await establishAuthenticatedSession(req, { id, email, name });
+      await establishAuthenticatedSession(req, { id, email, name, role });
     } catch (error) {
       console.error("Session regeneration failed:", error);
       return res.status(500).json({ message: "Failed to establish session." });
@@ -438,7 +441,7 @@ export function createAuthRouter(): Router {
 
       // If already verified, return success
       if (user.emailVerified) {
-        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName });
+        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
         return res.json({ success: true, message: "Email already verified." });
       }
 
@@ -501,7 +504,7 @@ export function createAuthRouter(): Router {
         .set({ emailVerified: true, emailVerifiedAt: new Date() })
         .where(eq(users.id, user.id));
 
-      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName });
+      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
 
       return res.json({ success: true, message: "Email verified successfully." });
     } catch (err) {

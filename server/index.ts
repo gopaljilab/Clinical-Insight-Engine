@@ -17,6 +17,12 @@ import { sanitizeDatabaseError } from "./security/sqlProtection";
 import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
 import { getPythonExecutable } from "./routes";
+import { promisify } from "util";
+import { execFile } from "child_process";
+import { sanitizeDatabaseError } from "./utils/csvSanitizer";
+
+const execFileAsync = promisify(execFile);
+
 
 const app = express();
 const httpServer = createServer(app);

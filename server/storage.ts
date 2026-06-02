@@ -8,7 +8,7 @@ import {
   type InsertAssessment,
   type AssessmentFactor,
   type User,
-  type InsertUser
+  type InsertUser,
 } from "@shared/schema";
 import type { RiskCategory } from "./validation/searchValidation";
 
