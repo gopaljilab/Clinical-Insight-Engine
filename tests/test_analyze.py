@@ -238,6 +238,104 @@ def test_lock_prevents_concurrent_writes(tmp_path):
 
     assert acquired_events.count(True) >= 1
     # The second acquire may or may not succeed depending on timing,
-    # but at most one should hold the lock at a time
     concurrent_holders = acquired_events.count(True)
     assert concurrent_holders <= 2  # at most 2 total acquisitions
+
+
+def test_get_model_metadata_caching(tmp_path, monkeypatch):
+    """Test that get_model uses metadata cache and skips hash computation."""
+    import analyze
+    import joblib
+    
+    # Set up temp paths for test
+    test_data_file = os.path.join(tmp_path, "test_diabetes_dataset.csv")
+    test_model_file = os.path.join(tmp_path, "test_diabetes_model.joblib")
+    
+    # Write dummy dataset with both classes
+    with open(test_data_file, "w") as f:
+        f.write("gender,age,hypertension,heart_disease,smoking_history,bmi,HbA1c_level,blood_glucose_level,diabetes\n")
+        f.write("Male,45,0,0,never,25.0,5.5,100,0\n")
+        f.write("Female,50,1,0,never,30.0,6.5,140,1\n")
+        
+    # Monkeypatch constants in analyze module
+    monkeypatch.setattr(analyze, "DATA_FILE", test_data_file)
+    monkeypatch.setattr(analyze, "MODEL_FILE", test_model_file)
+    monkeypatch.setattr(analyze, "LOCK_FILE", test_model_file + ".lock")
+    
+    # Initial save/train
+    success = analyze.save_pretrained_model()
+    assert success
+    assert os.path.exists(test_model_file)
+    
+    # Load model_data to verify it has 7 elements
+    model_data = joblib.load(test_model_file)
+    assert len(model_data) == 7
+    assert model_data[5] is not None  # mtime
+    assert model_data[6] is not None  # size
+    
+    # Now call get_model() and verify it doesn't call _compute_dataset_hash
+    hash_called = False
+    original_compute_hash = analyze._compute_dataset_hash
+    
+    def mock_compute_hash(filepath):
+        nonlocal hash_called
+        hash_called = True
+        return original_compute_hash(filepath)
+        
+    monkeypatch.setattr(analyze, "_compute_dataset_hash", mock_compute_hash)
+    
+    # First call: metadata matches, so hash should NOT be called
+    res = analyze.get_model()
+    assert res[0] is not None
+    assert not hash_called, "Cryptographic hash was computed even though metadata matched!"
+    
+    # Now touch the file to change mtime (but keep content same)
+    time.sleep(0.1)  # ensure mtime difference
+    os.utime(test_data_file, None)
+    
+    # Second call: metadata mismatches, so hash SHOULD be called
+    hash_called = False
+    res2 = analyze.get_model()
+    assert res2[0] is not None
+    assert hash_called, "Cryptographic hash was not computed after metadata changed!"
+    
+    # The second call should have also updated the model file with the new mtime
+    model_data_updated = joblib.load(test_model_file)
+    new_mtime = os.path.getmtime(test_data_file)
+    assert model_data_updated[5] == new_mtime
+
+
+def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
+    """Test that legacy 5-element tuple models are loaded correctly and migrated to 7-element tuples."""
+    import analyze
+    import joblib
+    
+    test_data_file = os.path.join(tmp_path, "test_diabetes_dataset.csv")
+    test_model_file = os.path.join(tmp_path, "test_diabetes_model.joblib")
+    
+    with open(test_data_file, "w") as f:
+        f.write("gender,age,hypertension,heart_disease,smoking_history,bmi,HbA1c_level,blood_glucose_level,diabetes\n")
+        f.write("Male,45,0,0,never,25.0,5.5,100,0\n")
+        f.write("Female,50,1,0,never,30.0,6.5,140,1\n")
+        
+    monkeypatch.setattr(analyze, "DATA_FILE", test_data_file)
+    monkeypatch.setattr(analyze, "MODEL_FILE", test_model_file)
+    monkeypatch.setattr(analyze, "LOCK_FILE", test_model_file + ".lock")
+    
+    # Generate model parameters manually and save as a legacy 5-element tuple
+    model, scaler, features, cov_beta = analyze.train_model_pipeline()
+    dataset_hash = analyze._compute_dataset_hash(test_data_file)
+    
+    legacy_data = (model, scaler, features, dataset_hash, cov_beta)
+    joblib.dump(legacy_data, test_model_file)
+    
+    # Now load using get_model(). It should detect it's a legacy model, compute the hash, match it,
+    # and update the MODEL_FILE with metadata (7-element tuple).
+    res = analyze.get_model()
+    assert res[0] is not None
+    
+    migrated_data = joblib.load(test_model_file)
+    assert len(migrated_data) == 7
+    assert migrated_data[3] == dataset_hash
+    assert migrated_data[5] == os.path.getmtime(test_data_file)
+    assert migrated_data[6] == os.path.getsize(test_data_file)
