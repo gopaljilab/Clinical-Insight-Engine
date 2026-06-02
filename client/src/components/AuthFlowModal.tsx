@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { queryClient } from "@/lib/queryClient";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -707,6 +708,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
   };
 
   const handleVerify = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     onClose();
     setLocation("/dashboard");
   };
