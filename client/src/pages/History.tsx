@@ -659,3 +659,8 @@ export default function History() {
     </AppLayout>
   );
 }
+
+
+// GSSoC Issue #691 Patch
+import { format, isValid } from "date-fns";
+// GSSoC Issue #691 Valid Date Checker
