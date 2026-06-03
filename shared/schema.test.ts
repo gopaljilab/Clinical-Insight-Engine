@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { insertAssessmentSchema } from "./schema";
 
 const validAssessment = {
+  patientName: "John Doe",
   gender: "Male" as const,
   age: 45,
   hypertension: false,
@@ -61,5 +62,14 @@ describe("insertAssessmentSchema", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("accepts missing patient name as optional", () => {
+    const result = insertAssessmentSchema.safeParse({
+      ...validAssessment,
+      patientName: undefined,
+    });
+
+    expect(result.success).toBe(true);
   });
 });

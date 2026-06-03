@@ -9,11 +9,20 @@ import {
   closePool,
   getPool,
 } from "./db";
-import { registerRoutes } from "./routes";
+import { registerRoutes, execFileAsync } from "./routes";
 import { createAuthRouter } from "./auth";
+import patientsRouter from "./routes/patients";
 import { serveStatic } from "./static";
+import { sanitizeDatabaseError } from "./security/sqlProtection";
 import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
+import { getPythonExecutable } from "./routes";
+import { promisify } from "util";
+import { execFile } from "child_process";
+import { sanitizeDatabaseError } from "./utils/csvSanitizer";
+
+const execFileAsync = promisify(execFile);
+
 
 const app = express();
 const httpServer = createServer(app);
@@ -137,6 +146,10 @@ export function log(message: string, source = "express") {
 }
 
 app.use((req, res, next) => {
+  const requestId = crypto.randomUUID();
+  (req as any).id = requestId;
+  res.setHeader("X-Request-ID", requestId);
+
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
@@ -150,12 +163,15 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${summarizeApiResponse(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
+      const logPayload = {
+        requestId,
+        method: req.method,
+        path,
+        status: res.statusCode,
+        duration,
+        responseSummary: capturedJsonResponse ? summarizeApiResponse(capturedJsonResponse) : undefined,
+      };
+      log(JSON.stringify(logPayload));
     }
   });
 
@@ -178,20 +194,31 @@ app.use((req, res, next) => {
 
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
-
+  // Warm up ML model at startup so first prediction request is fast
+  log("Warming up ML model at startup...", "ml");
+  execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
+    .then(() => log("ML model ready.", "ml"))
+    .catch((err: any) => log(`ML warmup warning: ${err.message}`, "ml"));
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    console.error("Internal Server Error:", err);
-
     if (res.headersSent) {
       return next(err);
     }
 
-    return res.status(status).json({ message });
+    // Log the full error internally for debugging, but never send internals to clients
+    console.error("Unhandled server error:", err);
+
+    // Sanitize database errors — prevents table names, SQL syntax, and pg error codes
+    // from reaching the client response body
+    const { statusCode, message } = sanitizeDatabaseError(err);
+
+    // For non-DB errors (e.g. express body-parser), fall back to err.status
+    const finalStatus = (err?.code && typeof err.code === "string" && err.code.length === 5)
+      ? statusCode                            // PostgreSQL error code (5-char alphanumeric)
+      : (err?.status ?? err?.statusCode ?? statusCode);
+
+    return res.status(finalStatus).json({ message });
   });
 
   // importantly only setup vite in development and after
