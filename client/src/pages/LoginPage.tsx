@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useLocation } from "wouter";
+import { queryClient } from "@/lib/queryClient";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -88,6 +89,7 @@ export default function LoginPage() {
         setErrors({ otp: data.message || "Verification failed. Please try again." });
         return;
       }
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       setLocation("/dashboard");
     } catch {
       setErrors({ otp: "Unable to connect to server. Please try again." });
