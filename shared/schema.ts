@@ -19,7 +19,7 @@ export const assessments = pgTable("assessments", {
   bmi: doublePrecision("bmi").notNull(),
   hba1cLevel: doublePrecision("hba1c_level").notNull(),
   bloodGlucoseLevel: doublePrecision("blood_glucose_level").notNull(),
-  
+
   // Model Outputs
   riskScore: doublePrecision("risk_score").notNull(), // 0-100 percentage
   riskCategory: text("risk_category").notNull(), // 'LOW', 'MODERATE', 'HIGH'
@@ -27,13 +27,18 @@ export const assessments = pgTable("assessments", {
   confidenceInterval: jsonb("confidence_interval").$type<string | null>(),
   modelConfidence: doublePrecision("model_confidence"),
   
-  patientName: text("patient_name"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   userId: text("user_id"),
 });
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
+  // Restricted to Male/Female — the ML model was trained on binary gender data only.
+  // Submitting "Other" would silently encode as Female; we reject it explicitly instead.
+  patientName: z
+    .string({ required_error: "Patient name is required", invalid_type_error: "Patient name must be a string" })
+    .trim()
+    .min(1, "Patient name is required"),
   gender: z.enum(["Male", "Female"], {
     required_error: "Gender is required",
     invalid_type_error: "Gender must be 'Male' or 'Female'",

@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { queryClient } from "@/lib/queryClient";
 import { Activity, ClipboardList, HeartPulse, LogOut, Loader2 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -71,6 +72,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     setIsSigningOut(true);
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      queryClient.clear();
     } finally {
       setIsSigningOut(false);
       setLocation("/");
@@ -81,6 +83,14 @@ export function AppLayout({ children }: AppLayoutProps) {
     { href: "/dashboard", label: "New Assessment", icon: Activity },
     { href: "/history", label: "Patient History", icon: ClipboardList },
   ];
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
+      </div>
+    );
+  }
 
   if (networkError) {
     return (
