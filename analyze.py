@@ -350,7 +350,7 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     """Interprets a single patient's data, yielding clinician and patient views."""
     if model is None:
         return {"error": "Dataset missing. Please ensure diabetes_dataset.csv is present."}
-      cache = get_cache()
+    cache = get_cache()
     cached = cache.get(input_data)
     if cached is not None:
         return cached
@@ -521,7 +521,8 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
         "confidenceInterval": confidence_interval,
         "modelConfidence": round(float(max(prob, 1 - prob)), 4)
     }
-cache.set(input_data, result)
+    cache.set(input_data, result)
+    return result
 
     # If the submitted gender value is outside the model's training distribution,
     # attach a warning so clinicians are aware the demographic was not represented
