@@ -185,30 +185,39 @@ export default function History() {
     }
   }
 
+  function escapeHtml(value: unknown): string {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
   function handleExportPDF(assessment: any) {
     if (!assessment) return;
 
-    const patientName = assessment.patientName || "Unknown Patient";
-    const date = assessment.createdAt ? new Date(assessment.createdAt).toLocaleString() : "Unknown Date";
-    const age = assessment.age ?? "N/A";
-    const bmi = assessment.bmi ?? "N/A";
-    const hba1cLevel = assessment.hba1cLevel ?? "N/A";
-    const bloodGlucoseLevel = assessment.bloodGlucoseLevel ?? "N/A";
-    const hypertension = assessment.hypertension === true ? "Yes" : assessment.hypertension === false ? "No" : "N/A";
-    const heartDisease = assessment.heartDisease === true ? "Yes" : assessment.heartDisease === false ? "No" : "N/A";
-    const smokingHistory = assessment.smokingHistory || "N/A";
-    
-    const riskScore = assessment.riskScore
-      ? `${Number(assessment.riskScore).toFixed(1)}%`
-      : "N/A";
-      
-    const category = assessment.riskCategory || "Unknown";
+    const patientName = escapeHtml(assessment.patientName || "Unknown Patient");
+    const date = escapeHtml(assessment.createdAt ? new Date(assessment.createdAt).toLocaleString() : "Unknown Date");
+    const age = escapeHtml(assessment.age ?? "N/A");
+    const bmi = escapeHtml(assessment.bmi ?? "N/A");
+    const hba1cLevel = escapeHtml(assessment.hba1cLevel ?? "N/A");
+    const bloodGlucoseLevel = escapeHtml(assessment.bloodGlucoseLevel ?? "N/A");
+    const hypertension = escapeHtml(assessment.hypertension === true ? "Yes" : assessment.hypertension === false ? "No" : "N/A");
+    const heartDisease = escapeHtml(assessment.heartDisease === true ? "Yes" : assessment.heartDisease === false ? "No" : "N/A");
+    const smokingHistory = escapeHtml(assessment.smokingHistory || "N/A");
 
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${assessment.id || 'Export'}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Patient:</strong> ${patientName}</p><p class="kv"><strong>Date:</strong> ${date}</p><p class="kv"><strong>Risk Score:</strong> ${riskScore}</p><p class="kv"><strong>Category:</strong> <span class="pill">${category}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals & Inputs</h2><table><tbody><tr><td>Age</td><td>${age}</td></tr><tr><td>BMI</td><td>${bmi}</td></tr><tr><td>HbA1c</td><td>${hba1cLevel}${hba1cLevel !== "N/A" ? "%" : ""}</td></tr><tr><td>Blood Glucose</td><td>${bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${hypertension}</td></tr><tr><td>Heart Disease</td><td>${heartDisease}</td></tr><tr><td>Smoking</td><td>${smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(
+    const riskScore = escapeHtml(
+      assessment.riskScore ? `${Number(assessment.riskScore).toFixed(1)}%` : "N/A"
+    );
+
+    const category = escapeHtml(assessment.riskCategory || "Unknown");
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${escapeHtml(assessment.id ?? "Export")}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Patient:</strong> ${patientName}</p><p class="kv"><strong>Date:</strong> ${date}</p><p class="kv"><strong>Risk Score:</strong> ${riskScore}</p><p class="kv"><strong>Category:</strong> <span class="pill">${category}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals &amp; Inputs</h2><table><tbody><tr><td>Age</td><td>${age}</td></tr><tr><td>BMI</td><td>${bmi}</td></tr><tr><td>HbA1c</td><td>${hba1cLevel}${assessment.hba1cLevel != null ? "%" : ""}</td></tr><tr><td>Blood Glucose</td><td>${bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${hypertension}</td></tr><tr><td>Heart Disease</td><td>${heartDisease}</td></tr><tr><td>Smoking</td><td>${smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(
       assessment.factors || []
     )
       .slice(0, 5)
-      .map((f: any) => `<li>${f.name || 'Unknown'} — ${f.description || ''} (${f.impact || 'N/A'})</li>`)
+      .map((f: any) => `<li>${escapeHtml(f.name || "Unknown")} — ${escapeHtml(f.description || "")} (${escapeHtml(f.impact || "N/A")})</li>`)
       .join("")}</ul></body></html>`;
 
     const w = window.open("", "_blank");
