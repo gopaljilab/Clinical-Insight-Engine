@@ -719,3 +719,8 @@ export async function registerRoutes(
 
   return httpServer;
 }
+
+
+// GSSoC Issue #697 Patch
+export function registerRoutes(app: Express) {
+  // GSSoC Issue #697 File Upload mime validation config
