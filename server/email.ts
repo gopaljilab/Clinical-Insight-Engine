@@ -74,7 +74,9 @@ export async function sendVerificationCode(
   email: string,
   code: string,
 ): Promise<void> {
-  logDevOtp(email, code);
+  if (process.env.NODE_ENV !== "production") {
+    logDevOtp(email, code);
+  }
 
   await sendEmail({
     to: email,
