@@ -22,12 +22,74 @@ import { issueToken } from "./services/auth/tokenValidator";
 
 export const execFileAsync = promisify(execFile);
 
+function runPythonInference(
+  executable: string,
+  args: string[],
+  inputData: any,
+  timeoutMs: number = 30000
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(executable, args, { timeout: timeoutMs }, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve({ stdout, stderr });
+      }
+    });
+
+    if (child.stdin) {
+      child.stdin.on("error", (err) => {
+        console.error("Stdin write error:", err);
+      });
+      child.stdin.write(JSON.stringify(inputData));
+      child.stdin.end();
+    }
+  });
+}
+
 /**
  * Tracks currently running inference requests to prevent
  * duplicate concurrent ML execution for identical payloads.
  */
 const activeInferenceRequests = new Set<string>();
 
+const predictionFactorSchema = z.object({
+  name: z.string(),
+  impact: z.enum(["positive", "negative"]),
+  description: z.string(),
+});
+
+const pythonPredictionSchema = z.union([
+  z.object({
+    error: z.string().min(1),
+  }),
+  z.object({
+    riskScore: z.coerce.number().min(0).max(100),
+    riskCategory: z.enum(["LOW", "MODERATE", "HIGH"]),
+    factors: z.array(predictionFactorSchema).default([]),
+    confidenceInterval: z.string().nullable().optional(),
+    modelConfidence: z.coerce.number().min(0).max(1).nullable().optional(),
+  }),
+]);
+
+type PythonPrediction = z.infer<typeof pythonPredictionSchema>;
+
+function parsePythonPrediction(stdout: string): PythonPrediction {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(stdout.trim());
+  } catch {
+    throw new Error("Python prediction output was not valid JSON.");
+  }
+
+  return pythonPredictionSchema.parse(parsed);
+}
+
+function generateRequestFingerprint(
+  payload: unknown,
+  userId: string,
+): string {
 function generateRequestFingerprint(payload: unknown, userId: string): string {
   return createHash("sha256")
     .update(`${userId}::${JSON.stringify(payload)}`)
@@ -310,13 +372,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     requireVerified,
     assessmentLimiter,
     async (req, res) => {
-      const userId = req.session.user?.email;
+      // Use the stable user ID (UUID) instead of email as the assessment key.
+      // Email is PII and can change — using it as a DB key causes orphaned
+      // records if the user's email is ever updated.
+      const userId = req.session.user?.id;
       if (!userId) {
         return res.status(401).json({ message: "Authentication required." });
       }
 
       let requestFingerprint: string | null = null;
-      let tempFile: string | null = null;
 
       try {
         const input = api.assessments.create.input.parse(req.body);
@@ -397,12 +461,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
     try {
       const userEmail = req.session.user?.email;
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
-      const assessments = await storage.getAssessments(limit, offset, userEmail);
-
-      res.json(assessments);
-
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+      const offset = (page - 1) * limit;
+      const result = await storage.getAssessments(limit, offset, userEmail);
+      res.json(result);
     } catch (err) {
       return res.status(500).json({ message: "Failed to fetch assessments" });
     }

@@ -33,6 +33,8 @@ export const assessments = pgTable("assessments", {
 });
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
+  // Restricted to Male/Female — the ML model was trained on binary gender data only.
+  // Submitting "Other" would silently encode as Female; we reject it explicitly instead.
   patientName: z
     .string({ required_error: "Patient name is required", invalid_type_error: "Patient name must be a string" })
     .trim()

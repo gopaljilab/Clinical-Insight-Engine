@@ -140,7 +140,7 @@ def train_model_pipeline():
     
     classes = np.unique(y)
     class_weights = len(y) / (len(classes) * np.bincount(y))
-    sample_weights = np.array([class_weights[c] for c in y])
+    sample_weights = class_weights[y.values]
     
     D = sample_weights * p * (1 - p)
     I = np.dot(X_design.T * D, X_design)
@@ -364,7 +364,12 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     input_df['bmi'] = input_data.get('bmi', 25)
     input_df['HbA1c_level'] = input_data.get('hba1cLevel', 5.5)
     input_df['blood_glucose_level'] = input_data.get('bloodGlucoseLevel', 100)
-    input_df['gender_Male'] = 1 if input_data.get('gender') == 'Male' else 0
+    gender_value = input_data.get('gender')
+    # The model was trained exclusively on Male/Female data — 'Other' gender
+    # patients are silently encoded as 0 (Female) since gender_Male is a binary
+    # feature. Emit a warning so this limitation is visible in the response.
+    gender_outside_training_distribution = gender_value not in ('Male', 'Female')
+    input_df['gender_Male'] = 1 if gender_value == 'Male' else 0
     
     smoke_col = f"smoke_{input_data.get('smokingHistory', 'never')}"
     if smoke_col in features:
@@ -441,10 +446,36 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     else:
         cat = "HIGH"
         
-    # Generate tailored advice based on category
+    # Generate tailored advice based on category and top contributing risk factors.
+    # Each advice item is personalized to the patient's actual top_factors so
+    # that two patients with the same risk category but different clinical
+    # profiles receive meaningfully different guidance.
     clinician_advice = []
     patient_advice = []
-    
+
+    # Factor-specific advice lookup — keyed on the friendly feature name
+    # produced by the fname mapping above.
+    CLINICIAN_FACTOR_ADVICE = {
+        "Hba1c Level":        "Evaluate HbA1c trend; consider referral to endocrinology if persistently elevated.",
+        "Blood Glucose Level": "Review fasting and post-prandial glucose logs; assess for medication adjustment.",
+        "Bmi":                 "Refer to dietitian/bariatric specialist; set weight-loss target of 5-10% body weight.",
+        "Age":                 "Age is a non-modifiable risk factor; prioritise modifiable factors and increase monitoring frequency.",
+        "Smoking History":     "Provide smoking cessation counselling and prescribe NRT or pharmacotherapy if appropriate.",
+        "Hypertension":        "Optimise blood pressure control; target <130/80 mmHg per ADA guidelines.",
+        "Gender":              "Note sex-specific cardiovascular risk differences when planning intervention.",
+    }
+
+    PATIENT_FACTOR_ADVICE = {
+        "Hba1c Level":        "Your blood sugar control (HbA1c) is a key driver of your risk — work with your doctor to bring it into the target range.",
+        "Blood Glucose Level": "Your blood glucose levels are elevated. Reducing sugary foods and refined carbs can make a real difference.",
+        "Bmi":                 "Your weight is contributing to your risk. Even a small reduction (5-10%) can significantly lower your chances of developing diabetes.",
+        "Age":                 "Your age increases your baseline risk. Staying active and having regular check-ups is especially important.",
+        "Smoking History":     "Smoking is significantly increasing your risk. Quitting is the single most impactful step you can take.",
+        "Hypertension":        "High blood pressure is compounding your risk. Reducing salt, exercising regularly, and taking prescribed medication can help.",
+        "Gender":              "Your biological sex influences your risk profile — discuss personalised targets with your doctor.",
+    }
+
+    # Base advice per category
     if cat == "LOW":
         clinician_advice.append("Monitor annually. No immediate intervention required.")
         patient_advice.append("Keep up the good work! Continue your healthy lifestyle and routine checkups.")
@@ -490,13 +521,27 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
         "confidenceInterval": confidence_interval,
         "modelConfidence": round(float(max(prob, 1 - prob)), 4)
     }
+
+    # If the submitted gender value is outside the model's training distribution,
+    # attach a warning so clinicians are aware the demographic was not represented
+    # in training data and the result should be interpreted with caution.
+    if gender_outside_training_distribution:
+        result["warning"] = (
+            f"Gender value '{gender_value}' was not present in the model's training data. "
+            "The patient has been encoded as Female for this prediction. "
+            "Results should be interpreted with caution for this demographic."
+        )
+
     cache.set(input_data, result)
     return result
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "predict_file":
-        with open(sys.argv[2], 'r') as f:
-            data = json.load(f)
+        if len(sys.argv) > 2:
+            with open(sys.argv[2], 'r') as f:
+                data = json.load(f)
+        else:
+            data = json.load(sys.stdin)
         model, scaler, features, cov_beta = get_model()
         result = interpret_prediction(model, scaler, features, data, cov_beta)
         print(json.dumps(result))

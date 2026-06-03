@@ -146,6 +146,10 @@ export function log(message: string, source = "express") {
 }
 
 app.use((req, res, next) => {
+  const requestId = crypto.randomUUID();
+  (req as any).id = requestId;
+  res.setHeader("X-Request-ID", requestId);
+
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
@@ -159,12 +163,15 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${summarizeApiResponse(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
+      const logPayload = {
+        requestId,
+        method: req.method,
+        path,
+        status: res.statusCode,
+        duration,
+        responseSummary: capturedJsonResponse ? summarizeApiResponse(capturedJsonResponse) : undefined,
+      };
+      log(JSON.stringify(logPayload));
     }
   });
 

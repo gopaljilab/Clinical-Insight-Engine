@@ -148,6 +148,14 @@ const verifyEmailLimiter = rateLimit({
   message: { error: "Too many verification attempts. Please try again later." },
 });
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 15,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many login/registration attempts. Please try again in 15 minutes." },
+});
+
 const resendLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   limit: 3,
@@ -235,6 +243,14 @@ export function createAuthRouter(): Router {
       return res.status(400).json({ message: "Password must be at least 8 characters." });
     }
 
+    if (fullName.length > 255) {
+      return res.status(400).json({ message: "Full name must be 255 characters or less." });
+    }
+
+    if (licenseNumber.length > 100) {
+      return res.status(400).json({ message: "Medical license number must be 100 characters or less." });
+    }
+
     // Check DB for existing user
     try {
       const db = getDb();
@@ -274,12 +290,31 @@ export function createAuthRouter(): Router {
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      await db.insert(emailVerificationTokens).values({
-        userId: newUser.id,
-        verificationCode: otp,
-        expiresAt,
-        used: false,
-        attemptCount: 0,
+      await db.transaction(async (tx) => {
+        // Create DB user
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            fullName,
+            email,
+            medicalLicenseNumber: licenseNumber,
+            passwordHash,
+            emailVerified: false,
+            role: "provider",
+          })
+          .returning();
+
+        // Create email verification token
+        await tx.insert(emailVerificationTokens).values({
+          userId: newUser.id,
+          verificationCode: otp,
+          expiresAt,
+          used: false,
+          attemptCount: 0,
+        });
+
+        // Send verification email
+        await sendVerificationCode(email, otp);
       });
 
       // In production, send OTP via email. For development, return it in the response.

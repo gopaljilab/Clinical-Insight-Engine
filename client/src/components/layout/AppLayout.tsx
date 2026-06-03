@@ -84,6 +84,14 @@ export function AppLayout({ children }: AppLayoutProps) {
     { href: "/history", label: "Patient History", icon: ClipboardList },
   ];
 
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
+      </div>
+    );
+  }
+
   if (networkError) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex items-center justify-center">
