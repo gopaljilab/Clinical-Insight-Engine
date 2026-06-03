@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { insertAssessmentSchema, assessments } from "./schema";
 
+/** Allowed risk category values for search filtering. */
+export const RISK_CATEGORIES = ["LOW", "MODERATE", "HIGH"] as const;
+export type RiskCategoryFilter = (typeof RISK_CATEGORIES)[number];
+
 export const errorSchemas = {
   validation: z.object({
     message: z.string(),
@@ -29,8 +33,35 @@ export const api = {
     list: {
       method: "GET" as const,
       path: "/api/assessments" as const,
+      /** Query params: limit, offset */
+      responses: {
+        200: z.object({
+          data: z.array(z.custom<typeof assessments.$inferSelect>()),
+          total: z.number(),
+          page: z.number(),
+          totalPages: z.number(),
+        }),
+      },
+    },
+    search: {
+      method: "GET" as const,
+      path: "/api/assessments/search" as const,
+      /** Query params: q, riskCategory, page, limit */
       responses: {
         200: z.array(z.custom<typeof assessments.$inferSelect>()),
+        400: errorSchemas.validation,
+        401: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    getById: {
+      method: "GET" as const,
+      path: "/api/assessments/:id" as const,
+      responses: {
+        200: z.custom<typeof assessments.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+        500: errorSchemas.internal,
       },
     },
     preview: {
@@ -71,6 +102,19 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
 }
 
 export type AssessmentInput = z.infer<typeof api.assessments.create.input>;
-export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]>;
+export type PredictionAdvice = {
+  clinicianAdvice?: string[];
+  patientAdvice?: string[];
+};
+
+export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]> & {
+  prediction?: PredictionAdvice & {
+    riskScore?: number;
+    riskCategory?: string;
+    confidenceInterval?: string | null;
+    modelConfidence?: number | null;
+    disclaimer?: string;
+  };
+};
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
 export type AssessmentPreviewResponse = z.infer<typeof api.assessments.preview.responses[200]>;

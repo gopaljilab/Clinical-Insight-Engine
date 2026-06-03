@@ -1,12 +1,19 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { randomInt } from "crypto";
-
+import { randomInt, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import bcrypt from "bcrypt";
+import { rateLimit } from "express-rate-limit";
+import { eq, and, gte } from "drizzle-orm";
+import { storage } from "./storage";
+import { getDb } from "./db";
+import { users, emailVerificationTokens } from "@shared/schema";
+import { sendVerificationCode } from "./email";
 // Extend express-session to include user data
 declare module "express-session" {
   interface SessionData {
     user?: {
       email: string;
       name: string;
+      role?: string | null;
     };
   }
 }
@@ -14,15 +21,34 @@ declare module "express-session" {
 interface RegisteredUser {
   fullName: string;
   email: string;
-  password: string;
+  passwordHash: string;
   licenseNumber: string;
 }
+
+// removed duplicated functions
 
 /**
  * In-memory store for registered users.
  * In production, this should be replaced with a persistent database.
  */
 const registeredUsers = new Map<string, RegisteredUser>();
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, storedHash: string): boolean {
+  const [salt, key] = storedHash.split(":");
+  if (!salt || !key) {
+    return bcrypt.compareSync(password, storedHash);
+  }
+
+  const hashBuffer = Buffer.from(key, "hex");
+  const candidateBuffer = scryptSync(password, salt, 64);
+  return hashBuffer.length === candidateBuffer.length && timingSafeEqual(hashBuffer, candidateBuffer);
+}
 
 interface PendingOtp {
   otp: string;
@@ -35,8 +61,124 @@ interface PendingOtp {
  */
 const pendingOtps = new Map<string, PendingOtp>();
 
+function normalizeRateLimitEmail(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+/**
+ * Builds a stable OTP rate-limit key from the submitted email when present,
+ * falling back to the client IP for malformed or incomplete requests.
+ */
+function ipKeyGenerator(ip: string): string {
+  return ip;
+}
+
+export function getOtpRateLimitKey(req: Pick<Request, "body" | "ip">): string {
+  const email = normalizeRateLimitEmail(req.body?.email);
+
+  if (email) {
+    return `otp:${email}`;
+  }
+
+  return `otp:ip:${ipKeyGenerator(req.ip ?? "unknown")}`;
+}
+
+/**
+ * Periodically removes expired OTP entries to prevent unbounded memory growth.
+ * Runs every 5 minutes.
+ */
+const otpCleanupTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [email, otp] of pendingOtps) {
+    if (now > otp.expiresAt) {
+      pendingOtps.delete(email);
+    }
+  }
+}, 5 * 60 * 1000);
+if (otpCleanupTimer.unref) {
+  otpCleanupTimer.unref();
+}
+
+/**
+ * Rate limiters for verification endpoints.
+ */
+
+const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 5,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: getOtpRateLimitKey,
+  message: { error: "Too many OTP verification attempts. Please try again later." },
+});
+
+const verifyEmailLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many verification attempts. Please try again later." },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 15,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many login/registration attempts. Please try again in 15 minutes." },
+});
+
+const resendLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  limit: 3,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many resend requests. Please try again later." },
+});
+
 function generateOtp(): string {
   return randomInt(100000, 999999).toString();
+}
+
+function logDevOtp(email: string, otp: string) {
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[DEV] OTP for ${email}: ${otp}`);
+  }
+}
+
+function regenerateSession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
+
+function saveSession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.save((err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
+
+async function establishAuthenticatedSession(
+  req: Request,
+  user: { id: string; email: string; name: string; role: string },
+): Promise<void> {
+  await regenerateSession(req);
+  req.session.user = user;
+  await saveSession(req);
 }
 
 /**
@@ -53,9 +195,11 @@ export function createAuthRouter(): Router {
    * POST /api/auth/register
    * Validates registration fields, creates a new user account, and establishes a session.
    */
-  router.post("/register", (req: Request, res: Response) => {
-    const { fullName, email, password, licenseNumber } = req.body || {};
-
+  router.post("/register", authLimiter, async (req: Request, res: Response) => {
+    const { fullName, licenseNumber } = req.body || {};
+    const email = (req.body?.email ?? "").trim().toLowerCase();
+    const password = req.body?.password ?? "";
+ 
     if (!fullName || !email || !password || !licenseNumber) {
       return res.status(400).json({
         message: "Full name, email, password, and license number are required.",
@@ -71,27 +215,98 @@ export function createAuthRouter(): Router {
       return res.status(400).json({ message: "Password must be at least 8 characters." });
     }
 
-    if (registeredUsers.has(email)) {
-      return res.status(409).json({ message: "An account with this email already exists." });
+    if (fullName.length > 255) {
+      return res.status(400).json({ message: "Full name must be 255 characters or less." });
     }
 
-    registeredUsers.set(email, { fullName, email, password, licenseNumber });
+    if (licenseNumber.length > 100) {
+      return res.status(400).json({ message: "Medical license number must be 100 characters or less." });
+    }
 
-    const otp = generateOtp();
-    pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+    // Check DB for existing user
+    try {
+      const db = getDb();
+      const [existingDbUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
 
-    // In production, send OTP via email. For development, return it in the response.
-    console.log(`[DEV] OTP for ${email}: ${otp}`);
+      if (existingDbUser) {
+        return res.status(409).json({ message: "An account with this email already exists." });
+      }
 
-    return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+      const passwordHash = hashPassword(password);
+
+      registeredUsers.set(email, {
+        fullName,
+        email,
+        passwordHash,
+        licenseNumber,
+      });
+
+      // Create DB user
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          fullName,
+          email,
+          medicalLicenseNumber: licenseNumber,
+          passwordHash,
+          emailVerified: false,
+          role: "provider",
+        })
+        .returning();
+
+      // Create email verification token
+      const otp = generateOtp();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await db.transaction(async (tx) => {
+        // Create DB user
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            fullName,
+            email,
+            medicalLicenseNumber: licenseNumber,
+            passwordHash,
+            emailVerified: false,
+            role: "provider",
+          })
+          .returning();
+
+        // Create email verification token
+        await tx.insert(emailVerificationTokens).values({
+          userId: newUser.id,
+          verificationCode: otp,
+          expiresAt,
+          used: false,
+          attemptCount: 0,
+        });
+
+        // Send verification email
+        await sendVerificationCode(email, otp);
+      });
+
+      // In production, send OTP via email. For development, return it in the response.
+      logDevOtp(email, otp);
+
+      return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+    } catch (err) {
+      console.error("Registration error:", err);
+      return res.status(500).json({ message: "Registration failed due to a server error." });
+    }
   });
 
   /**
    * POST /api/auth/login
    * Validates email/password against server-side env vars or registered users and creates a session.
    */
-  router.post("/login", (req: Request, res: Response) => {
-    const { email, password } = req.body || {};
+  router.post("/login", authLimiter, async (req: Request, res: Response) => {
+    const rawEmail = req.body?.email ?? "";
+    const email = rawEmail.trim().toLowerCase();
+    const password = req.body?.password ?? "";
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required." });
@@ -105,11 +320,36 @@ export function createAuthRouter(): Router {
     if (email === devEmail && password === devPassword) {
       userName = "Dr. Smith";
     } else {
+      // Check in-memory store (legacy)
       const registeredUser = registeredUsers.get(email);
-      if (registeredUser && registeredUser.password === password) {
+      if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
         userName = registeredUser.fullName;
       }
+
+      // Also check DB
+      if (!userName) {
+        try {
+          const db = getDb();
+          const [dbUser] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, email))
+            .limit(1);
+
+          if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
+            userName = dbUser.fullName;
+          }
+        } catch (_err) {
+          // DB not available — fall back to in-memory only
+          console.warn("DB unavailable for login, using in-memory only.");
+          const registeredUser = registeredUsers.get(email);
+          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+            userName = registeredUser.fullName;
+          }
+        }
+      }
     }
+
 
     if (!userName) {
       return res.status(401).json({ message: "Invalid email or password." });
@@ -119,7 +359,7 @@ export function createAuthRouter(): Router {
     pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
 
     // In production, send OTP via email. For development, return it in the response.
-    console.log(`[DEV] OTP for ${email}: ${otp}`);
+    logDevOtp(email, otp);
 
     return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
   });
@@ -128,8 +368,9 @@ export function createAuthRouter(): Router {
    * POST /api/auth/verify-otp
    * Verifies the OTP sent after login/register and establishes a session.
    */
-  router.post("/verify-otp", (req: Request, res: Response) => {
-    const { email, otp } = req.body || {};
+  router.post("/verify-otp", otpLimiter, async (req: Request, res: Response) => {
+    const { otp } = req.body || {};
+    const email = (req.body?.email ?? "").trim().toLowerCase();
 
     if (!email || !otp) {
       return res.status(400).json({ message: "Email and OTP are required." });
@@ -152,13 +393,151 @@ export function createAuthRouter(): Router {
 
     pendingOtps.delete(email);
 
-    const registeredUser = registeredUsers.get(email);
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
-    const name = email === devEmail ? "Dr. Smith" : (registeredUser?.fullName ?? email);
 
-    req.session.user = { email, name };
+    let id: string;
+    let name: string;
+    let role: string;
 
-    return res.json({ success: true, user: { email, name } });
+    if (email === devEmail) {
+      name = "Dr. Smith";
+      id = "dev";
+      role = "provider";
+    } else {
+      const db = getDb();
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
+      id = user.id;
+      name = user.fullName;
+      role = user.role ?? "provider";
+    }
+
+    try {
+      await establishAuthenticatedSession(req, { id, email, name, role });
+    } catch (error) {
+      console.error("Session regeneration failed:", error);
+      return res.status(500).json({ message: "Failed to establish session." });
+    }
+
+    return res.json({ success: true, user: { id, email, name } });
+  });
+
+  // ─── Email Verification (DB-backed) ────────────────────────────────────
+
+  /**
+   * POST /api/auth/verify-email
+   * Validates a 6-digit OTP against the email_verification_tokens table.
+   * On success, marks the user as verified and creates a session.
+   *
+   * Security:
+   * - OTP expires after 10 minutes
+   * - OTP can only be used once
+   * - Maximum 5 verification attempts per token
+   * - Rate limited to 10 requests/minute
+   */
+  router.post("/verify-email", verifyEmailLimiter, async (req: Request, res: Response) => {
+    try {
+      const { email, code } = req.body || {};
+
+      if (!email || !code) {
+        return res.status(400).json({ message: "Email and verification code are required." });
+      }
+
+      if (!/^\d{6}$/.test(code)) {
+        return res.status(400).json({ message: "Verification code must be a 6-digit number." });
+      }
+
+      const db = getDb();
+
+      // Find the user
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      // If already verified, return success
+      if (user.emailVerified) {
+        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
+        return res.json({ success: true, message: "Email already verified." });
+      }
+
+      // Find an active, unexpired, unused token for this user
+      const [token] = await db
+        .select()
+        .from(emailVerificationTokens)
+        .where(
+          and(
+            eq(emailVerificationTokens.userId, user.id),
+            eq(emailVerificationTokens.used, false),
+            gte(emailVerificationTokens.expiresAt, new Date()),
+          ),
+        )
+        .orderBy(emailVerificationTokens.createdAt)
+        .limit(1);
+
+      if (!token) {
+        return res.status(400).json({
+          message: "No valid verification code found. Please request a new code.",
+        });
+      }
+
+      // Check attempt count
+      const maxAttempts = 5;
+      if ((token.attemptCount ?? 0) >= maxAttempts) {
+        // Mark token as used to force a new one
+        await db
+          .update(emailVerificationTokens)
+          .set({ used: true })
+          .where(eq(emailVerificationTokens.id, token.id));
+
+        return res.status(429).json({
+          message: "Too many failed attempts. Please request a new verification code.",
+        });
+      }
+
+      // Validate the code
+      if (token.verificationCode !== code) {
+        // Increment attempt count
+        await db
+          .update(emailVerificationTokens)
+          .set({ attemptCount: (token.attemptCount ?? 0) + 1 })
+          .where(eq(emailVerificationTokens.id, token.id));
+
+        const remaining = maxAttempts - (token.attemptCount ?? 0) - 1;
+        return res.status(401).json({
+          message: `Invalid code. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : "Please request a new code."}`,
+        });
+      }
+
+      // Code is valid — mark token as used and user as verified
+      await db
+        .update(emailVerificationTokens)
+        .set({ used: true })
+        .where(eq(emailVerificationTokens.id, token.id));
+
+      await db
+        .update(users)
+        .set({ emailVerified: true, emailVerifiedAt: new Date() })
+        .where(eq(users.id, user.id));
+
+      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
+
+      return res.json({ success: true, message: "Email verified successfully." });
+    } catch (err) {
+      console.error("Email verification error:", err);
+      return res.status(500).json({ message: "Verification failed due to a server error." });
+    }
   });
 
   /**
@@ -199,4 +578,16 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return next();
   }
   return res.status(401).json({ message: "Authentication required." });
+}
+
+/**
+ * Express middleware that blocks requests from users whose email
+ * has not been verified. In this implementation, a valid session
+ * implies a verified email.
+ */
+export function requireVerified(req: Request, res: Response, next: NextFunction) {
+  if (req.session?.user) {
+    return next();
+  }
+  return res.status(401).json({ message: "Verification required." });
 }

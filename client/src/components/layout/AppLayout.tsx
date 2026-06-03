@@ -1,9 +1,11 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { queryClient } from "@/lib/queryClient";
 import { Activity, ClipboardList, HeartPulse, LogOut, Loader2 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import ThemeToggle from "../ThemeToggle";
+import { useToast } from "@/hooks/use-toast";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,19 +17,54 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
+  const { toast } = useToast();
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
   const [checking, setChecking] = useState(true);
+  const [networkError, setNetworkError] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
       .then((res) => {
-        if (!res.ok) throw new Error("Not authenticated");
+        if (res.status === 401) { setLocation("/"); return undefined; }
+        if (!res.ok) { setNetworkError(true); return undefined; }
         return res.json();
       })
-      .then((data) => setUser(data.user))
-      .catch(() => setLocation("/"))
+      .then((data) => { if (data) setUser(data.user); })
+      .catch(() => setNetworkError(true))
       .finally(() => setChecking(false));
   }, [setLocation]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let timeoutId: number;
+    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+    const resetTimer = () => {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        toast({
+          title: "Session Inactivity Warning",
+          description: "You have been inactive. For your security, you will be logged out soon if inactivity continues.",
+          variant: "destructive",
+        });
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
+    events.forEach((event) => {
+      window.addEventListener(event, resetTimer);
+    });
+
+    resetTimer();
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      events.forEach((event) => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [user, toast]);
 
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -35,6 +72,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     setIsSigningOut(true);
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      queryClient.clear();
     } finally {
       setIsSigningOut(false);
       setLocation("/");
@@ -46,17 +84,47 @@ export function AppLayout({ children }: AppLayoutProps) {
     { href: "/history", label: "Patient History", icon: ClipboardList },
   ];
 
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
+      </div>
+    );
+  }
+
+  if (networkError) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex items-center justify-center">
+        <div className="text-center p-8 rounded-2xl border border-slate-200 bg-white dark:bg-gray-900 dark:border-gray-800 shadow-sm max-w-md">
+          <p className="text-lg font-bold text-slate-800 dark:text-white">Connection error</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Unable to verify your session. Please check your connection and try again.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex flex-col md:flex-row transition-colors duration-300">
       {/* Sidebar */}
-      <aside className="w-full md:w-64 lg:w-72 bg-white dark:bg-gray-900 border-r border-slate-100 dark:border-gray-800 flex shrink-0 md:h-screen sticky top-0 z-10 shadow-sm shadow-slate-900/[0.02] dark:shadow-gray-950/50 transition-colors duration-300">
+      <aside className="print:hidden w-full md:w-64 lg:w-72 bg-white dark:bg-gray-900 border-r border-slate-100 dark:border-gray-800 flex shrink-0 md:h-screen sticky top-0 z-10 shadow-sm shadow-slate-900/[0.02] dark:shadow-gray-950/50 transition-colors duration-300">
         <div className="flex h-full w-full flex-col justify-between">
           <div>
             <div className="p-6 flex items-center gap-3 border-b border-slate-100 dark:border-gray-800">
-              <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/15">
+              <Link
+                href="/dashboard"
+                className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/15 hover:opacity-95 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Go to main dashboard"
+                title="Go to main dashboard"
+              >
                 <HeartPulse className="w-6 h-6" />
                 <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900 bg-emerald-400" />
-              </div>
+              </Link>
               <div className="flex-1 min-w-0">
                 <h1 className="text-lg font-black leading-tight text-[#1E293B] dark:text-gray-100 truncate">Clinical Insight</h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Preventive Risk Tool</p>
@@ -92,8 +160,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 {user?.name?.charAt(0) || "Dr"}
               </div>
               <div className="flex min-w-0 flex-col">
-                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight">{user?.name || user?.email}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Endocrinology</span>
+                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight truncate">{user?.name || "Clinician"}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold truncate">{user?.email || "clinical@insight-engine.dev"}</span>
               </div>
             </div>
             <button

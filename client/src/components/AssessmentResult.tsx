@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { PatientPresentationMode } from "./PatientPresentationMode";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -50,6 +51,17 @@ const getFactorReason = (factor: RiskFactor) => {
 
 export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [view, setView] = useState<"patient" | "clinician">("patient");
+  const [isPresenting, setIsPresenting] = useState(false);
+
+  const exportToJson = () => {
+    const blob = new Blob([JSON.stringify(assessment, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `diabetes-risk-assessment-${assessment.id ?? "report"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const getRiskColor = (category: string) => {
     switch (category.toUpperCase()) {
@@ -91,12 +103,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const riskScore = Number(assessment.riskScore).toFixed(1);
   const positiveFactors = factors.filter((f: any) => f.impact === "positive");
   const protectiveFactors = factors.filter((f: any) => f.impact !== "positive");
-  const patientGuidance = [
+  const patientGuidance = assessment.prediction?.patientAdvice ?? [
     "Review these results with a qualified clinician before making medical decisions.",
     "Focus first on the highlighted risk factors that can be changed through care planning.",
     "Track BMI, HbA1c, and blood glucose over time so future assessments have context.",
   ];
-  const clinicianActions = [
+  const clinicianActions = assessment.prediction?.clinicianAdvice ?? [
     "Confirm risk category against the patient's full history and current medication profile.",
     "Use the factor breakdown to prioritize follow-up labs, counselling, or referrals.",
     "Compare this assessment with prior visits to identify meaningful trajectory changes.",
@@ -109,30 +121,81 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 overflow-hidden flex flex-col"
     >
       {/* Header/Tabs */}
-      <div className="flex border-b border-border/60 bg-muted/30">
-        <button
-          onClick={() => setView("patient")}
-          className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-semibold transition-colors ${
-            view === "patient" 
-              ? "text-primary border-b-2 border-primary bg-background" 
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-          }`}
-        >
-          <UserCircle className="w-4 h-4" />
-          Patient View
-        </button>
-        <button
-          onClick={() => setView("clinician")}
-          className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-semibold transition-colors ${
-            view === "clinician" 
-              ? "text-primary border-b-2 border-primary bg-background" 
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-          }`}
-        >
-          <Stethoscope className="w-4 h-4" />
-          Clinician View
-        </button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 bg-muted/30 p-2.5">
+        <div className="relative flex flex-1 max-w-md bg-muted/65 p-1 gap-1 rounded-xl">
+          <button
+            onClick={() => setView("patient")}
+            className={`relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none ${
+              view === "patient" 
+                ? "text-primary" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <UserCircle className="w-4 h-4" />
+            Patient View
+            {view === "patient" && (
+              <motion.div
+                layoutId="activeTab"
+                className="absolute inset-0 bg-background rounded-lg border border-border/50 shadow-sm z-[-1]"
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
+          </button>
+          <button
+            onClick={() => setView("clinician")}
+            className={`relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none ${
+              view === "clinician" 
+                ? "text-primary" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Stethoscope className="w-4 h-4" />
+            Clinician View
+            {view === "clinician" && (
+              <motion.div
+                layoutId="activeTab"
+                className="absolute inset-0 bg-background rounded-lg border border-border/50 shadow-sm z-[-1]"
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
+          </button>
+        </div>
+        <div className="flex items-center gap-2 justify-end self-stretch print:hidden">
+          <button
+            type="button"
+            onClick={() => setIsPresenting(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
+          >
+            <MonitorPlay className="w-3.5 h-3.5" />
+            Present
+          </button>
+          <button
+            type="button"
+            onClick={exportToJson}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            Print
+          </button>
+        </div>
       </div>
+
+      <AnimatePresence>
+        {isPresenting && (
+          <PatientPresentationMode 
+            assessment={assessment} 
+            onClose={() => setIsPresenting(false)} 
+          />
+        )}
+      </AnimatePresence>
 
       <div className="p-6 md:p-8">
         <AnimatePresence mode="wait">
@@ -314,7 +377,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                     <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                       <ReferenceLine x={0} stroke="#cbd5e1" />
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={80} tick={{ fill: '#64748b', fontSize: 12 }} />
+                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: '#64748b', fontSize: 12 }} />
                       <Tooltip 
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
