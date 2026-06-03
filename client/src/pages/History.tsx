@@ -18,38 +18,42 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
 import { FileText, RotateCw } from "lucide-react";
 import { useLocation } from "wouter";
+import { type AssessmentResponse } from "@shared/routes";
+import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { advancedFilter } from "@/utils/search_filters";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import RiskTrendChart from "@/components/RiskTrendChart";
 
-function HighlightText({ text, search }: { text: string; search: string }) {
-  if (!search.trim()) return <>{text}</>;
+function HighlightText({ text, searchRegex }: { text: string; searchRegex: RegExp | null }) {
+  if (!searchRegex) return <>{text}</>;
 
-  const regex = new RegExp(
-    `(${search.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")})`,
-    "gi"
-  );
-  const parts = text.split(regex);
+  try {
+    const parts = text.split(searchRegex);
 
-  return (
-    <>
-      {parts.map((part, i) =>
-        regex.test(part) ? (
-          <mark
-            key={i}
-            className="bg-yellow-100 text-[#1E293B] rounded px-0.5 font-bold"
-          >
-            {part}
-          </mark>
-        ) : (
-          part
-        )
-      )}
-    </>
-  );
+    return (
+      <>
+        {parts.map((part, i) =>
+          searchRegex.test(part) ? (
+            <mark
+              key={i}
+              className="bg-yellow-100 text-[#1E293B] rounded px-0.5 font-bold"
+            >
+              {part}
+            </mark>
+          ) : (
+            part
+          )
+        )}
+      </>
+    );
+  } catch {
+    return <>{text}</>;
+  }
 }
 
 export default function History() {
@@ -57,9 +61,26 @@ export default function History() {
     document.title = "Clinical Insight Engine - Assessment History";
   }, []);
 
-  const { data: assessments, isLoading, error } = useAssessments();
+  const [serverPage, setServerPage] = useState<number>(1);
+  const PAGE_SIZE = 20;
+  const { data: assessmentsResponse, isLoading, error } = useAssessments(serverPage, PAGE_SIZE);
+  const assessments = assessmentsResponse?.data ?? [];
+  const serverTotalPages = assessmentsResponse?.totalPages ?? 1;
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
+
+  // Memoize the search regex so it's compiled once per search term change
+  const searchRegex = useMemo(() => {
+    if (!searchTerm.trim()) return null;
+    try {
+      return new RegExp(
+        `(${searchTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")})`,
+        "gi"
+      );
+    } catch {
+      return null;
+    }
+  }, [searchTerm]);
 
   // Date filter state
   const [startDate, setStartDate] = useState<string>("");
@@ -72,6 +93,16 @@ export default function History() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 10;
+
+  const [selectedPatientName, setSelectedPatientName] = useState<string | null>(null);
+
+  const selectedPatientHistory = useMemo(() => {
+    if (!selectedPatientName || !assessments) return [];
+    return assessments.filter(a => {
+       const pName = a.patientName || "Unknown Patient";
+       return pName === selectedPatientName;
+    });
+  }, [assessments, selectedPatientName]);
 
   // Reset pagination window when search/filter changes
   useEffect(() => {
@@ -91,13 +122,13 @@ export default function History() {
 
   const getRiskBadge = (category: string) => {
     const key = (category || "").toUpperCase();
-    const highlight = <HighlightText text={category} search={searchTerm} />;
+    const highlight = <HighlightText text={category} searchRegex={searchRegex} />;
     if (key === "LOW")
       return (
         <StatusPill
           variant="low"
           label="LOW"
-          highlightedLabel={<HighlightText text="LOW" search={searchTerm} />}
+          highlightedLabel={<HighlightText text="LOW" searchRegex={searchRegex} />}
         />
       );
     if (key === "MODERATE")
@@ -106,7 +137,7 @@ export default function History() {
           variant="moderate"
           label="MODERATE"
           highlightedLabel={
-            <HighlightText text="MODERATE" search={searchTerm} />
+            <HighlightText text="MODERATE" searchRegex={searchRegex} />
           }
         />
       );
@@ -115,7 +146,7 @@ export default function History() {
         <StatusPill
           variant="high"
           label="HIGH"
-          highlightedLabel={<HighlightText text="HIGH" search={searchTerm} />}
+          highlightedLabel={<HighlightText text="HIGH" searchRegex={searchRegex} />}
         />
       );
     return (
@@ -153,16 +184,33 @@ export default function History() {
     }
   }
 
-  function exportAsPdf(assessment: any) {
+  function handleExportPDF(assessment: any) {
+    if (!assessment) return;
+
     const patientName = assessment.patientName || "Unknown Patient";
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${assessment.id}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Patient:</strong> ${patientName}</p><p class="kv"><strong>Date:</strong> ${new Date(assessment.createdAt).toLocaleString()}</p><p class="kv"><strong>Risk Score:</strong> ${Number(assessment.riskScore).toFixed(1)}%</p><p class="kv"><strong>Category:</strong> <span class="pill">${assessment.riskCategory}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals & Inputs</h2><table><tbody><tr><td>Age</td><td>${assessment.age}</td></tr><tr><td>BMI</td><td>${assessment.bmi}</td></tr><tr><td>HbA1c</td><td>${assessment.hba1cLevel}%</td></tr><tr><td>Blood Glucose</td><td>${assessment.bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${assessment.hypertension ? "Yes" : "No"}</td></tr><tr><td>Heart Disease</td><td>${assessment.heartDisease ? "Yes" : "No"}</td></tr><tr><td>Smoking</td><td>${assessment.smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(
+    const date = assessment.createdAt ? new Date(assessment.createdAt).toLocaleString() : "Unknown Date";
+    const age = assessment.age ?? "N/A";
+    const bmi = assessment.bmi ?? "N/A";
+    const hba1cLevel = assessment.hba1cLevel ?? "N/A";
+    const bloodGlucoseLevel = assessment.bloodGlucoseLevel ?? "N/A";
+    const hypertension = assessment.hypertension === true ? "Yes" : assessment.hypertension === false ? "No" : "N/A";
+    const heartDisease = assessment.heartDisease === true ? "Yes" : assessment.heartDisease === false ? "No" : "N/A";
+    const smokingHistory = assessment.smokingHistory || "N/A";
+    
+    const riskScore = assessment.riskScore
+      ? `${Number(assessment.riskScore).toFixed(1)}%`
+      : "N/A";
+      
+    const category = assessment.riskCategory || "Unknown";
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${assessment.id || 'Export'}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Patient:</strong> ${patientName}</p><p class="kv"><strong>Date:</strong> ${date}</p><p class="kv"><strong>Risk Score:</strong> ${riskScore}</p><p class="kv"><strong>Category:</strong> <span class="pill">${category}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals & Inputs</h2><table><tbody><tr><td>Age</td><td>${age}</td></tr><tr><td>BMI</td><td>${bmi}</td></tr><tr><td>HbA1c</td><td>${hba1cLevel}${hba1cLevel !== "N/A" ? "%" : ""}</td></tr><tr><td>Blood Glucose</td><td>${bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${hypertension}</td></tr><tr><td>Heart Disease</td><td>${heartDisease}</td></tr><tr><td>Smoking</td><td>${smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(
       assessment.factors || []
     )
       .slice(0, 5)
-      .map((f: any) => `<li>${f.name} — ${f.description} (${f.impact})</li>`)
+      .map((f: any) => `<li>${f.name || 'Unknown'} — ${f.description || ''} (${f.impact || 'N/A'})</li>`)
       .join("")}</ul></body></html>`;
 
-    const w = window.open("", "_blank", "noopener,noreferrer");
+    const w = window.open("", "_blank");
     if (!w) {
       alert("Please allow popups to enable PDF export.");
       return;
@@ -229,9 +277,15 @@ export default function History() {
     }
   });
 
-  // 4. Client-side Pagination Slicing
+  // 4. Pagination
+  // When no client-side filters are active, use server-side total pages
+  // so users can navigate beyond the current page's 20 records.
+  // When filters are active, paginate the filtered results locally.
+  const hasClientFilters = Boolean(searchTerm || startDate || endDate);
   const totalRecords = sortedAssessments.length;
-  const totalPages = Math.ceil(totalRecords / itemsPerPage) || 1;
+  const totalPages = hasClientFilters
+    ? Math.ceil(totalRecords / itemsPerPage) || 1
+    : serverTotalPages;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, totalRecords);
   const paginatedAssessments = sortedAssessments.slice(startIndex, endIndex);
@@ -264,8 +318,11 @@ export default function History() {
       <div className="space-y-8">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight">
+            <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight flex items-center gap-3">
               Patient History
+              <span className="text-sm font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200">
+                {totalRecords} Match{totalRecords !== 1 ? 'es' : ''}
+              </span>
             </h1>
             <p className="text-muted-foreground mt-2 text-lg">
               Review past preventive risk assessments.
@@ -281,7 +338,7 @@ export default function History() {
                 placeholder="Search history..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-10 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full sm:w-64"
+                className="pl-10 pr-10 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20 transition-all w-full sm:w-64"
               />
               {searchTerm && (
                 <button
@@ -361,7 +418,7 @@ export default function History() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full sm:w-48 text-sm font-semibold text-foreground cursor-pointer"
+              className="px-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20 transition-all w-full sm:w-48 text-sm font-semibold text-foreground cursor-pointer"
             >
               <option value="date-desc">Newest First</option>
               <option value="date-asc">Oldest First</option>
@@ -430,34 +487,43 @@ export default function History() {
                         {formatAssessmentDate(assessment.createdAt)}
                       </td>
                       <td className="p-4 font-medium whitespace-nowrap">
-                        <HighlightText
-                          text={assessment.patientName || "Unknown Patient"}
-                          search={searchTerm}
-                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const name = assessment.patientName || "Unknown Patient";
+                            if (name !== "Unknown Patient") setSelectedPatientName(name);
+                          }}
+                          className={assessment.patientName && assessment.patientName !== "Unknown Patient" ? "hover:underline text-primary cursor-pointer focus:outline-none transition-all active:scale-[0.98]" : ""}
+                        >
+                          <HighlightText
+                            text={assessment.patientName || "Unknown Patient"}
+                            search={searchTerm}
+                          />
+                        </button>
                       </td>
                       <td className="p-4">
                         <HighlightText
                           text={String(assessment.age)}
-                          search={searchTerm}
+                          searchRegex={searchRegex}
                         />
                       </td>
                       <td className="p-4 font-medium">
                         <HighlightText
                           text={String(assessment.bmi)}
-                          search={searchTerm}
+                          searchRegex={searchRegex}
                         />
                       </td>
                       <td className="p-4 font-medium">
                         <HighlightText
                           text={String(assessment.hba1cLevel)}
-                          search={searchTerm}
+                          searchRegex={searchRegex}
                         />
                         %
                       </td>
                       <td className="p-4 font-medium">
                         <HighlightText
                           text={String(assessment.bloodGlucoseLevel)}
-                          search={searchTerm}
+                          searchRegex={searchRegex}
                         />
                       </td>
                       <td className="p-4">
@@ -469,7 +535,7 @@ export default function History() {
                       <td className="p-4">
                         <HighlightText
                           text={assessment.smokingHistory}
-                          search={searchTerm}
+                          searchRegex={searchRegex}
                         />
                       </td>
                       <td className="p-4">
@@ -541,7 +607,7 @@ export default function History() {
                             Reload
                           </button>
                           <button
-                            onClick={() => exportAsPdf(assessment)}
+                            onClick={() => handleExportPDF(assessment)}
                             className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900"
                           >
                             <FileText className="w-4 h-4" />
@@ -576,9 +642,11 @@ export default function History() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.max(prev - 1, 1))
-                  }
+                  onClick={() => {
+                    const newPage = Math.max(currentPage - 1, 1);
+                    setCurrentPage(newPage);
+                    if (!hasClientFilters) setServerPage(Math.max(serverPage - 1, 1));
+                  }}
                   disabled={currentPage === 1}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Previous page"
@@ -594,9 +662,11 @@ export default function History() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                  }
+                  onClick={() => {
+                    const newPage = Math.min(currentPage + 1, totalPages);
+                    setCurrentPage(newPage);
+                    if (!hasClientFilters) setServerPage(Math.min(serverPage + 1, serverTotalPages));
+                  }}
                   disabled={currentPage === totalPages}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Next page"
@@ -608,6 +678,44 @@ export default function History() {
           </div>
         )}
       </div>
+
+      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientName(null)}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto sm:border-l sm:border-slate-200">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="text-2xl font-bold font-display">Longitudinal Trajectory</SheetTitle>
+            <p className="text-sm text-muted-foreground">Patient: <span className="font-semibold text-foreground">{selectedPatientName}</span></p>
+          </SheetHeader>
+          
+          {selectedPatientHistory.length > 0 && (
+            <div className="space-y-6 pb-12">
+              <RiskTrendChart assessments={selectedPatientHistory} />
+              
+              <div className="border border-border rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead className="bg-muted/50 border-b border-border">
+                    <tr>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">Date</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">Risk Score</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">BMI</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">HbA1c</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {selectedPatientHistory.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((a) => (
+                      <tr key={a.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="p-3 whitespace-nowrap">{formatAssessmentDate(a.createdAt)}</td>
+                        <td className="p-3 font-bold text-foreground">{Number(a.riskScore).toFixed(1)}%</td>
+                        <td className="p-3">{Number(a.bmi).toFixed(1)}</td>
+                        <td className="p-3">{Number(a.hba1cLevel).toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </AppLayout>
   );
 }
