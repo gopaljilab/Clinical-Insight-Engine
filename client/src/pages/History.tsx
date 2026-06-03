@@ -659,3 +659,19 @@ export default function History() {
     </AppLayout>
   );
 }
+
+
+// GSSoC Issue #689 Patch
+  // GSSoC Issue #689 search filters
+  const filteredAssessments = assessments?.filter(a => {
+      const term = searchTerm.toLowerCase();
+      return (
+        a.gender.toLowerCase().includes(term) ||
+        a.riskCategory.toLowerCase().includes(term) ||
+        a.smokingHistory.toLowerCase().includes(term) ||
+        String(a.age).includes(term) ||
+        String(a.bmi).includes(term) ||
+        String(a.hba1cLevel).includes(term) ||
+        String(a.bloodGlucoseLevel).includes(term)
+      );
+    }) || [];
