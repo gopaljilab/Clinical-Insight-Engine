@@ -13,6 +13,7 @@ declare module "express-session" {
     user?: {
       email: string;
       name: string;
+      role?: string | null;
     };
   }
 }
@@ -26,11 +27,49 @@ interface RegisteredUser {
 
 // removed duplicated functions
 
+const SALT_LENGTH = 32;
+const KEY_LENGTH = 64;
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(SALT_LENGTH).toString("hex");
+  const hash = scryptSync(password, salt, KEY_LENGTH).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, key] = stored.split(":");
+  if (!salt || !key) return false;
+  const hash = scryptSync(password, salt, KEY_LENGTH);
+  const keyBuffer = Buffer.from(key, "hex");
+  return hash.length === keyBuffer.length && timingSafeEqual(hash, keyBuffer);
+}
+
+function ipKeyGenerator(ip: string): string {
+  return ip.replace(/[^a-zA-Z0-9.:]/g, "_");
+}
+
 /**
  * In-memory store for registered users.
  * In production, this should be replaced with a persistent database.
  */
 const registeredUsers = new Map<string, RegisteredUser>();
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, storedHash: string): boolean {
+  const [salt, key] = storedHash.split(":");
+  if (!salt || !key) {
+    return bcrypt.compareSync(password, storedHash);
+  }
+
+  const hashBuffer = Buffer.from(key, "hex");
+  const candidateBuffer = scryptSync(password, salt, 64);
+  return hashBuffer.length === candidateBuffer.length && timingSafeEqual(hashBuffer, candidateBuffer);
+}
 
 interface PendingOtp {
   otp: string;
@@ -51,6 +90,10 @@ function normalizeRateLimitEmail(value: unknown): string {
  * Builds a stable OTP rate-limit key from the submitted email when present,
  * falling back to the client IP for malformed or incomplete requests.
  */
+function ipKeyGenerator(ip: string): string {
+  return ip;
+}
+
 export function getOtpRateLimitKey(req: Pick<Request, "body" | "ip">): string {
   const email = normalizeRateLimitEmail(req.body?.email);
 
@@ -151,7 +194,7 @@ function saveSession(req: Request): Promise<void> {
 
 async function establishAuthenticatedSession(
   req: Request,
-  user: { id: string; email: string; name: string },
+  user: { id: string; email: string; name: string; role: string },
 ): Promise<void> {
   await regenerateSession(req);
   req.session.user = user;
@@ -204,12 +247,6 @@ export function createAuthRouter(): Router {
       if (existingDbUser) {
         return res.status(409).json({ message: "An account with this email already exists." });
       }
-    registeredUsers.set(email, {
-      fullName,
-      email,
-      passwordHash: hashPassword(password),
-      licenseNumber: licenseNumber,
-    });
 
       const passwordHash = hashPassword(password);
 
@@ -219,7 +256,6 @@ export function createAuthRouter(): Router {
         passwordHash,
         licenseNumber,
       });
-
 
       // Create DB user
       const [newUser] = await db
@@ -238,18 +274,41 @@ export function createAuthRouter(): Router {
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      await db.insert(emailVerificationTokens).values({
-        userId: newUser.id,
-        verificationCode: otp,
-        expiresAt,
-        used: false,
-        attemptCount: 0,
+      await db.transaction(async (tx) => {
+        // Create DB user
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            fullName,
+            email,
+            medicalLicenseNumber: licenseNumber,
+            passwordHash,
+            emailVerified: false,
+            role: "provider",
+          })
+          .returning();
+
+        // Create email verification token
+        await tx.insert(emailVerificationTokens).values({
+          userId: newUser.id,
+          verificationCode: otp,
+          expiresAt,
+          used: false,
+          attemptCount: 0,
+        });
+
+        // Send verification email
+        await sendVerificationCode(email, otp);
       });
 
-    // In production, send OTP via email. For development, return it in the response.
-    logDevOtp(email, otp);
+      // In production, send OTP via email. For development, return it in the response.
+      logDevOtp(email, otp);
 
-    return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+      return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+    } catch (err) {
+      console.error("Registration error:", err);
+      return res.status(500).json({ message: "Registration failed due to a server error." });
+    }
   });
 
   /**
@@ -276,11 +335,11 @@ export function createAuthRouter(): Router {
       // Check in-memory store (legacy)
       const registeredUser = registeredUsers.get(email);
       if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-        userFullName = registeredUser.fullName;
+        userName = registeredUser.fullName;
       }
 
       // Also check DB
-      if (!userFullName) {
+      if (!userName) {
         try {
           const db = getDb();
           const [dbUser] = await db
@@ -290,21 +349,28 @@ export function createAuthRouter(): Router {
             .limit(1);
 
           if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
-            userFullName = dbUser.fullName;
+            userName = dbUser.fullName;
           }
-        }
-      } catch (_err) {
-        // DB not available — fall back to in-memory only
-        console.warn("DB unavailable for login, using in-memory only.");
-        const registeredUser = registeredUsers.get(email);
-        if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-          userFullName = registeredUser.fullName;
+        } catch (_err) {
+          // DB not available — fall back to in-memory only
+          console.warn("DB unavailable for login, using in-memory only.");
+          const registeredUser = registeredUsers.get(email);
+          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+            userName = registeredUser.fullName;
+          }
+        } catch (_err) {
+          // DB not available — fall back to in-memory only
+          console.warn("DB unavailable for login, using in-memory only.");
+          const registeredUser = registeredUsers.get(email);
+          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+            userFullName = registeredUser.fullName;
+          }
         }
       }
     }
 
 
-    if (!userFullName) {
+    if (!userName) {
       return res.status(401).json({ message: "Invalid email or password." });
     }
 
@@ -346,16 +412,16 @@ export function createAuthRouter(): Router {
 
     pendingOtps.delete(email);
 
-    const registeredUser = registeredUsers.get(email);
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
-    const name = email === devEmail ? "Dr. Smith" : (registeredUser?.fullName ?? email);
 
     let id: string;
     let name: string;
+    let role: string;
 
     if (email === devEmail) {
       name = "Dr. Smith";
       id = "dev";
+      role = "provider";
     } else {
       const db = getDb();
       const [user] = await db
@@ -368,10 +434,11 @@ export function createAuthRouter(): Router {
       }
       id = user.id;
       name = user.fullName;
+      role = user.role ?? "provider";
     }
 
     try {
-      await establishAuthenticatedSession(req, { id, email, name });
+      await establishAuthenticatedSession(req, { id, email, name, role });
     } catch (error) {
       console.error("Session regeneration failed:", error);
       return res.status(500).json({ message: "Failed to establish session." });
@@ -420,7 +487,7 @@ export function createAuthRouter(): Router {
 
       // If already verified, return success
       if (user.emailVerified) {
-        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName });
+        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
         return res.json({ success: true, message: "Email already verified." });
       }
 
@@ -483,7 +550,7 @@ export function createAuthRouter(): Router {
         .set({ emailVerified: true, emailVerifiedAt: new Date() })
         .where(eq(users.id, user.id));
 
-      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName });
+      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
 
       return res.json({ success: true, message: "Email verified successfully." });
     } catch (err) {
