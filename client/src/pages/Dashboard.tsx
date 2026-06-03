@@ -89,7 +89,6 @@ export default function Dashboard() {
       patientName: "",
       hypertension: false,
       heartDisease: false,
-      patientName: "",
       smokingHistory: "never",
       gender: "Female",
       age: undefined,

@@ -10,7 +10,7 @@ export type AssessmentFactor = {
 
 export const assessments = pgTable("assessments", {
   id: serial("id").primaryKey(),
-  patientName: text("patient_name"),
+  patientName: text("patient_name").notNull(),
   gender: text("gender").notNull(), // 'Male', 'Female'
   age: integer("age").notNull(),
   hypertension: boolean("hypertension").notNull(),
@@ -26,14 +26,13 @@ export const assessments = pgTable("assessments", {
   factors: jsonb("factors").$type<AssessmentFactor[]>().notNull(),
   confidenceInterval: jsonb("confidence_interval").$type<string | null>(),
   modelConfidence: doublePrecision("model_confidence"),
-  
-  patientName: text("patient_name"),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   userId: text("user_id"),
 });
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
+  patientName: z.string().trim().min(1, "Patient name is required"),
   gender: z.enum(["Male", "Female"], {
     required_error: "Gender is required",
     invalid_type_error: "Gender must be 'Male' or 'Female'",
