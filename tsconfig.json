@@ -7,13 +7,14 @@
     "noEmit": true,
     "module": "ESNext",
     "strict": true,
+    "target": "ES2022",
     "lib": ["esnext", "dom", "dom.iterable"],
     "jsx": "preserve",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
-    "baseUrl": ".",
+
     "types": ["node", "vite/client"],
     "paths": {
       "@/*": ["./client/src/*"],
