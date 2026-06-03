@@ -1,4 +1,6 @@
 import sys
+import numpy as np
+# GSSoC Issue #695 Numpy vectorized performance guide
 import json
 import os
 import hashlib
