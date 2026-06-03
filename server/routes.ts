@@ -1019,12 +1019,19 @@ export async function registerRoutes(
           return res.status(400).json({ message: "Invalid assessment ID." });
         }
 
-        const userEmail = req.session.user?.email;
-        const assessment = await storage.getAssessmentById(id, userEmail);
+        const user = req.session.user;
+        if (!user) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const assessment = await storage.getAssessmentById(id);
 
         if (!assessment) {
-          // Return 404 regardless of whether the record exists or belongs to another user
-          // to prevent information disclosure via timing/enumeration
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        if (!canAccessPatientRecord(user, assessment)) {
+          logAccessAttempt(user.id, "Assessment", id, false, "IDOR attempt: User not authorized to access this patient record");
           return res.status(404).json({ message: "Assessment not found." });
         }
 
@@ -1154,12 +1161,19 @@ export async function registerRoutes(
           return res.status(400).json({ message: "Invalid assessment ID." });
         }
 
-        const userEmail = req.session.user?.email;
-        const assessment = await storage.getAssessmentById(id, userEmail);
+        const user = req.session.user;
+        if (!user) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const assessment = await storage.getAssessmentById(id);
 
         if (!assessment) {
-          // Return 404 regardless of whether the record exists or belongs to another user
-          // to prevent information disclosure via timing/enumeration
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        if (!canAccessPatientRecord(user, assessment)) {
+          logAccessAttempt(user.id, "Assessment", id, false, "IDOR attempt: User not authorized to access this patient record");
           return res.status(404).json({ message: "Assessment not found." });
         }
 
