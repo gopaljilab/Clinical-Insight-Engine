@@ -5,7 +5,7 @@ import { rateLimit } from "express-rate-limit";
 import { eq, and, gte } from "drizzle-orm";
 import { storage } from "./storage";
 import { getDb } from "./db";
-import { users, emailVerificationTokens } from "@shared/schema";
+import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
 import { sendVerificationCode } from "./email";
 // Extend express-session to include user data
 declare module "express-session" {
@@ -564,6 +564,103 @@ export function createAuthRouter(): Router {
       return res.json({ user: req.session.user });
     }
     return res.status(401).json({ message: "Not authenticated." });
+  });
+
+  /**
+   * POST /api/auth/forgot-password
+   * Accepts email, creates a password reset token, and logs the reset link.
+   */
+  router.post("/forgot-password", async (req: Request, res: Response) => {
+    const email = (req.body?.email ?? "").trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+
+    try {
+      const db = getDb();
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).json({ message: "No account found with this email." });
+      }
+
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+      await db.insert(passwordResetTokens).values({
+        userId: user.id,
+        token,
+        expiresAt,
+        used: false,
+      });
+
+      const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password?token=${token}`;
+
+      if (process.env.NODE_ENV !== "production") {
+        const border = "=".repeat(44);
+        console.log(`\n${border}`);
+        console.log("  PASSWORD RESET");
+        console.log(`  To: ${email}`);
+        console.log(`  Link: ${resetLink}`);
+        console.log(`${border}\n`);
+      }
+
+      return res.json({ success: true, message: "If an account exists, a reset link has been sent." });
+    } catch (err) {
+      console.error("Forgot password error:", err);
+      return res.status(500).json({ message: "Failed to process request." });
+    }
+  });
+
+  /**
+   * POST /api/auth/reset-password
+   * Accepts token and new password, validates token, updates password.
+   */
+  router.post("/reset-password", async (req: Request, res: Response) => {
+    const { token, newPassword } = req.body || {};
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: "Token and new password are required." });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters." });
+    }
+
+    try {
+      const db = getDb();
+
+      const [resetToken] = await db
+        .select()
+        .from(passwordResetTokens)
+        .where(
+          and(
+            eq(passwordResetTokens.token, token),
+            eq(passwordResetTokens.used, false),
+            gte(passwordResetTokens.expiresAt, new Date()),
+          ),
+        )
+        .limit(1);
+
+      if (!resetToken) {
+        return res.status(400).json({ message: "Invalid or expired reset token." });
+      }
+
+      const passwordHash = hashPassword(newPassword);
+
+      await db.update(users).set({ passwordHash }).where(eq(users.id, resetToken.userId));
+      await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, resetToken.id));
+
+      return res.json({ success: true, message: "Password has been reset successfully." });
+    } catch (err) {
+      console.error("Reset password error:", err);
+      return res.status(500).json({ message: "Failed to reset password." });
+    }
   });
 
   return router;
