@@ -462,8 +462,8 @@ export async function registerRoutes(
       } finally {
         try {
           await unlink(tempFilePath);
-        } catch {
-          // ignore
+        } catch (e) {
+          console.warn("Failed to clean up temp file (preview):", tempFilePath, e);
         }
       }
     }
@@ -560,8 +560,8 @@ export async function registerRoutes(
         if (tempFilePath) {
           try {
             await unlink(tempFilePath);
-          } catch {
-            // ignore
+          } catch (e) {
+            console.warn("Failed to clean up temp file (create):", tempFilePath, e);
           }
         }
         if (requestFingerprint) {
