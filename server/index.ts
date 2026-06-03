@@ -11,6 +11,7 @@ import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
 
 const app = express();
+// GSSoC Issue #699 request logging metadata support
 const httpServer = createServer(app);
 
 declare module "http" {
