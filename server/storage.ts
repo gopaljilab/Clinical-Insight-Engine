@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 
 import {
   assessments,
@@ -8,9 +8,8 @@ import {
   type InsertAssessment,
   type AssessmentFactor,
   type User,
-  type InsertUser
+  type InsertUser,
 } from "@shared/schema";
-import { desc, eq, ilike, and, or } from "drizzle-orm";
 import type { RiskCategory } from "./validation/searchValidation";
 
 export interface IStorage {
@@ -54,11 +53,15 @@ export class DatabaseStorage implements IStorage {
   ): Promise<{ data: Assessment[]; total: number; page: number; totalPages: number }> {
     const db = getDb();
 
-    // Compatibility: allow running even if the assessments table doesn't have created_by.
-    // Keep createdBy arg unused for now.
-    void createdBy;
-
     const filters: any[] = [];
+
+    // Filter by createdBy when provided to ensure users only see their own assessments
+    if (createdBy) {
+      const createdByCol = (assessments as any).createdBy ?? (assessments as any).created_by;
+      if (createdByCol) {
+        filters.push(eq(createdByCol, createdBy));
+      }
+    }
 
 
 
@@ -89,10 +92,10 @@ export class DatabaseStorage implements IStorage {
           (assessments as any).confidenceInterval ?? (assessments as any).confidence_interval,
         modelConfidence:
           (assessments as any).modelConfidence ?? (assessments as any).model_confidence,
-        createdAt:
-          (assessments as any).createdAt ?? (assessments as any).created_at,
         createdBy:
           (assessments as any).createdBy ?? (assessments as any).created_by,
+        createdAt:
+          (assessments as any).createdAt ?? (assessments as any).created_at,
         userId:
           (assessments as any).userId ?? (assessments as any).user_id,
       })
