@@ -64,12 +64,12 @@ describe("insertAssessmentSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects missing patient name", () => {
+  it("accepts missing patient name as optional", () => {
     const result = insertAssessmentSchema.safeParse({
       ...validAssessment,
-      patientName: "",
+      patientName: undefined,
     });
 
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 });

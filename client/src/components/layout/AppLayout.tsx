@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { queryClient } from "@/lib/queryClient";
 import { Activity, ClipboardList, HeartPulse, LogOut, Loader2 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -71,6 +72,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     setIsSigningOut(true);
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      queryClient.clear();
     } finally {
       setIsSigningOut(false);
       setLocation("/");
