@@ -543,8 +543,12 @@ if __name__ == "__main__":
         else:
             data = json.load(sys.stdin)
         model, scaler, features, cov_beta = get_model()
-        result = interpret_prediction(model, scaler, features, data, cov_beta)
-        print(json.dumps(result))
+        if isinstance(data, list):
+            results = [interpret_prediction(model, scaler, features, item, cov_beta) for item in data]
+            print(json.dumps(results))
+        else:
+            result = interpret_prediction(model, scaler, features, data, cov_beta)
+            print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")
