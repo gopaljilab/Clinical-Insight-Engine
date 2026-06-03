@@ -262,6 +262,8 @@ export function createAuthRouter(): Router {
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+      let registeredUserId: string;
+
       await db.transaction(async (tx) => {
         // Create DB user
         const [newUser] = await tx
@@ -275,6 +277,8 @@ export function createAuthRouter(): Router {
             role: "provider",
           })
           .returning();
+
+        registeredUserId = newUser.id;
 
         // Create email verification token
         await tx.insert(emailVerificationTokens).values({
@@ -291,6 +295,13 @@ export function createAuthRouter(): Router {
 
       // In production, send OTP via email. For development, return it in the response.
       logDevOtp(email, otp);
+
+      await storage.recordLoginAudit({
+        userId: registeredUserId!,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "registration",
+      });
 
       return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
     } catch (err) {
@@ -352,6 +363,11 @@ export function createAuthRouter(): Router {
 
 
     if (!userName) {
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "login_failed",
+      });
       return res.status(401).json({ message: "Invalid email or password." });
     }
 
@@ -379,15 +395,30 @@ export function createAuthRouter(): Router {
     const pending = pendingOtps.get(email);
 
     if (!pending) {
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_failed",
+      });
       return res.status(400).json({ message: "No pending verification found for this email." });
     }
 
     if (Date.now() > pending.expiresAt) {
       pendingOtps.delete(email);
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_expired",
+      });
       return res.status(400).json({ message: "OTP has expired. Please sign in again." });
     }
 
     if (pending.otp !== otp) {
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_failed",
+      });
       return res.status(401).json({ message: "Invalid OTP. Please try again." });
     }
 
@@ -424,6 +455,13 @@ export function createAuthRouter(): Router {
       console.error("Session regeneration failed:", error);
       return res.status(500).json({ message: "Failed to establish session." });
     }
+
+    await storage.recordLoginAudit({
+      userId: id,
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      loginStatus: "login_success",
+    });
 
     return res.json({ success: true, user: { id, email, name } });
   });
@@ -533,6 +571,13 @@ export function createAuthRouter(): Router {
 
       await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
 
+      await storage.recordLoginAudit({
+        userId: user.id,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "email_verified",
+      });
+
       return res.json({ success: true, message: "Email verified successfully." });
     } catch (err) {
       console.error("Email verification error:", err);
@@ -544,7 +589,13 @@ export function createAuthRouter(): Router {
    * POST /api/auth/logout
    * Destroys the current session and clears the session cookie.
    */
-  router.post("/logout", (req: Request, res: Response) => {
+  router.post("/logout", async (req: Request, res: Response) => {
+    await storage.recordLoginAudit({
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      loginStatus: "logout",
+    });
+
     req.session.destroy((err) => {
       if (err) {
         console.error("Session destruction failed:", err);
