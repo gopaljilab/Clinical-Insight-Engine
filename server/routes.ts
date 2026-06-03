@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage, type AssessmentCreateInput } from "./storage";
-import { requireAuth, requireVerified } from "./auth";
+import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { existsSync } from "fs";
@@ -9,6 +9,7 @@ import { writeFile, unlink } from "fs/promises";
 import { randomUUID, createHash } from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import bcrypt from "bcrypt";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -148,6 +149,21 @@ export function getPythonExecutable() {
 }
 
 async function seedDatabase() {
+  const existingAdmin = await storage.getUserByEmail("admin@clinical-insight-engine.dev");
+  if (!existingAdmin) {
+    const adminPasswordHash = bcrypt.hashSync("admin123", 10);
+    await storage.createUser({
+      fullName: "System Admin",
+      email: "admin@clinical-insight-engine.dev",
+      medicalLicenseNumber: "ADMIN-000001",
+      passwordHash: adminPasswordHash,
+      role: "ADMIN",
+      isActive: true,
+      emailVerified: true,
+    });
+    console.log("Seeded admin user: admin@clinical-insight-engine.dev / admin123");
+  }
+
   const existing = await storage.getAssessments();
   if (existing.data.length !== 0) return;
 
@@ -735,6 +751,54 @@ export async function registerRoutes(
       }
     }
   );
+
+  // ─── Admin Routes ────────────────────────────────────────────────
+
+  app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+      const result = await storage.getAllUsers(page, limit);
+      res.json(result);
+    } catch (err) {
+      console.error("Admin users fetch error:", err);
+      res.status(500).json({ message: "Failed to fetch users." });
+    }
+  });
+
+  app.get("/api/admin/audit-logs", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+      const result = await storage.getLoginAuditLogs(page, limit);
+      res.json(result);
+    } catch (err) {
+      console.error("Admin audit logs fetch error:", err);
+      res.status(500).json({ message: "Failed to fetch audit logs." });
+    }
+  });
+
+  app.patch("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { isActive, role } = req.body;
+      const updated = await storage.updateUser(id, { isActive, role });
+      res.json(updated);
+    } catch (err) {
+      console.error("Admin user update error:", err);
+      res.status(500).json({ message: "Failed to update user." });
+    }
+  });
+
+  app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = await storage.getSystemStats();
+      res.json(stats);
+    } catch (err) {
+      console.error("Admin stats fetch error:", err);
+      res.status(500).json({ message: "Failed to fetch system stats." });
+    }
+  });
 
   return httpServer;
 }

@@ -591,3 +591,14 @@ export function requireVerified(req: Request, res: Response, next: NextFunction)
   }
   return res.status(401).json({ message: "Verification required." });
 }
+
+/**
+ * Express middleware that restricts access to admin users only.
+ * Must be used after requireAuth to ensure the session exists.
+ */
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (req.session?.user?.role === "ADMIN") {
+    return next();
+  }
+  return res.status(403).json({ message: "Admin access required." });
+}
