@@ -184,9 +184,9 @@ async function establishAuthenticatedSession(
 /**
  * Creates an authentication router with login, register, logout, and session-check endpoints.
  *
- * In development mode, credentials are validated against environment variables
- * (DEV_CLINICIAN_EMAIL / DEV_CLINICIAN_PASSWORD). In production, this serves
- * as the auth gateway for all protected API routes.
+ * Credentials are validated against hashed passwords in the database (or the
+ * in-memory store during initial registration). All users must complete OTP
+ * verification to establish an authenticated session.
  */
 export function createAuthRouter(): Router {
   const router = Router();
@@ -312,40 +312,33 @@ export function createAuthRouter(): Router {
       return res.status(400).json({ message: "Email and password are required." });
     }
 
-    const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
-    const devPassword = process.env.DEV_CLINICIAN_PASSWORD || "";
-
     let userName: string | null = null;
 
-    if (email === devEmail && password === devPassword) {
-      userName = "Dr. Smith";
-    } else {
-      // Check in-memory store (legacy)
-      const registeredUser = registeredUsers.get(email);
-      if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-        userName = registeredUser.fullName;
-      }
+    // Check in-memory store (legacy)
+    const registeredUser = registeredUsers.get(email);
+    if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+      userName = registeredUser.fullName;
+    }
 
-      // Also check DB
-      if (!userName) {
-        try {
-          const db = getDb();
-          const [dbUser] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, email))
-            .limit(1);
+    // Also check DB
+    if (!userName) {
+      try {
+        const db = getDb();
+        const [dbUser] = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, email))
+          .limit(1);
 
-          if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
-            userName = dbUser.fullName;
-          }
-        } catch (_err) {
-          // DB not available — fall back to in-memory only
-          console.warn("DB unavailable for login, using in-memory only.");
-          const registeredUser = registeredUsers.get(email);
-          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-            userName = registeredUser.fullName;
-          }
+        if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
+          userName = dbUser.fullName;
+        }
+      } catch (_err) {
+        // DB not available — fall back to in-memory only
+        console.warn("DB unavailable for login, using in-memory only.");
+        const registeredUser = registeredUsers.get(email);
+        if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+          userName = registeredUser.fullName;
         }
       }
     }
@@ -393,30 +386,18 @@ export function createAuthRouter(): Router {
 
     pendingOtps.delete(email);
 
-    const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
-
-    let id: string;
-    let name: string;
-    let role: string;
-
-    if (email === devEmail) {
-      name = "Dr. Smith";
-      id = "dev";
-      role = "provider";
-    } else {
-      const db = getDb();
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-      if (!user) {
-        return res.status(404).json({ message: "User not found." });
-      }
-      id = user.id;
-      name = user.fullName;
-      role = user.role ?? "provider";
+    const db = getDb();
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
     }
+    const id = user.id;
+    const name = user.fullName;
+    const role = user.role ?? "provider";
 
     try {
       await establishAuthenticatedSession(req, { id, email, name, role });
