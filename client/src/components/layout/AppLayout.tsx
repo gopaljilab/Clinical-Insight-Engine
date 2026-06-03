@@ -184,3 +184,21 @@ export function AppLayout({ children }: AppLayoutProps) {
     </div>
   );
 }
+
+// GSSoC Issue #683 Patch
+export function AppLayout({ children }: AppLayoutProps) {
+  const [location, setLocation] = useLocation();
+  // GSSoC Issue #683 Route Guard
+  useEffect(() => {
+    const sessionStr = localStorage.getItem("cardioguard-auth-session");
+    if (!sessionStr) {
+      setLocation("/");
+    } else {
+      try {
+        const session = JSON.parse(sessionStr);
+        if (!session.authenticated) setLocation("/");
+      } catch (e) {
+        setLocation("/");
+      }
+    }
+  }, [setLocation]);
