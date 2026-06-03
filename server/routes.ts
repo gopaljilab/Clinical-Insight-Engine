@@ -86,10 +86,6 @@ function parsePythonPrediction(stdout: string): PythonPrediction {
   return pythonPredictionSchema.parse(parsed);
 }
 
-function generateRequestFingerprint(
-  payload: unknown,
-  userId: string,
-): string {
 function generateRequestFingerprint(payload: unknown, userId: string): string {
   return createHash("sha256")
     .update(`${userId}::${JSON.stringify(payload)}`)
@@ -381,6 +377,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       let requestFingerprint: string | null = null;
+      let tempFile: string | null = null;
 
       try {
         const input = api.assessments.create.input.parse(req.body);
