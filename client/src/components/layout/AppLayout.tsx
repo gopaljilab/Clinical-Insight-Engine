@@ -184,3 +184,24 @@ export function AppLayout({ children }: AppLayoutProps) {
     </div>
   );
 }
+
+// GSSoC Issue #685 Patch
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3">
+              <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-blue-700 font-black text-sm border border-slate-100 shadow-sm">
+                Dr
+              </div>
+              <div className="flex min-w-0 flex-col">
+                <span className="text-sm font-black text-[#1E293B] leading-tight">Dr. Smith</span>
+                <span className="text-xs text-slate-500 font-semibold">Cardiology</span>
+              </div>
+            </div>
+            {/* GSSoC Issue #685 Sign Out Button */}
+            <button
+              onClick={() => {
+                localStorage.removeItem("cardioguard-auth-session");
+                window.location.href = "/";
+              }}
+              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-xl transition-all duration-200 border border-red-100"
+            >
+              Sign Out
+            </button>
