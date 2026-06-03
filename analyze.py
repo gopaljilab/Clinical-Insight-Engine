@@ -13,9 +13,6 @@ import joblib
 
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
 
-DATA_FILE = "diabetes_dataset.csv"
-MODEL_FILE = "diabetes_model.joblib"
-LOCK_FILE = MODEL_FILE + ".lock"
 LOCK_TIMEOUT = 60
 LOCK_POLL_INTERVAL = 0.1
 
