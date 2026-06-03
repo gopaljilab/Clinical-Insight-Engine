@@ -673,6 +673,25 @@ export async function registerRoutes(
     }
   );
 
+  app.get(
+    "/api/assessments/analytics",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const userEmail = req.session.user?.email;
+        if (!userEmail) {
+           return res.status(401).json({ message: "Unauthorized" });
+        }
+        const stats = await storage.getAnalyticsStats(userEmail);
+        return res.json(stats);
+      } catch (err) {
+        console.error("Analytics fetch error:", err);
+        return res.status(500).json({ message: "Failed to fetch analytics" });
+      }
+    }
+  );
+
   /**
    * GET /api/assessments/:id
    *

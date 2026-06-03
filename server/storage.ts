@@ -32,6 +32,7 @@ export interface IStorage {
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
+  getAnalyticsStats(createdBy?: string): Promise<any>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
@@ -245,6 +246,51 @@ export class DatabaseStorage implements IStorage {
     const db = getDb();
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
+  }
+
+  async getAnalyticsStats(createdBy?: string) {
+    const db = getDb();
+    const filters: ReturnType<typeof eq>[] = [];
+    if (createdBy) {
+      const createdByCol = (assessments as any).createdBy ?? (assessments as any).created_by;
+      if (createdByCol) {
+        filters.push(eq(createdByCol, createdBy));
+      }
+    }
+
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(assessments);
+    if (filters.length > 0) countQuery = countQuery.where(and(...filters)) as any;
+    const countResult = await countQuery;
+    const totalPatients = Number(countResult[0]?.count || 0);
+
+    let distQuery = db.select({ 
+      riskCategory: (assessments as any).riskCategory ?? (assessments as any).risk_category, 
+      count: sql<number>`count(*)` 
+    }).from(assessments).groupBy((assessments as any).riskCategory ?? (assessments as any).risk_category);
+    if (filters.length > 0) distQuery = distQuery.where(and(...filters)) as any;
+    const distResult = await distQuery;
+
+    let avgQuery = db.select({ 
+      avgBmi: sql<number>`avg(${assessments.bmi})`, 
+      avgHba1c: sql<number>`avg(${(assessments as any).hba1cLevel ?? (assessments as any).hba1c_level})` 
+    }).from(assessments);
+    if (filters.length > 0) avgQuery = avgQuery.where(and(...filters)) as any;
+    const avgResult = await avgQuery;
+
+    const riskScoreCol = (assessments as any).riskScore ?? (assessments as any).risk_score;
+    let alertsQuery = db.select().from(assessments).orderBy(desc(riskScoreCol)).limit(5);
+    if (filters.length > 0) alertsQuery = alertsQuery.where(and(...filters)) as any;
+    const alerts = await alertsQuery;
+
+    return {
+      totalPatients,
+      distribution: distResult.map((r: any) => ({ category: r.riskCategory, count: Number(r.count) })),
+      averages: {
+        bmi: Number(avgResult[0]?.avgBmi || 0),
+        hba1c: Number(avgResult[0]?.avgHba1c || 0)
+      },
+      criticalAlerts: alerts
+    };
   }
 }
 

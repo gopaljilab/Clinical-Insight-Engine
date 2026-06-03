@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
-import { Activity, ClipboardList, HeartPulse, LogOut, Loader2 } from "lucide-react";
+import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import ThemeToggle from "../ThemeToggle";
@@ -82,6 +82,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navItems = [
     { href: "/dashboard", label: "New Assessment", icon: Activity },
     { href: "/history", label: "Patient History", icon: ClipboardList },
+    { href: "/analytics", label: "Provider Analytics", icon: PieChart },
   ];
 
   if (checking) {
