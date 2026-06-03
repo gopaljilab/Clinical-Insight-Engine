@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 
 import {
   assessments,
@@ -8,14 +8,14 @@ import {
   type InsertAssessment,
   type AssessmentFactor,
   type User,
-  type InsertUser
+  type InsertUser,
 } from "@shared/schema";
-import { desc, eq, ilike, and, or } from "drizzle-orm";
 import type { RiskCategory } from "./validation/searchValidation";
 
 export interface IStorage {
   getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<Assessment[]>;
-  /**
+  createAssessment(assessment: AssessmentCreateInput): Promise<Assessment>;
+ /**
    * Searches assessments by risk category label using parameterized queries.
    * Uses Drizzle ORM eq() — user input is NEVER interpolated into SQL strings.
    */
@@ -28,7 +28,7 @@ export interface IStorage {
   ): Promise<Assessment[]>;
   /** Returns a single assessment by numeric ID. Authorization must be checked by caller. */
   getAssessmentById(id: number): Promise<Assessment | undefined>;
-  createAssessment(assessment: any): Promise<Assessment>;
+  createAssessment(assessment: AssessmentCreateInput): Promise<Assessment>;
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
@@ -48,17 +48,25 @@ export type AssessmentCreateInput = InsertAssessment & {
 
 export class DatabaseStorage implements IStorage {
   async getAssessments(
-    limit: number = 50,
+    limit: number = 20,
     offset: number = 0,
     createdBy?: string
-  ): Promise<Assessment[]> {
+  ): Promise<{ data: Assessment[]; total: number; page: number; totalPages: number }> {
     const db = getDb();
 
     // Compatibility: allow running even if the assessments table doesn't have created_by.
     // Keep createdBy arg unused for now.
     void createdBy;
 
-    const filters: any[] = [];
+    const filters: ReturnType<typeof eq>[] = [];
+
+    // Filter by createdBy when provided to ensure users only see their own assessments
+    if (createdBy) {
+      const createdByCol = (assessments as any).createdBy ?? (assessments as any).created_by;
+      if (createdByCol) {
+        filters.push(eq(createdByCol, createdBy));
+      }
+    }
 
 
 
@@ -89,10 +97,10 @@ export class DatabaseStorage implements IStorage {
           (assessments as any).confidenceInterval ?? (assessments as any).confidence_interval,
         modelConfidence:
           (assessments as any).modelConfidence ?? (assessments as any).model_confidence,
-        createdAt:
-          (assessments as any).createdAt ?? (assessments as any).created_at,
         createdBy:
           (assessments as any).createdBy ?? (assessments as any).created_by,
+        createdAt:
+          (assessments as any).createdAt ?? (assessments as any).created_at,
         userId:
           (assessments as any).userId ?? (assessments as any).user_id,
       })
@@ -104,11 +112,19 @@ export class DatabaseStorage implements IStorage {
 
 
 
-    if (filters.length > 0) {
-      return await query.where(and(...filters)).limit(limit).offset(offset);
-    }
+    const db2 = getDb();
+    const countResult = await db2.select({ count: sql<number>`count(*)` }).from(assessments);
+    const total = Number(countResult[0].count);
+    const page = Math.floor(offset / limit) + 1;
+    const totalPages = Math.ceil(total / limit);
 
-    return await query.limit(limit).offset(offset);
+    let data: Assessment[];
+    if (filters.length > 0) {
+      data = await query.where(and(...filters)).limit(limit).offset(offset);
+    } else {
+      data = await query.limit(limit).offset(offset);
+    }
+    return { data, total, page, totalPages };
   }
 
   /**
@@ -207,7 +223,7 @@ export class DatabaseStorage implements IStorage {
 
     const [created] = await db
       .insert(assessments)
-      .values(assessment as any)
+      .values(assessment)
       .returning();
 
     return created;

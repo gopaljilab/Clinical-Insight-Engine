@@ -20,8 +20,12 @@ router.get("/", async (req, res, next) => {
     // Return the user's assessments as their "patients" dataset
     // Drizzle ORM ensures this parameter is bound, not concatenated
     const records = await storage.getAssessments(50, 0, userId);
-    
-    res.json({ data: records });
+    const sanitizedRecords = records.map((record: any) => {
+      const { userId, createdBy, ...rest } = record;
+      return rest;
+    });
+
+    res.json({ data: sanitizedRecords });
   } catch (error) {
     next(error);
   }
