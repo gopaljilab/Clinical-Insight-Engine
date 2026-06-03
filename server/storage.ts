@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql, lt } from "drizzle-orm";
 
 import {
   assessments,
@@ -13,7 +13,7 @@ import {
 import type { RiskCategory } from "./validation/searchValidation";
 
 export interface IStorage {
-  getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<{ data: Assessment[]; total: number; page: number; totalPages: number }>;
+  getAssessments(limit?: number, cursor?: number, createdBy?: string): Promise<{ data: Assessment[]; nextCursor: number | null }>;
   createAssessment(assessment: AssessmentCreateInput): Promise<Assessment>;
  /**
    * Searches assessments by risk category label using parameterized queries.
@@ -24,8 +24,8 @@ export interface IStorage {
     createdBy?: string,
     riskCategory?: RiskCategory,
     limit?: number,
-    offset?: number
-  ): Promise<Assessment[]>;
+    cursor?: number
+  ): Promise<{ data: Assessment[]; nextCursor: number | null }>;
   /** Returns a single assessment by numeric ID. Authorization must be checked by caller. */
   getAssessmentById(id: number): Promise<Assessment | undefined>;
   createAssessment(assessment: AssessmentCreateInput): Promise<Assessment>;
@@ -49,9 +49,9 @@ export type AssessmentCreateInput = InsertAssessment & {
 export class DatabaseStorage implements IStorage {
   async getAssessments(
     limit: number = 20,
-    offset: number = 0,
+    cursor?: number,
     createdBy?: string
-  ): Promise<{ data: Assessment[]; total: number; page: number; totalPages: number }> {
+  ): Promise<{ data: Assessment[]; nextCursor: number | null }> {
     const db = getDb();
 
     // Compatibility: allow running even if the assessments table doesn't have created_by.
@@ -68,8 +68,9 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-
-
+    if (cursor !== undefined) {
+      filters.push(lt(assessments.id, cursor) as any);
+    }
 
     // Avoid selecting non-existent columns (e.g., created_by in older DB states)
     // by explicitly selecting only columns known to exist in migrations.
@@ -105,26 +106,22 @@ export class DatabaseStorage implements IStorage {
           (assessments as any).userId ?? (assessments as any).user_id,
       })
       .from(assessments)
-      .orderBy(desc((assessments as any).createdAt ?? (assessments as any).created_at))
+      .orderBy(desc(assessments.id))
       .$dynamic();
 
-
-
-
-
-    const db2 = getDb();
-    const countResult = await db2.select({ count: sql<number>`count(*)` }).from(assessments);
-    const total = Number(countResult[0].count);
-    const page = Math.floor(offset / limit) + 1;
-    const totalPages = Math.ceil(total / limit);
-
     let data: Assessment[];
+    const selectQuery = query.limit(limit + 1);
     if (filters.length > 0) {
-      data = await query.where(and(...filters)).limit(limit).offset(offset);
+      data = await selectQuery.where(and(...filters));
     } else {
-      data = await query.limit(limit).offset(offset);
+      data = await selectQuery;
     }
-    return { data, total, page, totalPages };
+
+    const hasNext = data.length > limit;
+    const pagedData = hasNext ? data.slice(0, limit) : data;
+    const nextCursor = hasNext && pagedData.length > 0 ? pagedData[pagedData.length - 1].id : null;
+
+    return { data: pagedData, nextCursor };
   }
 
   /**
@@ -145,8 +142,8 @@ export class DatabaseStorage implements IStorage {
     createdBy?: string,
     riskCategory?: RiskCategory,
     limit: number = 20,
-    offset: number = 0
-  ): Promise<Assessment[]> {
+    cursor?: number
+  ): Promise<{ data: Assessment[]; nextCursor: number | null }> {
     const db = getDb();
 
     // Build an array of WHERE conditions — all parameterized by Drizzle ORM.
@@ -162,6 +159,10 @@ export class DatabaseStorage implements IStorage {
     // Risk category exact-match filter (parameterized)
     if (riskCategory) {
       conditions.push(eq(assessments.riskCategory, riskCategory));
+    }
+
+    if (cursor !== undefined) {
+      conditions.push(lt(assessments.id, cursor) as any);
     }
 
     // Free-text search across gender and smokingHistory fields
@@ -182,14 +183,19 @@ export class DatabaseStorage implements IStorage {
     let query = db
       .select()
       .from(assessments)
-      .orderBy(desc(assessments.createdAt))
+      .orderBy(desc(assessments.id))
       .$dynamic();
 
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
 
-    return await query.limit(limit).offset(offset);
+    const data = await query.limit(limit + 1);
+    const hasNext = data.length > limit;
+    const pagedData = hasNext ? data.slice(0, limit) : data;
+    const nextCursor = hasNext && pagedData.length > 0 ? pagedData[pagedData.length - 1].id : null;
+
+    return { data: pagedData, nextCursor };
   }
 
   /**

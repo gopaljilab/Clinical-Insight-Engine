@@ -62,11 +62,12 @@ export default function History() {
     document.title = "Clinical Insight Engine - Assessment History";
   }, []);
 
-  const [serverPage, setServerPage] = useState<number>(1);
+  const [cursorStack, setCursorStack] = useState<Array<number | undefined>>([undefined]);
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const cursor = cursorStack[currentIndex];
   const PAGE_SIZE = 20;
-  const { data: assessmentsResponse, isLoading, error } = useAssessments(serverPage, PAGE_SIZE);
+  const { data: assessmentsResponse, isLoading, error } = useAssessments(PAGE_SIZE, cursor);
   const assessments = assessmentsResponse?.data ?? [];
-  const serverTotalPages = assessmentsResponse?.totalPages ?? 1;
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
 
@@ -91,9 +92,7 @@ export default function History() {
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const itemsPerPage = 10;
+
 
   const [selectedPatientName, setSelectedPatientName] = useState<string | null>(null);
 
@@ -107,7 +106,8 @@ export default function History() {
 
   // Reset pagination window when search/filter changes
   useEffect(() => {
-    setCurrentPage(1);
+    setCursorStack([undefined]);
+    setCurrentIndex(0);
   }, [searchTerm, sortBy, startDate, endDate]);
 
   useEffect(() => {
@@ -279,17 +279,8 @@ export default function History() {
   });
 
   // 4. Pagination
-  // When no client-side filters are active, use server-side total pages
-  // so users can navigate beyond the current page's 20 records.
-  // When filters are active, paginate the filtered results locally.
-  const hasClientFilters = Boolean(searchTerm || startDate || endDate);
   const totalRecords = sortedAssessments.length;
-  const totalPages = hasClientFilters
-    ? Math.ceil(totalRecords / itemsPerPage) || 1
-    : serverTotalPages;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalRecords);
-  const paginatedAssessments = sortedAssessments.slice(startIndex, endIndex);
+  const paginatedAssessments = sortedAssessments;
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
@@ -630,28 +621,24 @@ export default function History() {
               <div className="text-sm text-muted-foreground font-medium">
                 Showing{" "}
                 <span className="font-semibold text-foreground">
-                  {totalRecords === 0 ? 0 : startIndex + 1}
+                  {totalRecords === 0 ? 0 : 1}
                 </span>{" "}
                 to{" "}
                 <span className="font-semibold text-foreground">
-                  {endIndex}
-                </span>{" "}
-                of{" "}
-                <span className="font-semibold text-foreground">
                   {totalRecords}
                 </span>{" "}
-                records
+                records on this page
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
-                    const newPage = Math.max(currentPage - 1, 1);
-                    setCurrentPage(newPage);
-                    if (!hasClientFilters) setServerPage(Math.max(serverPage - 1, 1));
+                    if (currentIndex > 0) {
+                      setCurrentIndex(currentIndex - 1);
+                    }
                   }}
-                  disabled={currentPage === 1}
+                  disabled={currentIndex === 0}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Previous page"
                 >
@@ -659,19 +646,21 @@ export default function History() {
                 </button>
 
                 <div className="flex items-center gap-1 text-sm font-semibold px-2">
-                  <span className="text-foreground">Page {currentPage}</span>
-                  <span className="text-muted-foreground">/</span>
-                  <span className="text-muted-foreground">{totalPages}</span>
+                  <span className="text-foreground">Page {currentIndex + 1}</span>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => {
-                    const newPage = Math.min(currentPage + 1, totalPages);
-                    setCurrentPage(newPage);
-                    if (!hasClientFilters) setServerPage(Math.min(serverPage + 1, serverTotalPages));
+                    if (assessmentsResponse?.nextCursor) {
+                      const next = assessmentsResponse.nextCursor;
+                      if (currentIndex + 1 >= cursorStack.length) {
+                        setCursorStack([...cursorStack, next]);
+                      }
+                      setCurrentIndex(currentIndex + 1);
+                    }
                   }}
-                  disabled={currentPage === totalPages}
+                  disabled={!assessmentsResponse?.nextCursor}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Next page"
                 >

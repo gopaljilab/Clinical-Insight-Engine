@@ -11,13 +11,15 @@ function parseWithLogging<T>(schema: any, data: unknown, label: string): T {
   return result.data;
 }
 
-export function useAssessments(limit: number = 50, offset: number = 0) {
+export function useAssessments(limit: number = 50, cursor?: number) {
   return useQuery({
-    queryKey: [api.assessments.list.path, limit, offset],
+    queryKey: [api.assessments.list.path, limit, cursor],
     queryFn: async () => {
       const url = new URL(api.assessments.list.path, window.location.origin);
       url.searchParams.set("limit", limit.toString());
-      url.searchParams.set("offset", offset.toString());
+      if (cursor !== undefined) {
+        url.searchParams.set("cursor", cursor.toString());
+      }
       
       const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch assessments");

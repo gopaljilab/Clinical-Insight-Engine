@@ -100,11 +100,10 @@ export const searchQuerySchema = z.object({
     })
     .optional(),
 
-  page: z.coerce
+  cursor: z.coerce
     .number()
-    .int("Page must be an integer")
-    .min(1, "Page must be at least 1")
-    .default(1),
+    .int("Cursor must be an integer")
+    .optional(),
 
   limit: z.coerce
     .number()
