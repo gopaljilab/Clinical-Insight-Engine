@@ -98,3 +98,70 @@ export async function sendVerificationCode(
     `,
   });
 }
+
+/**
+ * Sends a critical risk email alert to the designated doctor.
+ */
+export async function sendCriticalRiskAlert(
+  email: string,
+  patientName: string,
+  riskScore: number,
+  assessmentId: number,
+): Promise<void> {
+  const formattedScore = riskScore.toFixed(1);
+  const subject = `CRITICAL ALERT: Critical Diabetes Risk Score Detected for ${patientName}`;
+  const text = `Dear Clinician,\n\nA new clinical assessment has calculated a critical risk score of ${formattedScore}% for patient: ${patientName}.\n\nPlease review the patient's record (Assessment ID: ${assessmentId}) immediately.\n\nBest regards,\nClinical Insight Engine`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #FECACA; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="background-color: #EF4444; color: white; padding: 20px; text-align: center;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.5px;">CRITICAL RISK ALERT</h2>
+      </div>
+      <div style="padding: 24px; color: #1E293B;">
+        <p style="font-size: 16px; margin-top: 0;">Dear Clinician,</p>
+        <p>A new clinical assessment has flagged a patient with a critical risk score:</p>
+        
+        <div style="background: #FEF2F2; border: 1px solid #FEE2E2; border-radius: 10px; padding: 18px; margin: 20px 0; text-align: center;">
+          <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #DC2626; letter-spacing: 1px;">Calculated Risk Score</p>
+          <p style="margin: 0; font-size: 36px; font-weight: 900; color: #DC2626;">${formattedScore}%</p>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr style="border-bottom: 1px solid #E2E8F0;">
+            <td style="padding: 8px 0; font-weight: 700; color: #475569; width: 40%;">Patient Name:</td>
+            <td style="padding: 8px 0; color: #1E293B;">${patientName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #E2E8F0;">
+            <td style="padding: 8px 0; font-weight: 700; color: #475569;">Assessment ID:</td>
+            <td style="padding: 8px 0; color: #1E293B;">${assessmentId}</td>
+          </tr>
+        </table>
+
+        <p style="line-height: 1.5; color: #475569;">
+          Please log in to the dashboard to review the patient's full vital stats, history, and model recommendations immediately.
+        </p>
+      </div>
+      <div style="background: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 14px 24px; text-align: center; font-size: 11px; color: #64748B;">
+        This is an automated alert system from Clinical Insight Engine.
+      </div>
+    </div>
+  `;
+
+  if (process.env.NODE_ENV !== "production") {
+    const border = "!".repeat(50);
+    console.log(`\n${border}`);
+    console.log("  CRITICAL RISK ALERT MOCK LOG");
+    console.log(`  To: ${email}`);
+    console.log(`  Patient: ${patientName}`);
+    console.log(`  Risk Score: ${formattedScore}%`);
+    console.log(`  Assessment ID: ${assessmentId}`);
+    console.log(`${border}\n`);
+  }
+
+  await sendEmail({
+    to: email,
+    subject,
+    text,
+    html,
+  });
+}
+

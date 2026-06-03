@@ -22,6 +22,7 @@ import { searchQuerySchema } from "./validation/searchValidation";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
 import { issueToken } from "./services/auth/tokenValidator";
+import { sendCriticalRiskAlert } from "./email";
 
 export const execFileAsync = promisify(execFile);
 
@@ -543,6 +544,23 @@ export async function registerRoutes(
               : Number(prediction.modelConfidence),
           createdBy: userId,
         });
+
+        // Trigger automated email alert if risk score is critical (> 80%)
+        if (assessment.riskScore > 80) {
+          try {
+            const user = await storage.getUserById(userId);
+            if (user && user.email) {
+              await sendCriticalRiskAlert(
+                user.email,
+                assessment.patientName || "Unknown Patient",
+                assessment.riskScore,
+                assessment.id
+              );
+            }
+          } catch (emailErr) {
+            console.error("Failed to send critical risk email alert:", emailErr);
+          }
+        }
 
         return res.status(201).json({ ...assessment, prediction });
       } catch (err) {
