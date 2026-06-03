@@ -114,15 +114,18 @@ export default function Dashboard() {
 
   const parsedForPreview = useMemo(() => formSchema.safeParse(watchedValues), [watchedValues]);
 
-  // Load draft from localStorage on mount — clear immediately after loading
-  // so it only pre-fills the form once (not on every subsequent visit)
+  // Load draft from localStorage on mount — discard if older than 8 hours to limit
+  // how long PHI (patient name, vitals) persists on shared/public computers.
+  const DRAFT_TTL_MS = 8 * 60 * 60 * 1000;
   useEffect(() => {
     try {
       const raw = localStorage.getItem("clinical-insight-assessment-draft");
       if (!raw) return;
-      // Remove immediately so stale draft never pre-fills on next visit
       localStorage.removeItem("clinical-insight-assessment-draft");
-      const draft = JSON.parse(raw);
+      const saved = JSON.parse(raw);
+      if (!saved || typeof saved !== "object") return;
+      if (saved.expiresAt && Date.now() > saved.expiresAt) return;
+      const draft = saved.data ?? saved;
       if (draft && typeof draft === "object") {
         const allowedKeys = [
           "patientName", "gender", "age", "hypertension", "heartDisease",
@@ -186,17 +189,21 @@ export default function Dashboard() {
     };
   }, [parsedForPreview, result]);
 
-  // Autosave draft on form changes
+  // Autosave draft on form changes with an 8-hour expiry timestamp so PHI
+  // does not persist indefinitely on shared or public computers.
   const formData = watch();
   useEffect(() => {
     if (result) return;
     if (formData && (formData.patientName || formData.age || formData.bmi || formData.hba1cLevel || formData.bloodGlucoseLevel || formData.hypertension || formData.heartDisease)) {
       const timer = setTimeout(() => {
-        localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(formData));
+        localStorage.setItem(
+          "clinical-insight-assessment-draft",
+          JSON.stringify({ data: formData, expiresAt: Date.now() + DRAFT_TTL_MS }),
+        );
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [formData, result]);
+  }, [formData, result, DRAFT_TTL_MS]);
 
   return (
     <AppLayout>
