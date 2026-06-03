@@ -736,3 +736,8 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
     </div>
   );
 }
+
+// GSSoC Issue #693 Patch
+  // GSSoC Issue #693 Form Submit Wrap
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); if(isComplete) onVerify(); }} className="text-center">
