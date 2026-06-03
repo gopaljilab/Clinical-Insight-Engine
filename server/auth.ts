@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { randomInt, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { randomInt } from "crypto";
 import bcrypt from "bcrypt";
 import { rateLimit } from "express-rate-limit";
 import { eq, and, gte } from "drizzle-orm";
@@ -34,20 +34,11 @@ interface RegisteredUser {
 const registeredUsers = new Map<string, RegisteredUser>();
 
 function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString("hex");
-  const hash = scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${hash}`;
+  return bcrypt.hashSync(password, 10);
 }
 
 function verifyPassword(password: string, storedHash: string): boolean {
-  const [salt, key] = storedHash.split(":");
-  if (!salt || !key) {
-    return bcrypt.compareSync(password, storedHash);
-  }
-
-  const hashBuffer = Buffer.from(key, "hex");
-  const candidateBuffer = scryptSync(password, salt, 64);
-  return hashBuffer.length === candidateBuffer.length && timingSafeEqual(hashBuffer, candidateBuffer);
+  return bcrypt.compareSync(password, storedHash);
 }
 
 interface PendingOtp {
