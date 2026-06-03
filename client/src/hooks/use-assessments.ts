@@ -11,12 +11,15 @@ function parseWithLogging<T>(schema: any, data: unknown, label: string): T {
   return result.data;
 }
 
-export function useAssessments(page: number = 1, limit: number = 20) {
+export function useAssessments(limit: number = 50, offset: number = 0) {
   return useQuery({
-    queryKey: [api.assessments.list.path, page, limit],
+    queryKey: [api.assessments.list.path, limit, offset],
     queryFn: async () => {
-      const url = `${api.assessments.list.path}?page=${page}&limit=${limit}`;
-      const res = await fetch(url, { credentials: "include" });
+      const url = new URL(api.assessments.list.path, window.location.origin);
+      url.searchParams.set("limit", limit.toString());
+      url.searchParams.set("offset", offset.toString());
+      
+      const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch assessments");
       const data = await res.json();
       return parseWithLogging<AssessmentsListResponse>(api.assessments.list.responses[200], data, "assessments.list");
@@ -40,11 +43,34 @@ export function useCreateAssessment() {
       });
       
       if (!res.ok) {
-        if (res.status === 400) {
-          const errorData = await res.json();
-          throw new Error(errorData.message || "Validation failed");
+        const contentType = res.headers.get("content-type") || "";
+
+        let serverPayload: any = null;
+        try {
+          serverPayload = contentType.includes("application/json")
+            ? await res.json()
+            : { raw: await res.text() };
+        } catch {
+          try {
+            serverPayload = { raw: await res.text() };
+          } catch {
+            serverPayload = null;
+          }
         }
-        throw new Error("Failed to create assessment");
+
+        console.error("[useCreateAssessment] Request failed", {
+          url: api.assessments.create.path,
+          status: res.status,
+          payload: serverPayload,
+        });
+
+        const message =
+          serverPayload?.message ||
+          serverPayload?.error ||
+          (typeof serverPayload?.raw === "string" ? serverPayload.raw : undefined) ||
+          `Failed to create assessment (HTTP ${res.status})`;
+
+        throw new Error(message);
       }
       
       const responseData = await res.json();
