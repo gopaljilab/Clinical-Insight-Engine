@@ -112,8 +112,9 @@ export class DatabaseStorage implements IStorage {
 
 
 
-    const db2 = getDb();
-    const countResult = await db2.select({ count: sql<number>`count(*)` }).from(assessments);
+    const countResult = filters.length > 0
+      ? await db.select({ count: sql<number>`count(*)` }).from(assessments).where(and(...filters))
+      : await db.select({ count: sql<number>`count(*)` }).from(assessments);
     const total = Number(countResult[0].count);
     const page = Math.floor(offset / limit) + 1;
     const totalPages = Math.ceil(total / limit);
