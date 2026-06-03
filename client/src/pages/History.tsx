@@ -23,6 +23,7 @@ import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
 import { FileText, RotateCw } from "lucide-react";
 import { useLocation } from "wouter";
+import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
 import { type AssessmentResponse } from "@shared/routes";
 import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { advancedFilter } from "@/utils/search_filters";
@@ -500,7 +501,7 @@ export default function History() {
                         >
                           <HighlightText
                             text={assessment.patientName || "Unknown Patient"}
-                            search={searchTerm}
+                            searchRegex={searchRegex}
                           />
                         </button>
                       </td>

@@ -27,27 +27,6 @@ interface RegisteredUser {
 
 // removed duplicated functions
 
-const SALT_LENGTH = 32;
-const KEY_LENGTH = 64;
-
-function hashPassword(password: string): string {
-  const salt = randomBytes(SALT_LENGTH).toString("hex");
-  const hash = scryptSync(password, salt, KEY_LENGTH).toString("hex");
-  return `${salt}:${hash}`;
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, key] = stored.split(":");
-  if (!salt || !key) return false;
-  const hash = scryptSync(password, salt, KEY_LENGTH);
-  const keyBuffer = Buffer.from(key, "hex");
-  return hash.length === keyBuffer.length && timingSafeEqual(hash, keyBuffer);
-}
-
-function ipKeyGenerator(ip: string): string {
-  return ip.replace(/[^a-zA-Z0-9.:]/g, "_");
-}
-
 /**
  * In-memory store for registered users.
  * In production, this should be replaced with a persistent database.
@@ -123,13 +102,6 @@ if (otpCleanupTimer.unref) {
 /**
  * Rate limiters for verification endpoints.
  */
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 10,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: { error: "Too many authentication attempts. Please try again later." },
-});
 
 const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -373,13 +345,6 @@ export function createAuthRouter(): Router {
           const registeredUser = registeredUsers.get(email);
           if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
             userName = registeredUser.fullName;
-          }
-        } catch (_err) {
-          // DB not available — fall back to in-memory only
-          console.warn("DB unavailable for login, using in-memory only.");
-          const registeredUser = registeredUsers.get(email);
-          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-            userFullName = registeredUser.fullName;
           }
         }
       }

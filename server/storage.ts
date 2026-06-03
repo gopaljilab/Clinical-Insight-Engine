@@ -13,7 +13,7 @@ import {
 import type { RiskCategory } from "./validation/searchValidation";
 
 export interface IStorage {
-  getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<Assessment[]>;
+  getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<{ data: Assessment[]; total: number; page: number; totalPages: number }>;
   createAssessment(assessment: AssessmentCreateInput): Promise<Assessment>;
  /**
    * Searches assessments by risk category label using parameterized queries.
