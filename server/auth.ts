@@ -11,9 +11,11 @@ import { sendVerificationCode } from "./email";
 declare module "express-session" {
   interface SessionData {
     user?: {
+      id: string;
       email: string;
       name: string;
       role?: string | null;
+      emailVerified: boolean;
     };
   }
 }
@@ -174,7 +176,7 @@ function saveSession(req: Request): Promise<void> {
 
 async function establishAuthenticatedSession(
   req: Request,
-  user: { id: string; email: string; name: string; role: string },
+  user: { id: string; email: string; name: string; role?: string | null; emailVerified: boolean },
 ): Promise<void> {
   await regenerateSession(req);
   req.session.user = user;
@@ -399,10 +401,13 @@ export function createAuthRouter(): Router {
     let name: string;
     let role: string;
 
+    let emailVerified = false;
+
     if (email === devEmail) {
       name = "Dr. Smith";
       id = "dev";
       role = "provider";
+      emailVerified = true;
     } else {
       const db = getDb();
       const [user] = await db
@@ -416,10 +421,11 @@ export function createAuthRouter(): Router {
       id = user.id;
       name = user.fullName;
       role = user.role ?? "provider";
+      emailVerified = user.emailVerified ?? false;
     }
 
     try {
-      await establishAuthenticatedSession(req, { id, email, name, role });
+      await establishAuthenticatedSession(req, { id, email, name, role, emailVerified });
     } catch (error) {
       console.error("Session regeneration failed:", error);
       return res.status(500).json({ message: "Failed to establish session." });
@@ -468,7 +474,7 @@ export function createAuthRouter(): Router {
 
       // If already verified, return success
       if (user.emailVerified) {
-        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
+        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider", emailVerified: true });
         return res.json({ success: true, message: "Email already verified." });
       }
 
@@ -531,7 +537,7 @@ export function createAuthRouter(): Router {
         .set({ emailVerified: true, emailVerifiedAt: new Date() })
         .where(eq(users.id, user.id));
 
-      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
+      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider", emailVerified: true });
 
       return res.json({ success: true, message: "Email verified successfully." });
     } catch (err) {
@@ -582,12 +588,11 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 /**
  * Express middleware that blocks requests from users whose email
- * has not been verified. In this implementation, a valid session
- * implies a verified email.
+ * has not been verified.
  */
 export function requireVerified(req: Request, res: Response, next: NextFunction) {
-  if (req.session?.user) {
+  if (req.session?.user?.emailVerified) {
     return next();
   }
-  return res.status(401).json({ message: "Verification required." });
+  return res.status(403).json({ message: "Email verification required." });
 }
