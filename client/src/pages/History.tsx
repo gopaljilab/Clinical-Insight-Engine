@@ -28,16 +28,13 @@ import { advancedFilter } from "@/utils/search_filters";
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
 
-  const regex = new RegExp(
-    `(${search.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")})`,
-    "gi"
-  );
-  const parts = text.split(regex);
+  const escaped = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
 
   return (
     <>
       {parts.map((part, i) =>
-        regex.test(part) ? (
+        i % 2 === 1 ? (
           <mark
             key={i}
             className="bg-yellow-100 text-[#1E293B] rounded px-0.5 font-bold"
