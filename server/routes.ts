@@ -390,6 +390,14 @@ export async function registerRoutes(
     seedDatabase().catch((err) => logger.error({ err }, "Database seeding failed"));
   }
 
+  app.get("/health", (req, res) => {
+    res.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+    });
+  });
+
   // Mount domain-specific routers
   app.use("/api/auth", authRouter);
   app.use("/api/assessments", assessmentsRouter);

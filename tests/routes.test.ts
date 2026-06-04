@@ -15,8 +15,8 @@ vi.mock("child_process", () => ({
   execFile: mockExecFile,
 }));
 
-vi.mock("express-rate-limit", () => ({
-  rateLimit: (options: any) => {
+vi.mock("express-rate-limit", () => {
+  const rateLimit = (options: any) => {
     return (req: any, res: any, next: any) => {
       const key = req.ip || "test";
       const count = (rateLimitCounters.get(key) || 0) + 1;
@@ -28,8 +28,9 @@ vi.mock("express-rate-limit", () => ({
       }
       next();
     };
-  },
-}));
+  };
+  return { rateLimit, default: rateLimit };
+});
 
 vi.mock("../server/storage", () => ({
   storage: {
@@ -88,6 +89,7 @@ function createAuthenticatedApp() {
       id: "test-user-id",
       email: "test@example.com",
       name: "Test User",
+      emailVerified: true,
     };
     next();
   });
@@ -155,6 +157,21 @@ describe("Auth gating", () => {
 
     expect(res.status).toBe(401);
     expect(res.body).toHaveProperty("message");
+  });
+});
+
+describe("Health Check Endpoint", () => {
+  it("returns 200 OK and valid JSON with status, timestamp, and uptime", async () => {
+    const app = createUnauthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app).get("/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("status", "ok");
+    expect(res.body).toHaveProperty("timestamp");
+    expect(res.body).toHaveProperty("uptime");
+    expect(typeof res.body.uptime).toBe("number");
   });
 });
 
