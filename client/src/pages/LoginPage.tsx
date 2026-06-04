@@ -222,7 +222,7 @@ export default function LoginPage() {
                 <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
                 <span className="text-sm text-gray-600">Remember me</span>
               </label>
-              <a href="#" className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors">Forgot password?</a>
+              <a href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors">Forgot password?</a>
             </div>
             <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg">
               {isLoading ? "Signing in..." : "Sign In"}

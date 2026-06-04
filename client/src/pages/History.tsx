@@ -62,10 +62,13 @@ export default function History() {
     document.title = "Clinical Insight Engine - Assessment History";
   }, []);
 
-  const [serverPage, setServerPage] = useState<number>(1);
+  const [cursorStack, setCursorStack] = useState<Array<number | undefined>>([undefined]);
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const cursor = cursorStack[currentIndex];
   const PAGE_SIZE = 20;
-  const { data: assessmentsResponse, isLoading, error } = useAssessments(serverPage, PAGE_SIZE);
+  const { data: assessmentsResponse, isLoading, error } = useAssessments(PAGE_SIZE, cursor);
   const assessments = assessmentsResponse?.data ?? [];
+f  const serverTotal = assessmentsResponse?.total ?? 0;
   const serverTotalPages = assessmentsResponse?.totalPages ?? 1;
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
@@ -91,10 +94,6 @@ export default function History() {
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const itemsPerPage = 10;
-
   const [selectedPatientName, setSelectedPatientName] = useState<string | null>(null);
 
   const selectedPatientHistory = useMemo(() => {
@@ -105,9 +104,10 @@ export default function History() {
     });
   }, [assessments, selectedPatientName]);
 
-  // Reset pagination window when search/filter changes
+  // Reset pagination when search/filter changes
   useEffect(() => {
-    setCurrentPage(1);
+    setCursorStack([undefined]);
+    setCurrentIndex(0);
   }, [searchTerm, sortBy, startDate, endDate]);
 
   useEffect(() => {
@@ -185,45 +185,6 @@ export default function History() {
     }
   }
 
-  function handleExportPDF(assessment: any) {
-    if (!assessment) return;
-
-    const patientName = assessment.patientName || "Unknown Patient";
-    const date = assessment.createdAt ? new Date(assessment.createdAt).toLocaleString() : "Unknown Date";
-    const age = assessment.age ?? "N/A";
-    const bmi = assessment.bmi ?? "N/A";
-    const hba1cLevel = assessment.hba1cLevel ?? "N/A";
-    const bloodGlucoseLevel = assessment.bloodGlucoseLevel ?? "N/A";
-    const hypertension = assessment.hypertension === true ? "Yes" : assessment.hypertension === false ? "No" : "N/A";
-    const heartDisease = assessment.heartDisease === true ? "Yes" : assessment.heartDisease === false ? "No" : "N/A";
-    const smokingHistory = assessment.smokingHistory || "N/A";
-    
-    const riskScore = assessment.riskScore
-      ? `${Number(assessment.riskScore).toFixed(1)}%`
-      : "N/A";
-      
-    const category = assessment.riskCategory || "Unknown";
-
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${assessment.id || 'Export'}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Patient:</strong> ${patientName}</p><p class="kv"><strong>Date:</strong> ${date}</p><p class="kv"><strong>Risk Score:</strong> ${riskScore}</p><p class="kv"><strong>Category:</strong> <span class="pill">${category}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals & Inputs</h2><table><tbody><tr><td>Age</td><td>${age}</td></tr><tr><td>BMI</td><td>${bmi}</td></tr><tr><td>HbA1c</td><td>${hba1cLevel}${hba1cLevel !== "N/A" ? "%" : ""}</td></tr><tr><td>Blood Glucose</td><td>${bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${hypertension}</td></tr><tr><td>Heart Disease</td><td>${heartDisease}</td></tr><tr><td>Smoking</td><td>${smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(
-      assessment.factors || []
-    )
-      .slice(0, 5)
-      .map((f: any) => `<li>${f.name || 'Unknown'} — ${f.description || ''} (${f.impact || 'N/A'})</li>`)
-      .join("")}</ul></body></html>`;
-
-    const w = window.open("", "_blank");
-    if (!w) {
-      alert("Please allow popups to enable PDF export.");
-      return;
-    }
-
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => {
-      w.print();
-    }, 250);
-  }
 
   // 1. Text Search Filtering
   const textFiltered = assessments
@@ -279,17 +240,8 @@ export default function History() {
   });
 
   // 4. Pagination
-  // When no client-side filters are active, use server-side total pages
-  // so users can navigate beyond the current page's 20 records.
-  // When filters are active, paginate the filtered results locally.
-  const hasClientFilters = Boolean(searchTerm || startDate || endDate);
   const totalRecords = sortedAssessments.length;
-  const totalPages = hasClientFilters
-    ? Math.ceil(totalRecords / itemsPerPage) || 1
-    : serverTotalPages;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalRecords);
-  const paginatedAssessments = sortedAssessments.slice(startIndex, endIndex);
+  const paginatedAssessments = sortedAssessments;
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
@@ -611,7 +563,7 @@ export default function History() {
                             Reload
                           </button>
                           <button
-                            onClick={() => handleExportPDF(assessment)}
+                            onClick={() => downloadClinicalAssessmentPdf(assessment)}
                             className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900"
                           >
                             <FileText className="w-4 h-4" />
@@ -630,28 +582,24 @@ export default function History() {
               <div className="text-sm text-muted-foreground font-medium">
                 Showing{" "}
                 <span className="font-semibold text-foreground">
-                  {totalRecords === 0 ? 0 : startIndex + 1}
+                  {totalRecords === 0 ? 0 : 1}
                 </span>{" "}
                 to{" "}
                 <span className="font-semibold text-foreground">
-                  {endIndex}
-                </span>{" "}
-                of{" "}
-                <span className="font-semibold text-foreground">
                   {totalRecords}
                 </span>{" "}
-                records
+                records on this page
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
-                    const newPage = Math.max(currentPage - 1, 1);
-                    setCurrentPage(newPage);
-                    if (!hasClientFilters) setServerPage(Math.max(serverPage - 1, 1));
+                    if (currentIndex > 0) {
+                      setCurrentIndex(currentIndex - 1);
+                    }
                   }}
-                  disabled={currentPage === 1}
+                  disabled={currentIndex === 0}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Previous page"
                 >
@@ -659,19 +607,21 @@ export default function History() {
                 </button>
 
                 <div className="flex items-center gap-1 text-sm font-semibold px-2">
-                  <span className="text-foreground">Page {currentPage}</span>
-                  <span className="text-muted-foreground">/</span>
-                  <span className="text-muted-foreground">{totalPages}</span>
+                  <span className="text-foreground">Page {currentIndex + 1}</span>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => {
-                    const newPage = Math.min(currentPage + 1, totalPages);
-                    setCurrentPage(newPage);
-                    if (!hasClientFilters) setServerPage(Math.min(serverPage + 1, serverTotalPages));
+                    if (assessmentsResponse?.nextCursor) {
+                      const next = assessmentsResponse.nextCursor;
+                      if (currentIndex + 1 >= cursorStack.length) {
+                        setCursorStack([...cursorStack, next]);
+                      }
+                      setCurrentIndex(currentIndex + 1);
+                    }
                   }}
-                  disabled={currentPage === totalPages}
+                  disabled={!assessmentsResponse?.nextCursor}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Next page"
                 >
@@ -724,3 +674,20 @@ export default function History() {
     </AppLayout>
   );
 }
+
+
+
+import { format, isValid } from "date-fns";
+
+  const filteredAssessments = assessments?.filter(a => {
+      const term = searchTerm.toLowerCase();
+      return (
+        a.gender.toLowerCase().includes(term) ||
+        a.riskCategory.toLowerCase().includes(term) ||
+        a.smokingHistory.toLowerCase().includes(term) ||
+        String(a.age).includes(term) ||
+        String(a.bmi).includes(term) ||
+        String(a.hba1cLevel).includes(term) ||
+        String(a.bloodGlucoseLevel).includes(term)
+      );
+    }) || [];
