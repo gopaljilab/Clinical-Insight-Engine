@@ -414,13 +414,13 @@ export async function registerRoutes(
     requireVerified,
     previewLimiter,
     async (req, res) => {
-      const input = api.assessments.preview.input.parse(req.body);
-      const tempFile = path.join(
-        os.tmpdir(),
-        `${randomUUID()}.json`
-      );
-
+      let tempFile: string | undefined;
       try {
+        const input = api.assessments.preview.input.parse(req.body);
+        tempFile = path.join(
+          os.tmpdir(),
+          `${randomUUID()}.json`
+        );
         await writeFile(tempFile, JSON.stringify(input));
 
         let prediction;
@@ -464,10 +464,12 @@ export async function registerRoutes(
         logger.error({ err }, "Error creating assessment preview");
         return res.status(500).json({ message: "Internal server error" });
       } finally {
-        try {
-          await unlink(tempFilePath);
-        } catch (e) {
-          logger.warn("Failed to clean up temp file (preview):", tempFilePath, e);
+        if (tempFile) {
+          try {
+            await unlink(tempFile);
+          } catch (e) {
+            logger.warn("Failed to clean up temp file (preview):", tempFile, e);
+          }
         }
       }
     }

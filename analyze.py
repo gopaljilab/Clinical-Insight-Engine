@@ -355,20 +355,25 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     input_df = pd.DataFrame(0, index=[0], columns=features)
     # ... (rest of the logic remains same but ensuring non-diagnostic language)
     
-    input_df['age'] = input_data.get('age', 40)
-    input_df['hypertension'] = int(input_data.get('hypertension', False))
-    input_df['heart_disease'] = int(input_data.get('heartDisease', False))
-    input_df['bmi'] = input_data.get('bmi', 25)
-    input_df['HbA1c_level'] = input_data.get('hba1cLevel', 5.5)
-    input_df['blood_glucose_level'] = input_data.get('bloodGlucoseLevel', 100)
-    gender_value = input_data.get('gender')
+    def _safe_get(data, key, default_val):
+        val = data.get(key)
+        return val if val is not None else default_val
+
+    input_df['age'] = _safe_get(input_data, 'age', 40)
+    input_df['hypertension'] = int(_safe_get(input_data, 'hypertension', False))
+    input_df['heart_disease'] = int(_safe_get(input_data, 'heartDisease', False))
+    input_df['bmi'] = _safe_get(input_data, 'bmi', 25)
+    input_df['HbA1c_level'] = _safe_get(input_data, 'hba1cLevel', 5.5)
+    input_df['blood_glucose_level'] = _safe_get(input_data, 'bloodGlucoseLevel', 100)
+    gender_value = _safe_get(input_data, 'gender', 'Female')
     # The model was trained exclusively on Male/Female data — 'Other' gender
     # patients are silently encoded as 0 (Female) since gender_Male is a binary
     # feature. Emit a warning so this limitation is visible in the response.
     gender_outside_training_distribution = gender_value not in ('Male', 'Female')
     input_df['gender_Male'] = 1 if gender_value == 'Male' else 0
     
-    smoke_col = f"smoke_{input_data.get('smokingHistory', 'never')}"
+    smoking_history = _safe_get(input_data, 'smokingHistory', 'never')
+    smoke_col = f"smoke_{smoking_history}"
     if smoke_col in features:
         input_df[smoke_col] = 1
         
