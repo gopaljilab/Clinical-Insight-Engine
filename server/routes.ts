@@ -24,6 +24,7 @@ import {
   analyzeSearchInput,
   logSecurityEvent,
 } from "./security/sqlProtection";
+import { assessmentsToCsv } from "./utils/csvExport";
 import { searchQuerySchema } from "./validation/searchValidation";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
