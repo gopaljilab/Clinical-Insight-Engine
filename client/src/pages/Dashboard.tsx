@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AssessmentResult } from "@/components/AssessmentResult";
+import { BMIClassificationHelper } from "@/components/BMIClassificationHelper";
 import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
 import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UserCircle, Info, X } from "lucide-react";
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
@@ -61,10 +62,11 @@ export default function Dashboard() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const { mutate: createAssessment, isPending, error } = useCreateAssessment();
 
-  const { data: assessments } = useAssessments();
+  const { data: infiniteData } = useAssessments();
+  const assessments = infiniteData ? infiniteData.pages.flatMap((page) => page.data) : [];
 
   const stats = useMemo(() => {
-    const list = assessments?.data ?? ([] as AssessmentResponse[]);
+    const list = assessments ?? [];
     const total = list.length;
     const avgRisk = total > 0 ? list.reduce((sum, item) => sum + Number(item.riskScore), 0) / total : 0;
     const highRisk = total > 0 ? (list.filter(item => (item.riskCategory || "").toUpperCase() === "HIGH").length / total) * 100 : 0;
@@ -89,6 +91,7 @@ export default function Dashboard() {
       patientName: "",
       hypertension: false,
       heartDisease: false,
+      patientName: "",
       smokingHistory: "never",
       gender: "Female",
       age: undefined,
@@ -189,14 +192,10 @@ export default function Dashboard() {
   // Autosave draft on form changes
   const formData = watch();
   useEffect(() => {
-    if (result) return;
     if (formData && (formData.patientName || formData.age || formData.bmi || formData.hba1cLevel || formData.bloodGlucoseLevel || formData.hypertension || formData.heartDisease)) {
-      const timer = setTimeout(() => {
-        localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(formData));
-      }, 500);
-      return () => clearTimeout(timer);
+      localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(formData));
     }
-  }, [formData, result]);
+  }, [formData]);
 
   return (
     <AppLayout>
@@ -214,14 +213,13 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:min-w-[460px]">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:min-w-115">
             {stats.map((stat) => {
               const Icon = stat.icon;
               return (
                 <div
                   key={stat.label}
-                  className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/[0.03] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500/10"
-                >
+                  className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500">
                   <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                     <Icon className="h-5 w-5" />
                   </div>
@@ -234,7 +232,7 @@ export default function Dashboard() {
         </div>
 
         {result && (
-          <div className="mb-12 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/[0.03]">
+          <div className="mb-12 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
               <h2 className="text-xl font-black text-[#1E293B]">Assessment Complete</h2>
               <button onClick={() => setResult(null)} className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">
@@ -289,7 +287,7 @@ export default function Dashboard() {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p className="text-xs max-w-[200px]">Model is optimized for adults aged 18-80. Risk typically increases with age.</p>
+                              <p className="text-xs max-w-50">Model is optimized for adults aged 18-80. Risk typically increases with age.</p>
                             </TooltipContent>
                           </Tooltip>
                         </div>
@@ -348,7 +346,7 @@ export default function Dashboard() {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <div className="text-xs max-w-[200px] space-y-1">
+                              <div className="text-xs max-w-50 space-y-1">
                                 <p className="font-bold">Body Mass Index:</p>
                                 <p>• Normal: 18.5 - 24.9</p>
                                 <p>• Overweight: 25.0 - 29.9</p>
@@ -360,12 +358,13 @@ export default function Dashboard() {
                         <div className="relative">
                           <input type="number" step="0.1" {...register("bmi")} className={getInputClass(!!errors.bmi)} placeholder="e.g. 25.0" />
                           {watchedValues.bmi && (
-                            <button type="button" onClick={() => setValue("bmi", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("bmi", undefined, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
                               <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
                         {errors.bmi && <p className="text-sm text-red-600 mt-1">{errors.bmi.message}</p>}
+                        <BMIClassificationHelper bmi={watchedValues.bmi} />
                       </div>
 
                       <div className="space-y-2">
@@ -378,7 +377,7 @@ export default function Dashboard() {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <div className="text-xs max-w-[200px] space-y-1">
+                              <div className="text-xs max-w-50 space-y-1">
                                 <p className="font-bold">Glycated Hemoglobin:</p>
                                 <p>• Normal: &lt; 5.7%</p>
                                 <p>• Prediabetes: 5.7% - 6.4%</p>
@@ -390,7 +389,7 @@ export default function Dashboard() {
                         <div className="relative">
                           <input type="number" step="0.1" {...register("hba1cLevel")} className={getInputClass(!!errors.hba1cLevel)} placeholder="e.g. 5.7" />
                           {watchedValues.hba1cLevel && (
-                            <button type="button" onClick={() => setValue("hba1cLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("hba1cLevel", undefined, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
                               <X className="w-4 h-4" />
                             </button>
                           )}
@@ -408,7 +407,7 @@ export default function Dashboard() {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <div className="text-xs max-w-[200px] space-y-1">
+                              <div className="text-xs max-w-50 space-y-1">
                                 <p className="font-bold">Fasting Blood Sugar:</p>
                                 <p>• Normal: &lt; 100 mg/dL</p>
                                 <p>• Prediabetes: 100 - 125 mg/dL</p>
@@ -420,7 +419,7 @@ export default function Dashboard() {
                         <div className="relative">
                           <input type="number" {...register("bloodGlucoseLevel")} className={getInputClass(!!errors.bloodGlucoseLevel)} placeholder="e.g. 100" />
                           {watchedValues.bloodGlucoseLevel && (
-                            <button type="button" onClick={() => setValue("bloodGlucoseLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("bloodGlucoseLevel", undefined, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
                               <X className="w-4 h-4" />
                             </button>
                           )}
@@ -510,33 +509,17 @@ export default function Dashboard() {
                     Complete required fields to see live risk prediction.
                   </p>
                 )}
+
                 {previewPending && (
-                  <div className="animate-pulse space-y-5" aria-hidden="true">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 flex flex-col items-center">
-                      <div className="h-3 w-16 bg-slate-200 dark:bg-slate-700 rounded mb-3" />
-                      <div className="h-10 w-24 bg-slate-300 dark:bg-slate-600 rounded mb-3" />
-                      <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded-full" />
-                    </div>
-                    <div className="space-y-3">
-                      <div className="h-3 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
-                      <div className="space-y-2">
-                        {[1, 2].map((i) => (
-                          <div key={i} className="rounded-xl border border-slate-200 p-3 bg-white/50">
-                            <div className="flex justify-between items-center mb-2">
-                              <div className="h-4 w-28 bg-slate-300 dark:bg-slate-600 rounded" />
-                              <div className="h-3 w-12 bg-slate-200 dark:bg-slate-700 rounded" />
-                            </div>
-                            <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded" />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Updating risk preview...
                   </div>
                 )}
 
                 {previewError && <p className="text-sm text-red-600">{previewError}</p>}
 
-                {preview && !previewPending && (
+                {preview && (
                   <>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center">
                       <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Risk Score</p>
