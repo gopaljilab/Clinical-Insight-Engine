@@ -1,6 +1,7 @@
 import mlRouter from "./routes/ml.routes";
 import exportsRouter from "./routes/exports.routes";
 import analyticsRouter from "./routes/analytics.routes";
+import uploadRouter from "./routes/upload.routes";
 import type { Express } from "express";
 import type { Server } from "http";
 import authRouter from "./routes/auth.routes";
@@ -1541,5 +1542,6 @@ export async function registerRoutes(
     }
   });
 
+  app.use("/api/upload", uploadRouter);
   return httpServer;
 }

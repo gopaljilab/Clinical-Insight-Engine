@@ -21,8 +21,9 @@ import {
 import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
-import { FileText, RotateCw } from "lucide-react";
+import { FileText, RotateCw, Upload } from "lucide-react";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 import { advancedFilter } from "@/utils/search_filters";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
@@ -56,6 +57,9 @@ export default function History() {
   useEffect(() => {
     document.title = "Clinical Insight Engine - Assessment History";
   }, []);
+
+  const { toast } = useToast();
+
 
   const { data: infiniteData, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useAssessments();
   const assessments = infiniteData ? infiniteData.pages.flatMap((page) => page.data) : [];
@@ -95,6 +99,27 @@ export default function History() {
     const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
     window.history.replaceState({}, '', newUrl);
   }, [searchTerm]);
+
+  const handleUploadLabResults = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload/lab-results", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to upload");
+      toast({ title: "Success", description: data.message });
+    } catch (err: any) {
+      toast({ title: "Upload Error", description: err.message, variant: "destructive" });
+    }
+    e.target.value = ''; // Reset input
+  };
 
   const getRiskBadge = (category: string) => {
     const key = (category || "").toUpperCase();
@@ -329,6 +354,13 @@ export default function History() {
           </div>
 
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
+            {/* Upload Lab Results Button */}
+            <label className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors shadow-sm">
+              <Upload className="w-4 h-4" />
+              Upload Lab Results
+              <input type="file" className="sr-only" onChange={handleUploadLabResults} />
+            </label>
+
             {/* Text Search Field */}
             <div className="relative">
               <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
