@@ -1,4 +1,5 @@
 import { logger } from "../logger";
+import { assessmentQueue } from "../queue";
 import { Router } from "express";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
@@ -81,61 +82,50 @@ assessmentsRouter.post(
       return res.status(401).json({ message: "Authentication required." });
     }
 
-    let requestFingerprint: string | null = null;
-
     try {
       const input = api.assessments.create.input.parse(req.body);
-      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
-
-      if (MLService.activeInferenceRequests.has(requestFingerprint)) {
-        return res.status(409).json({
-          message: "An identical assessment request is already being processed.",
-        });
-      }
-      MLService.activeInferenceRequests.add(requestFingerprint);
-
-      const { prediction, isFallback } = await MLService.runAssessmentInference(input);
-
-      prediction.disclaimer =
-        "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions." +
-        (isFallback
-          ? " (Generated via fallback rule-based clinical support model due to system unavailability)"
-          : "");
-
-      const assessment = await storage.createAssessment({
-        ...input,
-        riskScore: Number(prediction.riskScore),
-        riskCategory: prediction.riskCategory,
-        factors: prediction.factors,
-        confidenceInterval: prediction.confidenceInterval ?? undefined,
-        modelConfidence:
-          prediction.modelConfidence == null
-            ? undefined
-            : Number(prediction.modelConfidence),
-        createdBy: userId,
+      
+      const job = await assessmentQueue.add("predict", {
+        input,
+        userId
       });
 
-      return res.status(201).json({ ...assessment, prediction });
+      return res.status(202).json({
+        message: "Assessment request accepted and is being processed.",
+        jobId: job.id
+      });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res
           .status(400)
-          .json({ message: err.errors[0]?.message ?? "Invalid input" });
+          .json({ message: err.errors[0]?.message ?? "Invalid input data" });
       }
-      if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
-        return res.status(408).json({ message: "Clinical assessment generation timed out." });
-      }
-      logger.error("Error creating assessment:", err);
+      logger.error({ err }, "Assessment creation error:");
       return res
         .status(500)
-        .json({ message: err.message || "Failed to generate clinical assessment." });
-    } finally {
-      if (requestFingerprint) {
-        MLService.activeInferenceRequests.delete(requestFingerprint);
-      }
+        .json({ message: "Failed to queue clinical assessment." });
     }
   }
 );
+
+assessmentsRouter.get("/jobs/:id", requireAuth, requireVerified, async (req, res) => {
+  try {
+    const job = await assessmentQueue.getJob(req.params.id as string);
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+    const state = await job.getState();
+    if (state === "completed") {
+      return res.json({ status: "completed", result: job.returnvalue });
+    } else if (state === "failed") {
+      return res.status(500).json({ status: "failed", error: job.failedReason });
+    } else {
+      return res.json({ status: state });
+    }
+  } catch (err) {
+    return res.status(500).json({ message: "Error fetching job status" });
+  }
+});
 
 assessmentsRouter.get(
   "/",
@@ -228,7 +218,7 @@ assessmentsRouter.get(
 
       return res.json(results);
     } catch (err) {
-      logger.error("Assessment search error:", err);
+      logger.error({ err }, "Assessment search error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
     }
@@ -272,7 +262,7 @@ assessmentsRouter.get(
       logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
       return res.json(assessment);
     } catch (err) {
-      logger.error("Assessment fetch error:", err);
+      logger.error({ err }, "Assessment fetch error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
     }

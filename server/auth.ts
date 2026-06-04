@@ -640,7 +640,7 @@ export function createAuthRouter(): Router {
 
       return res.json({ success: true, message: "If an account exists, a reset link has been sent." });
     } catch (err) {
-      logger.error("Forgot password error:", err);
+      logger.error({ err }, "Forgot password error:");
       return res.status(500).json({ message: "Failed to process request." });
     }
   });
@@ -686,7 +686,7 @@ export function createAuthRouter(): Router {
 
       return res.json({ success: true, message: "Password has been reset successfully." });
     } catch (err) {
-      logger.error("Reset password error:", err);
+      logger.error({ err }, "Reset password error:");
       return res.status(500).json({ message: "Failed to reset password." });
     }
   });
