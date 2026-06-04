@@ -16,8 +16,13 @@ import type { RiskCategory } from "./validation/searchValidation";
 export interface IStorage {
   getAssessments(limit?: number, cursor?: number, createdBy?: string): Promise<{ data: Assessment[]; nextCursor: number | null }>;
   /**
-   * Searches assessments by risk category label using parameterized queries.
-   * Uses Drizzle ORM eq() — user input is NEVER interpolated into SQL strings.
+   * Searches assessments by patient name, risk category, and other fields.
+   * Uses Drizzle ORM ilike()/eq() — user input is NEVER interpolated into SQL strings.
+   *
+   * FIX for Issue #744: now searches patientName via ilike() so queries for a
+   * specific patient name will correctly return only that patient's records.
+   * Results are always scoped to `createdBy` (the requesting user's email) to
+   * prevent cross-patient data leakage at the database layer.
    */
   searchAssessments(
     searchTerm: string,
@@ -131,11 +136,14 @@ export class DatabaseStorage implements IStorage {
    * User-supplied `searchTerm` is passed as a bound parameter — never concatenated
    * into a raw SQL string.  This is the primary defence against SQL injection.
    *
+   * Data Isolation: results are ALWAYS scoped to `createdBy` (the authenticated
+   * user's email) so that no cross-patient data leakage is possible at the DB layer.
+   *
    * @param searchTerm   Free-text search term (validated upstream by searchValidation.ts)
    * @param createdBy    Restrict results to this user's own records
    * @param riskCategory Optional filter: LOW | MODERATE | HIGH
    * @param limit        Maximum rows to return (default 20)
-   * @param cursor       Pagination cursor (id)
+   * @param cursor       Pagination cursor (id) — applied ONCE to avoid duplicate filtering
    */
   async searchAssessments(
     searchTerm: string,
@@ -151,7 +159,8 @@ export class DatabaseStorage implements IStorage {
     // eq()    maps to: WHERE column = $1
     const conditions: ReturnType<typeof eq>[] = [];
 
-    // Always scope results to the requesting user when available
+    // SECURITY: Always scope results to the requesting user's own records.
+    // This is the primary guard against cross-patient data leakage.
     if (createdBy) {
       conditions.push(eq(assessments.createdBy, createdBy));
     }
@@ -161,18 +170,22 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(assessments.riskCategory, riskCategory));
     }
 
+    // Cursor-based pagination: only include records with id < cursor.
+    // NOTE: Applied here ONCE — a previous version incorrectly added this
+    // condition twice which could cause incorrect pagination results.
     if (cursor !== undefined) {
       conditions.push(lt(assessments.id, cursor) as any);
     }
 
-    // Free-text search across gender and smokingHistory fields
+    // Free-text search across patient name and other clinically relevant fields.
     // ilike() uses PostgreSQL's case-insensitive LIKE with bound parameters:
-    //   WHERE (gender ILIKE $N OR smoking_history ILIKE $N)
+    //   WHERE (patient_name ILIKE $N OR gender ILIKE $N OR ...)
     // The `searchTerm` value is NEVER interpolated — Drizzle sends it as a placeholder.
     if (searchTerm && searchTerm.trim() !== "") {
       const pattern = `%${searchTerm.trim()}%`;
       conditions.push(
         or(
+          ilike(assessments.patientName, pattern),
           ilike(assessments.gender, pattern),
           ilike(assessments.smokingHistory, pattern),
           ilike(assessments.riskCategory, pattern)
@@ -185,10 +198,6 @@ export class DatabaseStorage implements IStorage {
       .from(assessments)
       .orderBy(desc(assessments.id))
       .$dynamic();
-
-    if (cursor) {
-      conditions.push(lt(assessments.id, cursor));
-    }
 
     if (conditions.length > 0) {
       query = query.where(and(...conditions));

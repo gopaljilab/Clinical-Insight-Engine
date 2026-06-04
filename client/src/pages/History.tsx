@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useAssessments } from "@/hooks/use-assessments";
+import { useAssessments, usePatientAssessments, useClearPatientCache } from "@/hooks/use-assessments";
 import {
   format,
   isValid,
@@ -71,19 +71,46 @@ export default function History() {
   const endInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedPatientName, setSelectedPatientName] = useState<string | null>(null);
+  const clearPatientCache = useClearPatientCache();
+
+  // FIX for Issue #744: use a patient-scoped query so switching patients
+  // never leaks the previous patient's cached clinical data into the new view.
+  const {
+    data: patientInfiniteData,
+    isLoading: patientLoading,
+  } = usePatientAssessments(selectedPatientName);
+
+  // When a new patient is selected, clear the previous patient's cache entry
+  // and reset search state so no stale data is shown during the transition.
+  const handleSelectPatient = (name: string | null) => {
+    if (selectedPatientName && selectedPatientName !== name) {
+      // Remove the old patient's cache entry so the next lookup always
+      // fetches fresh data from the server instead of serving stale records.
+      clearPatientCache(selectedPatientName);
+    }
+    setSelectedPatientName(name);
+    // Reset search/filter state to avoid cross-patient filter bleed-through.
+    setSearchTerm("");
+    setStartDate("");
+    setEndDate("");
+  };
 
   const selectedPatientHistory = useMemo(() => {
-    if (!selectedPatientName || !assessments) return [];
+    if (!selectedPatientName) return [];
+    // Use the patient-scoped query data (isolated cache) instead of filtering
+    // from the shared assessments list, which could contain stale data.
+    if (patientInfiniteData) {
+      return patientInfiniteData.pages.flatMap((page) => page.data);
+    }
+    // Fallback: filter from the full list (only used if patient query hasn't loaded yet)
     return assessments.filter(a => {
        const pName = a.patientName || "Unknown Patient";
        return pName === selectedPatientName;
     });
-  }, [assessments, selectedPatientName]);
+  }, [assessments, selectedPatientName, patientInfiniteData]);
 
-  // Reset pagination when search/filter changes
-  useEffect(() => {
-    // Handled by react-query
-  }, [searchTerm, sortBy, startDate, endDate]);
+  // Suppress unused warning — patientLoading is intentionally tracked for future use
+  void patientLoading;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
