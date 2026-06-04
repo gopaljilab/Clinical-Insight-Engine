@@ -14,6 +14,7 @@ import {
 import { searchQuerySchema } from "../validation/searchValidation";
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
+import { validateDTO } from "../middleware/validateDTO";
 
 const assessmentsRouter = Router();
 
@@ -44,9 +45,10 @@ assessmentsRouter.post(
   requireAuth,
   requireVerified,
   previewLimiter,
+  validateDTO(api.assessments.preview.input),
   async (req, res) => {
     try {
-      const input = api.assessments.preview.input.parse(req.body);
+      const input = req.body;
       const { prediction } = await MLService.runAssessmentInference(input);
 
       return res.json({
@@ -75,6 +77,7 @@ assessmentsRouter.post(
   requireAuth,
   requireVerified,
   assessmentLimiter,
+  validateDTO(api.assessments.create.input),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
     if (!userId) {
@@ -84,7 +87,7 @@ assessmentsRouter.post(
     let requestFingerprint: string | null = null;
 
     try {
-      const input = api.assessments.create.input.parse(req.body);
+      const input = req.body;
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
 
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
@@ -228,7 +231,7 @@ assessmentsRouter.get(
 
       return res.json(results);
     } catch (err) {
-      logger.error("Assessment search error:", err);
+      logger.error({ err }, "Assessment search error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
     }
@@ -272,7 +275,7 @@ assessmentsRouter.get(
       logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
       return res.json(assessment);
     } catch (err) {
-      logger.error("Assessment fetch error:", err);
+      logger.error({ err }, "Assessment fetch error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
     }
