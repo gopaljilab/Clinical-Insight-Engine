@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import session from "express-session";
@@ -26,6 +28,7 @@ const execFileAsync = promisify(execFile);
 const app = express();
 const httpServer = createServer(app);
 const REQUEST_BODY_LIMIT = "256kb";
+const execFileAsync = promisify(execFile);
 
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", true);
