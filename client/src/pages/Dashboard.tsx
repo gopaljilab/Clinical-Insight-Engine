@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AssessmentResult } from "@/components/AssessmentResult";
+import { BMIClassificationHelper } from "@/components/BMIClassificationHelper";
 import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
 import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UserCircle, Info, X } from "lucide-react";
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
@@ -214,14 +215,13 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:min-w-[460px]">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:min-w-115">
             {stats.map((stat) => {
               const Icon = stat.icon;
               return (
                 <div
                   key={stat.label}
-                  className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/[0.03] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500/10"
-                >
+                  className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500">
                   <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                     <Icon className="h-5 w-5" />
                   </div>
@@ -234,7 +234,7 @@ export default function Dashboard() {
         </div>
 
         {result && (
-          <div className="mb-12 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/[0.03]">
+          <div className="mb-12 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
               <h2 className="text-xl font-black text-[#1E293B]">Assessment Complete</h2>
               <button onClick={() => setResult(null)} className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">
@@ -289,7 +289,7 @@ export default function Dashboard() {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p className="text-xs max-w-[200px]">Model is optimized for adults aged 18-80. Risk typically increases with age.</p>
+                              <p className="text-xs max-w-50">Model is optimized for adults aged 18-80. Risk typically increases with age.</p>
                             </TooltipContent>
                           </Tooltip>
                         </div>
@@ -348,7 +348,7 @@ export default function Dashboard() {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <div className="text-xs max-w-[200px] space-y-1">
+                              <div className="text-xs max-w-50 space-y-1">
                                 <p className="font-bold">Body Mass Index:</p>
                                 <p>• Normal: 18.5 - 24.9</p>
                                 <p>• Overweight: 25.0 - 29.9</p>
@@ -366,6 +366,7 @@ export default function Dashboard() {
                           )}
                         </div>
                         {errors.bmi && <p className="text-sm text-red-600 mt-1">{errors.bmi.message}</p>}
+                        <BMIClassificationHelper bmi={watchedValues.bmi} />
                       </div>
 
                       <div className="space-y-2">
@@ -378,7 +379,7 @@ export default function Dashboard() {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <div className="text-xs max-w-[200px] space-y-1">
+                              <div className="text-xs max-w-50 space-y-1">
                                 <p className="font-bold">Glycated Hemoglobin:</p>
                                 <p>• Normal: &lt; 5.7%</p>
                                 <p>• Prediabetes: 5.7% - 6.4%</p>
@@ -408,7 +409,7 @@ export default function Dashboard() {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <div className="text-xs max-w-[200px] space-y-1">
+                              <div className="text-xs max-w-50 space-y-1">
                                 <p className="font-bold">Fasting Blood Sugar:</p>
                                 <p>• Normal: &lt; 100 mg/dL</p>
                                 <p>• Prediabetes: 100 - 125 mg/dL</p>
