@@ -355,9 +355,11 @@ export default function History() {
             <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 shadow-sm select-none">
               <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
 
-              <div
+              <button
+                type="button"
                 onClick={triggerStartPicker}
-                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center"
+                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                aria-label={startDate ? `Start date: ${format(new Date(startDate), "MMM d, yyyy")}` : "Choose start date"}
               >
                 <span
                   className={`text-sm font-medium ${startDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}
@@ -372,17 +374,20 @@ export default function History() {
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   className="sr-only"
-                  aria-label="Start date"
+                  tabIndex={-1}
+                  aria-hidden="true"
                 />
-              </div>
+              </button>
 
-              <span className="text-muted-foreground text-xs font-bold px-0.5">
+              <span className="text-muted-foreground text-xs font-bold px-0.5" aria-hidden="true">
                 to
               </span>
 
-              <div
+              <button
+                type="button"
                 onClick={triggerEndPicker}
-                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center"
+                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                aria-label={endDate ? `End date: ${format(new Date(endDate), "MMM d, yyyy")}` : "Choose end date"}
               >
                 <span
                   className={`text-sm font-medium ${endDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}
@@ -397,9 +402,10 @@ export default function History() {
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="sr-only"
-                  aria-label="End date"
+                  tabIndex={-1}
+                  aria-hidden="true"
                 />
-              </div>
+              </button>
 
               {(startDate || endDate) && (
                 <button
