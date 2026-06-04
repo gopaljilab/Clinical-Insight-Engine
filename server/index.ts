@@ -11,12 +11,12 @@ import {
 } from "./db";
 import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
+import { getPythonExecutable } from "./services/mlService";
 import patientsRouter from "./routes/patients";
 import { serveStatic } from "./static";
 import { sanitizeDatabaseError } from "./security/sqlProtection";
 import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
-import { getPythonExecutable } from "./routes";
 import { promisify } from "util";
 import { execFile } from "child_process";
 
