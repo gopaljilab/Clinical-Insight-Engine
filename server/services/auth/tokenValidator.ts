@@ -163,12 +163,12 @@ export function issueToken(
   const secret = getJwtSecret();
   const expiry = expiresIn ?? process.env.JWT_EXPIRES_IN ?? "1h";
 
-  // Use payload.sub instead of SignOptions.subject (typings vary by jsonwebtoken version)
+  // sub is set directly in the payload; do NOT also set subject in SignOptions
+  // (jsonwebtoken throws if both are present and conflict).
   return jwt.sign(
     { sub: userId, email, role },
     secret,
     {
-      subject: userId,
       // Algorithm is hardcoded — never sourced from user input or configuration
       algorithm: "HS256",
       expiresIn: expiry,

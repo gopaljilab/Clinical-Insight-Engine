@@ -110,7 +110,7 @@
     "jsonwebtoken": "^9.0.3",
     "postcss": "^8.5.15",
     "puppeteer": "^25.1.0",
-    "tailwindcss": "^4.3.0",
+    "tailwindcss": "^3.4.19",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",
     "vite": "^7.3.0",

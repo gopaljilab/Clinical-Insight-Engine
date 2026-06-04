@@ -36,9 +36,10 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   // Restricted to Male/Female — the ML model was trained on binary gender data only.
   // Submitting "Other" would silently encode as Female; we reject it explicitly instead.
   patientName: z
-    .string({ required_error: "Patient name is required", invalid_type_error: "Patient name must be a string" })
+    .string({ invalid_type_error: "Patient name must be a string" })
     .trim()
-    .min(1, "Patient name is required"),
+    .min(1, "Patient name cannot be empty if provided")
+    .optional(),
   gender: z.enum(["Male", "Female"], {
     required_error: "Gender is required",
     invalid_type_error: "Gender must be 'Male' or 'Female'",
