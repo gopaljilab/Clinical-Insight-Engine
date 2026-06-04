@@ -651,16 +651,16 @@ export function createAuthRouter(): Router {
 
       if (process.env.NODE_ENV !== "production") {
         const border = "=".repeat(44);
-        console.log(`\n${border}`);
-        console.log("  PASSWORD RESET");
-        console.log(`  To: ${email}`);
-        console.log(`  Link: ${resetLink}`);
-        console.log(`${border}\n`);
+        logger.info(`\n${border}`);
+        logger.info("  PASSWORD RESET");
+        logger.info(`  To: ${email}`);
+        logger.info(`  Link: ${resetLink}`);
+        logger.info(`${border}\n`);
       }
 
       return res.json({ success: true, message: "If an account exists, a reset link has been sent." });
     } catch (err) {
-      console.error("Forgot password error:", err);
+      logger.error("Forgot password error:", err);
       return res.status(500).json({ message: "Failed to process request." });
     }
   });
@@ -706,7 +706,7 @@ export function createAuthRouter(): Router {
 
       return res.json({ success: true, message: "Password has been reset successfully." });
     } catch (err) {
-      console.error("Reset password error:", err);
+      logger.error("Reset password error:", err);
       return res.status(500).json({ message: "Failed to reset password." });
     }
   });

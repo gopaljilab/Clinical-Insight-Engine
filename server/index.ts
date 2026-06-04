@@ -139,9 +139,7 @@ function summarizeApiResponse(body: Record<string, any>) {
   return `[response keys: ${Object.keys(body).join(", ") || "none"}]`;
 }
 
-export function log(message: string, source = "express") {
-  logger.info({ source }, message);
-}
+
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -189,10 +187,10 @@ app.use((req, res, next) => {
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
   // Warm up ML model at startup so first prediction request is fast
-  log("Warming up ML model at startup...", "ml");
+  logger.info({ source: "ml" }, "Warming up ML model at startup...");
   execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
-    .then(() => log("ML model ready.", "ml"))
-    .catch((err: any) => log(`ML warmup warning: ${err.message}`, "ml"));
+    .then(() => logger.info({ source: "ml" }, "ML model ready."))
+    .catch((err: any) => logger.warn({ source: "ml" }, `ML warmup warning: ${err.message}`));
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
@@ -239,18 +237,18 @@ app.use((req, res, next) => {
       host,
     },
     () => {
-      log(`serving on ${host}:${port}`);
+      logger.info({ source: "express" }, `serving on ${host}:${port}`);
     }
   );
 
   // Graceful shutdown handler
   function shutdown(signal: string) {
-    log(`${signal} received — shutting down gracefully`);
+    logger.info({ source: "express" }, `${signal} received — shutting down gracefully`);
 
     httpServer.close(async () => {
-      log("HTTP server closed");
+      logger.info({ source: "express" }, "HTTP server closed");
       await closePool();
-      log("Database pool closed");
+      logger.info({ source: "express" }, "Database pool closed");
       process.exit(0);
     });
 

@@ -1,3 +1,4 @@
+import { logger } from "../logger";
 import { storage, type AssessmentCreateInput } from "../storage";
 
 export async function seedDatabase() {
@@ -8,7 +9,7 @@ export async function seedDatabase() {
   if (Array.isArray(existing) && existing.length > 0) return;
   if (!Array.isArray(existing) && existing.data && existing.data.length > 0) return;
 
-  console.log("Seeding database with sample assessments...");
+  logger.info("Seeding database with sample assessments...");
 
   const seedUserId = "seed@clinical-insight-engine.dev";
 
@@ -73,5 +74,5 @@ export async function seedDatabase() {
     await storage.createAssessment(sample);
   }
 
-  console.log("Seeding complete!");
+  logger.info("Seeding complete!");
 }

@@ -220,7 +220,7 @@ async function seedDatabase() {
       isActive: true,
       emailVerified: true,
     });
-    console.log("Seeded admin user: admin@clinical-insight-engine.dev / admin123");
+    logger.info("Seeded admin user: admin@clinical-insight-engine.dev / admin123");
   }
 
   const existing = await storage.getAssessments();
@@ -445,10 +445,10 @@ export async function registerRoutes(
               message: "Clinical assessment preview timed out."
             });
           }
-          console.warn("Python prediction preview failed, running clinical rule-based fallback:", error);
+          logger.warn("Python prediction preview failed, running clinical rule-based fallback:", error);
           prediction = calculateClinicalFallback(input);
         }
-        console.log(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
+        logger.info(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
         return res.json({
           riskScore: prediction.riskScore,
           riskCategory: prediction.riskCategory,
@@ -468,7 +468,7 @@ export async function registerRoutes(
         try {
           await unlink(tempFilePath);
         } catch (e) {
-          console.warn("Failed to clean up temp file (preview):", tempFilePath, e);
+          logger.warn("Failed to clean up temp file (preview):", tempFilePath, e);
         }
       }
     }
@@ -532,7 +532,7 @@ export async function registerRoutes(
               message: "Clinical assessment generation timed out."
             });
           }
-          console.warn("Python ML prediction failed, running clinical rule-based fallback:", error);
+          logger.warn("Python ML prediction failed, running clinical rule-based fallback:", error);
           prediction = calculateClinicalFallback(input);
           isFallback = true;
         }
@@ -556,7 +556,7 @@ export async function registerRoutes(
               : Number(prediction.modelConfidence),
           createdBy: userId
         });
-        console.log(`[AUDIT] prediction created by=${userId} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
+        logger.info(`[AUDIT] prediction created by=${userId} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
         return res.status(201).json({
           ...assessment,
           prediction
@@ -575,7 +575,7 @@ export async function registerRoutes(
               );
             }
           } catch (emailErr) {
-            console.error("Failed to send critical risk email alert:", emailErr);
+            logger.error("Failed to send critical risk email alert:", emailErr);
           }
         }
 
@@ -595,7 +595,7 @@ export async function registerRoutes(
           try {
             await unlink(tempFilePath);
           } catch (e) {
-            console.warn("Failed to clean up temp file (create):", tempFilePath, e);
+            logger.warn("Failed to clean up temp file (create):", tempFilePath, e);
           }
         }
         if (requestFingerprint) {
@@ -667,7 +667,7 @@ export async function registerRoutes(
         if (err instanceof z.ZodError) {
           return res.status(400).json({ message: "Invalid bulk input data format. Ensure all rows meet schema requirements." });
         }
-        console.error("Bulk create error:", err);
+        logger.error("Bulk create error:", err);
         return res.status(500).json({ message: "Failed to generate bulk assessments." });
       } finally {
         if (tempFilePath) {
@@ -742,7 +742,7 @@ export async function registerRoutes(
         if (err instanceof z.ZodError) {
           return res.status(400).json({ message: "Invalid bulk input data format. Ensure all rows meet schema requirements." });
         }
-        console.error("Bulk create error:", err);
+        logger.error("Bulk create error:", err);
         return res.status(500).json({ message: "Failed to generate bulk assessments." });
       } finally {
         if (tempFilePath) {
@@ -794,7 +794,7 @@ export async function registerRoutes(
         res.attachment("assessments.csv");
         return res.send(csv);
       } catch (err) {
-        console.error("Export error:", err);
+        logger.error("Export error:", err);
         return res.status(500).json({ message: "Failed to export data" });
       }
     }
@@ -886,7 +886,7 @@ export async function registerRoutes(
         return res.json({ data: results, nextCursor });
 
       } catch (err) {
-        console.error("Assessment search error:", err);
+        logger.error("Assessment search error:", err);
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }
@@ -906,7 +906,7 @@ export async function registerRoutes(
         const stats = await storage.getAnalyticsStats(userEmail);
         return res.json(stats);
       } catch (err) {
-        console.error("Analytics fetch error:", err);
+        logger.error("Analytics fetch error:", err);
         return res.status(500).json({ message: "Failed to fetch analytics" });
       }
     }
@@ -1012,7 +1012,7 @@ export async function registerRoutes(
         return res.json(assessment);
 
       } catch (err) {
-        console.error("Assessment fetch error:", err);
+        logger.error("Assessment fetch error:", err);
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }
@@ -1109,7 +1109,7 @@ export async function registerRoutes(
 
       } catch (err) {
         // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
-        console.error("Assessment search error:", err);
+        logger.error("Assessment search error:", err);
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }
@@ -1155,7 +1155,7 @@ export async function registerRoutes(
         return res.json(assessment);
 
       } catch (err) {
-        console.error("Assessment fetch error:", err);
+        logger.error("Assessment fetch error:", err);
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }
@@ -1252,7 +1252,7 @@ export async function registerRoutes(
 
       } catch (err) {
         // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
-        console.error("Assessment search error:", err);
+        logger.error("Assessment search error:", err);
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }
@@ -1312,7 +1312,7 @@ export async function registerRoutes(
         return res.json(assessment);
 
       } catch (err) {
-        console.error("Assessment fetch error:", err);
+        logger.error("Assessment fetch error:", err);
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }
@@ -1409,7 +1409,7 @@ export async function registerRoutes(
 
       } catch (err) {
         // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
-        console.error("Assessment search error:", err);
+        logger.error("Assessment search error:", err);
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }
@@ -1469,7 +1469,7 @@ export async function registerRoutes(
         return res.json(assessment);
 
       } catch (err) {
-        console.error("Assessment fetch error:", err);
+        logger.error("Assessment fetch error:", err);
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }
@@ -1566,7 +1566,7 @@ export async function registerRoutes(
 
       } catch (err) {
         // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
-        console.error("Assessment search error:", err);
+        logger.error("Assessment search error:", err);
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }
@@ -1642,7 +1642,7 @@ export async function registerRoutes(
       const result = await storage.getAllUsers(page, limit);
       res.json(result);
     } catch (err) {
-      console.error("Admin users fetch error:", err);
+      logger.error("Admin users fetch error:", err);
       res.status(500).json({ message: "Failed to fetch users." });
     }
   });
@@ -1654,7 +1654,7 @@ export async function registerRoutes(
       const result = await storage.getLoginAuditLogs(page, limit);
       res.json(result);
     } catch (err) {
-      console.error("Admin audit logs fetch error:", err);
+      logger.error("Admin audit logs fetch error:", err);
       res.status(500).json({ message: "Failed to fetch audit logs." });
     }
   });
@@ -1666,7 +1666,7 @@ export async function registerRoutes(
       const updated = await storage.updateUser(id, { isActive, role });
       res.json(updated);
     } catch (err) {
-      console.error("Admin user update error:", err);
+      logger.error("Admin user update error:", err);
       res.status(500).json({ message: "Failed to update user." });
     }
   });
@@ -1676,7 +1676,7 @@ export async function registerRoutes(
       const stats = await storage.getSystemStats();
       res.json(stats);
     } catch (err) {
-      console.error("Admin stats fetch error:", err);
+      logger.error("Admin stats fetch error:", err);
       res.status(500).json({ message: "Failed to fetch system stats." });
     }
   });

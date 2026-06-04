@@ -1,3 +1,4 @@
+import { logger } from "../logger";
 import { Router } from "express";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
@@ -124,7 +125,7 @@ assessmentsRouter.post(
       if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
         return res.status(408).json({ message: "Clinical assessment generation timed out." });
       }
-      console.error("Error creating assessment:", err);
+      logger.error("Error creating assessment:", err);
       return res
         .status(500)
         .json({ message: err.message || "Failed to generate clinical assessment." });
@@ -227,7 +228,7 @@ assessmentsRouter.get(
 
       return res.json(results);
     } catch (err) {
-      console.error("Assessment search error:", err);
+      logger.error("Assessment search error:", err);
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
     }
@@ -271,7 +272,7 @@ assessmentsRouter.get(
       logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
       return res.json(assessment);
     } catch (err) {
-      console.error("Assessment fetch error:", err);
+      logger.error("Assessment fetch error:", err);
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
     }

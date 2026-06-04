@@ -140,13 +140,13 @@ export async function sendCriticalRiskAlert(
 
   if (process.env.NODE_ENV !== "production") {
     const border = "!".repeat(50);
-    console.log(`\n${border}`);
-    console.log("  CRITICAL RISK ALERT MOCK LOG");
-    console.log(`  To: ${email}`);
-    console.log(`  Patient: ${patientName}`);
-    console.log(`  Risk Score: ${formattedScore}%`);
-    console.log(`  Assessment ID: ${assessmentId}`);
-    console.log(`${border}\n`);
+    logger.info(`\n${border}`);
+    logger.info("  CRITICAL RISK ALERT MOCK LOG");
+    logger.info(`  To: ${email}`);
+    logger.info(`  Patient: ${patientName}`);
+    logger.info(`  Risk Score: ${formattedScore}%`);
+    logger.info(`  Assessment ID: ${assessmentId}`);
+    logger.info(`${border}\n`);
   }
 
   await sendEmail({

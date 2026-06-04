@@ -1,3 +1,4 @@
+import { logger } from "../../logger";
 /**
  * tokenValidator.ts
  *
@@ -63,7 +64,7 @@ export function getJwtSecret(): string {
       throw new Error("JWT_SECRET environment variable is required in production.");
     }
     // Development fallback — weak and obvious so it is never mistaken for production
-    console.warn(
+    logger.warn(
       "[SECURITY WARNING] JWT_SECRET is not set. Using insecure development default. " +
       "Set JWT_SECRET in your .env file before deploying."
     );
