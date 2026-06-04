@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { queryClient } from "@/lib/queryClient";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -360,7 +361,7 @@ function RegisterForm({
   );
 }
 
-function OtpForm({ onVerify, email, devOtp }: { onVerify: () => void; email: string; devOtp?: string }) {
+function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; email: string; devOtp?: string; mode: "login" | "register" }) {
   const [otp, setOtp] = useState(devOtp ? devOtp.split("").slice(0, 6) : ["", "", "", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -413,30 +414,28 @@ function OtpForm({ onVerify, email, devOtp }: { onVerify: () => void; email: str
     setError(null);
     setIsLoading(true);
     try {
-      // Try DB-backed verification first
-      const response = await fetch("/api/auth/verify-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code: otp.join("") }),
-        credentials: "include",
-      });
+      // Route to correct endpoint based on flow:
+      // login  -> /verify-otp  (in-memory OTP set by /login)
+      // register -> /verify-email (DB-backed token set by /register)
+      let response: Response;
+      if (mode === "login") {
+        response = await fetch("/api/auth/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, otp: otp.join("") }),
+          credentials: "include",
+        });
+      } else {
+        response = await fetch("/api/auth/verify-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, code: otp.join("") }),
+          credentials: "include",
+        });
+      }
 
       if (!response.ok) {
         const data = await response.json();
-        // If user not found in DB, fall back to in-memory OTP
-        if (response.status === 404) {
-          const legacyResponse = await fetch("/api/auth/verify-otp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, otp: otp.join("") }),
-            credentials: "include",
-          });
-          if (!legacyResponse.ok) {
-            const legacyData = await legacyResponse.json();
-            throw new Error(legacyData.message || "Verification failed. Please try again.");
-          }
-          return onVerify();
-        }
         throw new Error(data.message || "Verification failed. Please try again.");
       }
       onVerify();
@@ -563,6 +562,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
   const [devOtp, setDevOtp] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -580,6 +580,58 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
       document.body.style.overflow = originalOverflow;
     };
   }, [initialMode, isOpen]);
+
+  // Escape key handler and focus trap
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+
+      // Focus trap: cycle focus within the modal
+      if (event.key === "Tab" && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (event.shiftKey) {
+          if (document.activeElement === firstElement) {
+            event.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            event.preventDefault();
+            firstElement.focus();
+          }
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    // Auto-focus first focusable element in modal
+    const timer = setTimeout(() => {
+      if (modalRef.current) {
+        const firstFocusable = modalRef.current.querySelector<HTMLElement>(
+          'input, button, [href], select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        firstFocusable?.focus();
+      }
+    }, 100);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      clearTimeout(timer);
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -654,12 +706,13 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
   };
 
   const handleVerify = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     onClose();
     setLocation("/dashboard");
   };
 
   return (
-    <div className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/50 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+    <div ref={modalRef} className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/50 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="auth-title">
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -719,7 +772,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
               </motion.div>
             ) : (
               <motion.div key="otp" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
-                <OtpForm onVerify={handleVerify} email={pendingEmail} devOtp={devOtp} />
+                <OtpForm onVerify={handleVerify} email={pendingEmail} devOtp={devOtp} mode={mode} />
                 <button
                   type="button"
                   onClick={() => setStep("form")}
