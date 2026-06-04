@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import {
   Activity,
   ArrowRight,
+  BrainCircuit,
   CheckCircle2,
   Github,
   HeartPulse,
@@ -13,8 +14,17 @@ import {
   Mail,
   ShieldCheck,
   Stethoscope,
+  Target,
+  TrendingDown,
   Workflow,
+  Zap,
 } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { AuthFlowModal, type AuthMode } from "@/components/AuthFlowModal";
 
 const navLinks = [
@@ -348,6 +358,172 @@ export function ClinicalInsightLanding() {
                 );
               })}
             </div>
+          </div>
+        </section>
+
+        <section className="px-5 py-20 sm:px-6 lg:px-8 bg-slate-950 text-white">
+          <div className="mx-auto max-w-7xl">
+            <motion.div
+              className="mb-14 text-center"
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.4 }}
+            >
+              <h2 className="text-3xl font-black tracking-tight sm:text-4xl text-white">
+                How It Integrates Workflow
+              </h2>
+              <p className="mt-4 text-lg text-slate-400">
+                A seamless process from patient intake to actionable clinical smart goals.
+              </p>
+            </motion.div>
+
+            <div className="grid gap-6 md:grid-cols-3 relative">
+              {[
+                { icon: Zap, title: "Swift Intake", desc: "Instantly process patient vitals and health data with minimal friction." },
+                { icon: BrainCircuit, title: "AI Risk Generation", desc: "Our proprietary engine calculates comprehensive cardiometabolic risk scores." },
+                { icon: Target, title: "Co-Created Patient Smart Goals", desc: "Collaborate on personalized, data-driven health interventions." }
+              ].map((step, i) => {
+                const Icon = step.icon;
+                return (
+                  <motion.div 
+                    key={step.title}
+                    variants={fadeUp}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, amount: 0.3 }}
+                    transition={{ duration: 0.4, delay: i * 0.1 }}
+                    className="relative bg-slate-900/40 border border-slate-800 rounded-2xl p-6"
+                  >
+                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20 text-[#3B82F6]">
+                      <Icon className="h-6 w-6" aria-hidden="true" />
+                    </div>
+                    <div className="mb-2 text-xs font-bold text-slate-500 tracking-wider uppercase">Phase 0{i + 1}</div>
+                    <h3 className="mb-2 text-xl font-bold text-white">{step.title}</h3>
+                    <p className="text-sm text-slate-400">{step.desc}</p>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-5 py-20 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="grid items-center gap-12 lg:grid-cols-2">
+              <motion.div
+                variants={fadeUp}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.4 }}
+              >
+                <div className="rounded-[2rem] bg-slate-50 p-6 shadow-xl shadow-slate-200/50 ring-1 ring-slate-200">
+                  <div className="mb-6 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">Clinical Validation</h4>
+                      <p className="text-xs text-slate-500">6-Month Risk Optimization Trend</p>
+                    </div>
+                    <div className="flex h-8 items-center gap-2 rounded-full bg-emerald-100 px-3 text-xs font-bold text-emerald-700">
+                      <TrendingDown className="h-4 w-4" />
+                      -24%
+                    </div>
+                  </div>
+                  <div className="flex h-48 items-end gap-2 sm:gap-4">
+                    {[78, 65, 58, 45, 42, 38].map((val, i) => (
+                      <div key={i} className="group relative flex w-full flex-col items-center justify-end">
+                        <div 
+                          className="w-full rounded-t-lg bg-gradient-to-t from-blue-600 to-cyan-400 opacity-80 transition-opacity group-hover:opacity-100" 
+                          style={{ height: `${val}%` }} 
+                        />
+                        <span className="mt-2 text-xs font-semibold text-slate-400">Mo {i + 1}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+              <motion.div
+                variants={fadeUp}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.4, delay: 0.1 }}
+              >
+                <h2 className="text-3xl font-black tracking-tight text-[#1E293B] sm:text-4xl">
+                  Clinical Validation & Trust
+                </h2>
+                <div className="mt-6 space-y-6">
+                  {[
+                    { title: "Explainable AI", desc: "Clear, transparent clinical decision support that shows exactly how conclusions are drawn." },
+                    { title: "Cardiometabolic Health Monitoring", desc: "Continuous tracking of key risk factors over time for proactive intervention." },
+                    { title: "Provider Oversight", desc: "Designed to assist, not replace, clinical judgment with full provider interpretation capabilities." },
+                  ].map((item) => (
+                    <div key={item.title} className="flex gap-4">
+                      <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[#2563EB]">
+                        <CheckCircle2 className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900">{item.title}</h4>
+                        <p className="mt-1 text-sm text-slate-600">{item.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-5 py-20 sm:px-6 lg:px-8 bg-slate-50">
+          <div className="mx-auto max-w-3xl">
+            <motion.div
+              className="mb-12 text-center"
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.4 }}
+            >
+              <h2 className="text-3xl font-black tracking-tight text-[#1E293B] sm:text-4xl">
+                Frequently Asked Questions
+              </h2>
+            </motion.div>
+
+            <motion.div
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+            >
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="item-1" className="border-slate-200">
+                  <AccordionTrigger className="text-left font-bold text-slate-900 hover:text-[#2563EB]">
+                    Is data encrypted?
+                  </AccordionTrigger>
+                  <AccordionContent className="text-slate-600 leading-relaxed">
+                    Yes, all patient data is encrypted both in transit and at rest using enterprise-grade AES-256 encryption. We adhere strictly to HIPAA and GDPR guidelines to ensure complete data privacy and security.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-2" className="border-slate-200">
+                  <AccordionTrigger className="text-left font-bold text-slate-900 hover:text-[#2563EB]">
+                    Can I export reports as PDFs?
+                  </AccordionTrigger>
+                  <AccordionContent className="text-slate-600 leading-relaxed">
+                    Absolutely. The platform provides one-click PDF generation for all patient assessments, allowing you to easily attach reports to external EMR systems or provide them directly to patients.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-3" className="border-slate-200">
+                  <AccordionTrigger className="text-left font-bold text-slate-900 hover:text-[#2563EB]">
+                    How does the engine calculate risk?
+                  </AccordionTrigger>
+                  <AccordionContent className="text-slate-600 leading-relaxed">
+                    Our AI models analyze multiple cardiometabolic factors (including BMI, HbA1c, and vitals) using proprietary machine learning algorithms validated against extensive clinical datasets to generate highly accurate risk scores and actionable insights.
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </motion.div>
           </div>
         </section>
 

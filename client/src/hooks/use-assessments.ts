@@ -16,6 +16,7 @@ export function useAssessments(limit: number = 50, cursor?: number) {
     queryKey: [api.assessments.list.path, limit, cursor],
     queryFn: async () => {
       const url = new URL(api.assessments.list.path, window.location.origin);
+      url.searchParams.set("page", page.toString());
       url.searchParams.set("limit", limit.toString());
       if (cursor !== undefined) {
         url.searchParams.set("cursor", cursor.toString());
