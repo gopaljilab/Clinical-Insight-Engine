@@ -1,6 +1,7 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
+import { logger } from "./logger";
 
 const { Pool } = pg;
 
@@ -64,7 +65,7 @@ export async function closePool(): Promise<void> {
     try {
       await poolInstance.end();
     } catch (error) {
-      console.error("Error closing database pool:", error);
+      logger.error({ err: error }, "Error closing database pool");
     }
     poolInstance = undefined;
     dbInstance = undefined;

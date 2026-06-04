@@ -22,6 +22,7 @@ import { searchQuerySchema } from "./validation/searchValidation";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
 import { issueToken } from "./services/auth/tokenValidator";
+import { logger } from "./logger";
 
 export const execFileAsync = promisify(execFile);
 
@@ -47,7 +48,7 @@ function runPythonInference(
 
     if (child.stdin) {
       child.stdin.on("error", (err) => {
-        console.error("Stdin write error:", err);
+        logger.error({ err }, "Stdin write error");
       });
       child.stdin.write(JSON.stringify(inputData));
       child.stdin.end();
@@ -151,7 +152,7 @@ async function seedDatabase() {
   const existing = await storage.getAssessments();
   if (existing.data.length !== 0) return;
 
-  console.log("Seeding database with sample assessments...");
+  logger.info("Seeding database with sample assessments...");
 
   const seedUserId = "seed@clinical-insight-engine.dev";
 
@@ -216,7 +217,7 @@ async function seedDatabase() {
     await storage.createAssessment(sample);
   }
 
-  console.log("Seeding complete!");
+  logger.info("Seeding complete!");
 }
 
 interface PredictionResult {
@@ -391,7 +392,7 @@ export async function registerRoutes(
   type SessionUser = { id?: string; email?: string; name?: string };
 
   if (process.env.NODE_ENV !== "production") {
-    seedDatabase().catch(console.error);
+    seedDatabase().catch((err) => logger.error({ err }, "Database seeding failed"));
   }
 
   app.get("/api/auth/token", requireAuth, requireVerified, (req, res) => {
@@ -457,7 +458,7 @@ export async function registerRoutes(
             .status(400)
             .json({ message: err.errors[0]?.message ?? "Invalid input" });
         }
-        console.error("Error creating assessment preview:", err);
+        logger.error({ err }, "Error creating assessment preview");
         return res.status(500).json({ message: "Internal server error" });
       } finally {
         try {
@@ -551,7 +552,7 @@ export async function registerRoutes(
             .status(400)
             .json({ message: err.errors[0]?.message ?? "Invalid input" });
         }
-        console.error("Error creating assessment:", err);
+        logger.error({ err }, "Error creating assessment");
         return res
           .status(500)
           .json({ message: "Failed to generate clinical assessment." });
@@ -665,7 +666,7 @@ export async function registerRoutes(
         return res.json(results);
       } catch (err) {
         // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
-        console.error("Assessment search error:", err);
+        logger.error({ err }, "Assessment search error");
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }
@@ -729,7 +730,7 @@ export async function registerRoutes(
         logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
         return res.json(assessment);
       } catch (err) {
-        console.error("Assessment fetch error:", err);
+        logger.error({ err }, "Assessment fetch error");
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }

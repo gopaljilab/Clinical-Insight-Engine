@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { logger } from "../logger";
 
 export const loggingAnomalyMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const startTime = Date.now();
@@ -14,10 +15,10 @@ export const loggingAnomalyMiddleware = (req: Request, res: Response, next: Next
       ip: req.ip
     };
     
-    console.log(JSON.stringify(logData));
+    logger.info(logData, "Request logged (Anomaly Middleware)");
     
     if (duration > 500 || res.statusCode >= 500) {
-      console.warn(`[ANOMALY DETECTED] High latency or server error: ${req.method} ${req.path}`);
+      logger.warn({ anomaly: true, path: req.path }, "High latency or server error");
     }
   });
   

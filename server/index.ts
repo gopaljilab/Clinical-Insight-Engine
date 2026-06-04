@@ -19,6 +19,8 @@ import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
 import { getPythonExecutable } from "./routes";
 import { promisify } from "util";
 import { execFile } from "child_process";
+import { logger } from "./logger";
+import { requestIdMiddleware } from "./middleware/requestId";
 
 const execFileAsync = promisify(execFile);
 
@@ -88,6 +90,7 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false, limit: REQUEST_BODY_LIMIT }));
+app.use(requestIdMiddleware);
 app.use(loggingAnomalyMiddleware);
 
 // Nonce middleware - generates a unique cryptographic nonce per request for CSP
@@ -134,21 +137,10 @@ function summarizeApiResponse(body: Record<string, any>) {
 }
 
 export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
-  console.log(`${formattedTime} [${source}] ${message}`);
+  logger.info({ source }, message);
 }
 
 app.use((req, res, next) => {
-  const requestId = crypto.randomUUID();
-  (req as any).id = requestId;
-  res.setHeader("X-Request-ID", requestId);
-
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
@@ -163,14 +155,14 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       const logPayload = {
-        requestId,
+        requestId: (req as any).id,
         method: req.method,
         path,
         status: res.statusCode,
         duration,
         responseSummary: capturedJsonResponse ? summarizeApiResponse(capturedJsonResponse) : undefined,
       };
-      log(JSON.stringify(logPayload));
+      logger.info(logPayload, "API request completed");
     }
   });
 
@@ -182,9 +174,9 @@ app.use((req, res, next) => {
     await verifyDatabaseConnection();
   } catch (error) {
     if (error instanceof DatabaseStartupError) {
-      console.error(error.message);
+      logger.error({ err: error }, error.message);
     } else {
-      console.error("Unexpected database startup error:", error);
+      logger.error({ err: error }, "Unexpected database startup error");
     }
 
     await closePool();
@@ -206,7 +198,7 @@ app.use((req, res, next) => {
     }
 
     // Log the full error internally for debugging, but never send internals to clients
-    console.error("Unhandled server error:", err);
+    logger.error({ err }, "Unhandled server error");
 
     // Sanitize database errors — prevents table names, SQL syntax, and pg error codes
     // from reaching the client response body
@@ -261,7 +253,7 @@ app.use((req, res, next) => {
 
     // Force exit if graceful shutdown takes too long
     setTimeout(() => {
-      console.error("Graceful shutdown timed out — forcing exit");
+      logger.error("Graceful shutdown timed out — forcing exit");
       process.exit(1);
     }, 10000).unref();
   }

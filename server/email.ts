@@ -6,6 +6,7 @@
  */
 
 const FROM_ADDRESS = process.env.EMAIL_FROM || "noreply@clinicalinsight.dev";
+import { logger } from "./logger";
 
 interface EmailOptions {
   to: string;
@@ -18,12 +19,7 @@ interface EmailOptions {
  * Logs a visible OTP block to the console in development.
  */
 function logDevOtp(email: string, code: string): void {
-  const border = "=".repeat(44);
-  console.log(`\n${border}`);
-  console.log("  EMAIL VERIFICATION");
-  console.log(`  To: ${email}`);
-  console.log(`  Verification Code: ${code}`);
-  console.log(`${border}\n`);
+  logger.info({ email, code }, "EMAIL VERIFICATION OTP");
 }
 
 /**
@@ -53,16 +49,12 @@ async function sendEmail(options: EmailOptions): Promise<void> {
         text: options.text,
         html: options.html,
       });
-    } catch {
-      console.warn("SMTP not available — falling back to console log.");
-      console.log(`\n  [EMAIL] To: ${options.to}`);
-      console.log(`  [EMAIL] Subject: ${options.subject}`);
-      console.log(`  [EMAIL] Body: ${options.text}\n`);
+    } catch (err) {
+      logger.warn({ err }, "SMTP not available — falling back to mock log.");
+      logger.info({ email: options }, "MOCK EMAIL SENT");
     }
   } else {
-    console.log(`\n  [EMAIL] To: ${options.to}`);
-    console.log(`  [EMAIL] Subject: ${options.subject}`);
-    console.log(`  [EMAIL] Body: ${options.text}\n`);
+    logger.info({ email: options }, "MOCK EMAIL SENT");
   }
 }
 

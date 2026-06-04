@@ -5,6 +5,7 @@ import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
+import { logger } from "./logger";
 
 const viteLogger = createLogger();
 
@@ -21,7 +22,7 @@ export async function setupVite(server: Server, app: Express) {
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
-        console.error(msg);
+        logger.error({ viteError: msg }, "Vite server error");
       },
     },
     server: serverOptions,
