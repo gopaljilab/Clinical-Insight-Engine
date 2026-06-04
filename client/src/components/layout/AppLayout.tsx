@@ -37,18 +37,30 @@ export function AppLayout({ children }: AppLayoutProps) {
   useEffect(() => {
     if (!user) return;
 
-    let timeoutId: number;
-    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+    let warningTimeoutId: number;
+    let logoutTimeoutId: number;
+    const WARNING_TIMEOUT = 14 * 60 * 1000; // 14 minutes
+    const LOGOUT_TIMEOUT = 15 * 60 * 1000; // 15 minutes
 
     const resetTimer = () => {
-      window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
+      window.clearTimeout(warningTimeoutId);
+      window.clearTimeout(logoutTimeoutId);
+      
+      warningTimeoutId = window.setTimeout(() => {
         toast({
-          title: "Session Inactivity Warning",
-          description: "You have been inactive. For your security, you will be logged out soon if inactivity continues.",
+          title: "Session Expiring Soon",
+          description: "You have been inactive. For your security, you will be logged out in 1 minute if inactivity continues.",
           variant: "destructive",
         });
-      }, INACTIVITY_TIMEOUT);
+      }, WARNING_TIMEOUT);
+
+      logoutTimeoutId = window.setTimeout(() => {
+        fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+          .finally(() => {
+            queryClient.clear();
+            setLocation("/");
+          });
+      }, LOGOUT_TIMEOUT);
     };
 
     const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
@@ -59,7 +71,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     resetTimer();
 
     return () => {
-      window.clearTimeout(timeoutId);
+      window.clearTimeout(warningTimeoutId);
+      window.clearTimeout(logoutTimeoutId);
       events.forEach((event) => {
         window.removeEventListener(event, resetTimer);
       });
