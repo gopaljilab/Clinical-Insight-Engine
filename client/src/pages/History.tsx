@@ -66,6 +66,7 @@ export default function History() {
   const PAGE_SIZE = 20;
   const { data: assessmentsResponse, isLoading, error } = useAssessments(serverPage, PAGE_SIZE);
   const assessments = assessmentsResponse?.data ?? [];
+  const serverTotal = assessmentsResponse?.total ?? 0;
   const serverTotalPages = assessmentsResponse?.totalPages ?? 1;
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
@@ -91,10 +92,6 @@ export default function History() {
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const itemsPerPage = 10;
-
   const [selectedPatientName, setSelectedPatientName] = useState<string | null>(null);
 
   const selectedPatientHistory = useMemo(() => {
@@ -105,9 +102,9 @@ export default function History() {
     });
   }, [assessments, selectedPatientName]);
 
-  // Reset pagination window when search/filter changes
+  // Reset pagination when search/filter changes
   useEffect(() => {
-    setCurrentPage(1);
+    setServerPage(1);
   }, [searchTerm, sortBy, startDate, endDate]);
 
   useEffect(() => {
@@ -240,17 +237,12 @@ export default function History() {
   });
 
   // 4. Pagination
-  // When no client-side filters are active, use server-side total pages
-  // so users can navigate beyond the current page's 20 records.
-  // When filters are active, paginate the filtered results locally.
+  // When no client-side filters are active, pagination maps directly to server page.
+  // When filters are active, we can only search within the current server page.
   const hasClientFilters = Boolean(searchTerm || startDate || endDate);
-  const totalRecords = sortedAssessments.length;
-  const totalPages = hasClientFilters
-    ? Math.ceil(totalRecords / itemsPerPage) || 1
-    : serverTotalPages;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalRecords);
-  const paginatedAssessments = sortedAssessments.slice(startIndex, endIndex);
+  const totalRecords = hasClientFilters ? sortedAssessments.length : serverTotal;
+  const totalPages = hasClientFilters ? 1 : serverTotalPages;
+  const paginatedAssessments = sortedAssessments;
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
@@ -589,30 +581,34 @@ export default function History() {
             {/* Pagination Footer Elements */}
             <div className="px-4 py-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="text-sm text-muted-foreground font-medium">
-                Showing{" "}
-                <span className="font-semibold text-foreground">
-                  {totalRecords === 0 ? 0 : startIndex + 1}
-                </span>{" "}
-                to{" "}
-                <span className="font-semibold text-foreground">
-                  {endIndex}
-                </span>{" "}
-                of{" "}
-                <span className="font-semibold text-foreground">
-                  {totalRecords}
-                </span>{" "}
-                records
+                {hasClientFilters ? (
+                  <>
+                    Showing{" "}
+                    <span className="font-semibold text-foreground">
+                      {totalRecords}
+                    </span>{" "}
+                    match{totalRecords !== 1 ? 'es' : ''}
+                  </>
+                ) : (
+                  <>
+                    Page{" "}
+                    <span className="font-semibold text-foreground">
+                      {serverPage}
+                    </span>{" "}
+                    of{" "}
+                    <span className="font-semibold text-foreground">
+                      {totalPages}
+                    </span>{" "}
+                    ({serverTotal} record{serverTotal !== 1 ? 's' : ''} total)
+                  </>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    const newPage = Math.max(currentPage - 1, 1);
-                    setCurrentPage(newPage);
-                    if (!hasClientFilters) setServerPage(Math.max(serverPage - 1, 1));
-                  }}
-                  disabled={currentPage === 1}
+                  onClick={() => setServerPage(Math.max(serverPage - 1, 1))}
+                  disabled={serverPage === 1}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Previous page"
                 >
@@ -620,19 +616,15 @@ export default function History() {
                 </button>
 
                 <div className="flex items-center gap-1 text-sm font-semibold px-2">
-                  <span className="text-foreground">Page {currentPage}</span>
+                  <span className="text-foreground">Page {serverPage}</span>
                   <span className="text-muted-foreground">/</span>
                   <span className="text-muted-foreground">{totalPages}</span>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    const newPage = Math.min(currentPage + 1, totalPages);
-                    setCurrentPage(newPage);
-                    if (!hasClientFilters) setServerPage(Math.min(serverPage + 1, serverTotalPages));
-                  }}
-                  disabled={currentPage === totalPages}
+                  onClick={() => setServerPage(Math.min(serverPage + 1, totalPages))}
+                  disabled={serverPage === totalPages}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Next page"
                 >
@@ -685,3 +677,20 @@ export default function History() {
     </AppLayout>
   );
 }
+
+
+
+import { format, isValid } from "date-fns";
+
+  const filteredAssessments = assessments?.filter(a => {
+      const term = searchTerm.toLowerCase();
+      return (
+        a.gender.toLowerCase().includes(term) ||
+        a.riskCategory.toLowerCase().includes(term) ||
+        a.smokingHistory.toLowerCase().includes(term) ||
+        String(a.age).includes(term) ||
+        String(a.bmi).includes(term) ||
+        String(a.hba1cLevel).includes(term) ||
+        String(a.bloodGlucoseLevel).includes(term)
+      );
+    }) || [];
