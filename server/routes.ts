@@ -23,6 +23,7 @@ import { searchQuerySchema } from "./validation/searchValidation";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
 import { issueToken } from "./services/auth/tokenValidator";
+import { sendCriticalRiskAlert } from "./email";
 
 export const execFileAsync = promisify(execFile);
 
@@ -618,6 +619,23 @@ export async function registerRoutes(
           createdBy: userId,
         });
 
+        // Trigger automated email alert if risk score is critical (> 80%)
+        if (assessment.riskScore > 80) {
+          try {
+            const user = await storage.getUserById(userId);
+            if (user && user.email) {
+              await sendCriticalRiskAlert(
+                user.email,
+                assessment.patientName || "Unknown Patient",
+                assessment.riskScore,
+                assessment.id
+              );
+            }
+          } catch (emailErr) {
+            console.error("Failed to send critical risk email alert:", emailErr);
+          }
+        }
+
         return res.status(201).json({ ...assessment, prediction });
       } catch (err) {
         if (err instanceof z.ZodError) {
@@ -637,6 +655,81 @@ export async function registerRoutes(
           } catch (e) {
             console.warn("Failed to clean up temp file (create):", tempFilePath, e);
           }
+        }
+        if (requestFingerprint) {
+          activeInferenceRequests.delete(requestFingerprint);
+        }
+      }
+    }
+  );
+
+  app.post(
+    "/api/assessments/bulk",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      const userId = (req.session.user as any)?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required." });
+      }
+
+      const inputSchema = z.array(api.assessments.create.input);
+      let tempFilePath: string | null = null;
+      let requestFingerprint: string | null = null;
+
+      try {
+        const input = inputSchema.parse(req.body.assessments);
+        
+        requestFingerprint = generateRequestFingerprint(input, userId);
+        if (activeInferenceRequests.has(requestFingerprint)) {
+          return res.status(409).json({ message: "Bulk request already processing." });
+        }
+        activeInferenceRequests.add(requestFingerprint);
+
+        tempFilePath = path.join(os.tmpdir(), `bulk_${randomUUID()}.json`);
+        await writeFile(tempFilePath, JSON.stringify(input));
+
+        let predictions: any[];
+        try {
+          const { stdout } = await execFileAsync(
+            getPythonExecutable(),
+            [analyzePyPath, "predict_file", tempFilePath],
+            { timeout: 60000, maxBuffer: 50 * 1024 * 1024 }
+          );
+
+          predictions = JSON.parse(stdout.trim());
+          if (!Array.isArray(predictions)) {
+            throw new Error("Expected array of predictions");
+          }
+        } catch (error: any) {
+          return res.status(500).json({ message: "Bulk ML processing failed or timed out." });
+        }
+
+        const createdAssessments = await Promise.all(
+          input.map((assessment, index) => {
+            const prediction = predictions[index];
+            return storage.createAssessment({
+              ...assessment,
+              riskScore: Number(prediction.riskScore),
+              riskCategory: prediction.riskCategory,
+              factors: prediction.factors,
+              confidenceInterval: prediction.confidenceInterval ?? null,
+              modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
+              createdBy: userId,
+            });
+          })
+        );
+
+        return res.status(201).json({ count: createdAssessments.length, assessments: createdAssessments });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: "Invalid bulk input data format. Ensure all rows meet schema requirements." });
+        }
+        console.error("Bulk create error:", err);
+        return res.status(500).json({ message: "Failed to generate bulk assessments." });
+      } finally {
+        if (tempFilePath) {
+          try { await unlink(tempFilePath); } catch {}
         }
         if (requestFingerprint) {
           activeInferenceRequests.delete(requestFingerprint);
