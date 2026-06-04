@@ -54,6 +54,33 @@ export function useCreateAssessment() {
       }
       
       const responseData = await res.json();
+      
+      // If the backend returns 202, it means the job is queued
+      if (res.status === 202 && responseData.jobId) {
+        return new Promise<AssessmentResponse>((resolve, reject) => {
+          const poll = async () => {
+            try {
+              const jobRes = await fetch(`/api/assessments/jobs/${responseData.jobId}`, { credentials: "include" });
+              if (!jobRes.ok) throw new Error("Failed to check job status");
+              const jobData = await jobRes.json();
+              
+              if (jobData.status === "completed") {
+                resolve(parseWithLogging<AssessmentResponse>(api.assessments.create.responses[201], jobData.result, "assessments.create.job"));
+              } else if (jobData.status === "failed") {
+                reject(new Error(jobData.error || "Job failed"));
+              } else {
+                // Poll again in 2 seconds
+                setTimeout(poll, 2000);
+              }
+            } catch (err) {
+              reject(err);
+            }
+          };
+          // Start polling
+          setTimeout(poll, 1000);
+        });
+      }
+
       return parseWithLogging<AssessmentResponse>(api.assessments.create.responses[201], responseData, "assessments.create");
     },
     onSuccess: () => {

@@ -28,7 +28,7 @@ import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
 import { issueToken } from "./services/auth/tokenValidator";
 import { logger } from "./logger";
-
+import { assessmentQueue } from "./queue";
 export const execFileAsync = promisify(execFile);
 
 function runPythonInference(
@@ -487,120 +487,54 @@ export async function registerRoutes(
         });
       }
 
-      let requestFingerprint: string | null = null;
-      let tempFile: string | null = null;
-
       try {
         const input = api.assessments.create.input.parse(req.body);
-        requestFingerprint = generateRequestFingerprint(input, userId);
-
-        if (activeInferenceRequests.has(requestFingerprint)) {
-          return res.status(409).json({
-            message: "An identical assessment request is already being processed."
-          });
-        }
-
-        activeInferenceRequests.add(requestFingerprint);
-
-        tempFile = path.join(
-          os.tmpdir(),
-          `${randomUUID()}.json`
-        );
-
-        await writeFile(tempFile, JSON.stringify(input));
-
-        let prediction;
-        let isFallback = false;
-
-        try {
-          const { stdout, stderr } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            {
-              timeout: 30000
-            }
-          );
-          prediction = JSON.parse(stdout.trim());
-          if (prediction.error) {
-            return res.status(400).json({
-              message: prediction.error
-            });
-          }
-        } catch (error: any) {
-          if (error.killed || error.signal === "SIGTERM") {
-            return res.status(408).json({
-              message: "Clinical assessment generation timed out."
-            });
-          }
-          logger.warn("Python ML prediction failed, running clinical rule-based fallback:", error);
-          prediction = calculateClinicalFallback(input);
-          isFallback = true;
-        }
-
-        prediction.disclaimer =
-          "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions." +
-          (isFallback
-            ? " (Generated via fallback rule-based clinical support model due to system unavailability)"
-            : "");
-        prediction.isFallback = isFallback;
-
-        const assessment = await storage.createAssessment({
-          ...input,
-          riskScore: Number(prediction.riskScore),
-          riskCategory: prediction.riskCategory,
-          factors: prediction.factors,
-          confidenceInterval: prediction.confidenceInterval ?? null,
-          modelConfidence:
-            prediction.modelConfidence == null
-              ? undefined
-              : Number(prediction.modelConfidence),
-          createdBy: userId
-        });
-        logger.info(`[AUDIT] prediction created by=${userId} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
-        return res.status(201).json({
-          ...assessment,
-          prediction
+        const requestFingerprint = generateRequestFingerprint(input, userId);
+        
+        const job = await assessmentQueue.add("predict", {
+          input,
+          userId,
+          requestFingerprint
         });
 
-        // Trigger automated email alert if risk score is critical (> 80%)
-        if (assessment.riskScore > 80) {
-          try {
-            const user = await storage.getUserById(userId);
-            if (user && user.email) {
-              await sendCriticalRiskAlert(
-                user.email,
-                assessment.patientName || "Unknown Patient",
-                assessment.riskScore,
-                assessment.id
-              );
-            }
-          } catch (emailErr) {
-            logger.error("Failed to send critical risk email alert:", emailErr);
-          }
-        }
-
-        return res.status(201).json({ ...assessment, prediction });
+        return res.status(202).json({
+          message: "Assessment request accepted and is being processed.",
+          jobId: job.id
+        });
       } catch (err) {
         if (err instanceof z.ZodError) {
           return res.status(400).json({
             message: err.errors[0].message
           });
         }
-        logger.error({ err }, "Error creating assessment");
+        logger.error({ err }, "Error queueing assessment");
         return res
           .status(500)
-          .json({ message: "Failed to generate clinical assessment." });
-      } finally {
-        if (tempFile) {
-          try {
-            await unlink(tempFilePath);
-          } catch (e) {
-            logger.warn("Failed to clean up temp file (create):", tempFilePath, e);
-          }
+          .json({ message: "Failed to queue clinical assessment." });
+      }
+    }
+  );
+
+  app.get(
+    "/api/assessments/jobs/:id",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const job = await assessmentQueue.getJob(req.params.id);
+        if (!job) {
+          return res.status(404).json({ message: "Job not found" });
         }
-        if (requestFingerprint) {
-          activeInferenceRequests.delete(requestFingerprint);
+        const state = await job.getState();
+        if (state === "completed") {
+          return res.json({ status: "completed", result: job.returnvalue });
+        } else if (state === "failed") {
+          return res.status(500).json({ status: "failed", error: job.failedReason });
+        } else {
+          return res.json({ status: state });
         }
+      } catch (err) {
+        return res.status(500).json({ message: "Error fetching job status" });
       }
     }
   );

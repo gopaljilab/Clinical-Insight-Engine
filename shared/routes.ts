@@ -26,6 +26,7 @@ export const api = {
       input: insertAssessmentSchema,
       responses: {
         201: z.custom<typeof assessments.$inferSelect>(),
+        202: z.object({ jobId: z.string(), message: z.string() }),
         400: errorSchemas.validation,
         500: errorSchemas.internal,
       },
