@@ -26,8 +26,12 @@ def read_csv_safely(filepath, chunksize=10000, max_rows=150000, timeout_seconds=
         # 4. Chunked Reading
         chunks = []
         try:
+            from app.utils.csv_sanitizer import sanitize_csv_value
             for chunk in pd.read_csv(filepath, chunksize=chunksize):
                 guard.check_resource_limits(len(chunk))
+                # Sanitize all string inputs against CSV injection
+                for col in chunk.select_dtypes(include=['object']):
+                    chunk[col] = chunk[col].apply(sanitize_csv_value)
                 chunks.append(chunk)
             
             if not chunks:

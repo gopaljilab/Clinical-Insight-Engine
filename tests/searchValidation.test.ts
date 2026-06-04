@@ -256,20 +256,20 @@ describe("searchQuerySchema — riskCategory filter", () => {
 });
 
 describe("searchQuerySchema — pagination params", () => {
-  it("uses default page=1 and limit=20 when not provided", () => {
+  it("uses default limit=20 and undefined cursor when not provided", () => {
     const result = searchQuerySchema.safeParse({});
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.page).toBe(1);
+      expect(result.data.cursor).toBeUndefined();
       expect(result.data.limit).toBe(20);
     }
   });
 
-  it("accepts valid page and limit values", () => {
-    const result = searchQuerySchema.safeParse({ page: "3", limit: "50" });
+  it("accepts valid cursor and limit values", () => {
+    const result = searchQuerySchema.safeParse({ cursor: "123", limit: "50" });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.page).toBe(3);
+      expect(result.data.cursor).toBe(123);
       expect(result.data.limit).toBe(50);
     }
   });
@@ -279,13 +279,8 @@ describe("searchQuerySchema — pagination params", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects page < 1", () => {
-    const result = searchQuerySchema.safeParse({ page: "0" });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects non-numeric page", () => {
-    const result = searchQuerySchema.safeParse({ page: "abc" });
+  it("rejects non-numeric cursor", () => {
+    const result = searchQuerySchema.safeParse({ cursor: "abc" });
     expect(result.success).toBe(false);
   });
 });

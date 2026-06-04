@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type AssessmentInput, type AssessmentResponse, type AssessmentsListResponse } from "@shared/routes";
 
 // Parse with logging to catch silent Zod JSON translation errors
@@ -11,19 +11,22 @@ function parseWithLogging<T>(schema: any, data: unknown, label: string): T {
   return result.data;
 }
 
-export function useAssessments(limit: number = 50, offset: number = 0) {
-  return useQuery({
-    queryKey: [api.assessments.list.path, limit, offset],
-    queryFn: async () => {
+export function useAssessments() {
+  return useInfiniteQuery({
+    queryKey: [api.assessments.list.path],
+    queryFn: async ({ pageParam }) => {
       const url = new URL(api.assessments.list.path, window.location.origin);
-      url.searchParams.set("limit", limit.toString());
-      url.searchParams.set("offset", offset.toString());
-      
+      if (pageParam !== undefined) {
+        url.searchParams.set("cursor", String(pageParam));
+      }
+      url.searchParams.set("limit", "50");
       const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch assessments");
       const data = await res.json();
       return parseWithLogging<AssessmentsListResponse>(api.assessments.list.responses[200], data, "assessments.list");
     },
+    initialPageParam: undefined as number | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
   });
 }
 
@@ -43,34 +46,11 @@ export function useCreateAssessment() {
       });
       
       if (!res.ok) {
-        const contentType = res.headers.get("content-type") || "";
-
-        let serverPayload: any = null;
-        try {
-          serverPayload = contentType.includes("application/json")
-            ? await res.json()
-            : { raw: await res.text() };
-        } catch {
-          try {
-            serverPayload = { raw: await res.text() };
-          } catch {
-            serverPayload = null;
-          }
+        if (res.status === 400) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || "Validation failed");
         }
-
-        console.error("[useCreateAssessment] Request failed", {
-          url: api.assessments.create.path,
-          status: res.status,
-          payload: serverPayload,
-        });
-
-        const message =
-          serverPayload?.message ||
-          serverPayload?.error ||
-          (typeof serverPayload?.raw === "string" ? serverPayload.raw : undefined) ||
-          `Failed to create assessment (HTTP ${res.status})`;
-
-        throw new Error(message);
+        throw new Error("Failed to create assessment");
       }
       
       const responseData = await res.json();
