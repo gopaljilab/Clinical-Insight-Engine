@@ -1,7 +1,12 @@
 import { Link } from "wouter";
 import { ShieldCheck } from "lucide-react";
+import { useEffect } from "react";
 
 export default function PrivacyPolicy() {
+  useEffect(() => {
+    document.title = "Privacy Policy | Clinical Insight Engine";
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/60 to-white px-5 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl">

@@ -11,7 +11,15 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-JWT_SECRET = os.environ.get("JWT_SECRET", "change-me-in-production")
+JWT_SECRET = os.environ.get("JWT_SECRET")
+is_production = os.environ.get("FLASK_ENV") == "production" or os.environ.get("NODE_ENV") == "production"
+
+if not JWT_SECRET or JWT_SECRET == "change-me-in-production":
+    if is_production:
+        raise RuntimeError("JWT_SECRET environment variable is required in production.")
+    else:
+        JWT_SECRET = "change-me-in-production"
+
 JWT_ALGORITHM = "HS256"
 
 
