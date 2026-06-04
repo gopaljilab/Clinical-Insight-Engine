@@ -11,4 +11,13 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },
+  // 💡 Explicitly declare your managed table names rather than using standard wildcards
+  tablesFilter: [
+    "assessments",
+    "users",
+    "user_terms_acceptance",
+    "login_audit_logs",
+    "password_reset_tokens",
+    "email_verification_tokens"
+  ],
 });
