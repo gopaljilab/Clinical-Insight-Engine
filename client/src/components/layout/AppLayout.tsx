@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, ClipboardList, HeartPulse, LogOut, Loader2 } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
+import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import ThemeToggle from "../ThemeToggle";
@@ -16,6 +17,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
+  const { toast } = useToast();
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
   const [checking, setChecking] = useState(true);
   const [networkError, setNetworkError] = useState(false);
@@ -70,6 +72,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     setIsSigningOut(true);
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      queryClient.clear();
     } finally {
       setIsSigningOut(false);
       setLocation("/");
@@ -79,7 +82,16 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navItems = [
     { href: "/dashboard", label: "New Assessment", icon: Activity },
     { href: "/history", label: "Patient History", icon: ClipboardList },
+    { href: "/analytics", label: "Provider Analytics", icon: PieChart },
   ];
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
+      </div>
+    );
+  }
 
   if (networkError) {
     return (
@@ -205,3 +217,20 @@ export function AppLayout({ children }: AppLayoutProps) {
             >
               Sign Out
             </button>
+// GSSoC Issue #683 Patch
+export function AppLayout({ children }: AppLayoutProps) {
+  const [location, setLocation] = useLocation();
+  // GSSoC Issue #683 Route Guard
+  useEffect(() => {
+    const sessionStr = localStorage.getItem("cardioguard-auth-session");
+    if (!sessionStr) {
+      setLocation("/");
+    } else {
+      try {
+        const session = JSON.parse(sessionStr);
+        if (!session.authenticated) setLocation("/");
+      } catch (e) {
+        setLocation("/");
+      }
+    }
+  }, [setLocation]);
