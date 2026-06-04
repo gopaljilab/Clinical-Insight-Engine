@@ -264,3 +264,8 @@ app.use((req, res, next) => {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 })();
+
+
+// GSSoC Issue #687 Patch
+    // GSSoC Issue #687 exit process on DB fail
+    process.exit(1);
