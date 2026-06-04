@@ -563,7 +563,7 @@ export function createAuthRouter(): Router {
 
       await db
         .update(users)
-        .set({ emailVerified: true, emailVerifiedAt: new Date() })
+        .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
         .where(eq(users.id, user.id));
 
       await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider", emailVerified: true });
