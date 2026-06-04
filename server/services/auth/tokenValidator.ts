@@ -19,7 +19,7 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-import jwt, { type JwtPayload } from "jsonwebtoken";
+import jwt, { type JwtPayload, type SignOptions } from "jsonwebtoken";
 
 /** Algorithms explicitly allowed. Any other value — including "none" — is rejected. */
 const ALLOWED_ALGORITHMS: jwt.Algorithm[] = ["HS256"];
@@ -161,7 +161,7 @@ export function issueToken(
   expiresIn?: string
 ): string {
   const secret = getJwtSecret();
-  const expiry = expiresIn ?? process.env.JWT_EXPIRES_IN ?? "1h";
+  const expiry = (expiresIn ?? process.env.JWT_EXPIRES_IN ?? "1h") as SignOptions["expiresIn"];
 
   // Use payload.sub instead of SignOptions.subject (typings vary by jsonwebtoken version)
   return jwt.sign(

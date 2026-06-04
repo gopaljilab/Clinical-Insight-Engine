@@ -60,6 +60,12 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(assessments.createdBy, createdBy));
     }
 
+
+
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy));
+    }
+
     let query = db
       .select({
         id: assessments.id,
