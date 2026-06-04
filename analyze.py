@@ -521,8 +521,6 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
         "confidenceInterval": confidence_interval,
         "modelConfidence": round(float(max(prob, 1 - prob)), 4)
     }
-    cache.set(input_data, result)
-    return result
 
     # If the submitted gender value is outside the model's training distribution,
     # attach a warning so clinicians are aware the demographic was not represented
@@ -534,6 +532,7 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
             "Results should be interpreted with caution for this demographic."
         )
 
+    cache.set(input_data, result)
     return result
 
 if __name__ == "__main__":
@@ -544,8 +543,12 @@ if __name__ == "__main__":
         else:
             data = json.load(sys.stdin)
         model, scaler, features, cov_beta = get_model()
-        result = interpret_prediction(model, scaler, features, data, cov_beta)
-        print(json.dumps(result))
+        if isinstance(data, list):
+            results = [interpret_prediction(model, scaler, features, item, cov_beta) for item in data]
+            print(json.dumps(results))
+        else:
+            result = interpret_prediction(model, scaler, features, data, cov_beta)
+            print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")

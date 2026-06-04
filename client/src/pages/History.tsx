@@ -70,13 +70,20 @@ export default function History() {
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const itemsPerPage = 10;
+  const [selectedPatientName, setSelectedPatientName] = useState<string | null>(null);
 
-  // Reset pagination window when search/filter changes
+  const selectedPatientHistory = useMemo(() => {
+    if (!selectedPatientName || !assessments) return [];
+    return assessments.filter(a => {
+       const pName = a.patientName || "Unknown Patient";
+       return pName === selectedPatientName;
+    });
+  }, [assessments, selectedPatientName]);
+
+  // Reset pagination when search/filter changes
   useEffect(() => {
-    setCurrentPage(1);
+    setCursorStack([undefined]);
+    setCurrentIndex(0);
   }, [searchTerm, sortBy, startDate, endDate]);
 
   useEffect(() => {
@@ -230,12 +237,9 @@ export default function History() {
     }
   });
 
-  // 4. Client-side Pagination Slicing
+  // 4. Pagination
   const totalRecords = sortedAssessments.length;
-  const totalPages = Math.ceil(totalRecords / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalRecords);
-  const paginatedAssessments = sortedAssessments.slice(startIndex, endIndex);
+  const paginatedAssessments = sortedAssessments;
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
@@ -545,7 +549,7 @@ export default function History() {
                             Reload
                           </button>
                           <button
-                            onClick={() => exportAsPdf(assessment)}
+                            onClick={() => downloadClinicalAssessmentPdf(assessment)}
                             className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900"
                           >
                             <FileText className="w-4 h-4" />
@@ -564,17 +568,13 @@ export default function History() {
               <div className="text-sm text-muted-foreground font-medium">
                 Showing{" "}
                 <span className="font-semibold text-foreground">
-                  {totalRecords === 0 ? 0 : startIndex + 1}
+                  {totalRecords === 0 ? 0 : 1}
                 </span>{" "}
                 to{" "}
                 <span className="font-semibold text-foreground">
-                  {endIndex}
-                </span>{" "}
-                of{" "}
-                <span className="font-semibold text-foreground">
                   {totalRecords}
                 </span>{" "}
-                records
+                records on this page
               </div>
 
               <div className="flex items-center gap-2">
@@ -594,10 +594,12 @@ export default function History() {
                 )}
                 <button
                   type="button"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.max(prev - 1, 1))
-                  }
-                  disabled={currentPage === 1}
+                  onClick={() => {
+                    if (currentIndex > 0) {
+                      setCurrentIndex(currentIndex - 1);
+                    }
+                  }}
+                  disabled={currentIndex === 0}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Previous page"
                 >
@@ -605,17 +607,21 @@ export default function History() {
                 </button>
 
                 <div className="flex items-center gap-1 text-sm font-semibold px-2">
-                  <span className="text-foreground">Page {currentPage}</span>
-                  <span className="text-muted-foreground">/</span>
-                  <span className="text-muted-foreground">{totalPages}</span>
+                  <span className="text-foreground">Page {currentIndex + 1}</span>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                  }
-                  disabled={currentPage === totalPages}
+                  onClick={() => {
+                    if (assessmentsResponse?.nextCursor) {
+                      const next = assessmentsResponse.nextCursor;
+                      if (currentIndex + 1 >= cursorStack.length) {
+                        setCursorStack([...cursorStack, next]);
+                      }
+                      setCurrentIndex(currentIndex + 1);
+                    }
+                  }}
+                  disabled={!assessmentsResponse?.nextCursor}
                   className="inline-flex items-center justify-center p-2 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:hover:bg-card transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
                   aria-label="Next page"
                 >
@@ -629,3 +635,20 @@ export default function History() {
     </AppLayout>
   );
 }
+
+
+
+import { format, isValid } from "date-fns";
+
+  const filteredAssessments = assessments?.filter(a => {
+      const term = searchTerm.toLowerCase();
+      return (
+        a.gender.toLowerCase().includes(term) ||
+        a.riskCategory.toLowerCase().includes(term) ||
+        a.smokingHistory.toLowerCase().includes(term) ||
+        String(a.age).includes(term) ||
+        String(a.bmi).includes(term) ||
+        String(a.hba1cLevel).includes(term) ||
+        String(a.bloodGlucoseLevel).includes(term)
+      );
+    }) || [];
