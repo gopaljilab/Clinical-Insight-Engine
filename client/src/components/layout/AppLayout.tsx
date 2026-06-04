@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
+import { ApiClient } from "@/lib/apiClient";
 import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, UploadCloud } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -23,14 +24,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [networkError, setNetworkError] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me", { credentials: "include" })
-      .then((res) => {
-        if (res.status === 401) { setLocation("/"); return undefined; }
-        if (!res.ok) { setNetworkError(true); return undefined; }
-        return res.json();
+    ApiClient.get("/api/auth/me")
+      .then((data: any) => { if (data) setUser(data.user); })
+      .catch((error) => {
+        if (error.status === 401) {
+          setLocation("/");
+        } else {
+          setNetworkError(true);
+        }
       })
-      .then((data) => { if (data) setUser(data.user); })
-      .catch(() => setNetworkError(true))
       .finally(() => setChecking(false));
   }, [setLocation]);
 
@@ -71,7 +73,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const handleSignOut = async () => {
     setIsSigningOut(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      await ApiClient.post("/api/auth/logout");
       queryClient.clear();
     } finally {
       setIsSigningOut(false);

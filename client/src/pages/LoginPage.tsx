@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
+import { ApiClient } from "@/lib/apiClient";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -50,17 +51,7 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrors({ email: data.message || "Invalid email or password." });
-        return;
-      }
+      const data = await ApiClient.post("/api/auth/login", { email, password });
       setPendingEmail(email);
       if (data.devOtp) setDevOtp(data.devOtp);
       setStep("otp");
@@ -78,21 +69,11 @@ export default function LoginPage() {
     setIsLoading(true);
     setErrors({});
     try {
-      const res = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email: pendingEmail, otp: otpValue }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrors({ otp: data.message || "Verification failed. Please try again." });
-        return;
-      }
+      await ApiClient.post("/api/auth/verify-otp", { email: pendingEmail, otp: otpValue });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       setLocation("/dashboard");
-    } catch {
-      setErrors({ otp: "Unable to connect to server. Please try again." });
+    } catch (err: any) {
+      setErrors({ otp: err.message || "Unable to connect to server. Please try again." });
     } finally {
       setIsLoading(false);
     }
