@@ -38,8 +38,10 @@ def read_csv_safely(filepath, chunksize=10000, max_rows=150000, timeout_seconds=
             raise SafeCSVError(str(e))
         except UnicodeDecodeError:
             raise SafeCSVError("Unsupported file encoding")
-        except pd.errors.ParserError:
-            raise SafeCSVError("Malformed CSV structure")
+        except pd.errors.ParserError as e:
+            raise SafeCSVError(f"Malformed CSV structure: {str(e)}")
+        except SyntaxError as e:
+            raise SafeCSVError(f"Invalid CSV format: {str(e)}")
         except MemoryError:
             raise SafeCSVError("Server memory limit exceeded during processing")
             

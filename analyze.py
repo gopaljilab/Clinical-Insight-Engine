@@ -106,7 +106,7 @@ def train_model_pipeline():
         df = read_csv_safely(DATA_FILE)
     except SafeCSVError as e:
         print(f"Error loading dataset: {e}", file=sys.stderr)
-        return None, None, None
+        return None, None, None, None
     
     # Check for missing values and unrealistic zeros
     clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
