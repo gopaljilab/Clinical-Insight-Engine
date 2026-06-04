@@ -341,9 +341,6 @@ export function createAuthRouter(): Router {
           }
         }
       }
-    }
-
-
     if (!userName) {
       await storage.recordLoginAudit({
         ipAddress: req.ip,
@@ -406,14 +403,6 @@ export function createAuthRouter(): Router {
 
     pendingOtps.delete(email);
 
-    const db = getDb();
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
-    if (!user) {
-      return res.status(404).json({ message: "User not found." });
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
 
     let id: string;
@@ -442,9 +431,6 @@ export function createAuthRouter(): Router {
       role = user.role ?? "provider";
       emailVerified = user.emailVerified ?? false;
     }
-    const id = user.id;
-    const name = user.fullName;
-    const role = user.role ?? "provider";
 
     try {
       await establishAuthenticatedSession(req, { id, email, name, role, emailVerified });

@@ -91,7 +91,6 @@ export default function Dashboard() {
       patientName: "",
       hypertension: false,
       heartDisease: false,
-      patientName: "",
       smokingHistory: "never",
       gender: "Female",
       age: undefined,
@@ -206,9 +205,6 @@ export default function Dashboard() {
       return () => clearTimeout(timer);
     }
   }, [formData, result, DRAFT_TTL_MS]);
-      localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(formData));
-    }
-  }, [formData]);
 
   return (
     <AppLayout>
@@ -371,7 +367,7 @@ export default function Dashboard() {
                         <div className="relative">
                           <input type="number" step="0.1" {...register("bmi")} className={getInputClass(!!errors.bmi)} placeholder="e.g. 25.0" />
                           {watchedValues.bmi && (
-                            <button type="button" onClick={() => setValue("bmi", undefined, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("bmi", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
                               <X className="w-4 h-4" />
                             </button>
                           )}
@@ -402,7 +398,7 @@ export default function Dashboard() {
                         <div className="relative">
                           <input type="number" step="0.1" {...register("hba1cLevel")} className={getInputClass(!!errors.hba1cLevel)} placeholder="e.g. 5.7" />
                           {watchedValues.hba1cLevel && (
-                            <button type="button" onClick={() => setValue("hba1cLevel", undefined, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("hba1cLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
                               <X className="w-4 h-4" />
                             </button>
                           )}
@@ -432,7 +428,7 @@ export default function Dashboard() {
                         <div className="relative">
                           <input type="number" {...register("bloodGlucoseLevel")} className={getInputClass(!!errors.bloodGlucoseLevel)} placeholder="e.g. 100" />
                           {watchedValues.bloodGlucoseLevel && (
-                            <button type="button" onClick={() => setValue("bloodGlucoseLevel", undefined, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("bloodGlucoseLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
                               <X className="w-4 h-4" />
                             </button>
                           )}

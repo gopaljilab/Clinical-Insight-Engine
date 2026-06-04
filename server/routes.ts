@@ -107,10 +107,7 @@ const inferenceConcurrencyLimiter = new SimpleSemaphore(4);
  */
 const activeInferenceRequests = new Set<string>();
 
-function generateRequestFingerprint(
-  payload: unknown,
-  userId: string,
-): string {
+
 const predictionFactorSchema = z.object({
   name: z.string(),
   impact: z.enum(["positive", "negative"]),

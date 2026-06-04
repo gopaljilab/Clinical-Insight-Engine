@@ -11,7 +11,7 @@ import History from "./pages/History";
 import Analytics from "./pages/Analytics";
 import ImportData from "./pages/ImportData";
 import AdminDashboard from "./pages/AdminDashboard";
-import Analytics from "./pages/Analytics";
+
 import LoginPage from "./pages/LoginPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";

@@ -295,6 +295,9 @@ export class DatabaseStorage implements IStorage {
       totalUsers: Number(userCount),
       totalAssessments: Number(assessmentCount),
       riskDistribution: riskDistributionRaw,
+    };
+  }
+
   async recordLoginAudit(params: {
     userId?: string;
     ipAddress?: string;
@@ -308,6 +311,8 @@ export class DatabaseStorage implements IStorage {
       userAgent: params.userAgent ?? null,
       loginStatus: params.loginStatus,
     });
+  }
+
   async getAnalyticsStats(createdBy?: string) {
     const db = getDb();
     const filters: ReturnType<typeof eq>[] = [];
