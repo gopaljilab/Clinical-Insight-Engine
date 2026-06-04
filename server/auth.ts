@@ -102,6 +102,13 @@ if (otpCleanupTimer.unref) {
 /**
  * Rate limiters for verification endpoints.
  */
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 5, // Stricter limit to prevent brute force (Fixes #624)
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many authentication attempts. Please try again later." },
+});
 
 const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

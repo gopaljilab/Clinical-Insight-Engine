@@ -361,7 +361,7 @@ function RegisterForm({
   );
 }
 
-function OtpForm({ onVerify, email, devOtp }: { onVerify: () => void; email: string; devOtp?: string }) {
+function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; email: string; devOtp?: string; mode: "login" | "register" }) {
   const [otp, setOtp] = useState(devOtp ? devOtp.split("").slice(0, 6) : ["", "", "", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -414,30 +414,28 @@ function OtpForm({ onVerify, email, devOtp }: { onVerify: () => void; email: str
     setError(null);
     setIsLoading(true);
     try {
-      // Try DB-backed verification first
-      const response = await fetch("/api/auth/verify-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code: otp.join("") }),
-        credentials: "include",
-      });
+      // Route to correct endpoint based on flow:
+      // login  -> /verify-otp  (in-memory OTP set by /login)
+      // register -> /verify-email (DB-backed token set by /register)
+      let response: Response;
+      if (mode === "login") {
+        response = await fetch("/api/auth/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, otp: otp.join("") }),
+          credentials: "include",
+        });
+      } else {
+        response = await fetch("/api/auth/verify-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, code: otp.join("") }),
+          credentials: "include",
+        });
+      }
 
       if (!response.ok) {
         const data = await response.json();
-        // If user not found in DB, fall back to in-memory OTP
-        if (response.status === 404) {
-          const legacyResponse = await fetch("/api/auth/verify-otp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, otp: otp.join("") }),
-            credentials: "include",
-          });
-          if (!legacyResponse.ok) {
-            const legacyData = await legacyResponse.json();
-            throw new Error(legacyData.message || "Verification failed. Please try again.");
-          }
-          return onVerify();
-        }
         throw new Error(data.message || "Verification failed. Please try again.");
       }
       onVerify();
@@ -774,7 +772,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
               </motion.div>
             ) : (
               <motion.div key="otp" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
-                <OtpForm onVerify={handleVerify} email={pendingEmail} devOtp={devOtp} />
+                <OtpForm onVerify={handleVerify} email={pendingEmail} devOtp={devOtp} mode={mode} />
                 <button
                   type="button"
                   onClick={() => setStep("form")}

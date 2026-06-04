@@ -70,28 +70,24 @@ export class DatabaseStorage implements IStorage {
 
 
 
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy));
+    }
 
-    // Avoid selecting non-existent columns (e.g., created_by in older DB states)
-    // by explicitly selecting only columns known to exist in migrations.
-    const query = db
+    let query = db
       .select({
         id: assessments.id,
         patientName: assessments.patientName,
         gender: assessments.gender,
         age: assessments.age,
         hypertension: assessments.hypertension,
-        heartDisease: (assessments as any).heartDisease ?? (assessments as any).heart_disease,
-        smokingHistory:
-          (assessments as any).smokingHistory ?? (assessments as any).smoking_history,
+        heartDisease: assessments.heartDisease,
+        smokingHistory: assessments.smokingHistory,
         bmi: assessments.bmi,
-        hba1cLevel:
-          (assessments as any).hba1cLevel ?? (assessments as any).hba1c_level,
-        bloodGlucoseLevel:
-          (assessments as any).bloodGlucoseLevel ?? (assessments as any).blood_glucose_level,
-        riskScore:
-          (assessments as any).riskScore ?? (assessments as any).risk_score,
-        riskCategory:
-          (assessments as any).riskCategory ?? (assessments as any).risk_category,
+        hba1cLevel: assessments.hba1cLevel,
+        bloodGlucoseLevel: assessments.bloodGlucoseLevel,
+        riskScore: assessments.riskScore,
+        riskCategory: assessments.riskCategory,
         factors: assessments.factors,
         confidenceInterval:
           (assessments as any).confidenceInterval ?? (assessments as any).confidence_interval,
@@ -105,7 +101,7 @@ export class DatabaseStorage implements IStorage {
           (assessments as any).userId ?? (assessments as any).user_id,
       })
       .from(assessments)
-      .orderBy(desc((assessments as any).createdAt ?? (assessments as any).created_at))
+      .orderBy(desc(assessments.createdAt))
       .$dynamic();
 
 

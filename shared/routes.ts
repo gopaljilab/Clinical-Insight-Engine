@@ -114,6 +114,7 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
     confidenceInterval?: string | null;
     modelConfidence?: number | null;
     disclaimer?: string;
+    isFallback?: boolean;
   };
 };
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
