@@ -55,6 +55,43 @@ function runPythonInference(
   });
 }
 
+export class SimpleSemaphore {
+  private activeCount = 0;
+  private queue: (() => void)[] = [];
+
+  constructor(private maxConcurrency: number) {}
+
+  async acquire(): Promise<void> {
+    if (this.activeCount < this.maxConcurrency) {
+      this.activeCount++;
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.queue.push(resolve);
+    });
+  }
+
+  release(): void {
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      if (next) next();
+    } else {
+      this.activeCount--;
+    }
+  }
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    await this.acquire();
+    try {
+      return await fn();
+    } finally {
+      this.release();
+    }
+  }
+}
+
+const inferenceConcurrencyLimiter = new SimpleSemaphore(4);
+
 /**
  * Tracks currently running inference requests to prevent
  * duplicate concurrent ML execution for identical payloads.
@@ -94,9 +131,22 @@ function parsePythonPrediction(stdout: string): PythonPrediction {
   return pythonPredictionSchema.parse(parsed);
 }
 
+function canonicalStringify(obj: unknown): string {
+  if (obj === null || typeof obj !== "object") {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return "[" + obj.map(canonicalStringify).join(",") + "]";
+  }
+  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  const pairs = keys.map((k) => JSON.stringify(k) + ":" + canonicalStringify((obj as Record<string, unknown>)[k]));
+  return "{" + pairs.join(",") + "}";
+}
+
 function generateRequestFingerprint(payload: unknown, userId: string): string {
+  const uid = userId || "anonymous";
   return createHash("sha256")
-    .update(`${userId}::${JSON.stringify(payload)}`)
+    .update(`${uid}::${canonicalStringify(payload)}`)
     .digest("hex");
 }
 
@@ -128,6 +178,17 @@ const previewLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     error: "Too many preview requests. Please try again later.",
+    retryAfter: 60,
+  },
+});
+
+const previewLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many assessment preview requests. Please try again later.",
     retryAfter: 60,
   },
 });
@@ -229,8 +290,6 @@ interface PredictionResult {
   }>;
   clinicianAdvice: string[];
   patientAdvice: string[];
-  confidenceInterval?: string;
-  modelConfidence?: number;
 }
 
 function calculateClinicalFallback(input: unknown): PredictionResult {
@@ -378,8 +437,6 @@ function calculateClinicalFallback(input: unknown): PredictionResult {
           : [
             "Continue maintaining a healthy, balanced lifestyle and regular physical activity.",
           ],
-    confidenceInterval: `${Math.max(1, riskScore - 5)}% - ${Math.min(99, riskScore + 5)}%`,
-    modelConfidence: 0.95,
   };
 }
 
@@ -462,8 +519,8 @@ export async function registerRoutes(
       } finally {
         try {
           await unlink(tempFilePath);
-        } catch {
-          // ignore
+        } catch (e) {
+          console.warn("Failed to clean up temp file (preview):", tempFilePath, e);
         }
       }
     }
@@ -530,6 +587,7 @@ export async function registerRoutes(
           (isFallback
             ? " (Generated via fallback rule-based clinical support model due to system unavailability)"
             : "");
+        prediction.isFallback = isFallback;
 
         const assessment = await storage.createAssessment({
           ...input,
@@ -560,8 +618,8 @@ export async function registerRoutes(
         if (tempFilePath) {
           try {
             await unlink(tempFilePath);
-          } catch {
-            // ignore
+          } catch (e) {
+            console.warn("Failed to clean up temp file (create):", tempFilePath, e);
           }
         }
         if (requestFingerprint) {
@@ -571,8 +629,22 @@ export async function registerRoutes(
     }
   );
 
-  app.get(
-    api.assessments.list.path,
+  app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
+    try {
+      const userEmail = req.session.user?.email;
+      const assessments = await storage.getAssessments(50, 0, userEmail);
+      logAccessAttempt(req.session.user!.id, "Assessments", "all", true, "Fetched assessment list");
+
+      res.json(assessments);
+
+    } catch (err) {
+      res.status(500).json({
+        message: "Failed to fetch assessments"
+      });
+    }
+  });
+    app.get(
+    "/api/assessments/export.csv",
     requireAuth,
     requireVerified,
     async (req, res) => {
@@ -583,6 +655,13 @@ export async function registerRoutes(
           100,
           Math.max(1, parseInt(req.query.limit as string) || 20)
         );
+        logAccessAttempt(req.session.user!.id, "Assessments", "all", true, "Exported assessments to CSV");
+        res.header("Content-Type", "text/csv");
+        res.attachment("assessments.csv");
+        return res.send(csv);
+      } catch (err) {
+        console.error("Export error:", err);
+        return res.status(500).json({ message: "Export failed" });
         const offset = (page - 1) * limit;
         const result = await storage.getAssessments(limit, offset, userEmail);
         res.json(result);
@@ -592,17 +671,60 @@ export async function registerRoutes(
     }
   );
 
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader(
+          "Content-Disposition",
+          "attachment; filename=assessments.csv"
+        );
+        return res.send(csv);
+      } catch (err) {
+        console.error("CSV export error:", err);
+        return res.status(500).json({ message: "Failed to export CSV." });
+      }
+    }
+  );
+
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", "attachment; filename=assessments.csv");
+        return res.send(csv);
+      } catch (err) {
+        console.error("Assessment CSV export error:", err);
+        return res.status(500).json({
+          message: "Failed to export assessments"
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/search
+   *
+   * Secure patient/assessment search endpoint.
+   *
+   * Security controls:
+   * 1. PRIMARY: Drizzle ORM ilike()/eq() - query parameters are bound placeholders,
+   *    never interpolated into raw SQL strings. This prevents SQL injection.
+   * 2. SUPPLEMENTARY: Zod schema validates input length, character set, and rejects
+   *    known injection signatures before the query is even constructed.
+   * 3. Security logging: suspicious patterns are logged without PHI for audit.
+   * 4. User scoping: results are always filtered to the authenticated user's records.
+   * 5. Generic errors: DB errors are sanitized.
+   *
+   * Query params:
+   *   q            - search term (max 200 chars, safe characters only)
+   *   riskCategory - optional: LOW | MODERATE | HIGH
+   *   page         - page number (default 1)
+   *   limit        - results per page, max 100 (default 20)
+   */
   app.get(
     "/api/assessments/search",
     requireAuth,
     requireVerified,
     async (req, res) => {
       try {
-        // 1. Validate and parse query parameters
         const parseResult = searchQuerySchema.safeParse(req.query);
 
         if (!parseResult.success) {
-          // Check whether the failure looks like an injection attempt
           const rawQ = typeof req.query.q === "string" ? req.query.q : "";
           const analysis = analyzeSearchInput(rawQ);
 
@@ -636,11 +758,9 @@ export async function registerRoutes(
         const offset = (page - 1) * limit;
         const userEmail = req.session.user?.email;
 
-        // 2. Log suspicious-but-valid patterns for monitoring
         if (q) {
           const analysis = analyzeSearchInput(q);
           if (!analysis.safe) {
-            // Validation already rejected this above, but log defensively
             logSecurityEvent(
               "SUSPICIOUS_SEARCH_PATTERN",
               "Validated search term contains a suspicious pattern",
@@ -653,6 +773,168 @@ export async function registerRoutes(
           }
         }
 
+        const results = await storage.searchAssessments(
+          q ?? "",
+          userEmail,
+          riskCategory,
+          limit,
+          offset
+        );
+        logAccessAttempt(req.session.user!.id, "Assessments", "search", true, "Searched assessments");
+        return res.json(results);
+
+      } catch (err) {
+        console.error("Assessment search error:", err);
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
+
+  app.get(
+    "/api/assessments/analytics",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const userEmail = req.session.user?.email;
+        if (!userEmail) {
+           return res.status(401).json({ message: "Unauthorized" });
+        }
+        const stats = await storage.getAnalyticsStats(userEmail);
+        return res.json(stats);
+      } catch (err) {
+        console.error("Analytics fetch error:", err);
+        return res.status(500).json({ message: "Failed to fetch analytics" });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/:id
+   *
+   * Fetch a single assessment by numeric ID.
+   * Object-level authorization is enforced explicitly before returning records.
+   */
+  app.get(
+    "/api/assessments/:id",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id as string, 10);
+
+        if (isNaN(id) || id <= 0) {
+          return res.status(400).json({ message: "Invalid assessment ID." });
+        }
+
+        const user = req.session.user;
+        if (!user) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const assessment = await storage.getAssessmentById(id);
+
+        if (!assessment) {
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        // Object-Level Authorization Check
+        if (
+          !canAccessPatientRecord(
+            user as any,
+            assessment
+          )
+        ) {
+          // Log unauthorized access attempt (IDOR/Enumeration attempt)
+          logAccessAttempt(
+            (user as any).id,
+            "Assessment",
+            id,
+            false,
+            "IDOR attempt: User not authorized to access this patient record"
+          );
+          
+          // Return 404 to prevent ID enumeration
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+  /**
+   * GET /api/assessments/search
+   *
+   * Secure patient/assessment search endpoint.
+   *
+   * Security controls:
+   * 1. PRIMARY: Drizzle ORM ilike()/eq() — query parameters are bound placeholders,
+   *    never interpolated into raw SQL strings.  This prevents SQL injection.
+   * 2. SUPPLEMENTARY: Zod schema validates input length, character set, and rejects
+   *    known injection signatures before the query is even constructed.
+   * 3. Security logging: suspicious patterns are logged (without PHI) for audit.
+   * 4. User scoping: results are always filtered to the authenticated user's records.
+   * 5. Generic errors: DB errors are sanitized — no table names or SQL syntax leaked.
+   *
+   * Query params:
+   *   q            - search term (max 200 chars, safe characters only)
+   *   riskCategory - optional: LOW | MODERATE | HIGH
+   *   page         - page number (default 1)
+   *   limit        - results per page, max 100 (default 20)
+   */
+  app.get(
+    "/api/assessments/search",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        // 1. Validate and parse query parameters
+        const parseResult = searchQuerySchema.safeParse(req.query);
+
+        if (!parseResult.success) {
+          // Check whether the failure looks like an injection attempt
+          const rawQ = typeof req.query.q === "string" ? req.query.q : "";
+          const analysis = analyzeSearchInput(rawQ);
+
+          if (!analysis.safe) {
+            logSecurityEvent(
+              "SQL_INJECTION_ATTEMPT",
+              "Injection-like pattern detected in search query parameter",
+              req,
+              {
+                matchedPattern: analysis.pattern,
+                userId: req.session.user?.id,
+              }
+            );
+          } else {
+            logSecurityEvent(
+              "MALFORMED_SEARCH_QUERY",
+              "Search query failed validation",
+              req,
+              { userId: req.session.user?.id }
+            );
+          }
+
+          return res.status(400).json({
+            message: parseResult.error.errors[0]?.message ?? "Invalid search parameters.",
+          });
+        }
+
+        const { q, riskCategory, page, limit } = parseResult.data;
+        const offset = (page - 1) * limit;
+        const userEmail = req.session.user?.email;
+
+        // 2. Log suspicious-but-valid patterns for monitoring
+        if (q) {
+          const analysis = analyzeSearchInput(q);
+          if (!analysis.safe) {
+            // Validation already rejected this above, but log defensively
+            logSecurityEvent(
+              "SUSPICIOUS_SEARCH_PATTERN",
+              "Validated search term contains a suspicious pattern",
+              req,
+              { matchedPattern: analysis.pattern, userId: req.session.user?.id }
+            );
+          }
+        }
+
         // 3. Execute parameterized search — Drizzle ORM sends $1, $2 … placeholders
         const results = await storage.searchAssessments(
           q ?? "",
@@ -661,8 +943,10 @@ export async function registerRoutes(
           limit,
           offset
         );
+        logAccessAttempt(req.session.user!.id, "Assessments", "search", true, "Searched assessments");
 
         return res.json(results);
+
       } catch (err) {
         // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
         console.error("Assessment search error:", err);
@@ -686,7 +970,297 @@ export async function registerRoutes(
     requireVerified,
     async (req, res) => {
       try {
-        const id = parseInt(req.params.id as string, 10);
+        const id = parseInt(req.params.id, 10);
+
+        if (isNaN(id) || id <= 0) {
+          return res.status(400).json({ message: "Invalid assessment ID." });
+        }
+
+        const user = req.session.user;
+        if (!user) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const assessment = await storage.getAssessmentById(id);
+
+        if (!assessment) {
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        if (!canAccessPatientRecord(user, assessment)) {
+          logAccessAttempt(user.id, "Assessment", id, false, "IDOR attempt: User not authorized to access this patient record");
+
+          // Return 404 to prevent ID enumeration
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        // Authorized access
+        logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
+        return res.json(assessment);
+
+      } catch (err) {
+        console.error("Assessment fetch error:", err);
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/search
+   *
+   * Secure patient/assessment search endpoint.
+   *
+   * Security controls:
+   * 1. PRIMARY: Drizzle ORM ilike()/eq() — query parameters are bound placeholders,
+   *    never interpolated into raw SQL strings.  This prevents SQL injection.
+   * 2. SUPPLEMENTARY: Zod schema validates input length, character set, and rejects
+   *    known injection signatures before the query is even constructed.
+   * 3. Security logging: suspicious patterns are logged (without PHI) for audit.
+   * 4. User scoping: results are always filtered to the authenticated user's records.
+   * 5. Generic errors: DB errors are sanitized — no table names or SQL syntax leaked.
+   *
+   * Query params:
+   *   q            - search term (max 200 chars, safe characters only)
+   *   riskCategory - optional: LOW | MODERATE | HIGH
+   *   page         - page number (default 1)
+   *   limit        - results per page, max 100 (default 20)
+   */
+  app.get(
+    "/api/assessments/search",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        // 1. Validate and parse query parameters
+        const parseResult = searchQuerySchema.safeParse(req.query);
+
+        if (!parseResult.success) {
+          // Check whether the failure looks like an injection attempt
+          const rawQ = typeof req.query.q === "string" ? req.query.q : "";
+          const analysis = analyzeSearchInput(rawQ);
+
+          if (!analysis.safe) {
+            logSecurityEvent(
+              "SQL_INJECTION_ATTEMPT",
+              "Injection-like pattern detected in search query parameter",
+              req,
+              {
+                matchedPattern: analysis.pattern,
+                userId: req.session.user?.id,
+              }
+            );
+          } else {
+            logSecurityEvent(
+              "MALFORMED_SEARCH_QUERY",
+              "Search query failed validation",
+              req,
+              { userId: req.session.user?.id }
+            );
+          }
+
+          return res.status(400).json({
+            message: parseResult.error.errors[0]?.message ?? "Invalid search parameters.",
+          });
+        }
+
+        const { q, riskCategory, page, limit } = parseResult.data;
+        const offset = (page - 1) * limit;
+        const userEmail = req.session.user?.email;
+
+        // 2. Log suspicious-but-valid patterns for monitoring
+        if (q) {
+          const analysis = analyzeSearchInput(q);
+          if (!analysis.safe) {
+            // Validation already rejected this above, but log defensively
+            logSecurityEvent(
+              "SUSPICIOUS_SEARCH_PATTERN",
+              "Validated search term contains a suspicious pattern",
+              req,
+              { matchedPattern: analysis.pattern, userId: req.session.user?.id }
+            );
+          }
+        }
+
+        // 3. Execute parameterized search — Drizzle ORM sends $1, $2 … placeholders
+        const results = await storage.searchAssessments(
+          q ?? "",
+          userEmail,
+          riskCategory,
+          limit,
+          offset
+        );
+        logAccessAttempt(req.session.user!.id, "Assessments", "search", true, "Searched assessments");
+
+        return res.json(results);
+
+      } catch (err) {
+        // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
+        console.error("Assessment search error:", err);
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/:id
+   *
+   * Fetch a single assessment by numeric ID.
+   * Results are scoped to the authenticated user to prevent cross-user data access.
+   *
+   * Security: uses Drizzle ORM eq() with bound parameters — not string-concatenated.
+   */
+  app.get(
+    "/api/assessments/:id",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id, 10);
+
+        if (isNaN(id) || id <= 0) {
+          return res.status(400).json({ message: "Invalid assessment ID." });
+        }
+
+        const user = req.session.user;
+        if (!user) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const assessment = await storage.getAssessmentById(id);
+
+        if (!assessment) {
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        if (!canAccessPatientRecord(user, assessment)) {
+          logAccessAttempt(user.id, "Assessment", id, false, "IDOR attempt: User not authorized to access this patient record");
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        return res.json(assessment);
+
+      } catch (err) {
+        console.error("Assessment fetch error:", err);
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/search
+   *
+   * Secure patient/assessment search endpoint.
+   *
+   * Security controls:
+   * 1. PRIMARY: Drizzle ORM ilike()/eq() — query parameters are bound placeholders,
+   *    never interpolated into raw SQL strings.  This prevents SQL injection.
+   * 2. SUPPLEMENTARY: Zod schema validates input length, character set, and rejects
+   *    known injection signatures before the query is even constructed.
+   * 3. Security logging: suspicious patterns are logged (without PHI) for audit.
+   * 4. User scoping: results are always filtered to the authenticated user's records.
+   * 5. Generic errors: DB errors are sanitized — no table names or SQL syntax leaked.
+   *
+   * Query params:
+   *   q            - search term (max 200 chars, safe characters only)
+   *   riskCategory - optional: LOW | MODERATE | HIGH
+   *   page         - page number (default 1)
+   *   limit        - results per page, max 100 (default 20)
+   */
+  app.get(
+    "/api/assessments/search",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        // 1. Validate and parse query parameters
+        const parseResult = searchQuerySchema.safeParse(req.query);
+
+        if (!parseResult.success) {
+          // Check whether the failure looks like an injection attempt
+          const rawQ = typeof req.query.q === "string" ? req.query.q : "";
+          const analysis = analyzeSearchInput(rawQ);
+
+          if (!analysis.safe) {
+            logSecurityEvent(
+              "SQL_INJECTION_ATTEMPT",
+              "Injection-like pattern detected in search query parameter",
+              req,
+              {
+                matchedPattern: analysis.pattern,
+                userId: req.session.user?.id,
+              }
+            );
+          } else {
+            logSecurityEvent(
+              "MALFORMED_SEARCH_QUERY",
+              "Search query failed validation",
+              req,
+              { userId: req.session.user?.id }
+            );
+          }
+
+          return res.status(400).json({
+            message: parseResult.error.errors[0]?.message ?? "Invalid search parameters.",
+          });
+        }
+
+        const { q, riskCategory, page, limit } = parseResult.data;
+        const offset = (page - 1) * limit;
+        const userEmail = req.session.user?.email;
+
+        // 2. Log suspicious-but-valid patterns for monitoring
+        if (q) {
+          const analysis = analyzeSearchInput(q);
+          if (!analysis.safe) {
+            // Validation already rejected this above, but log defensively
+            logSecurityEvent(
+              "SUSPICIOUS_SEARCH_PATTERN",
+              "Validated search term contains a suspicious pattern",
+              req,
+              { matchedPattern: analysis.pattern, userId: req.session.user?.id }
+            );
+          }
+        }
+
+        // 3. Execute parameterized search — Drizzle ORM sends $1, $2 … placeholders
+        const results = await storage.searchAssessments(
+          q ?? "",
+          userEmail,
+          riskCategory,
+          limit,
+          offset
+        );
+        logAccessAttempt(req.session.user!.id, "Assessments", "search", true, "Searched assessments");
+
+        return res.json(results);
+
+      } catch (err) {
+        // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
+        console.error("Assessment search error:", err);
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/:id
+   *
+   * Fetch a single assessment by numeric ID.
+   * Results are scoped to the authenticated user to prevent cross-user data access.
+   *
+   * Security: uses Drizzle ORM eq() with bound parameters — not string-concatenated.
+   */
+  app.get(
+    "/api/assessments/:id",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id, 10);
 
         if (isNaN(id) || id <= 0) {
           return res.status(400).json({ message: "Invalid assessment ID." });
@@ -706,28 +1280,338 @@ export async function registerRoutes(
         }
 
         // Object-Level Authorization Check
-        if (
-          !canAccessPatientRecord(
-            user as any,
-            assessment
-          )
-        ) {
+        if (!canAccessPatientRecord(user, assessment)) {
           // Log unauthorized access attempt (IDOR/Enumeration attempt)
           logAccessAttempt(
-            (user as any).id,
+            user.id,
             "Assessment",
             id,
             false,
             "IDOR attempt: User not authorized to access this patient record"
           );
-
+          
           // Return 404 to prevent ID enumeration
           return res.status(404).json({ message: "Assessment not found." });
         }
 
         // Authorized access
-        logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
+        logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
         return res.json(assessment);
+
+      } catch (err) {
+        console.error("Assessment fetch error:", err);
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/search
+   *
+   * Secure patient/assessment search endpoint.
+   *
+   * Security controls:
+   * 1. PRIMARY: Drizzle ORM ilike()/eq() — query parameters are bound placeholders,
+   *    never interpolated into raw SQL strings.  This prevents SQL injection.
+   * 2. SUPPLEMENTARY: Zod schema validates input length, character set, and rejects
+   *    known injection signatures before the query is even constructed.
+   * 3. Security logging: suspicious patterns are logged (without PHI) for audit.
+   * 4. User scoping: results are always filtered to the authenticated user's records.
+   * 5. Generic errors: DB errors are sanitized — no table names or SQL syntax leaked.
+   *
+   * Query params:
+   *   q            - search term (max 200 chars, safe characters only)
+   *   riskCategory - optional: LOW | MODERATE | HIGH
+   *   page         - page number (default 1)
+   *   limit        - results per page, max 100 (default 20)
+   */
+  app.get(
+    "/api/assessments/search",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        // 1. Validate and parse query parameters
+        const parseResult = searchQuerySchema.safeParse(req.query);
+
+        if (!parseResult.success) {
+          // Check whether the failure looks like an injection attempt
+          const rawQ = typeof req.query.q === "string" ? req.query.q : "";
+          const analysis = analyzeSearchInput(rawQ);
+
+          if (!analysis.safe) {
+            logSecurityEvent(
+              "SQL_INJECTION_ATTEMPT",
+              "Injection-like pattern detected in search query parameter",
+              req,
+              {
+                matchedPattern: analysis.pattern,
+                userId: req.session.user?.id,
+              }
+            );
+          } else {
+            logSecurityEvent(
+              "MALFORMED_SEARCH_QUERY",
+              "Search query failed validation",
+              req,
+              { userId: req.session.user?.id }
+            );
+          }
+
+          return res.status(400).json({
+            message: parseResult.error.errors[0]?.message ?? "Invalid search parameters.",
+          });
+        }
+
+        const { q, riskCategory, page, limit } = parseResult.data;
+        const offset = (page - 1) * limit;
+        const userEmail = req.session.user?.email;
+
+        // 2. Log suspicious-but-valid patterns for monitoring
+        if (q) {
+          const analysis = analyzeSearchInput(q);
+          if (!analysis.safe) {
+            // Validation already rejected this above, but log defensively
+            logSecurityEvent(
+              "SUSPICIOUS_SEARCH_PATTERN",
+              "Validated search term contains a suspicious pattern",
+              req,
+              { matchedPattern: analysis.pattern, userId: req.session.user?.id }
+            );
+          }
+        }
+
+        // 3. Execute parameterized search — Drizzle ORM sends $1, $2 … placeholders
+        const results = await storage.searchAssessments(
+          q ?? "",
+          userEmail,
+          riskCategory,
+          limit,
+          offset
+        );
+        logAccessAttempt(req.session.user!.id, "Assessments", "search", true, "Searched assessments");
+
+        return res.json(results);
+
+      } catch (err) {
+        // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
+        console.error("Assessment search error:", err);
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/:id
+   *
+   * Fetch a single assessment by numeric ID.
+   * Results are scoped to the authenticated user to prevent cross-user data access.
+   *
+   * Security: uses Drizzle ORM eq() with bound parameters — not string-concatenated.
+   */
+  app.get(
+    "/api/assessments/:id",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id, 10);
+
+        if (isNaN(id) || id <= 0) {
+          return res.status(400).json({ message: "Invalid assessment ID." });
+        }
+
+        const user = req.session.user;
+        if (!user) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        // Fetch the record regardless of owner
+        const assessment = await storage.getAssessmentById(id);
+
+        if (!assessment) {
+          // Normal 404
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        // Object-Level Authorization Check
+        if (!canAccessPatientRecord(user, assessment)) {
+          // Log unauthorized access attempt (IDOR/Enumeration attempt)
+          logAccessAttempt(
+            user.id,
+            "Assessment",
+            id,
+            false,
+            "IDOR attempt: User not authorized to access this patient record"
+          );
+          
+          // Return 404 to prevent ID enumeration
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        // Authorized access
+        logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
+        return res.json(assessment);
+
+      } catch (err) {
+        console.error("Assessment fetch error:", err);
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/search
+   *
+   * Secure patient/assessment search endpoint.
+   *
+   * Security controls:
+   * 1. PRIMARY: Drizzle ORM ilike()/eq() — query parameters are bound placeholders,
+   *    never interpolated into raw SQL strings.  This prevents SQL injection.
+   * 2. SUPPLEMENTARY: Zod schema validates input length, character set, and rejects
+   *    known injection signatures before the query is even constructed.
+   * 3. Security logging: suspicious patterns are logged (without PHI) for audit.
+   * 4. User scoping: results are always filtered to the authenticated user's records.
+   * 5. Generic errors: DB errors are sanitized — no table names or SQL syntax leaked.
+   *
+   * Query params:
+   *   q            - search term (max 200 chars, safe characters only)
+   *   riskCategory - optional: LOW | MODERATE | HIGH
+   *   page         - page number (default 1)
+   *   limit        - results per page, max 100 (default 20)
+   */
+  app.get(
+    "/api/assessments/search",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        // 1. Validate and parse query parameters
+        const parseResult = searchQuerySchema.safeParse(req.query);
+
+        if (!parseResult.success) {
+          // Check whether the failure looks like an injection attempt
+          const rawQ = typeof req.query.q === "string" ? req.query.q : "";
+          const analysis = analyzeSearchInput(rawQ);
+
+          if (!analysis.safe) {
+            logSecurityEvent(
+              "SQL_INJECTION_ATTEMPT",
+              "Injection-like pattern detected in search query parameter",
+              req,
+              {
+                matchedPattern: analysis.pattern,
+                userId: req.session.user?.id,
+              }
+            );
+          } else {
+            logSecurityEvent(
+              "MALFORMED_SEARCH_QUERY",
+              "Search query failed validation",
+              req,
+              { userId: req.session.user?.id }
+            );
+          }
+
+          return res.status(400).json({
+            message: parseResult.error.errors[0]?.message ?? "Invalid search parameters.",
+          });
+        }
+
+        const { q, riskCategory, page, limit } = parseResult.data;
+        const offset = (page - 1) * limit;
+        const userEmail = req.session.user?.email;
+
+        // 2. Log suspicious-but-valid patterns for monitoring
+        if (q) {
+          const analysis = analyzeSearchInput(q);
+          if (!analysis.safe) {
+            // Validation already rejected this above, but log defensively
+            logSecurityEvent(
+              "SUSPICIOUS_SEARCH_PATTERN",
+              "Validated search term contains a suspicious pattern",
+              req,
+              { matchedPattern: analysis.pattern, userId: req.session.user?.id }
+            );
+          }
+        }
+
+        // 3. Execute parameterized search — Drizzle ORM sends $1, $2 … placeholders
+        const results = await storage.searchAssessments(
+          q ?? "",
+          userEmail,
+          riskCategory,
+          limit,
+          offset
+        );
+        logAccessAttempt(req.session.user!.id, "Assessments", "search", true, "Searched assessments");
+
+        return res.json(results);
+
+      } catch (err) {
+        // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
+        console.error("Assessment search error:", err);
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/:id
+   *
+   * Fetch a single assessment by numeric ID.
+   * Results are scoped to the authenticated user to prevent cross-user data access.
+   *
+   * Security: uses Drizzle ORM eq() with bound parameters — not string-concatenated.
+   */
+  app.get(
+    "/api/assessments/:id",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id, 10);
+
+        if (isNaN(id) || id <= 0) {
+          return res.status(400).json({ message: "Invalid assessment ID." });
+        }
+
+        const user = req.session.user;
+        if (!user) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        // Fetch the record regardless of owner
+        const assessment = await storage.getAssessmentById(id);
+
+        if (!assessment) {
+          // Normal 404
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        // Object-Level Authorization Check
+        if (!canAccessPatientRecord(user, assessment)) {
+          // Log unauthorized access attempt (IDOR/Enumeration attempt)
+          logAccessAttempt(
+            user.id,
+            "Assessment",
+            id,
+            false,
+            "IDOR attempt: User not authorized to access this patient record"
+          );
+          
+          // Return 404 to prevent ID enumeration
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        // Authorized access
+        logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
+        return res.json(assessment);
+
       } catch (err) {
         console.error("Assessment fetch error:", err);
         const { statusCode, message } = sanitizeDatabaseError(err);

@@ -4,6 +4,7 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import {
   assessments,
   users,
+  loginAuditLogs,
   type Assessment,
   type InsertAssessment,
   type AssessmentFactor,
@@ -15,10 +16,6 @@ import type { RiskCategory } from "./validation/searchValidation";
 export interface IStorage {
   getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<{ data: Assessment[]; total: number; page: number; totalPages: number }>;
   createAssessment(assessment: AssessmentCreateInput): Promise<Assessment>;
- /**
-   * Searches assessments by risk category label using parameterized queries.
-   * Uses Drizzle ORM eq() — user input is NEVER interpolated into SQL strings.
-   */
   searchAssessments(
     searchTerm: string,
     createdBy?: string,
@@ -26,12 +23,18 @@ export interface IStorage {
     limit?: number,
     offset?: number
   ): Promise<Assessment[]>;
-  /** Returns a single assessment by numeric ID. Authorization must be checked by caller. */
   getAssessmentById(id: number): Promise<Assessment | undefined>;
   createAssessment(assessment: AssessmentCreateInput): Promise<Assessment>;
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
+  recordLoginAudit(params: {
+    userId?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    loginStatus: string;
+  }): Promise<void>;
+  getAnalyticsStats(createdBy?: string): Promise<any>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
@@ -54,76 +57,53 @@ export class DatabaseStorage implements IStorage {
   ): Promise<{ data: Assessment[]; total: number; page: number; totalPages: number }> {
     const db = getDb();
 
-    // Compatibility: allow running even if the assessments table doesn't have created_by.
-    // Keep createdBy arg unused for now.
-    void createdBy;
+    const conditions: ReturnType<typeof eq>[] = [];
 
-    const filters: ReturnType<typeof eq>[] = [];
-
-    // Filter by createdBy when provided to ensure users only see their own assessments
     if (createdBy) {
-      const createdByCol = (assessments as any).createdBy ?? (assessments as any).created_by;
-      if (createdByCol) {
-        filters.push(eq(createdByCol, createdBy));
-      }
+      conditions.push(eq(assessments.createdBy, createdBy));
     }
 
 
 
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy));
+    }
 
-    // Avoid selecting non-existent columns (e.g., created_by in older DB states)
-    // by explicitly selecting only columns known to exist in migrations.
-    const query = db
+    let query = db
       .select({
         id: assessments.id,
         patientName: assessments.patientName,
         gender: assessments.gender,
         age: assessments.age,
         hypertension: assessments.hypertension,
-        heartDisease: (assessments as any).heartDisease ?? (assessments as any).heart_disease,
-        smokingHistory:
-          (assessments as any).smokingHistory ?? (assessments as any).smoking_history,
+        heartDisease: assessments.heartDisease,
+        smokingHistory: assessments.smokingHistory,
         bmi: assessments.bmi,
-        hba1cLevel:
-          (assessments as any).hba1cLevel ?? (assessments as any).hba1c_level,
-        bloodGlucoseLevel:
-          (assessments as any).bloodGlucoseLevel ?? (assessments as any).blood_glucose_level,
-        riskScore:
-          (assessments as any).riskScore ?? (assessments as any).risk_score,
-        riskCategory:
-          (assessments as any).riskCategory ?? (assessments as any).risk_category,
+        hba1cLevel: assessments.hba1cLevel,
+        bloodGlucoseLevel: assessments.bloodGlucoseLevel,
+        riskScore: assessments.riskScore,
+        riskCategory: assessments.riskCategory,
         factors: assessments.factors,
-        confidenceInterval:
-          (assessments as any).confidenceInterval ?? (assessments as any).confidence_interval,
-        modelConfidence:
-          (assessments as any).modelConfidence ?? (assessments as any).model_confidence,
-        createdBy:
-          (assessments as any).createdBy ?? (assessments as any).created_by,
-        createdAt:
-          (assessments as any).createdAt ?? (assessments as any).created_at,
-        userId:
-          (assessments as any).userId ?? (assessments as any).user_id,
+        confidenceInterval: assessments.confidenceInterval,
+        modelConfidence: assessments.modelConfidence,
+        createdBy: assessments.createdBy,
+        createdAt: assessments.createdAt,
+        userId: assessments.userId,
       })
       .from(assessments)
-      .orderBy(desc((assessments as any).createdAt ?? (assessments as any).created_at))
+      .orderBy(desc(assessments.createdAt))
       .$dynamic();
 
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
 
-
-
-
-    const db2 = getDb();
-    const countResult = await db2.select({ count: sql<number>`count(*)` }).from(assessments);
+    const countResult = await db.select({ count: sql<number>`count(*)` }).from(assessments);
     const total = Number(countResult[0].count);
     const page = Math.floor(offset / limit) + 1;
     const totalPages = Math.ceil(total / limit);
 
-    let data: Assessment[];
-    if (filters.length > 0) {
-      data = await query.where(and(...filters)).limit(limit).offset(offset);
-    } else {
-      data = await query.limit(limit).offset(offset);
-    }
+    const data = await query.limit(limit).offset(offset);
     return { data, total, page, totalPages };
   }
 
@@ -245,6 +225,64 @@ export class DatabaseStorage implements IStorage {
     const db = getDb();
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
+  }
+
+  async recordLoginAudit(params: {
+    userId?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    loginStatus: string;
+  }): Promise<void> {
+    const db = getDb();
+    await db.insert(loginAuditLogs).values({
+      userId: params.userId ?? null,
+      ipAddress: params.ipAddress ?? null,
+      userAgent: params.userAgent ?? null,
+      loginStatus: params.loginStatus,
+    });
+  async getAnalyticsStats(createdBy?: string) {
+    const db = getDb();
+    const filters: ReturnType<typeof eq>[] = [];
+    if (createdBy) {
+      const createdByCol = (assessments as any).createdBy ?? (assessments as any).created_by;
+      if (createdByCol) {
+        filters.push(eq(createdByCol, createdBy));
+      }
+    }
+
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(assessments);
+    if (filters.length > 0) countQuery = countQuery.where(and(...filters)) as any;
+    const countResult = await countQuery;
+    const totalPatients = Number(countResult[0]?.count || 0);
+
+    let distQuery = db.select({ 
+      riskCategory: (assessments as any).riskCategory ?? (assessments as any).risk_category, 
+      count: sql<number>`count(*)` 
+    }).from(assessments).groupBy((assessments as any).riskCategory ?? (assessments as any).risk_category);
+    if (filters.length > 0) distQuery = distQuery.where(and(...filters)) as any;
+    const distResult = await distQuery;
+
+    let avgQuery = db.select({ 
+      avgBmi: sql<number>`avg(${assessments.bmi})`, 
+      avgHba1c: sql<number>`avg(${(assessments as any).hba1cLevel ?? (assessments as any).hba1c_level})` 
+    }).from(assessments);
+    if (filters.length > 0) avgQuery = avgQuery.where(and(...filters)) as any;
+    const avgResult = await avgQuery;
+
+    const riskScoreCol = (assessments as any).riskScore ?? (assessments as any).risk_score;
+    let alertsQuery = db.select().from(assessments).orderBy(desc(riskScoreCol)).limit(5);
+    if (filters.length > 0) alertsQuery = alertsQuery.where(and(...filters)) as any;
+    const alerts = await alertsQuery;
+
+    return {
+      totalPatients,
+      distribution: distResult.map((r: any) => ({ category: r.riskCategory, count: Number(r.count) })),
+      averages: {
+        bmi: Number(avgResult[0]?.avgBmi || 0),
+        hba1c: Number(avgResult[0]?.avgHba1c || 0)
+      },
+      criticalAlerts: alerts
+    };
   }
 }
 
