@@ -11,8 +11,7 @@ import io
 from typing import Any
 
 
-DANGEROUS_PREFIXES = ('=', '+', '-', '@', '	', '', '
-')
+DANGEROUS_PREFIXES = ('=', '+', '-', '@', '\t', '\r', '\n')
 
 
 def sanitize_csv_value(value: Any) -> str:
@@ -66,8 +65,7 @@ def export_to_csv_safe(data: list[dict], fieldnames: list[str] = None) -> str:
         output,
         fieldnames=cols,
         extrasaction="ignore",
-        lineterminator="
-",
+        lineterminator="\r\n",
     )
     writer.writeheader()
 
