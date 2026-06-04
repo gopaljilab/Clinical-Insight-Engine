@@ -34,15 +34,21 @@ export const api = {
       method: "GET" as const,
       path: "/api/assessments" as const,
       responses: {
-        200: z.array(z.custom<typeof assessments.$inferSelect>()),
+        200: z.object({
+          data: z.array(z.custom<typeof assessments.$inferSelect>()),
+          nextCursor: z.number().optional(),
+        }),
       },
     },
     search: {
       method: "GET" as const,
       path: "/api/assessments/search" as const,
-      /** Query params: q, riskCategory, page, limit */
+      /** Query params: q, riskCategory, cursor, limit */
       responses: {
-        200: z.array(z.custom<typeof assessments.$inferSelect>()),
+        200: z.object({
+          data: z.array(z.custom<typeof assessments.$inferSelect>()),
+          nextCursor: z.number().optional(),
+        }),
         400: errorSchemas.validation,
         401: errorSchemas.validation,
         500: errorSchemas.internal,

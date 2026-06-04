@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql, ilike, or, lt } from "drizzle-orm";
 
 import {
   assessments,
@@ -10,11 +10,10 @@ import {
   type User,
   type InsertUser
 } from "@shared/schema";
-import { desc, eq, ilike, and, or } from "drizzle-orm";
 import type { RiskCategory } from "./validation/searchValidation";
 
 export interface IStorage {
-  getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<Assessment[]>;
+  getAssessments(limit?: number, cursor?: number, createdBy?: string): Promise<Assessment[]>;
   /**
    * Searches assessments by risk category label using parameterized queries.
    * Uses Drizzle ORM eq() — user input is NEVER interpolated into SQL strings.
@@ -24,7 +23,7 @@ export interface IStorage {
     createdBy?: string,
     riskCategory?: RiskCategory,
     limit?: number,
-    offset?: number
+    cursor?: number
   ): Promise<Assessment[]>;
   /** Returns a single assessment by numeric ID. Authorization must be checked by caller. */
   getAssessmentById(id: number): Promise<Assessment | undefined>;
@@ -49,7 +48,7 @@ export type AssessmentCreateInput = InsertAssessment & {
 export class DatabaseStorage implements IStorage {
   async getAssessments(
     limit: number = 50,
-    offset: number = 0,
+    cursor?: number,
     createdBy?: string
   ): Promise<Assessment[]> {
     const db = getDb();
@@ -60,8 +59,9 @@ export class DatabaseStorage implements IStorage {
 
     const filters: any[] = [];
 
-
-
+    if (cursor) {
+      filters.push(lt(assessments.id, cursor));
+    }
 
     // Avoid selecting non-existent columns (e.g., created_by in older DB states)
     // by explicitly selecting only columns known to exist in migrations.
@@ -97,7 +97,7 @@ export class DatabaseStorage implements IStorage {
           (assessments as any).userId ?? (assessments as any).user_id,
       })
       .from(assessments)
-      .orderBy(desc((assessments as any).createdAt ?? (assessments as any).created_at))
+      .orderBy(desc(assessments.id))
       .$dynamic();
 
 
@@ -105,10 +105,10 @@ export class DatabaseStorage implements IStorage {
 
 
     if (filters.length > 0) {
-      return await query.where(and(...filters)).limit(limit).offset(offset);
+      return await query.where(and(...filters)).limit(limit);
     }
 
-    return await query.limit(limit).offset(offset);
+    return await query.limit(limit);
   }
 
   /**
@@ -122,14 +122,14 @@ export class DatabaseStorage implements IStorage {
    * @param createdBy    Restrict results to this user's own records
    * @param riskCategory Optional filter: LOW | MODERATE | HIGH
    * @param limit        Maximum rows to return (default 20)
-   * @param offset       Pagination offset (default 0)
+   * @param cursor       Pagination cursor (id)
    */
   async searchAssessments(
     searchTerm: string,
     createdBy?: string,
     riskCategory?: RiskCategory,
     limit: number = 20,
-    offset: number = 0
+    cursor?: number
   ): Promise<Assessment[]> {
     const db = getDb();
 
@@ -166,14 +166,18 @@ export class DatabaseStorage implements IStorage {
     let query = db
       .select()
       .from(assessments)
-      .orderBy(desc(assessments.createdAt))
+      .orderBy(desc(assessments.id))
       .$dynamic();
+
+    if (cursor) {
+      conditions.push(lt(assessments.id, cursor));
+    }
 
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
 
-    return await query.limit(limit).offset(offset);
+    return await query.limit(limit);
   }
 
   /**

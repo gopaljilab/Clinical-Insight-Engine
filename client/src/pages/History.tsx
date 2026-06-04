@@ -57,7 +57,8 @@ export default function History() {
     document.title = "Clinical Insight Engine - Assessment History";
   }, []);
 
-  const { data: assessments, isLoading, error } = useAssessments();
+  const { data: infiniteData, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useAssessments();
+  const assessments = infiniteData ? infiniteData.pages.flatMap((page) => page.data) : [];
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
 
@@ -577,6 +578,20 @@ export default function History() {
               </div>
 
               <div className="flex items-center gap-2">
+                {hasNextPage && (
+                  <button
+                    type="button"
+                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="inline-flex items-center justify-center p-2 px-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-40 transition-colors shadow-sm cursor-pointer mr-4 font-bold text-sm"
+                  >
+                    {isFetchingNextPage ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading...</>
+                    ) : (
+                      "Load More from Server"
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() =>
