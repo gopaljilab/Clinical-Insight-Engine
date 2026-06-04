@@ -521,8 +521,6 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
         "confidenceInterval": confidence_interval,
         "modelConfidence": round(float(max(prob, 1 - prob)), 4)
     }
-    cache.set(input_data, result)
-    return result
 
     # If the submitted gender value is outside the model's training distribution,
     # attach a warning so clinicians are aware the demographic was not represented
@@ -534,6 +532,7 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
             "Results should be interpreted with caution for this demographic."
         )
 
+    cache.set(input_data, result)
     return result
 
 if __name__ == "__main__":

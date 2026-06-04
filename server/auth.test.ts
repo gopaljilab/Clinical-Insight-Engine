@@ -1,32 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { scryptSync, randomInt, randomBytes, timingSafeEqual } from "crypto";
+import { randomInt } from "crypto";
+import bcrypt from "bcrypt";
 import { getOtpRateLimitKey } from "./auth";
 
-/**
- * Password hashing utilities (inlined from auth.ts for isolated testing).
- */
-const SALT_LENGTH = 32;
-const KEY_LENGTH = 64;
-
 function hashPassword(password: string): string {
-  const salt = randomBytes(SALT_LENGTH).toString("hex");
-  const hash = scryptSync(password, salt, KEY_LENGTH).toString("hex");
-  return `${salt}:${hash}`;
+  return bcrypt.hashSync(password, 10);
 }
 
 function verifyPassword(password: string, stored: string): boolean {
-  const [salt, key] = stored.split(":");
-  const hash = scryptSync(password, salt, KEY_LENGTH);
-  return hash.length === Buffer.from(key, "hex").length && timingSafeEqual(hash, Buffer.from(key, "hex"));
+  return bcrypt.compareSync(password, stored);
 }
 
 describe("password hashing", () => {
-  it("produces a salt:hash string", () => {
+  it("produces a bcrypt hash string", () => {
     const result = hashPassword("test-password-123");
-    expect(result).toContain(":");
-    const [salt, hash] = result.split(":");
-    expect(salt.length).toBe(64); // 32 random bytes = 64 hex chars
-    expect(hash.length).toBe(KEY_LENGTH * 2);  // hex encoded hash
+    expect(result).toMatch(/^\$2[ab]\$\d+\$.+/);
   });
 
   it("verifies correct password", () => {
@@ -39,12 +27,10 @@ describe("password hashing", () => {
     expect(verifyPassword("wrong-password", stored)).toBe(false);
   });
 
-  it("generates unique salts each time", () => {
+  it("generates unique hashes each time", () => {
     const a = hashPassword("same-password");
     const b = hashPassword("same-password");
-    const saltA = a.split(":")[0];
-    const saltB = b.split(":")[0];
-    expect(saltA).not.toBe(saltB);
+    expect(a).not.toBe(b);
   });
 });
 
