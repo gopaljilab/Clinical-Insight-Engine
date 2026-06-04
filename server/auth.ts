@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomInt, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import bcrypt from "bcrypt";
-import { ipKeyGenerator, rateLimit } from "express-rate-limit";
+import { rateLimit } from "express-rate-limit";
 import { eq, and, gte } from "drizzle-orm";
 import { storage } from "./storage";
 import { getDb } from "./db";
@@ -13,6 +13,7 @@ declare module "express-session" {
     user?: {
       email: string;
       name: string;
+      role?: string | null;
     };
   }
 }
@@ -68,6 +69,10 @@ function normalizeRateLimitEmail(value: unknown): string {
  * Builds a stable OTP rate-limit key from the submitted email when present,
  * falling back to the client IP for malformed or incomplete requests.
  */
+function ipKeyGenerator(ip: string): string {
+  return ip;
+}
+
 export function getOtpRateLimitKey(req: Pick<Request, "body" | "ip">): string {
   const email = normalizeRateLimitEmail(req.body?.email);
 
@@ -97,13 +102,6 @@ if (otpCleanupTimer.unref) {
 /**
  * Rate limiters for verification endpoints.
  */
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 10,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: { error: "Too many authentication attempts. Please try again later." },
-});
 
 const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -120,6 +118,14 @@ const verifyEmailLimiter = rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { error: "Too many verification attempts. Please try again later." },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 15,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many login/registration attempts. Please try again in 15 minutes." },
 });
 
 const resendLimiter = rateLimit({
@@ -168,7 +174,7 @@ function saveSession(req: Request): Promise<void> {
 
 async function establishAuthenticatedSession(
   req: Request,
-  user: { id: string; email: string; name: string },
+  user: { id: string; email: string; name: string; role: string },
 ): Promise<void> {
   await regenerateSession(req);
   req.session.user = user;
@@ -209,6 +215,14 @@ export function createAuthRouter(): Router {
       return res.status(400).json({ message: "Password must be at least 8 characters." });
     }
 
+    if (fullName.length > 255) {
+      return res.status(400).json({ message: "Full name must be 255 characters or less." });
+    }
+
+    if (licenseNumber.length > 100) {
+      return res.status(400).json({ message: "Medical license number must be 100 characters or less." });
+    }
+
     // Check DB for existing user
     try {
       const db = getDb();
@@ -221,12 +235,6 @@ export function createAuthRouter(): Router {
       if (existingDbUser) {
         return res.status(409).json({ message: "An account with this email already exists." });
       }
-    registeredUsers.set(email, {
-      fullName,
-      email,
-      passwordHash: hashPassword(password),
-      licenseNumber: licenseNumber,
-    });
 
       const passwordHash = hashPassword(password);
 
@@ -236,7 +244,6 @@ export function createAuthRouter(): Router {
         passwordHash,
         licenseNumber,
       });
-
 
       // Create DB user
       const [newUser] = await db
@@ -255,12 +262,31 @@ export function createAuthRouter(): Router {
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      await db.insert(emailVerificationTokens).values({
-        userId: newUser.id,
-        verificationCode: otp,
-        expiresAt,
-        used: false,
-        attemptCount: 0,
+      await db.transaction(async (tx) => {
+        // Create DB user
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            fullName,
+            email,
+            medicalLicenseNumber: licenseNumber,
+            passwordHash,
+            emailVerified: false,
+            role: "provider",
+          })
+          .returning();
+
+        // Create email verification token
+        await tx.insert(emailVerificationTokens).values({
+          userId: newUser.id,
+          verificationCode: otp,
+          expiresAt,
+          used: false,
+          attemptCount: 0,
+        });
+
+        // Send verification email
+        await sendVerificationCode(email, otp);
       });
 
       // In production, send OTP via email. For development, return it in the response.
@@ -268,8 +294,8 @@ export function createAuthRouter(): Router {
 
       return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
     } catch (err) {
-      console.error("Registration failed:", err);
-      return res.status(500).json({ message: "Failed to register account." });
+      console.error("Registration error:", err);
+      return res.status(500).json({ message: "Registration failed due to a server error." });
     }
   });
 
@@ -289,19 +315,19 @@ export function createAuthRouter(): Router {
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
     const devPassword = process.env.DEV_CLINICIAN_PASSWORD || "";
 
-    let userFullName: string | null = null;
+    let userName: string | null = null;
 
     if (email === devEmail && password === devPassword) {
-      userFullName = "Dr. Smith";
+      userName = "Dr. Smith";
     } else {
       // Check in-memory store (legacy)
       const registeredUser = registeredUsers.get(email);
       if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-        userFullName = registeredUser.fullName;
+        userName = registeredUser.fullName;
       }
 
       // Also check DB
-      if (!userFullName) {
+      if (!userName) {
         try {
           const db = getDb();
           const [dbUser] = await db
@@ -311,21 +337,21 @@ export function createAuthRouter(): Router {
             .limit(1);
 
           if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
-            userFullName = dbUser.fullName;
+            userName = dbUser.fullName;
           }
         } catch (_err) {
           // DB not available — fall back to in-memory only
           console.warn("DB unavailable for login, using in-memory only.");
           const registeredUser = registeredUsers.get(email);
           if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-            userFullName = registeredUser.fullName;
+            userName = registeredUser.fullName;
           }
         }
       }
     }
 
 
-    if (!userFullName) {
+    if (!userName) {
       return res.status(401).json({ message: "Invalid email or password." });
     }
 
@@ -371,10 +397,12 @@ export function createAuthRouter(): Router {
 
     let id: string;
     let name: string;
+    let role: string;
 
     if (email === devEmail) {
       name = "Dr. Smith";
       id = "dev";
+      role = "provider";
     } else {
       const db = getDb();
       const [user] = await db
@@ -387,10 +415,11 @@ export function createAuthRouter(): Router {
       }
       id = user.id;
       name = user.fullName;
+      role = user.role ?? "provider";
     }
 
     try {
-      await establishAuthenticatedSession(req, { id, email, name });
+      await establishAuthenticatedSession(req, { id, email, name, role });
     } catch (error) {
       console.error("Session regeneration failed:", error);
       return res.status(500).json({ message: "Failed to establish session." });
@@ -439,7 +468,7 @@ export function createAuthRouter(): Router {
 
       // If already verified, return success
       if (user.emailVerified) {
-        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName });
+        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
         return res.json({ success: true, message: "Email already verified." });
       }
 
@@ -502,7 +531,7 @@ export function createAuthRouter(): Router {
         .set({ emailVerified: true, emailVerifiedAt: new Date() })
         .where(eq(users.id, user.id));
 
-      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName });
+      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
 
       return res.json({ success: true, message: "Email verified successfully." });
     } catch (err) {
