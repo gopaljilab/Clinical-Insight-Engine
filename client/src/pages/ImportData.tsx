@@ -34,7 +34,7 @@ export default function ImportData() {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: async (results) => {
+      complete: async (results: Papa.ParseResult<any>) => {
         setIsProcessing(true);
         try {
           // Format headers to match expected schema if necessary
@@ -66,7 +66,7 @@ export default function ImportData() {
           setIsProcessing(false);
         }
       },
-      error: (error) => {
+      error: (error: Error) => {
         toast({
           title: "Parsing Error",
           description: error.message,
