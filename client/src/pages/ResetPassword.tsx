@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { ApiClient } from "@/lib/apiClient";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -46,22 +47,11 @@ export default function ResetPassword() {
 
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword: password }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message || "Failed to reset password.");
-        return;
-      }
-
+      await ApiClient.post("/api/auth/reset-password", { token, newPassword: password });
       setSuccess("Password has been reset successfully!");
       setTimeout(() => setLocation("/login"), 2000);
-    } catch {
-      setError("Unable to connect to server. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "Unable to connect to server. Please try again.");
     } finally {
       setIsLoading(false);
     }

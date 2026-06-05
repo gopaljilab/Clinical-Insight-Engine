@@ -8,6 +8,7 @@ import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { MLService, getPythonExecutable } from "../services/mlService";
+import { validateDTO } from "../middleware/validateDTO";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { fileURLToPath } from "url";
@@ -23,18 +24,18 @@ mlRouter.post(
   "/bulk",
   requireAuth,
   requireVerified,
+  validateDTO(z.object({ assessments: z.array(api.assessments.create.input) })),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
     if (!userId) {
       return res.status(401).json({ message: "Authentication required." });
     }
 
-    const inputSchema = z.array(api.assessments.create.input);
     let tempFilePath: string | null = null;
     let requestFingerprint: string | null = null;
 
     try {
-      const input = inputSchema.parse(req.body.assessments);
+      const input = req.body.assessments;
       
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
@@ -62,7 +63,7 @@ mlRouter.post(
       }
 
       const createdAssessments = await Promise.all(
-        input.map((assessment, index) => {
+        input.map((assessment: any, index: number) => {
           const prediction = predictions[index];
           return storage.createAssessment({
             ...assessment,

@@ -3,6 +3,7 @@ import Papa from "papaparse";
 import { UploadCloud, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { ApiClient } from "@/lib/apiClient";
 
 export default function ImportData() {
   const { toast } = useToast();
@@ -49,18 +50,7 @@ export default function ImportData() {
             bloodGlucoseLevel: Number(row.bloodGlucoseLevel || row.blood_glucose_level)
           }));
 
-          const res = await fetch("/api/assessments/bulk", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ assessments: formattedData })
-          });
-
-          if (!res.ok) {
-            const error = await res.json();
-            throw new Error(error.message || "Failed to process bulk import.");
-          }
-
-          const data = await res.json();
+          const data = await ApiClient.post("/api/assessments/bulk", { assessments: formattedData });
           setResults(data.assessments);
           toast({
             title: "Success",
