@@ -11,17 +11,21 @@ router.use(requireJwtAuth);
 router.get("/", async (req, res, next) => {
   try {
     // Identity is authoritative from the verified token
-    const userId = req.jwtUser?.sub;
+    const userEmail = req.jwtUser?.email;
     
-    if (!userId) {
+    if (!userEmail) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     // Return the user's assessments as their "patients" dataset
     // Drizzle ORM ensures this parameter is bound, not concatenated
-    const records = await storage.getAssessments(50, 0, userId);
-    
-    res.json({ data: records });
+    const records = await storage.getAssessments(50, 0, userEmail);
+    const sanitizedRecords = records.data.map((record: any) => {
+      const { userId, createdBy, ...rest } = record;
+      return rest;
+    });
+
+    res.json({ data: sanitizedRecords });
   } catch (error) {
     next(error);
   }

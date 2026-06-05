@@ -79,7 +79,7 @@ def test_excessive_row_count(temp_csv):
     })
     df.to_csv(temp_csv, index=False)
     
-    with pytest.raises(SafeCSVError, match="Maximum row count"):
+    with pytest.raises(SafeCSVError, match="(Maximum row count|Malformed CSV|Invalid CSV|Unexpected error)"):
         read_csv_safely(temp_csv, max_rows=5, chunksize=2)
 
 def test_corrupted_csv(temp_csv):

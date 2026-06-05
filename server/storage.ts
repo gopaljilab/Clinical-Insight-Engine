@@ -1,40 +1,44 @@
-import { getDb } from "./db";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
-
-import {
-  assessments,
-  users,
-  type Assessment,
-  type InsertAssessment,
-  type AssessmentFactor,
-  type User,
-  type InsertUser,
-} from "@shared/schema";
+import { loginAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser } from "@shared/schema";
 import type { RiskCategory } from "./validation/searchValidation";
 
+import { UserRepository } from "./repositories/user.repository";
+import { AssessmentRepository } from "./repositories/assessment.repository";
+import { AuditRepository } from "./repositories/audit.repository";
+import { AnalyticsRepository } from "./repositories/analytics.repository";
+
 export interface IStorage {
-  getAssessments(limit?: number, offset?: number, createdBy?: string): Promise<Assessment[]>;
+  getAssessments(limit?: number, cursor?: number, createdBy?: string): Promise<{ data: Assessment[]; nextCursor: number | null }>;
   /**
-   * Searches assessments by risk category label using parameterized queries.
-   * Uses Drizzle ORM eq() — user input is NEVER interpolated into SQL strings.
+   * Searches assessments by patient name, risk category, and other fields.
+   * Uses Drizzle ORM ilike()/eq() — user input is NEVER interpolated into SQL strings.
+   *
+   * FIX for Issue #744: now searches patientName via ilike() so queries for a
+   * specific patient name will correctly return only that patient's records.
+   * Results are always scoped to `createdBy` (the requesting user's email) to
+   * prevent cross-patient data leakage at the database layer.
    */
   searchAssessments(
     searchTerm: string,
     createdBy?: string,
     riskCategory?: RiskCategory,
     limit?: number,
-    offset?: number
-  ): Promise<Assessment[]>;
+    cursor?: number
+  ): Promise<{ data: Assessment[]; nextCursor: number | null }>;
   /** Returns a single assessment by numeric ID. Authorization must be checked by caller. */
   getAssessmentById(id: number): Promise<Assessment | undefined>;
   createAssessment(assessment: any): Promise<Assessment>;
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
+  getAllUsers(page: number, limit: number): Promise<{ data: User[]; total: number }>;
+  getLoginAuditLogs(page: number, limit: number): Promise<{ data: typeof loginAuditLogs.$inferSelect[]; total: number }>;
+  updateUser(id: string, data: Partial<Pick<User, "isActive" | "role">>): Promise<User>;
+  getSystemStats(): Promise<{ totalUsers: number; totalAssessments: number; riskDistribution: { category: string; count: number }[]; }>;
+  recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }): Promise<void>;
+  getAnalyticsStats(createdBy?: string): Promise<any>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
-  // Server-side fields (model outputs)
   riskScore: number;
   riskCategory: string;
   factors: AssessmentFactor[];
@@ -42,8 +46,6 @@ export type AssessmentCreateInput = InsertAssessment & {
   modelConfidence?: number;
   createdBy: string;
 };
-
-
 
 export class DatabaseStorage implements IStorage {
   async getAssessments(

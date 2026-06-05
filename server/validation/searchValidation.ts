@@ -22,7 +22,7 @@ const SQL_INJECTION_PATTERNS: RegExp[] = [
   /'\s*(OR|AND)\s*'/i,                                           // ' OR '
   /UNION\s+(ALL\s+)?SELECT/i,                                    // UNION SELECT
   /;\s*(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|TRUNCATE)\b/i,    // ; DROP TABLE ...
-  /--\s*$/m,                                                     // -- comment
+  /--+/,                                                         // SQL line comment: -- or trailing -- space
   /\/\*.*\*\//s,                                                 // /* block comment */
   /\bEXEC\s*\(/i,                                               // EXEC(
   /\bxp_\w+/i,                                                  // xp_ stored procs
@@ -100,11 +100,11 @@ export const searchQuerySchema = z.object({
     })
     .optional(),
 
-  page: z.coerce
+  cursor: z.coerce
     .number()
-    .int("Page must be an integer")
-    .min(1, "Page must be at least 1")
-    .default(1),
+    .int("Cursor must be an integer")
+    .min(1, "Cursor must be at least 1")
+    .optional(),
 
   limit: z.coerce
     .number()

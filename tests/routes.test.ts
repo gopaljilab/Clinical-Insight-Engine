@@ -1,0 +1,402 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import request from "supertest";
+import express from "express";
+import session from "express-session";
+import { createServer } from "http";
+
+const { mockExecFile, rateLimitCounters, mockCreateAssessment, mockGetAssessments } = vi.hoisted(() => ({
+  mockExecFile: vi.fn(),
+  rateLimitCounters: new Map<string, number>(),
+  mockCreateAssessment: vi.fn(),
+  mockGetAssessments: vi.fn(),
+}));
+
+vi.mock("child_process", () => ({
+  execFile: mockExecFile,
+}));
+
+vi.mock("express-rate-limit", () => {
+  const rateLimit = (options: any) => {
+    return (req: any, res: any, next: any) => {
+      const key = req.ip || "test";
+      const count = (rateLimitCounters.get(key) || 0) + 1;
+      rateLimitCounters.set(key, count);
+      if (count > (options.limit || 5)) {
+        return res.status(429).json({
+          error: options.message?.error || "Too many requests",
+        });
+      }
+      next();
+    };
+  };
+  return { rateLimit, default: rateLimit };
+});
+
+vi.mock("../server/storage", () => ({
+  storage: {
+    getAssessments: mockGetAssessments,
+    createAssessment: mockCreateAssessment,
+    searchAssessments: vi.fn().mockResolvedValue([]),
+    getAssessmentById: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+vi.mock("fs", () => ({
+  existsSync: vi.fn().mockReturnValue(false),
+}));
+
+vi.mock("fs/promises", () => ({
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  unlink: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { registerRoutes } from "../server/routes";
+
+const validPayload = {
+  patientName: "John Doe",
+  gender: "Male",
+  age: 45,
+  hypertension: false,
+  heartDisease: false,
+  smokingHistory: "never",
+  bmi: 24.5,
+  hba1cLevel: 5.2,
+  bloodGlucoseLevel: 95,
+};
+
+const pythonSuccessOutput = JSON.stringify({
+  riskScore: 12.3,
+  riskCategory: "LOW",
+  factors: [{ name: "Age", impact: "positive", description: "Increases risk" }],
+  clinicianAdvice: ["Monitor annually."],
+  patientAdvice: ["Keep it up!"],
+  confidenceInterval: "8.5% - 16.1%",
+  modelConfidence: 0.877,
+});
+
+function createAuthenticatedApp() {
+  const app = express();
+  app.use(express.json());
+  app.use(
+    session({
+      secret: "test-secret",
+      resave: false,
+      saveUninitialized: false,
+    })
+  );
+  app.use((req, res, next) => {
+    req.session.user = {
+      id: "test-user-id",
+      email: "test@example.com",
+      name: "Test User",
+      emailVerified: true,
+    };
+    next();
+  });
+  return app;
+}
+
+function createUnauthenticatedApp() {
+  const app = express();
+  app.use(express.json());
+  return app;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  rateLimitCounters.clear();
+  mockCreateAssessment.mockImplementation((input) =>
+    Promise.resolve({ id: 1, ...input, createdAt: new Date() })
+  );
+  mockGetAssessments.mockResolvedValue({
+    data: [],
+    total: 0,
+    page: 1,
+    totalPages: 0,
+  });
+  mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+    if (typeof opts === "function") {
+      cb = opts;
+      cb(null, pythonSuccessOutput, "");
+      return;
+    }
+    cb(null, pythonSuccessOutput, "");
+  });
+});
+
+describe("Auth gating", () => {
+  it("returns 401 for POST /api/assessments without session", async () => {
+    const app = createUnauthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app)
+      .post("/api/assessments")
+      .send(validPayload);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty("message");
+  });
+
+  it("returns 401 for POST /api/assessments/preview without session", async () => {
+    const app = createUnauthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app)
+      .post("/api/assessments/preview")
+      .send(validPayload);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty("message");
+  });
+
+  it("returns 401 for GET /api/assessments without session", async () => {
+    const app = createUnauthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app).get("/api/assessments");
+
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty("message");
+  });
+});
+
+describe("Health Check Endpoint", () => {
+  it("returns 200 OK and valid JSON with status, timestamp, and uptime", async () => {
+    const app = createUnauthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app).get("/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("status", "ok");
+    expect(res.body).toHaveProperty("timestamp");
+    expect(res.body).toHaveProperty("uptime");
+    expect(typeof res.body.uptime).toBe("number");
+  });
+});
+
+describe("Schema validation", () => {
+  it("returns 400 when required field 'age' is missing", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app).post("/api/assessments").send({
+      gender: "Male",
+      hypertension: false,
+      heartDisease: false,
+      smokingHistory: "never",
+      bmi: 24.5,
+      hba1cLevel: 5.2,
+      bloodGlucoseLevel: 95,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("message");
+  });
+
+  it("returns 400 for empty body", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app)
+      .post("/api/assessments")
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("message");
+  });
+
+  it("returns 400 for out-of-range age", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app)
+      .post("/api/assessments")
+      .send({ ...validPayload, age: 999 });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("message");
+  });
+
+  it("returns 400 for invalid smokingHistory", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app)
+      .post("/api/assessments")
+      .send({ ...validPayload, smokingHistory: "invalid-value" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("message");
+  });
+});
+
+describe("Rate limiting", () => {
+  it("returns 429 after 6 rapid requests to POST /api/assessments", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const requests = Array.from({ length: 6 }, () =>
+      request(app).post("/api/assessments").send(validPayload)
+    );
+
+    const results = await Promise.all(requests);
+
+    const lastStatus = results[results.length - 1].status;
+    expect(lastStatus).toBe(429);
+    expect(results[results.length - 1].body).toHaveProperty("error");
+  });
+});
+
+describe("Python inference", () => {
+  it("returns 201 with riskScore, riskCategory, factors on success", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    mockCreateAssessment.mockResolvedValue({
+      id: 1,
+      ...validPayload,
+      riskScore: 12.3,
+      riskCategory: "LOW",
+      factors: [{ name: "Age", impact: "positive", description: "Increases risk" }],
+      createdBy: "test-user-id",
+      createdAt: new Date(),
+    });
+
+    const res = await request(app)
+      .post("/api/assessments")
+      .send(validPayload);
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("riskScore");
+    expect(res.body).toHaveProperty("riskCategory");
+    expect(res.body).toHaveProperty("factors");
+  });
+
+  it("returns 201 with fallback prediction when Python fails", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      if (typeof opts === "function") {
+        cb = opts;
+        cb(new Error("Python not found"), null, "error");
+        return;
+      }
+      cb(new Error("Python not found"), null, "error");
+    });
+
+    mockCreateAssessment.mockImplementation((input) =>
+      Promise.resolve({
+        id: 2,
+        ...input,
+        riskScore: input.riskScore,
+        riskCategory: input.riskCategory,
+        factors: input.factors,
+        createdBy: "test-user-id",
+        createdAt: new Date(),
+      })
+    );
+
+    const res = await request(app)
+      .post("/api/assessments")
+      .send(validPayload);
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("riskScore");
+    expect(res.body).toHaveProperty("riskCategory");
+    expect(res.body).toHaveProperty("factors");
+    expect(typeof res.body.riskScore).toBe("number");
+  });
+
+  it("preview returns risk metrics on successful inference", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      if (typeof opts === "function") {
+        cb = opts;
+        cb(null, pythonSuccessOutput, "");
+        return;
+      }
+      cb(null, pythonSuccessOutput, "");
+    });
+
+    const res = await request(app)
+      .post("/api/assessments/preview")
+      .send(validPayload);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("riskScore");
+    expect(res.body).toHaveProperty("riskCategory");
+    expect(res.body).toHaveProperty("factors");
+  });
+
+  it("preview uses fallback when Python process fails", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      if (typeof opts === "function") {
+        cb = opts;
+        cb(new Error("Process killed"), null, "error");
+        return;
+      }
+      cb(new Error("Process killed"), null, "error");
+    });
+
+    const res = await request(app)
+      .post("/api/assessments/preview")
+      .send(validPayload);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("riskScore");
+    expect(res.body).toHaveProperty("riskCategory");
+    expect(res.body).toHaveProperty("factors");
+  });
+});
+
+describe("Response shape", () => {
+  it("GET /api/assessments returns paginated shape", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    mockGetAssessments.mockResolvedValue({
+      data: [
+        {
+          id: 1,
+          patientName: "John Doe",
+          gender: "Male",
+          age: 45,
+          hypertension: false,
+          heartDisease: false,
+          smokingHistory: "never",
+          bmi: 24.5,
+          hba1cLevel: 5.2,
+          bloodGlucoseLevel: 95,
+          riskScore: 12.3,
+          riskCategory: "LOW",
+          factors: [],
+          confidenceInterval: "8.5% - 16.1%",
+          modelConfidence: 0.877,
+          createdBy: "test@example.com",
+          createdAt: new Date(),
+          userId: null,
+        },
+      ],
+      total: 1,
+      page: 1,
+      totalPages: 1,
+    });
+
+    const res = await request(app).get("/api/assessments");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("data");
+    expect(res.body).toHaveProperty("total");
+    expect(res.body).toHaveProperty("page");
+    expect(res.body).toHaveProperty("totalPages");
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(typeof res.body.total).toBe("number");
+  });
+});

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { logger } from "../../logger";
 
 export interface AuditLogDetails {
   requestId: string;
@@ -55,7 +56,7 @@ export function logAuditEvent(message: string, details: AuditLogDetails, error?:
   }
 
   // Use stringify to prevent multi-line interleaving in central loggers
-  console.error(`[AUDIT] ${JSON.stringify(logPayload)}`);
+  logger.info({ auditLog: logPayload }, "Audit Log");
 }
 
 /**
