@@ -64,6 +64,7 @@ app.use(
     secret: getSessionSecret(),
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     store: new PgSession({
       pool: getPool(),
       tableName: "session",
@@ -73,7 +74,7 @@ app.use(
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 15 * 60 * 1000, // 15 minutes
     },
   })
 );

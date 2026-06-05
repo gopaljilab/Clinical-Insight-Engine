@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { ApiClient } from "@/lib/apiClient";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -24,21 +25,10 @@ export default function ForgotPassword() {
 
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message || "Something went wrong.");
-        return;
-      }
-
+      await ApiClient.post("/api/auth/forgot-password", { email });
       setSuccess("If an account exists with this email, a password reset link has been sent.");
-    } catch {
-      setError("Unable to connect to server. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "Unable to connect to server. Please try again.");
     } finally {
       setIsLoading(false);
     }
