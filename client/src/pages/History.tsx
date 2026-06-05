@@ -460,7 +460,7 @@ export default function History() {
           </div>
        ) : (
   <>      <AssessmentComparisonCard
-            assessments={assessments || []}
+            assessments={sortedAssessments}
           />
           <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
             <div className="overflow-x-auto">
