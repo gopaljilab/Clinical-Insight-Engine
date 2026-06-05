@@ -96,28 +96,32 @@ assessmentsRouter.post(
       }
       MLService.activeInferenceRequests.add(requestFingerprint);
 
-      const { prediction, isFallback } = await MLService.runAssessmentInference(input);
+      try {
+        const { prediction, isFallback } = await MLService.runAssessmentInference(input);
 
-      prediction.disclaimer =
-        "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions." +
-        (isFallback
-          ? " (Generated via fallback rule-based clinical support model due to system unavailability)"
-          : "");
+        prediction.disclaimer =
+          "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions." +
+          (isFallback
+            ? " (Generated via fallback rule-based clinical support model due to system unavailability)"
+            : "");
 
-      const assessment = await storage.createAssessment({
-        ...input,
-        riskScore: Number(prediction.riskScore),
-        riskCategory: prediction.riskCategory,
-        factors: prediction.factors,
-        confidenceInterval: prediction.confidenceInterval ?? undefined,
-        modelConfidence:
-          prediction.modelConfidence == null
-            ? undefined
-            : Number(prediction.modelConfidence),
-        createdBy: userId,
-      });
+        const assessment = await storage.createAssessment({
+          ...input,
+          riskScore: Number(prediction.riskScore),
+          riskCategory: prediction.riskCategory,
+          factors: prediction.factors,
+          confidenceInterval: prediction.confidenceInterval ?? undefined,
+          modelConfidence:
+            prediction.modelConfidence == null
+              ? undefined
+              : Number(prediction.modelConfidence),
+          createdBy: userId,
+        });
 
-      return res.status(201).json(assessment);
+        return res.status(201).json(assessment);
+      } finally {
+        MLService.activeInferenceRequests.delete(requestFingerprint);
+      }
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res
