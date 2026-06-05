@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 
@@ -128,6 +129,8 @@
     --destructive-foreground: 210 40% 98%;
     --destructive-border: hsl(0 84.2% 54%);
 
+    --button-outline: hsl(0 0% 89.8%);
+
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
@@ -187,27 +190,14 @@
     --destructive-foreground: 210 40% 98%;
     --destructive-border: hsl(0 62.8% 37%);
 
+    --button-outline: hsl(217.2 32.6% 22%);
+
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 48%;
 
     --radius: 0.5rem;
 
-    --sidebar: 222.2 84% 4.9%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 224.3 76.3% 48%;
-
-    --sidebar-primary: 217.2 91.2% 59.8%;
-    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
-    --sidebar-accent-foreground: 210 40% 98%;
-
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
     --sidebar: 0 0% 3.9%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-border: 0 0% 14.9%;
@@ -218,6 +208,13 @@
     --sidebar-accent: 0 0% 14.9%;
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-accent-border: hsl(0 0% 14.9%);
+
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
     --font-sans: "Plus Jakarta Sans", sans-serif;
     --font-serif: Georgia, serif;
     --font-mono: "SF Mono", "Fira Code", monospace;
@@ -228,11 +225,13 @@
     margin: 0;
     padding: 0;
   }
+
   html {
-  transition:
-    background-color 0.3s ease,
-    color 0.3s ease;
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
   }
+
   body {
     font-family: var(--font-sans);
     background-color: hsl(var(--background));
@@ -248,7 +247,6 @@
     font-family: "Outfit", sans-serif;
     font-weight: 600;
   }
-
 
 @media print {
   body, html, main, .bg-card, .bg-secondary\/50 {

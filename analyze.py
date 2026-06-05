@@ -13,9 +13,6 @@ import joblib
 
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
 
-DATA_FILE = "diabetes_dataset.csv"
-MODEL_FILE = "diabetes_model.joblib"
-LOCK_FILE = MODEL_FILE + ".lock"
 LOCK_TIMEOUT = 60
 LOCK_POLL_INTERVAL = 0.1
 
@@ -106,7 +103,7 @@ def train_model_pipeline():
         df = read_csv_safely(DATA_FILE)
     except SafeCSVError as e:
         print(f"Error loading dataset: {e}", file=sys.stderr)
-        return None, None, None
+        return None, None, None, None
     
     # Check for missing values and unrealistic zeros
     clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
@@ -358,20 +355,25 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     input_df = pd.DataFrame(0, index=[0], columns=features)
     # ... (rest of the logic remains same but ensuring non-diagnostic language)
     
-    input_df['age'] = input_data.get('age', 40)
-    input_df['hypertension'] = int(input_data.get('hypertension', False))
-    input_df['heart_disease'] = int(input_data.get('heartDisease', False))
-    input_df['bmi'] = input_data.get('bmi', 25)
-    input_df['HbA1c_level'] = input_data.get('hba1cLevel', 5.5)
-    input_df['blood_glucose_level'] = input_data.get('bloodGlucoseLevel', 100)
-    gender_value = input_data.get('gender')
+    def _safe_get(data, key, default_val):
+        val = data.get(key)
+        return val if val is not None else default_val
+
+    input_df['age'] = _safe_get(input_data, 'age', 40)
+    input_df['hypertension'] = int(_safe_get(input_data, 'hypertension', False))
+    input_df['heart_disease'] = int(_safe_get(input_data, 'heartDisease', False))
+    input_df['bmi'] = _safe_get(input_data, 'bmi', 25)
+    input_df['HbA1c_level'] = _safe_get(input_data, 'hba1cLevel', 5.5)
+    input_df['blood_glucose_level'] = _safe_get(input_data, 'bloodGlucoseLevel', 100)
+    gender_value = _safe_get(input_data, 'gender', 'Female')
     # The model was trained exclusively on Male/Female data — 'Other' gender
     # patients are silently encoded as 0 (Female) since gender_Male is a binary
     # feature. Emit a warning so this limitation is visible in the response.
     gender_outside_training_distribution = gender_value not in ('Male', 'Female')
     input_df['gender_Male'] = 1 if gender_value == 'Male' else 0
     
-    smoke_col = f"smoke_{input_data.get('smokingHistory', 'never')}"
+    smoking_history = _safe_get(input_data, 'smokingHistory', 'never')
+    smoke_col = f"smoke_{smoking_history}"
     if smoke_col in features:
         input_df[smoke_col] = 1
         
@@ -521,9 +523,6 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
         "confidenceInterval": confidence_interval,
         "modelConfidence": round(float(max(prob, 1 - prob)), 4)
     }
-    cache.set(input_data, result)
-    return result
-
     # If the submitted gender value is outside the model's training distribution,
     # attach a warning so clinicians are aware the demographic was not represented
     # in training data and the result should be interpreted with caution.
@@ -534,6 +533,7 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
             "Results should be interpreted with caution for this demographic."
         )
 
+    cache.set(input_data, result)
     return result
 
 if __name__ == "__main__":
@@ -544,8 +544,12 @@ if __name__ == "__main__":
         else:
             data = json.load(sys.stdin)
         model, scaler, features, cov_beta = get_model()
-        result = interpret_prediction(model, scaler, features, data, cov_beta)
-        print(json.dumps(result))
+        if isinstance(data, list):
+            results = [interpret_prediction(model, scaler, features, item, cov_beta) for item in data]
+            print(json.dumps(results))
+        else:
+            result = interpret_prediction(model, scaler, features, data, cov_beta)
+            print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")

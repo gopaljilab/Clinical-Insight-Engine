@@ -26,6 +26,7 @@ export const api = {
       input: insertAssessmentSchema,
       responses: {
         201: z.custom<typeof assessments.$inferSelect>(),
+        202: z.object({ jobId: z.string(), message: z.string() }),
         400: errorSchemas.validation,
         500: errorSchemas.internal,
       },
@@ -33,22 +34,23 @@ export const api = {
     list: {
       method: "GET" as const,
       path: "/api/assessments" as const,
-      /** Query params: limit, offset */
+      /** Query params: limit, cursor */
       responses: {
         200: z.object({
           data: z.array(z.custom<typeof assessments.$inferSelect>()),
-          total: z.number(),
-          page: z.number(),
-          totalPages: z.number(),
+          nextCursor: z.number().nullable(),
         }),
       },
     },
     search: {
       method: "GET" as const,
       path: "/api/assessments/search" as const,
-      /** Query params: q, riskCategory, page, limit */
+      /** Query params: q, riskCategory, cursor, limit */
       responses: {
-        200: z.array(z.custom<typeof assessments.$inferSelect>()),
+        200: z.object({
+          data: z.array(z.custom<typeof assessments.$inferSelect>()),
+          nextCursor: z.number().nullable(),
+        }),
         400: errorSchemas.validation,
         401: errorSchemas.validation,
         500: errorSchemas.internal,
@@ -114,6 +116,7 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
     confidenceInterval?: string | null;
     modelConfidence?: number | null;
     disclaimer?: string;
+    isFallback?: boolean;
   };
 };
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;

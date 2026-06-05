@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
+import { ApiClient } from "@/lib/apiClient";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -388,21 +389,12 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
     setIsResending(true);
     setError(null);
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, _resend: true }),
-        credentials: "include",
-      });
-      if (response.ok) {
-        setCountdown(600);
-        setOtp(["", "", "", "", "", ""]);
-        inputRefs.current[0]?.focus();
-      } else {
-        setError("Failed to resend code. Please try again.");
-      }
+      await ApiClient.post("/api/auth/login", { email, _resend: true });
+      setCountdown(600);
+      setOtp(["", "", "", "", "", ""]);
+      inputRefs.current[0]?.focus();
     } catch {
-      setError("Unable to connect. Please try again.");
+      setError("Failed to resend code. Please try again.");
     } finally {
       setIsResending(false);
     }
@@ -417,27 +409,12 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
       // Route to correct endpoint based on flow:
       // login  -> /verify-otp  (in-memory OTP set by /login)
       // register -> /verify-email (DB-backed token set by /register)
-      let response: Response;
       if (mode === "login") {
-        response = await fetch("/api/auth/verify-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, otp: otp.join("") }),
-          credentials: "include",
-        });
+        await ApiClient.post("/api/auth/verify-otp", { email, otp: otp.join("") });
       } else {
-        response = await fetch("/api/auth/verify-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, code: otp.join("") }),
-          credentials: "include",
-        });
+        await ApiClient.post("/api/auth/verify-email", { email, code: otp.join("") });
       }
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Verification failed. Please try again.");
-      }
       onVerify();
     } catch (err: any) {
       setError(err.message || "Verification failed. Please try again.");
@@ -663,38 +640,16 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
     setIsLoading(true);
 
     try {
-      let authResponse: Response;
+      let responseData: any;
 
       if (mode === "register") {
         const fullName = String(formData.get("fullName") ?? "");
         const licenseNumber = String(formData.get("licenseNumber") ?? "");
 
-        authResponse = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fullName, email, password, licenseNumber }),
-          credentials: "include",
-        });
-
-        if (!authResponse.ok) {
-          const data = await authResponse.json();
-          throw new Error(data.message || "Registration failed. Please try again.");
-        }
+        responseData = await ApiClient.post("/api/auth/register", { fullName, email, password, licenseNumber });
       } else {
-        authResponse = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-          credentials: "include",
-        });
-
-        if (!authResponse.ok) {
-          const data = await authResponse.json();
-          throw new Error(data.message || "Invalid email or password.");
-        }
+        responseData = await ApiClient.post("/api/auth/login", { email, password });
       }
-
-      const responseData = await authResponse.json();
       setPendingEmail(email);
       if (responseData?.devOtp) setDevOtp(responseData.devOtp);
       setStep("otp");

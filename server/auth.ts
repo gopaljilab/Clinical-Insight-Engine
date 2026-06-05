@@ -1,19 +1,25 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { randomInt, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { randomInt, randomBytes } from "crypto";
 import bcrypt from "bcrypt";
 import { rateLimit } from "express-rate-limit";
 import { eq, and, gte } from "drizzle-orm";
 import { storage } from "./storage";
 import { getDb } from "./db";
-import { users, emailVerificationTokens } from "@shared/schema";
+import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
 import { sendVerificationCode } from "./email";
+import { logger } from "./logger";
+import { validateDTO } from "./middleware/validateDTO";
+import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswordDTOSchema, verifyEmailDTOSchema, verifyOtpDTOSchema } from "./validation/auth.dto";
+
 // Extend express-session to include user data
 declare module "express-session" {
   interface SessionData {
     user?: {
+      id: string;
       email: string;
       name: string;
       role?: string | null;
+      emailVerified: boolean;
     };
   }
 }
@@ -34,20 +40,11 @@ interface RegisteredUser {
 const registeredUsers = new Map<string, RegisteredUser>();
 
 function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString("hex");
-  const hash = scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${hash}`;
+  return bcrypt.hashSync(password, 10);
 }
 
 function verifyPassword(password: string, storedHash: string): boolean {
-  const [salt, key] = storedHash.split(":");
-  if (!salt || !key) {
-    return bcrypt.compareSync(password, storedHash);
-  }
-
-  const hashBuffer = Buffer.from(key, "hex");
-  const candidateBuffer = scryptSync(password, salt, 64);
-  return hashBuffer.length === candidateBuffer.length && timingSafeEqual(hashBuffer, candidateBuffer);
+  return bcrypt.compareSync(password, storedHash);
 }
 
 interface PendingOtp {
@@ -102,6 +99,13 @@ if (otpCleanupTimer.unref) {
 /**
  * Rate limiters for verification endpoints.
  */
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 5, // Stricter limit to prevent brute force (Fixes #624)
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many authentication attempts. Please try again later." },
+});
 
 const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -120,13 +124,7 @@ const verifyEmailLimiter = rateLimit({
   message: { error: "Too many verification attempts. Please try again later." },
 });
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 15,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: { error: "Too many login/registration attempts. Please try again in 15 minutes." },
-});
+
 
 const resendLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
@@ -142,7 +140,7 @@ function generateOtp(): string {
 
 function logDevOtp(email: string, otp: string) {
   if (process.env.NODE_ENV !== "production") {
-    console.log(`[DEV] OTP for ${email}: ${otp}`);
+    logger.info(`[DEV] OTP for ${email}: ${otp}`);
   }
 }
 
@@ -174,7 +172,7 @@ function saveSession(req: Request): Promise<void> {
 
 async function establishAuthenticatedSession(
   req: Request,
-  user: { id: string; email: string; name: string; role: string },
+  user: { id: string; email: string; name: string; role?: string | null; emailVerified: boolean },
 ): Promise<void> {
   await regenerateSession(req);
   req.session.user = user;
@@ -184,9 +182,9 @@ async function establishAuthenticatedSession(
 /**
  * Creates an authentication router with login, register, logout, and session-check endpoints.
  *
- * In development mode, credentials are validated against environment variables
- * (DEV_CLINICIAN_EMAIL / DEV_CLINICIAN_PASSWORD). In production, this serves
- * as the auth gateway for all protected API routes.
+ * Credentials are validated against hashed passwords in the database (or the
+ * in-memory store during initial registration). All users must complete OTP
+ * verification to establish an authenticated session.
  */
 export function createAuthRouter(): Router {
   const router = Router();
@@ -195,33 +193,9 @@ export function createAuthRouter(): Router {
    * POST /api/auth/register
    * Validates registration fields, creates a new user account, and establishes a session.
    */
-  router.post("/register", authLimiter, async (req: Request, res: Response) => {
-    const { fullName, licenseNumber } = req.body || {};
-    const email = (req.body?.email ?? "").trim().toLowerCase();
-    const password = req.body?.password ?? "";
- 
-    if (!fullName || !email || !password || !licenseNumber) {
-      return res.status(400).json({
-        message: "Full name, email, password, and license number are required.",
-      });
-    }
+  router.post("/register", authLimiter, validateDTO(registerDTOSchema), async (req: Request, res: Response) => {
+    const { fullName, email, password, licenseNumber } = req.body;
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ message: "Invalid email format." });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({ message: "Password must be at least 8 characters." });
-    }
-
-    if (fullName.length > 255) {
-      return res.status(400).json({ message: "Full name must be 255 characters or less." });
-    }
-
-    if (licenseNumber.length > 100) {
-      return res.status(400).json({ message: "Medical license number must be 100 characters or less." });
-    }
 
     // Check DB for existing user
     try {
@@ -238,29 +212,11 @@ export function createAuthRouter(): Router {
 
       const passwordHash = hashPassword(password);
 
-      registeredUsers.set(email, {
-        fullName,
-        email,
-        passwordHash,
-        licenseNumber,
-      });
-
-      // Create DB user
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          fullName,
-          email,
-          medicalLicenseNumber: licenseNumber,
-          passwordHash,
-          emailVerified: false,
-          role: "provider",
-        })
-        .returning();
-
       // Create email verification token
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      let registeredUserId: string;
 
       await db.transaction(async (tx) => {
         // Create DB user
@@ -275,6 +231,15 @@ export function createAuthRouter(): Router {
             role: "provider",
           })
           .returning();
+
+        // Cache in-memory for legacy login flow
+        registeredUsers.set(email, {
+          fullName,
+          email,
+          passwordHash,
+          licenseNumber,
+        });
+        registeredUserId = newUser.id;
 
         // Create email verification token
         await tx.insert(emailVerificationTokens).values({
@@ -292,9 +257,16 @@ export function createAuthRouter(): Router {
       // In production, send OTP via email. For development, return it in the response.
       logDevOtp(email, otp);
 
+      await storage.recordLoginAudit({
+        userId: registeredUserId!,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "registration",
+      });
+
       return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
     } catch (err) {
-      console.error("Registration error:", err);
+      logger.error({ err }, "Registration error");
       return res.status(500).json({ message: "Registration failed due to a server error." });
     }
   });
@@ -303,28 +275,16 @@ export function createAuthRouter(): Router {
    * POST /api/auth/login
    * Validates email/password against server-side env vars or registered users and creates a session.
    */
-  router.post("/login", authLimiter, async (req: Request, res: Response) => {
-    const rawEmail = req.body?.email ?? "";
-    const email = rawEmail.trim().toLowerCase();
-    const password = req.body?.password ?? "";
-
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required." });
-    }
-
-    const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
-    const devPassword = process.env.DEV_CLINICIAN_PASSWORD || "";
+  router.post("/login", authLimiter, validateDTO(loginDTOSchema), async (req: Request, res: Response) => {
+    const { email, password } = req.body;
 
     let userName: string | null = null;
 
-    if (email === devEmail && password === devPassword) {
-      userName = "Dr. Smith";
-    } else {
-      // Check in-memory store (legacy)
-      const registeredUser = registeredUsers.get(email);
-      if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-        userName = registeredUser.fullName;
-      }
+    // Check in-memory store (legacy)
+    const registeredUser = registeredUsers.get(email);
+    if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+      userName = registeredUser.fullName;
+    }
 
       // Also check DB
       if (!userName) {
@@ -341,17 +301,19 @@ export function createAuthRouter(): Router {
           }
         } catch (_err) {
           // DB not available — fall back to in-memory only
-          console.warn("DB unavailable for login, using in-memory only.");
+          logger.warn("DB unavailable for login, using in-memory only.");
           const registeredUser = registeredUsers.get(email);
           if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
             userName = registeredUser.fullName;
           }
         }
       }
-    }
-
-
     if (!userName) {
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "login_failed",
+      });
       return res.status(401).json({ message: "Invalid email or password." });
     }
 
@@ -368,26 +330,36 @@ export function createAuthRouter(): Router {
    * POST /api/auth/verify-otp
    * Verifies the OTP sent after login/register and establishes a session.
    */
-  router.post("/verify-otp", otpLimiter, async (req: Request, res: Response) => {
-    const { otp } = req.body || {};
-    const email = (req.body?.email ?? "").trim().toLowerCase();
-
-    if (!email || !otp) {
-      return res.status(400).json({ message: "Email and OTP are required." });
-    }
+  router.post("/verify-otp", otpLimiter, validateDTO(verifyOtpDTOSchema), async (req: Request, res: Response) => {
+    const { email, otp } = req.body;
 
     const pending = pendingOtps.get(email);
 
     if (!pending) {
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_failed",
+      });
       return res.status(400).json({ message: "No pending verification found for this email." });
     }
 
     if (Date.now() > pending.expiresAt) {
       pendingOtps.delete(email);
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_expired",
+      });
       return res.status(400).json({ message: "OTP has expired. Please sign in again." });
     }
 
     if (pending.otp !== otp) {
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_failed",
+      });
       return res.status(401).json({ message: "Invalid OTP. Please try again." });
     }
 
@@ -399,10 +371,13 @@ export function createAuthRouter(): Router {
     let name: string;
     let role: string;
 
+    let emailVerified = false;
+
     if (email === devEmail) {
       name = "Dr. Smith";
       id = "dev";
       role = "provider";
+      emailVerified = true;
     } else {
       const db = getDb();
       const [user] = await db
@@ -416,14 +391,22 @@ export function createAuthRouter(): Router {
       id = user.id;
       name = user.fullName;
       role = user.role ?? "provider";
+      emailVerified = user.emailVerified ?? false;
     }
 
     try {
-      await establishAuthenticatedSession(req, { id, email, name, role });
+      await establishAuthenticatedSession(req, { id, email, name, role, emailVerified });
     } catch (error) {
-      console.error("Session regeneration failed:", error);
+      logger.error({ err: error }, "Session regeneration failed");
       return res.status(500).json({ message: "Failed to establish session." });
     }
+
+    await storage.recordLoginAudit({
+      userId: id,
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      loginStatus: "login_success",
+    });
 
     return res.json({ success: true, user: { id, email, name } });
   });
@@ -441,17 +424,9 @@ export function createAuthRouter(): Router {
    * - Maximum 5 verification attempts per token
    * - Rate limited to 10 requests/minute
    */
-  router.post("/verify-email", verifyEmailLimiter, async (req: Request, res: Response) => {
+  router.post("/verify-email", verifyEmailLimiter, validateDTO(verifyEmailDTOSchema), async (req: Request, res: Response) => {
     try {
-      const { email, code } = req.body || {};
-
-      if (!email || !code) {
-        return res.status(400).json({ message: "Email and verification code are required." });
-      }
-
-      if (!/^\d{6}$/.test(code)) {
-        return res.status(400).json({ message: "Verification code must be a 6-digit number." });
-      }
+      const { email, code } = req.body;
 
       const db = getDb();
 
@@ -468,7 +443,7 @@ export function createAuthRouter(): Router {
 
       // If already verified, return success
       if (user.emailVerified) {
-        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
+        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider", emailVerified: true });
         return res.json({ success: true, message: "Email already verified." });
       }
 
@@ -528,14 +503,21 @@ export function createAuthRouter(): Router {
 
       await db
         .update(users)
-        .set({ emailVerified: true, emailVerifiedAt: new Date() })
+        .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
         .where(eq(users.id, user.id));
 
-      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider" });
+      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider", emailVerified: true });
+
+      await storage.recordLoginAudit({
+        userId: user.id,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "email_verified",
+      });
 
       return res.json({ success: true, message: "Email verified successfully." });
     } catch (err) {
-      console.error("Email verification error:", err);
+      logger.error({ err }, "Email verification error");
       return res.status(500).json({ message: "Verification failed due to a server error." });
     }
   });
@@ -544,10 +526,16 @@ export function createAuthRouter(): Router {
    * POST /api/auth/logout
    * Destroys the current session and clears the session cookie.
    */
-  router.post("/logout", (req: Request, res: Response) => {
+  router.post("/logout", async (req: Request, res: Response) => {
+    await storage.recordLoginAudit({
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      loginStatus: "logout",
+    });
+
     req.session.destroy((err) => {
       if (err) {
-        console.error("Session destruction failed:", err);
+        logger.error({ err }, "Session destruction failed");
         return res.status(500).json({ message: "Failed to logout." });
       }
       res.clearCookie("connect.sid");
@@ -566,6 +554,91 @@ export function createAuthRouter(): Router {
     return res.status(401).json({ message: "Not authenticated." });
   });
 
+  /**
+   * POST /api/auth/forgot-password
+   * Accepts email, creates a password reset token, and logs the reset link.
+   */
+  router.post("/forgot-password", validateDTO(forgotPasswordDTOSchema), async (req: Request, res: Response) => {
+    const { email } = req.body;
+
+    try {
+      const db = getDb();
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).json({ message: "No account found with this email." });
+      }
+
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+      await db.insert(passwordResetTokens).values({
+        userId: user.id,
+        token,
+        expiresAt,
+        used: false,
+      });
+
+      const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password?token=${token}`;
+
+      if (process.env.NODE_ENV !== "production") {
+        const border = "=".repeat(44);
+        logger.info(`\n${border}`);
+        logger.info("  PASSWORD RESET");
+        logger.info(`  To: ${email}`);
+        logger.info(`  Link: ${resetLink}`);
+        logger.info(`${border}\n`);
+      }
+
+      return res.json({ success: true, message: "If an account exists, a reset link has been sent." });
+    } catch (err) {
+      logger.error({ err }, "Forgot password error:");
+      return res.status(500).json({ message: "Failed to process request." });
+    }
+  });
+
+  /**
+   * POST /api/auth/reset-password
+   * Accepts token and new password, validates token, updates password.
+   */
+  router.post("/reset-password", validateDTO(resetPasswordDTOSchema), async (req: Request, res: Response) => {
+    const { token, newPassword } = req.body;
+
+    try {
+      const db = getDb();
+
+      const [resetToken] = await db
+        .select()
+        .from(passwordResetTokens)
+        .where(
+          and(
+            eq(passwordResetTokens.token, token),
+            eq(passwordResetTokens.used, false),
+            gte(passwordResetTokens.expiresAt, new Date()),
+          ),
+        )
+        .limit(1);
+
+      if (!resetToken) {
+        return res.status(400).json({ message: "Invalid or expired reset token." });
+      }
+
+      const passwordHash = hashPassword(newPassword);
+
+      await db.update(users).set({ passwordHash }).where(eq(users.id, resetToken.userId));
+      await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, resetToken.id));
+
+      return res.json({ success: true, message: "Password has been reset successfully." });
+    } catch (err) {
+      logger.error({ err }, "Reset password error:");
+      return res.status(500).json({ message: "Failed to reset password." });
+    }
+  });
+
   return router;
 }
 
@@ -582,12 +655,22 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 /**
  * Express middleware that blocks requests from users whose email
- * has not been verified. In this implementation, a valid session
- * implies a verified email.
+ * has not been verified.
  */
 export function requireVerified(req: Request, res: Response, next: NextFunction) {
-  if (req.session?.user) {
+  if (req.session?.user?.emailVerified) {
     return next();
   }
-  return res.status(401).json({ message: "Verification required." });
+  return res.status(403).json({ message: "Email verification required." });
+}
+
+/**
+ * Express middleware that restricts access to admin users only.
+ * Must be used after requireAuth to ensure the session exists.
+ */
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (req.session?.user?.role === "ADMIN") {
+    return next();
+  }
+  return res.status(403).json({ message: "Admin access required." });
 }

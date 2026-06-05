@@ -26,8 +26,12 @@ def read_csv_safely(filepath, chunksize=10000, max_rows=150000, timeout_seconds=
         # 4. Chunked Reading
         chunks = []
         try:
+            from app.utils.csv_sanitizer import sanitize_csv_value
             for chunk in pd.read_csv(filepath, chunksize=chunksize):
                 guard.check_resource_limits(len(chunk))
+                # Sanitize all string inputs against CSV injection
+                for col in chunk.select_dtypes(include=['object']):
+                    chunk[col] = chunk[col].apply(sanitize_csv_value)
                 chunks.append(chunk)
             
             if not chunks:
@@ -38,8 +42,10 @@ def read_csv_safely(filepath, chunksize=10000, max_rows=150000, timeout_seconds=
             raise SafeCSVError(str(e))
         except UnicodeDecodeError:
             raise SafeCSVError("Unsupported file encoding")
-        except pd.errors.ParserError:
-            raise SafeCSVError("Malformed CSV structure")
+        except pd.errors.ParserError as e:
+            raise SafeCSVError(f"Malformed CSV structure: {str(e)}")
+        except SyntaxError as e:
+            raise SafeCSVError(f"Invalid CSV format: {str(e)}")
         except MemoryError:
             raise SafeCSVError("Server memory limit exceeded during processing")
             

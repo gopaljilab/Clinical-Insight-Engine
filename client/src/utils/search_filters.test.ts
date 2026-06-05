@@ -82,3 +82,31 @@ describe("advancedFilter metric triage", () => {
     ).toBe(false);
   });
 });
+
+describe("advancedFilter — hypertension/heartDisease yes/no search", () => {
+  const noConditions = assessment({ id: 1, hypertension: false, heartDisease: false });
+  const hypertensionOnly = assessment({ id: 2, hypertension: true, heartDisease: false });
+  const heartDiseaseOnly = assessment({ id: 3, hypertension: false, heartDisease: true });
+  const bothConditions = assessment({ id: 4, hypertension: true, heartDisease: true });
+  const records = [noConditions, hypertensionOnly, heartDiseaseOnly, bothConditions];
+
+  it("'yes' matches patients with at least one comorbidity", () => {
+    const matches = advancedFilter(records, "yes");
+    expect(matches.map((a) => a.id)).toEqual([2, 3, 4]);
+  });
+
+  it("'no' matches only patients with NEITHER hypertension NOR heart disease", () => {
+    const matches = advancedFilter(records, "no");
+    expect(matches.map((a) => a.id)).toEqual([1]);
+  });
+
+  it("'no' does NOT match a patient with hypertension but no heart disease", () => {
+    const matches = advancedFilter([hypertensionOnly], "no");
+    expect(matches).toHaveLength(0);
+  });
+
+  it("'no' does NOT match a patient with heart disease but no hypertension", () => {
+    const matches = advancedFilter([heartDiseaseOnly], "no");
+    expect(matches).toHaveLength(0);
+  });
+});

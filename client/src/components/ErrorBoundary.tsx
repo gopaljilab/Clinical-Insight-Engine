@@ -41,9 +41,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             <p className="mb-6 text-muted-foreground">
               An unexpected error occurred. Please try refreshing the page.
             </p>
-            <pre className="mb-6 max-h-32 overflow-auto rounded-md bg-muted p-4 text-left text-sm text-muted-foreground">
-              {this.state.error?.message}
-            </pre>
             <button
               onClick={() => {
                 this.setState({ hasError: false, error: null });

@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import session from "express-session";
@@ -11,22 +13,20 @@ import {
 } from "./db";
 import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
+import { getPythonExecutable } from "./services/mlService";
 import patientsRouter from "./routes/patients";
 import { serveStatic } from "./static";
 import { sanitizeDatabaseError } from "./security/sqlProtection";
 import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
-import { getPythonExecutable } from "./routes";
-import { promisify } from "util";
-import { execFile } from "child_process";
+import { logger } from "./logger";
+import { requestIdMiddleware } from "./middleware/requestId";
+
 
 const execFileAsync = promisify(execFile);
-
-
 const app = express();
 const httpServer = createServer(app);
 const REQUEST_BODY_LIMIT = "256kb";
-
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", true);
 }
@@ -64,6 +64,7 @@ app.use(
     secret: getSessionSecret(),
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     store: new PgSession({
       pool: getPool(),
       tableName: "session",
@@ -73,7 +74,7 @@ app.use(
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 15 * 60 * 1000, // 15 minutes
     },
   })
 );
@@ -88,6 +89,7 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false, limit: REQUEST_BODY_LIMIT }));
+app.use(requestIdMiddleware);
 app.use(loggingAnomalyMiddleware);
 
 // Nonce middleware - generates a unique cryptographic nonce per request for CSP
@@ -133,22 +135,9 @@ function summarizeApiResponse(body: Record<string, any>) {
   return `[response keys: ${Object.keys(body).join(", ") || "none"}]`;
 }
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
 
-  console.log(`${formattedTime} [${source}] ${message}`);
-}
 
 app.use((req, res, next) => {
-  const requestId = crypto.randomUUID();
-  (req as any).id = requestId;
-  res.setHeader("X-Request-ID", requestId);
-
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
@@ -163,14 +152,14 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       const logPayload = {
-        requestId,
+        requestId: (req as any).id,
         method: req.method,
         path,
         status: res.statusCode,
         duration,
         responseSummary: capturedJsonResponse ? summarizeApiResponse(capturedJsonResponse) : undefined,
       };
-      log(JSON.stringify(logPayload));
+      logger.info(logPayload, "API request completed");
     }
   });
 
@@ -182,9 +171,9 @@ app.use((req, res, next) => {
     await verifyDatabaseConnection();
   } catch (error) {
     if (error instanceof DatabaseStartupError) {
-      console.error(error.message);
+      logger.error({ err: error }, error.message);
     } else {
-      console.error("Unexpected database startup error:", error);
+      logger.error({ err: error }, "Unexpected database startup error");
     }
 
     await closePool();
@@ -194,10 +183,10 @@ app.use((req, res, next) => {
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
   // Warm up ML model at startup so first prediction request is fast
-  log("Warming up ML model at startup...", "ml");
+  logger.info({ source: "ml" }, "Warming up ML model at startup...");
   execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
-    .then(() => log("ML model ready.", "ml"))
-    .catch((err: any) => log(`ML warmup warning: ${err.message}`, "ml"));
+    .then(() => logger.info({ source: "ml" }, "ML model ready."))
+    .catch((err: any) => logger.warn({ source: "ml" }, `ML warmup warning: ${err.message}`));
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
@@ -206,7 +195,7 @@ app.use((req, res, next) => {
     }
 
     // Log the full error internally for debugging, but never send internals to clients
-    console.error("Unhandled server error:", err);
+    logger.error({ err }, "Unhandled server error");
 
     // Sanitize database errors — prevents table names, SQL syntax, and pg error codes
     // from reaching the client response body
@@ -244,24 +233,24 @@ app.use((req, res, next) => {
       host,
     },
     () => {
-      log(`serving on ${host}:${port}`);
+      logger.info({ source: "express" }, `serving on ${host}:${port}`);
     }
   );
 
   // Graceful shutdown handler
   function shutdown(signal: string) {
-    log(`${signal} received — shutting down gracefully`);
+    logger.info({ source: "express" }, `${signal} received — shutting down gracefully`);
 
     httpServer.close(async () => {
-      log("HTTP server closed");
+      logger.info({ source: "express" }, "HTTP server closed");
       await closePool();
-      log("Database pool closed");
+      logger.info({ source: "express" }, "Database pool closed");
       process.exit(0);
     });
 
     // Force exit if graceful shutdown takes too long
     setTimeout(() => {
-      console.error("Graceful shutdown timed out — forcing exit");
+      logger.error("Graceful shutdown timed out — forcing exit");
       process.exit(1);
     }, 10000).unref();
   }
@@ -269,3 +258,8 @@ app.use((req, res, next) => {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 })();
+
+
+// GSSoC Issue #687 Patch
+    // GSSoC Issue #687 exit process on DB fail
+    process.exit(1);
