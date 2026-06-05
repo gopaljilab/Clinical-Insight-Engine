@@ -134,6 +134,18 @@ const resendLimiter = rateLimit({
   message: { error: "Too many resend requests. Please try again later." },
 });
 
+/**
+ * Stricter rate limiter for password-reset endpoint.
+ * Guards against token brute-force on the only credential-changing unauthenticated route.
+ */
+const passwordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 3,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many password reset attempts. Please try again later." },
+});
+
 function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
@@ -558,7 +570,7 @@ export function createAuthRouter(): Router {
    * POST /api/auth/forgot-password
    * Accepts email, creates a password reset token, and logs the reset link.
    */
-  router.post("/forgot-password", validateDTO(forgotPasswordDTOSchema), async (req: Request, res: Response) => {
+  router.post("/forgot-password", authLimiter, validateDTO(forgotPasswordDTOSchema), async (req: Request, res: Response) => {
     const { email } = req.body;
 
     try {
@@ -605,7 +617,7 @@ export function createAuthRouter(): Router {
    * POST /api/auth/reset-password
    * Accepts token and new password, validates token, updates password.
    */
-  router.post("/reset-password", validateDTO(resetPasswordDTOSchema), async (req: Request, res: Response) => {
+  router.post("/reset-password", passwordLimiter, validateDTO(resetPasswordDTOSchema), async (req: Request, res: Response) => {
     const { token, newPassword } = req.body;
 
     try {
