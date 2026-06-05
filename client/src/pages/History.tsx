@@ -29,6 +29,8 @@ import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { advancedFilter } from "@/utils/search_filters";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import RiskTrendChart from "@/components/RiskTrendChart";
+import HealthBadges from "@/components/HealthBadges";
+import { calculateHealthBadges } from "@/utils/healthBadges";
 
 function HighlightText({ text, searchRegex }: { text: string; searchRegex: RegExp | null }) {
   if (!searchRegex) return <>{text}</>;
@@ -278,6 +280,31 @@ export default function History() {
     }
   });
 
+  const latestBadgeAssessment = useMemo(() => {
+    if (sortedAssessments.length === 0) return null;
+    return (
+      sortedAssessments.find((assessment) =>
+        calculateHealthBadges(assessment, sortedAssessments).length > 0
+      ) || sortedAssessments[0]
+    );
+  }, [sortedAssessments]);
+
+  const latestBadges = useMemo(() => {
+    if (!latestBadgeAssessment) return [];
+    return calculateHealthBadges(latestBadgeAssessment, sortedAssessments);
+  }, [latestBadgeAssessment, sortedAssessments]);
+
+  const selectedPatientBadges = useMemo(() => {
+    const sortedHistory = [...selectedPatientHistory].sort(
+      (a, b) =>
+        new Date(b.createdAt || 0).getTime() -
+        new Date(a.createdAt || 0).getTime()
+    );
+
+    if (sortedHistory.length === 0) return [];
+    return calculateHealthBadges(sortedHistory[0], sortedHistory);
+  }, [selectedPatientHistory]);
+
   // 4. Pagination
   // When no client-side filters are active, use server-side total pages
   // so users can navigate beyond the current page's 20 records.
@@ -459,10 +486,18 @@ export default function History() {
             </p>
           </div>
        ) : (
-  <>      <AssessmentComparisonCard
-            assessments={sortedAssessments}
-          />
-          <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+          <>
+            <div className="grid gap-6">
+              <HealthBadges
+                badges={latestBadges}
+                title="Latest improvement badges"
+                description="Badges earned when a patient assessment improves key metrics or lowers overall risk compared to prior records."
+              />
+              <AssessmentComparisonCard
+                assessments={sortedAssessments}
+              />
+            </div>
+            <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -693,6 +728,11 @@ export default function History() {
           
           {selectedPatientHistory.length > 0 && (
             <div className="space-y-6 pb-12">
+              <HealthBadges
+                badges={selectedPatientBadges}
+                title="Patient improvement badges"
+                description="Track earned badges for this patient's trajectory across the selected assessments."
+              />
               <RiskTrendChart assessments={selectedPatientHistory} />
               
               <div className="border border-border rounded-xl overflow-hidden shadow-sm">

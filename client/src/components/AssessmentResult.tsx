@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { HealthBadges } from "@/components/HealthBadges";
+import { useAssessments } from "@/hooks/use-assessments";
+import { calculateHealthBadges } from "@/utils/healthBadges";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 
 interface AssessmentResultProps {
@@ -80,6 +83,13 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       default: return "#2563eb";
     }
   };
+
+  const { data: assessmentsResponse } = useAssessments();
+  const assessmentHistory = assessmentsResponse?.data ?? [];
+  const improvementBadges = useMemo(
+    () => calculateHealthBadges(assessment, assessmentHistory),
+    [assessment, assessmentHistory]
+  );
 
   const factors = normalizeFactors(assessment.factors);
   const totalFactors = Math.max(factors.length, 1);
@@ -222,6 +232,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   Based on your provided information, your preventive diabetes risk is considered <strong>{assessment.riskCategory.toLowerCase()}</strong>.
                 </p>
               </div>
+
+              <HealthBadges
+                badges={improvementBadges}
+                title="Progress badges"
+                description="See improvements and long-term trends based on this assessment and past history."
+              />
 
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
