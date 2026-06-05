@@ -7,6 +7,7 @@
  */
 
 import type { Request } from "express";
+import { logger } from "../logger";
 
 /**
  * Logs an object-level access decision.
@@ -35,8 +36,9 @@ export function logAccessAttempt(
     reason,
   };
 
-  // In production, this would go to a structured logging system like CloudWatch or Datadog.
-  // For the system, we'll log it as a security event string.
-  const logPrefix = granted ? "[AUDIT]" : "[SECURITY-AUDIT]";
-  console.error(`${logPrefix} ${JSON.stringify(event)}`);
+  if (granted) {
+    logger.info({ audit: event }, "Access Granted");
+  } else {
+    logger.warn({ audit: event, security: true }, "Access Denied");
+  }
 }

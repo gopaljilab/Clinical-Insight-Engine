@@ -58,7 +58,7 @@ export function advancedFilter(
       String(a.bloodGlucoseLevel).includes(term) ||
       String(a.riskScore).includes(term) ||
       (term === "yes" && (a.hypertension || a.heartDisease)) ||
-      (term === "no" && (!a.hypertension || !a.heartDisease))
+      (term === "no" && (!a.hypertension && !a.heartDisease))
     )
   );
 }
