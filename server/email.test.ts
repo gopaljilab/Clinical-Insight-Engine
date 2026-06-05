@@ -1,11 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { sendVerificationCode, sendCriticalRiskAlert } from "./email";
+import { logger } from "./logger";
 
 describe("sendVerificationCode", () => {
   let logSpy: any;
 
   beforeEach(() => {
-    logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    logSpy = vi.spyOn(logger, "info").mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -17,7 +18,11 @@ describe("sendVerificationCode", () => {
     process.env.NODE_ENV = "production";
     try {
       await sendVerificationCode("test@example.com", "123456");
-      const loggedOutput = logSpy.mock.calls.map((call: any) => call.join(" ")).join(" ");
+      const loggedOutput = logSpy.mock.calls
+        .map((call: any) =>
+          call.map((arg: any) => (typeof arg === "object" ? JSON.stringify(arg) : String(arg))).join(" ")
+        )
+        .join(" ");
       expect(loggedOutput).not.toContain("EMAIL VERIFICATION");
     } finally {
       process.env.NODE_ENV = originalEnv;
@@ -29,7 +34,11 @@ describe("sendVerificationCode", () => {
     process.env.NODE_ENV = "development";
     try {
       await sendVerificationCode("test@example.com", "123456");
-      const loggedOutput = logSpy.mock.calls.map((call: any) => call.join(" ")).join(" ");
+      const loggedOutput = logSpy.mock.calls
+        .map((call: any) =>
+          call.map((arg: any) => (typeof arg === "object" ? JSON.stringify(arg) : String(arg))).join(" ")
+        )
+        .join(" ");
       expect(loggedOutput).toContain("123456");
       expect(loggedOutput).toContain("EMAIL VERIFICATION");
     } finally {
@@ -42,7 +51,7 @@ describe("sendCriticalRiskAlert", () => {
   let logSpy: any;
 
   beforeEach(() => {
-    logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    logSpy = vi.spyOn(logger, "info").mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -54,7 +63,11 @@ describe("sendCriticalRiskAlert", () => {
     process.env.NODE_ENV = "development";
     try {
       await sendCriticalRiskAlert("doc@example.com", "Jane Doe", 85.5, 123);
-      const loggedOutput = logSpy.mock.calls.map((call: any) => call.join(" ")).join(" ");
+      const loggedOutput = logSpy.mock.calls
+        .map((call: any) =>
+          call.map((arg: any) => (typeof arg === "object" ? JSON.stringify(arg) : String(arg))).join(" ")
+        )
+        .join(" ");
       expect(loggedOutput).toContain("CRITICAL RISK ALERT MOCK LOG");
       expect(loggedOutput).toContain("doc@example.com");
       expect(loggedOutput).toContain("Jane Doe");
@@ -70,11 +83,14 @@ describe("sendCriticalRiskAlert", () => {
     process.env.NODE_ENV = "production";
     try {
       await sendCriticalRiskAlert("doc@example.com", "Jane Doe", 85.5, 123);
-      const loggedOutput = logSpy.mock.calls.map((call: any) => call.join(" ")).join(" ");
+      const loggedOutput = logSpy.mock.calls
+        .map((call: any) =>
+          call.map((arg: any) => (typeof arg === "object" ? JSON.stringify(arg) : String(arg))).join(" ")
+        )
+        .join(" ");
       expect(loggedOutput).not.toContain("CRITICAL RISK ALERT MOCK LOG");
     } finally {
       process.env.NODE_ENV = originalEnv;
     }
   });
 });
-

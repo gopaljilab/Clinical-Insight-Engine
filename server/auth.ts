@@ -320,6 +320,9 @@ export function createAuthRouter(): Router {
     const otp = generateOtp();
     pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
 
+    // Send verification email
+    await sendVerificationCode(email, otp);
+
     // In production, send OTP via email. For development, return it in the response.
     logDevOtp(email, otp);
 
