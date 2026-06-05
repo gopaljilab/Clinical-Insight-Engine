@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, doublePrecision, uuid, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, doublePrecision, uuid, varchar, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -10,7 +10,7 @@ export type AssessmentFactor = {
 
 export const assessments = pgTable("assessments", {
   id: serial("id").primaryKey(),
-  patientName: text("patient_name"),
+  patientName: text("patient_name").notNull(),
   gender: text("gender").notNull(), // 'Male', 'Female'
   age: integer("age").notNull(),
   hypertension: boolean("hypertension").notNull(),
@@ -30,15 +30,18 @@ export const assessments = pgTable("assessments", {
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   userId: text("user_id"),
-});
+}, (table) => [
+  index("created_by_id_idx").on(table.createdBy, table.id),
+]);
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
   // Restricted to Male/Female — the ML model was trained on binary gender data only.
   // Submitting "Other" would silently encode as Female; we reject it explicitly instead.
   patientName: z
-    .string({ required_error: "Patient name is required", invalid_type_error: "Patient name must be a string" })
+    .string({ invalid_type_error: "Patient name must be a string" })
     .trim()
-    .min(1, "Patient name is required"),
+    .min(1, "Patient name cannot be empty if provided")
+    .optional(),
   gender: z.enum(["Male", "Female"], {
     required_error: "Gender is required",
     invalid_type_error: "Gender must be 'Male' or 'Female'",

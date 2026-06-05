@@ -62,10 +62,11 @@ export default function Dashboard() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const { mutate: createAssessment, isPending, error } = useCreateAssessment();
 
-  const { data: assessments } = useAssessments();
+  const { data: infiniteData } = useAssessments();
+  const assessments = infiniteData ? infiniteData.pages.flatMap((page) => page.data) : [];
 
   const stats = useMemo(() => {
-    const list = assessments?.data ?? ([] as AssessmentResponse[]);
+    const list = assessments ?? [];
     const total = list.length;
     const avgRisk = total > 0 ? list.reduce((sum, item) => sum + Number(item.riskScore), 0) / total : 0;
     const highRisk = total > 0 ? (list.filter(item => (item.riskCategory || "").toUpperCase() === "HIGH").length / total) * 100 : 0;
@@ -115,15 +116,18 @@ export default function Dashboard() {
 
   const parsedForPreview = useMemo(() => formSchema.safeParse(watchedValues), [watchedValues]);
 
-  // Load draft from localStorage on mount — clear immediately after loading
-  // so it only pre-fills the form once (not on every subsequent visit)
+  // Load draft from localStorage on mount — discard if older than 8 hours to limit
+  // how long PHI (patient name, vitals) persists on shared/public computers.
+  const DRAFT_TTL_MS = 8 * 60 * 60 * 1000;
   useEffect(() => {
     try {
       const raw = localStorage.getItem("clinical-insight-assessment-draft");
       if (!raw) return;
-      // Remove immediately so stale draft never pre-fills on next visit
       localStorage.removeItem("clinical-insight-assessment-draft");
-      const draft = JSON.parse(raw);
+      const saved = JSON.parse(raw);
+      if (!saved || typeof saved !== "object") return;
+      if (saved.expiresAt && Date.now() > saved.expiresAt) return;
+      const draft = saved.data ?? saved;
       if (draft && typeof draft === "object") {
         const allowedKeys = [
           "patientName", "gender", "age", "hypertension", "heartDisease",
@@ -187,17 +191,20 @@ export default function Dashboard() {
     };
   }, [parsedForPreview, result]);
 
-  // Autosave draft on form changes
+  // Autosave draft on form changes with an 8-hour expiry timestamp so PHI
+  // does not persist indefinitely on shared or public computers.
   const formData = watch();
   useEffect(() => {
-    if (result) return;
     if (formData && (formData.patientName || formData.age || formData.bmi || formData.hba1cLevel || formData.bloodGlucoseLevel || formData.hypertension || formData.heartDisease)) {
       const timer = setTimeout(() => {
-        localStorage.setItem("clinical-insight-assessment-draft", JSON.stringify(formData));
+        localStorage.setItem(
+          "clinical-insight-assessment-draft",
+          JSON.stringify({ data: formData, expiresAt: Date.now() + DRAFT_TTL_MS }),
+        );
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [formData, result]);
+  }, [formData, result, DRAFT_TTL_MS]);
 
   return (
     <AppLayout>
@@ -511,33 +518,17 @@ export default function Dashboard() {
                     Complete required fields to see live risk prediction.
                   </p>
                 )}
+
                 {previewPending && (
-                  <div className="animate-pulse space-y-5" aria-hidden="true">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 flex flex-col items-center">
-                      <div className="h-3 w-16 bg-slate-200 dark:bg-slate-700 rounded mb-3" />
-                      <div className="h-10 w-24 bg-slate-300 dark:bg-slate-600 rounded mb-3" />
-                      <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded-full" />
-                    </div>
-                    <div className="space-y-3">
-                      <div className="h-3 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
-                      <div className="space-y-2">
-                        {[1, 2].map((i) => (
-                          <div key={i} className="rounded-xl border border-slate-200 p-3 bg-white/50">
-                            <div className="flex justify-between items-center mb-2">
-                              <div className="h-4 w-28 bg-slate-300 dark:bg-slate-600 rounded" />
-                              <div className="h-3 w-12 bg-slate-200 dark:bg-slate-700 rounded" />
-                            </div>
-                            <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded" />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Updating risk preview...
                   </div>
                 )}
 
                 {previewError && <p className="text-sm text-red-600">{previewError}</p>}
 
-                {preview && !previewPending && (
+                {preview && (
                   <>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center">
                       <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Risk Score</p>

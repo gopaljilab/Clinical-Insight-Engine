@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
+import { ApiClient } from "@/lib/apiClient";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -50,17 +51,7 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrors({ email: data.message || "Invalid email or password." });
-        return;
-      }
+      const data = await ApiClient.post("/api/auth/login", { email, password });
       setPendingEmail(email);
       if (data.devOtp) setDevOtp(data.devOtp);
       setStep("otp");
@@ -78,21 +69,11 @@ export default function LoginPage() {
     setIsLoading(true);
     setErrors({});
     try {
-      const res = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email: pendingEmail, otp: otpValue }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrors({ otp: data.message || "Verification failed. Please try again." });
-        return;
-      }
+      await ApiClient.post("/api/auth/verify-otp", { email: pendingEmail, otp: otpValue });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       setLocation("/dashboard");
-    } catch {
-      setErrors({ otp: "Unable to connect to server. Please try again." });
+    } catch (err: any) {
+      setErrors({ otp: err.message || "Unable to connect to server. Please try again." });
     } finally {
       setIsLoading(false);
     }
@@ -222,7 +203,7 @@ export default function LoginPage() {
                 <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
                 <span className="text-sm text-gray-600">Remember me</span>
               </label>
-              <a href="#" className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors">Forgot password?</a>
+              <a href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors">Forgot password?</a>
             </div>
             <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg">
               {isLoading ? "Signing in..." : "Sign In"}
