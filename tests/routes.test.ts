@@ -38,6 +38,8 @@ vi.mock("../server/storage", () => ({
     createAssessment: mockCreateAssessment,
     searchAssessments: vi.fn().mockResolvedValue([]),
     getAssessmentById: vi.fn().mockResolvedValue(undefined),
+    getUserByEmail: vi.fn().mockResolvedValue({ id: "admin-id" }),
+    createUser: vi.fn().mockResolvedValue({ id: "admin-id" }),
   },
 }));
 
