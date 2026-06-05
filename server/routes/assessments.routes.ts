@@ -85,9 +85,10 @@ assessmentsRouter.post(
       return res.status(401).json({ message: "Authentication required." });
     }
 
+    let requestFingerprint: string | undefined;
     try {
       const input = req.body;
-      const requestFingerprint = MLService.generateRequestFingerprint(input, userId);
+      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
 
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
         return res.status(409).json({
@@ -128,6 +129,10 @@ assessmentsRouter.post(
       return res
         .status(500)
         .json({ message: "Failed to queue clinical assessment." });
+    } finally {
+      if (requestFingerprint) {
+        MLService.activeInferenceRequests.delete(requestFingerprint);
+      }
     }
   }
 );

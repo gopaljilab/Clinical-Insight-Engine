@@ -15,6 +15,50 @@ vi.mock("child_process", () => ({
   execFile: mockExecFile,
 }));
 
+vi.mock("ioredis", () => {
+  return {
+    default: vi.fn().mockImplementation(() => {
+      return {
+        on: vi.fn(),
+        info: vi.fn().mockResolvedValue(""),
+      };
+    }),
+  };
+});
+
+vi.mock("bullmq", () => {
+  const mockQueue = {
+    add: vi.fn().mockResolvedValue({ id: "mock-job-id" }),
+    getJob: vi.fn().mockResolvedValue({
+      id: "mock-job-id",
+      getState: vi.fn().mockResolvedValue("completed"),
+      returnvalue: {
+        id: 1,
+        patientName: "John Doe",
+        gender: "Male",
+        age: 45,
+        hypertension: false,
+        heartDisease: false,
+        smokingHistory: "never",
+        bmi: 24.5,
+        hba1cLevel: 5.2,
+        bloodGlucoseLevel: 95,
+        riskScore: 12.3,
+        riskCategory: "LOW",
+        factors: [{ name: "Age", impact: "positive", description: "Increases risk" }],
+        createdBy: "test-user-id",
+        createdAt: new Date(),
+      },
+    }),
+  };
+  return {
+    Queue: vi.fn().mockImplementation(() => mockQueue),
+    Worker: vi.fn().mockImplementation(() => ({
+      on: vi.fn(),
+    })),
+  };
+});
+
 vi.mock("express-rate-limit", () => {
   const rateLimit = (options: any) => {
     return (req: any, res: any, next: any) => {
