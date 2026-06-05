@@ -157,13 +157,14 @@ export class DatabaseStorage implements IStorage {
     // The `searchTerm` value is NEVER interpolated — Drizzle sends it as a placeholder.
     if (searchTerm && searchTerm.trim() !== "") {
       const pattern = `%${searchTerm.trim()}%`;
-      conditions.push(
-        or(
-          ilike(assessments.gender, pattern),
-          ilike(assessments.smokingHistory, pattern),
-          ilike(assessments.riskCategory, pattern)
-        ) as ReturnType<typeof eq>
-      );
+        conditions.push(
+          or(
+            ilike(assessments.patientName, pattern),   // ← ADD THIS LINE
+            ilike(assessments.gender, pattern),
+            ilike(assessments.smokingHistory, pattern),
+            ilike(assessments.riskCategory, pattern)
+          ) as ReturnType<typeof eq>
+        );
     }
 
     let query = db
