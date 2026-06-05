@@ -1,11 +1,25 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+
+const { mockInfo, mockWarn, mockError } = vi.hoisted(() => ({
+  mockInfo: vi.fn(),
+  mockWarn: vi.fn(),
+  mockError: vi.fn(),
+}));
+
+vi.mock("./logger", () => ({
+  logger: {
+    info: mockInfo,
+    warn: mockWarn,
+    error: mockError,
+  },
+}));
+
 import {
   sendVerificationCode,
   sendCriticalRiskAlert,
   validateSmtpConfig,
   EmailConfigurationError,
 } from "./email";
-import { logger } from "./logger";
 
 const mockSendMail = vi.fn();
 const mockCreateTransport = vi.fn(() => ({ sendMail: mockSendMail }));
@@ -15,11 +29,10 @@ vi.mock("nodemailer", () => ({
 }));
 
 describe("sendVerificationCode", () => {
-  let logSpy: any;
-
   beforeEach(() => {
-    logSpy = vi.spyOn(logger, "info").mockImplementation(() => {});
-    vi.spyOn(logger, "error").mockImplementation(() => {});
+    mockInfo.mockClear();
+    mockWarn.mockClear();
+    mockError.mockClear();
     mockSendMail.mockReset();
     mockCreateTransport.mockClear();
     delete process.env.SMTP_HOST;
@@ -38,7 +51,7 @@ describe("sendVerificationCode", () => {
     try {
       const sent = await sendVerificationCode("test@example.com", "123456");
       expect(sent).toBe(false);
-      const loggedOutput = logSpy.mock.calls.map((call: any) => JSON.stringify(call)).join(" ");
+      const loggedOutput = mockInfo.mock.calls.map((call: any) => JSON.stringify(call)).join(" ");
       expect(loggedOutput).not.toContain("EMAIL VERIFICATION");
     } finally {
       process.env.NODE_ENV = originalEnv;
@@ -51,7 +64,7 @@ describe("sendVerificationCode", () => {
     try {
       const sent = await sendVerificationCode("test@example.com", "123456");
       expect(sent).toBe(true);
-      const loggedOutput = logSpy.mock.calls.map((call: any) => JSON.stringify(call)).join(" ");
+      const loggedOutput = mockInfo.mock.calls.map((call: any) => JSON.stringify(call)).join(" ");
       expect(loggedOutput).toContain("123456");
       expect(loggedOutput).toContain("EMAIL VERIFICATION");
     } finally {
@@ -105,11 +118,10 @@ describe("sendVerificationCode", () => {
 });
 
 describe("sendCriticalRiskAlert", () => {
-  let logSpy: any;
-
   beforeEach(() => {
-    logSpy = vi.spyOn(logger, "info").mockImplementation(() => {});
-    vi.spyOn(logger, "error").mockImplementation(() => {});
+    mockInfo.mockClear();
+    mockWarn.mockClear();
+    mockError.mockClear();
     mockSendMail.mockReset();
     delete process.env.SMTP_HOST;
     delete process.env.SMTP_PORT;
@@ -125,7 +137,7 @@ describe("sendCriticalRiskAlert", () => {
     try {
       const sent = await sendCriticalRiskAlert("doc@example.com", "Jane Doe", 85.5, 123);
       expect(sent).toBe(true);
-      const loggedOutput = logSpy.mock.calls.map((call: any) => JSON.stringify(call)).join(" ");
+      const loggedOutput = mockInfo.mock.calls.map((call: any) => JSON.stringify(call)).join(" ");
       expect(loggedOutput).toContain("CRITICAL RISK ALERT MOCK LOG");
       expect(loggedOutput).toContain("doc@example.com");
       expect(loggedOutput).toContain("Jane Doe");
@@ -142,7 +154,7 @@ describe("sendCriticalRiskAlert", () => {
     try {
       const sent = await sendCriticalRiskAlert("doc@example.com", "Jane Doe", 85.5, 123);
       expect(sent).toBe(false);
-      const loggedOutput = logSpy.mock.calls.map((call: any) => JSON.stringify(call)).join(" ");
+      const loggedOutput = mockInfo.mock.calls.map((call: any) => JSON.stringify(call)).join(" ");
       expect(loggedOutput).not.toContain("CRITICAL RISK ALERT MOCK LOG");
     } finally {
       process.env.NODE_ENV = originalEnv;
