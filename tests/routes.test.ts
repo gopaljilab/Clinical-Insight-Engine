@@ -473,6 +473,89 @@ describe("Response shape", () => {
   });
 });
 
+describe("CSV export", () => {
+  it("passes validated filters and the authenticated user scope to storage", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+    mockGetAssessments.mockClear();
+
+    mockGetAssessments.mockResolvedValue({
+      data: [
+        {
+          patientName: "Jane Doe",
+          gender: "Female",
+          riskCategory: "HIGH",
+          smokingHistory: "former",
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 100,
+      totalPages: 1,
+      nextCursor: null,
+    });
+
+    const res = await request(app).get(
+      "/api/assessments/export.csv?searchTerm=Jane&riskCategory=HIGH&gender=Female&startDate=2026-01-01&endDate=2026-01-31&page=2&limit=100&sortBy=patientName&order=asc"
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/csv");
+    expect(res.text).toContain("patientName,gender,riskCategory,smokingHistory");
+    expect(res.text).toContain("Jane Doe,Female,HIGH,former");
+    expect(mockGetAssessments).toHaveBeenCalledWith({
+      searchTerm: "Jane",
+      riskCategory: "HIGH",
+      gender: "Female",
+      startDate: "2026-01-01",
+      endDate: "2026-01-31",
+      page: 2,
+      limit: 100,
+      sortBy: "patientName",
+      order: "asc",
+      createdBy: "test@example.com",
+    });
+  });
+
+  it("returns an empty CSV for valid filters with no matching results", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+    mockGetAssessments.mockClear();
+
+    mockGetAssessments.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 1000,
+      totalPages: 0,
+      nextCursor: null,
+    });
+
+    const res = await request(app).get("/api/assessments/export.csv?riskCategory=LOW");
+
+    expect(res.status).toBe(200);
+    expect(res.text).toBe("");
+    expect(mockGetAssessments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        riskCategory: "LOW",
+        createdBy: "test@example.com",
+      })
+    );
+  });
+
+  it("rejects invalid export filters before querying storage", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+    mockGetAssessments.mockClear();
+
+    const res = await request(app).get("/api/assessments/export.csv?riskCategory=CRITICAL");
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Invalid risk category");
+    expect(mockGetAssessments).not.toHaveBeenCalled();
+  });
+});
+
 describe("GET /api/patients (JWT protected)", () => {
   it("returns 401 when Authorization header is missing", async () => {
     const app = createAuthenticatedApp();

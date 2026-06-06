@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ShieldAlert,
   Upload,
+  Download,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
@@ -242,6 +243,24 @@ export default function History() {
     e.target.value = ''; // Reset input
   };
 
+  const exportFilteredCsv = () => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("limit", String(Math.min(Math.max(filteredRecords || PAGE_SIZE, PAGE_SIZE), 1000)));
+    params.set("sortBy", sortField);
+    params.set("order", sortOrder);
+
+    if (searchTerm) params.set("searchTerm", searchTerm);
+    if (riskCategory !== "All") params.set("riskCategory", riskCategory);
+    if (gender !== "All") params.set("gender", gender);
+    if (minAge !== undefined) params.set("minAge", String(minAge));
+    if (maxAge !== undefined) params.set("maxAge", String(maxAge));
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+
+    window.location.href = `/api/assessments/export.csv?${params.toString()}`;
+  };
+
   const getRiskBadge = (category: string) => {
     const key = (category || "").toUpperCase();
     const highlight = <HighlightText text={category} search={searchTerm} />;
@@ -390,6 +409,7 @@ export default function History() {
   const filteredRecords = assessmentsData?.total ?? 0;
   const totalPages = assessmentsData?.totalPages ?? 1;
   const safePage = currentPage;
+  const sortedAssessments = assessments;
   const paginatedAssessments = assessments;
 
   const formatAssessmentDate = (dateVal: any) => {
@@ -475,6 +495,16 @@ export default function History() {
               Upload Lab Results
               <input type="file" className="sr-only" onChange={handleUploadLabResults} />
             </label>
+
+            <button
+              type="button"
+              onClick={exportFilteredCsv}
+              disabled={isLoading || filteredRecords === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </button>
 
             {/* Sort Dropdown */}
             <select
@@ -738,7 +768,7 @@ export default function History() {
         )}
       </div>
 
-      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientName(null)}>
+      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientKey(null)}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto sm:border-l sm:border-slate-200">
           <SheetHeader className="mb-6">
             <SheetTitle className="text-2xl font-bold font-display">Longitudinal Trajectory</SheetTitle>
@@ -783,6 +813,5 @@ export default function History() {
     </AppLayout>
   );
 }
-
 
 
