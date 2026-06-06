@@ -12,7 +12,7 @@ import {
   analyzeSearchInput,
   logSecurityEvent,
 } from "../security/sqlProtection";
-import { searchQuerySchema } from "../validation/searchValidation";
+import { searchQuerySchema, assessmentsQuerySchema } from "../validation/searchValidation";
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
 import { validateDTO } from "../middleware/validateDTO";
@@ -66,7 +66,7 @@ assessmentsRouter.post(
           .json({ message: err.errors[0]?.message ?? "Invalid input" });
       }
       if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
-        return res.status(408).json({ message: "Clinical assessment preview timed out." });
+        return res.status(503).json({ message: "Clinical assessment preview timed out." });
       }
       return res.status(500).json({ message: err.message || "Internal server error" });
     }
@@ -165,16 +165,22 @@ assessmentsRouter.get(
     try {
       const userEmail = req.session.user?.email;
       
-      const limit = Math.min(
-        100,
-        Math.max(1, parseInt(req.query.limit as string) || 20)
-      );
-      const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
-      
-      const result = await storage.getAssessments(limit, cursor, userEmail);
+      const parseResult = assessmentsQuerySchema.safeParse(req.query);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          message: parseResult.error.errors[0]?.message ?? "Invalid query parameters.",
+        });
+      }
+
+      const params = parseResult.data;
+      const result = await storage.getAssessments({
+        ...params,
+        createdBy: userEmail,
+      });
 
       res.json(result);
     } catch (err) {
+      logger.error({ err }, "Fetch assessments error:");
       return res.status(500).json({ message: "Failed to fetch assessments" });
     }
   }
