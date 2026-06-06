@@ -34,9 +34,9 @@ const METRICS = [
 ];
 
 function getRiskColor(score: number) {
-  if (score >= 50) return "#EF4444";
-  if (score >= 20) return "#F59E0B";
-  return "#10B981";
+  if (score >= 50) return "hsl(var(--destructive))";
+  if (score >= 20) return "hsl(var(--chart-3))";
+  return "hsl(var(--chart-2))";
 }
 
 export default function RiskTrendChart({ assessments }: Props) {
@@ -108,12 +108,12 @@ export default function RiskTrendChart({ assessments }: Props) {
               fontSize: "12px",
             }}
           />
-          <Legend wrapperStyle={{ fontSize: "12px" }} />
+          <Legend wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }} />
           {/* Risk threshold reference lines */}
           {activeMetrics["riskScore"] && (
             <>
-              <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="4 4" label={{ value: "High", fontSize: 10, fill: "#EF4444" }} />
-              <ReferenceLine y={20} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "Moderate", fontSize: 10, fill: "#F59E0B" }} />
+              <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="4 4" label={{ value: "High Risk", fontSize: 10, fill: "#EF4444" }} />
+              <ReferenceLine y={20} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "Moderate Risk", fontSize: 10, fill: "#F59E0B" }} />
             </>
           )}
           {METRICS.map(({ key, label, color }) =>

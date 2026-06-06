@@ -15,7 +15,7 @@ export default function Analytics() {
   if (isLoading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
-        <div className="text-lg text-slate-500 animate-pulse">Loading analytics...</div>
+        <div className="text-lg text-muted-foreground animate-pulse">Loading analytics...</div>
       </div>
     );
   }
@@ -23,7 +23,7 @@ export default function Analytics() {
   if (error || !stats) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
-        <div className="text-lg text-red-500">Failed to load analytics data.</div>
+        <div className="text-lg text-destructive">Failed to load analytics data.</div>
       </div>
     );
   }
@@ -42,53 +42,53 @@ export default function Analytics() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-black tracking-tight text-slate-900">Provider Analytics</h1>
-        <p className="text-slate-500">Population health management and risk distribution across your patients.</p>
+        <h1 className="text-3xl font-black tracking-tight text-foreground">Provider Analytics</h1>
+        <p className="text-muted-foreground">Population health management and risk distribution across your patients.</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <Card className="border-slate-200 bg-white/50 shadow-sm backdrop-blur">
+        <Card className="border-border bg-card shadow-sm backdrop-blur">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Total Patients Assessed</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Patients Assessed</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-blue-500" />
-              <div className="text-3xl font-black text-slate-900">{stats.totalPatients}</div>
+              <div className="text-3xl font-black text-foreground">{stats.totalPatients}</div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 bg-white/50 shadow-sm backdrop-blur">
+        <Card className="border-border bg-card shadow-sm backdrop-blur">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Average BMI</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Average BMI</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-emerald-500" />
-              <div className="text-3xl font-black text-slate-900">{stats.averages.bmi.toFixed(1)}</div>
+              <div className="text-3xl font-black text-foreground">{stats.averages.bmi.toFixed(1)}</div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 bg-white/50 shadow-sm backdrop-blur">
+        <Card className="border-border bg-card shadow-sm backdrop-blur">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Average HbA1c</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Average HbA1c</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-amber-500" />
-              <div className="text-3xl font-black text-slate-900">{stats.averages.hba1c.toFixed(1)}%</div>
+              <div className="text-3xl font-black text-foreground">{stats.averages.hba1c.toFixed(1)}%</div>
             </div>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-border shadow-sm bg-card">
           <CardHeader>
-            <CardTitle>Risk Distribution</CardTitle>
-            <CardDescription>Breakdown of patient population by cardiometabolic risk category.</CardDescription>
+            <CardTitle className="text-foreground">Risk Distribution</CardTitle>
+            <CardDescription className="text-muted-foreground">Breakdown of patient population by cardiometabolic risk category.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -107,43 +107,43 @@ export default function Analytics() {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
-                <Legend />
+                <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--popover-foreground))" }} />
+                <Legend wrapperStyle={{ color: "hsl(var(--foreground))" }} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-border shadow-sm bg-card">
           <CardHeader>
-            <CardTitle>Critical Alerts Feed</CardTitle>
-            <CardDescription>Highest risk assessments requiring immediate provider oversight.</CardDescription>
+            <CardTitle className="text-foreground">Critical Alerts Feed</CardTitle>
+            <CardDescription className="text-muted-foreground">Highest risk assessments requiring immediate provider oversight.</CardDescription>
           </CardHeader>
           <CardContent>
             {stats.criticalAlerts.length > 0 ? (
               <div className="space-y-4">
                 {stats.criticalAlerts.map((alert: any) => (
-                  <div key={alert.id} className="flex items-center justify-between rounded-xl border border-red-100 bg-red-50/50 p-4">
+                  <div key={alert.id} className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/10 p-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/20 text-destructive">
                         <AlertTriangle className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-900">{alert.patientName}</p>
-                        <p className="text-xs font-semibold text-slate-500">
+                        <p className="font-bold text-foreground">{alert.patientName}</p>
+                        <p className="text-xs font-semibold text-muted-foreground">
                           {alert.gender}, {alert.age} yrs • Assessed: {new Date(alert.createdAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-black text-red-600">{Number(alert.riskScore).toFixed(1)}%</div>
-                      <div className="text-xs font-bold uppercase tracking-wider text-red-500">Risk</div>
+                      <div className="text-lg font-black text-destructive">{Number(alert.riskScore).toFixed(1)}%</div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-destructive">Risk</div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="flex h-full min-h-[200px] items-center justify-center text-sm text-slate-500">
+              <div className="flex h-full min-h-[200px] items-center justify-center text-sm text-muted-foreground">
                 No critical alerts found.
               </div>
             )}

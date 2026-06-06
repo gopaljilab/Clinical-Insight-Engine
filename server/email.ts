@@ -15,6 +15,33 @@ interface EmailOptions {
   html?: string;
 }
 
+export class EmailConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EmailConfigurationError";
+  }
+}
+
+export function validateSmtpConfig(): void {
+  if (process.env.NODE_ENV !== "production") {
+    return;
+  }
+
+  const missing = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"].filter(
+    (key) => !process.env[key],
+  );
+
+  if (missing.length > 0) {
+    throw new EmailConfigurationError(
+      `Missing required SMTP environment variables in production: ${missing.join(", ")}`,
+    );
+  }
+}
+
+function isSmtpConfigured(): boolean {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT);
+}
+
 /**
  * Logs a visible OTP block to the console in development.
  */
@@ -23,38 +50,53 @@ function logDevOtp(email: string, code: string): void {
 }
 
 /**
- * Sends an email using the configured SMTP transport in production.
- * Falls back to console logging if no SMTP is configured.
+ * Sends an email using the configured SMTP transport.
+ * Returns true when delivery succeeds (or in dev mock mode), false on failure.
  */
-async function sendEmail(options: EmailOptions): Promise<void> {
-  if (process.env.SMTP_HOST && process.env.SMTP_PORT) {
-    try {
-      // Dynamic import — SMTP deps are optional, may not be installed
-      const { createTransport } = await import("nodemailer") as typeof import("nodemailer");
+async function sendEmail(options: EmailOptions): Promise<boolean> {
+  const isProduction = process.env.NODE_ENV === "production";
 
-      const transporter = createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT, 10),
-        secure: process.env.SMTP_SECURE === "true",
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      });
-
-      await transporter.sendMail({
-        from: FROM_ADDRESS,
-        to: options.to,
-        subject: options.subject,
-        text: options.text,
-        html: options.html,
-      });
-    } catch (err) {
-      logger.warn({ err }, "SMTP not available — falling back to mock log.");
-      logger.info({ email: options }, "MOCK EMAIL SENT");
+  if (!isSmtpConfigured()) {
+    if (isProduction) {
+      logger.error(
+        { to: options.to, subject: options.subject },
+        "Email not sent — SMTP is not configured",
+      );
+      return false;
     }
-  } else {
-    logger.info({ email: options }, "MOCK EMAIL SENT");
+
+    logger.info({ email: options }, "DEV MOCK EMAIL (not sent)");
+    return true;
+  }
+
+  try {
+    const { createTransport } = await import("nodemailer") as typeof import("nodemailer");
+
+    const transporter = createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT!, 10),
+      secure: process.env.SMTP_SECURE === "true",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: FROM_ADDRESS,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      html: options.html,
+    });
+
+    return true;
+  } catch (err) {
+    logger.error(
+      { err, to: options.to, subject: options.subject },
+      "Failed to send email",
+    );
+    return false;
   }
 }
 
@@ -65,12 +107,12 @@ async function sendEmail(options: EmailOptions): Promise<void> {
 export async function sendVerificationCode(
   email: string,
   code: string,
-): Promise<void> {
+): Promise<boolean> {
   if (process.env.NODE_ENV !== "production") {
     logDevOtp(email, code);
   }
 
-  await sendEmail({
+  return sendEmail({
     to: email,
     subject: "Your Clinical Insight Engine Verification Code",
     text: `Your verification code is: ${code}\n\nThis code expires in 10 minutes.\n\nIf you did not request this code, please ignore this email.`,
@@ -92,6 +134,44 @@ export async function sendVerificationCode(
 }
 
 /**
+ * Sends a password reset link to the given email address.
+ */
+export async function sendPasswordResetEmail(
+  email: string,
+  resetLink: string,
+): Promise<boolean> {
+  if (process.env.NODE_ENV !== "production") {
+    const border = "=".repeat(44);
+    logger.info(`\n${border}`);
+    logger.info("  PASSWORD RESET");
+    logger.info(`  To: ${email}`);
+    logger.info(`  Link: ${resetLink}`);
+    logger.info(`${border}\n`);
+  }
+
+  return sendEmail({
+    to: email,
+    subject: "Reset Your Clinical Insight Engine Password",
+    text: `You requested a password reset.\n\nClick the link below to reset your password:\n${resetLink}\n\nThis link expires in 1 hour.\n\nIf you did not request this, please ignore this email.`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+        <h2 style="color: #2563EB;">Clinical Insight Engine</h2>
+        <p>You requested a password reset. Click the button below to choose a new password:</p>
+        <p style="text-align: center; margin: 24px 0;">
+          <a href="${resetLink}" style="background: #2563EB; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 700;">
+            Reset Password
+          </a>
+        </p>
+        <p style="color: #64748B; font-size: 14px;">
+          This link expires in 1 hour.<br/>
+          If you did not request this, please ignore this email.
+        </p>
+      </div>
+    `,
+  });
+}
+
+/**
  * Sends a critical risk email alert to the designated doctor.
  */
 export async function sendCriticalRiskAlert(
@@ -99,7 +179,7 @@ export async function sendCriticalRiskAlert(
   patientName: string,
   riskScore: number,
   assessmentId: number,
-): Promise<void> {
+): Promise<boolean> {
   const formattedScore = riskScore.toFixed(1);
   const subject = `CRITICAL ALERT: Critical Diabetes Risk Score Detected for ${patientName}`;
   const text = `Dear Clinician,\n\nA new clinical assessment has calculated a critical risk score of ${formattedScore}% for patient: ${patientName}.\n\nPlease review the patient's record (Assessment ID: ${assessmentId}) immediately.\n\nBest regards,\nClinical Insight Engine`;
@@ -149,11 +229,10 @@ export async function sendCriticalRiskAlert(
     logger.info(`${border}\n`);
   }
 
-  await sendEmail({
+  return sendEmail({
     to: email,
     subject,
     text,
     html,
   });
 }
-

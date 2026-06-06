@@ -492,21 +492,21 @@ export default function Landing() {
                     </defs>
 
                     {/* Grid Lines */}
-                    <line x1="40" y1="30" x2="480" y2="30" stroke="#334155" strokeWidth="1" strokeDasharray="4 4" opacity="0.3" />
-                    <line x1="40" y1="75" x2="480" y2="75" stroke="#334155" strokeWidth="1" strokeDasharray="4 4" opacity="0.3" />
-                    <line x1="40" y1="120" x2="480" y2="120" stroke="#334155" strokeWidth="1" strokeDasharray="4 4" opacity="0.3" />
-                    <line x1="40" y1="165" x2="480" y2="165" stroke="#334155" strokeWidth="1" strokeDasharray="4 4" opacity="0.3" />
-                    <line x1="40" y1="210" x2="480" y2="210" stroke="#334155" strokeWidth="1" opacity="0.2" />
+                    <line x1="40" y1="30" x2="480" y2="30" stroke="hsl(var(--border))" strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
+                    <line x1="40" y1="75" x2="480" y2="75" stroke="hsl(var(--border))" strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
+                    <line x1="40" y1="120" x2="480" y2="120" stroke="hsl(var(--border))" strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
+                    <line x1="40" y1="165" x2="480" y2="165" stroke="hsl(var(--border))" strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
+                    <line x1="40" y1="210" x2="480" y2="210" stroke="hsl(var(--border))" strokeWidth="1" opacity="0.4" />
 
                     {/* Standard Care Cohort (Control) - Muted Line */}
                     <path
                       d="M 60 70 C 140 75, 220 85, 300 90 C 380 93, 420 94, 460 95"
-                      stroke="#64748B"
+                      stroke="hsl(var(--muted-foreground))"
                       strokeWidth="2"
                       strokeDasharray="4 4"
                       opacity="0.6"
                     />
-                    <text x="320" y="85" fill="#64748B" fontSize="9" fontWeight="bold">Standard Care (Control)</text>
+                    <text x="320" y="85" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold">Standard Care (Control)</text>
 
                     {/* Optimization Trend Line Area Fill */}
                     <path
@@ -517,34 +517,34 @@ export default function Landing() {
                     {/* Optimization Trend Line */}
                     <path
                       d="M 60 70 C 140 95, 220 135, 300 150 C 380 162, 420 170, 460 175"
-                      stroke="#3B82F6"
+                      stroke="hsl(var(--primary))"
                       strokeWidth="3"
                       strokeLinecap="round"
                     />
-                    <text x="320" y="145" fill="#3B82F6" fontSize="9" fontWeight="bold">Optimization Cohort</text>
+                    <text x="320" y="145" fill="hsl(var(--primary))" fontSize="9" fontWeight="bold">Optimization Cohort</text>
 
                     {/* Data Points - Optimization Trend */}
-                    <circle cx="60" cy="70" r="4.5" fill="#3B82F6" stroke="#0F172A" strokeWidth="1.5" />
-                    <circle cx="140" cy="95" r="4.5" fill="#3B82F6" stroke="#0F172A" strokeWidth="1.5" />
-                    <circle cx="220" cy="135" r="4.5" fill="#3B82F6" stroke="#0F172A" strokeWidth="1.5" />
-                    <circle cx="300" cy="150" r="4.5" fill="#3B82F6" stroke="#0F172A" strokeWidth="1.5" />
-                    <circle cx="380" cy="162" r="4.5" fill="#3B82F6" stroke="#0F172A" strokeWidth="1.5" />
-                    <circle cx="460" cy="175" r="4.5" fill="#10B981" stroke="#0F172A" strokeWidth="1.5" />
+                    <circle cx="60" cy="70" r="4.5" fill="#3B82F6" stroke="hsl(var(--card))" strokeWidth="2" />
+                    <circle cx="140" cy="95" r="4.5" fill="#3B82F6" stroke="hsl(var(--card))" strokeWidth="2" />
+                    <circle cx="220" cy="135" r="4.5" fill="#3B82F6" stroke="hsl(var(--card))" strokeWidth="2" />
+                    <circle cx="300" cy="150" r="4.5" fill="#3B82F6" stroke="hsl(var(--card))" strokeWidth="2" />
+                    <circle cx="380" cy="162" r="4.5" fill="#3B82F6" stroke="hsl(var(--card))" strokeWidth="2" />
+                    <circle cx="460" cy="175" r="4.5" fill="#10B981" stroke="hsl(var(--card))" strokeWidth="2" />
 
                     {/* Y-Axis Labels */}
-                    <text x="15" y="34" fill="#64748B" fontSize="9" fontWeight="bold">8.5%</text>
-                    <text x="15" y="79" fill="#64748B" fontSize="9" fontWeight="bold">8.0%</text>
-                    <text x="15" y="124" fill="#64748B" fontSize="9" fontWeight="bold">7.5%</text>
-                    <text x="15" y="169" fill="#64748B" fontSize="9" fontWeight="bold">7.0%</text>
-                    <text x="15" y="214" fill="#64748B" fontSize="9" fontWeight="bold">6.5%</text>
+                    <text x="15" y="34" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold">8.5%</text>
+                    <text x="15" y="79" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold">8.0%</text>
+                    <text x="15" y="124" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold">7.5%</text>
+                    <text x="15" y="169" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold">7.0%</text>
+                    <text x="15" y="214" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold">6.5%</text>
 
                     {/* X-Axis Labels */}
-                    <text x="60" y="232" fill="#64748B" fontSize="9" fontWeight="bold" textAnchor="middle">Baseline</text>
-                    <text x="140" y="232" fill="#64748B" fontSize="9" fontWeight="bold" textAnchor="middle">Month 1</text>
-                    <text x="220" y="232" fill="#64748B" fontSize="9" fontWeight="bold" textAnchor="middle">Month 2</text>
-                    <text x="300" y="232" fill="#64748B" fontSize="9" fontWeight="bold" textAnchor="middle">Month 3</text>
-                    <text x="380" y="232" fill="#64748B" fontSize="9" fontWeight="bold" textAnchor="middle">Month 4</text>
-                    <text x="460" y="232" fill="#64748B" fontSize="9" fontWeight="bold" textAnchor="middle">Month 6</text>
+                    <text x="60" y="232" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold" textAnchor="middle">Baseline</text>
+                    <text x="140" y="232" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold" textAnchor="middle">Month 1</text>
+                    <text x="220" y="232" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold" textAnchor="middle">Month 2</text>
+                    <text x="300" y="232" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold" textAnchor="middle">Month 3</text>
+                    <text x="380" y="232" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold" textAnchor="middle">Month 4</text>
+                    <text x="460" y="232" fill="hsl(var(--muted-foreground))" fontSize="9" fontWeight="bold" textAnchor="middle">Month 6</text>
                   </svg>
                 </div>
               </motion.div>
