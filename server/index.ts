@@ -6,6 +6,7 @@ import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import rateLimit from "express-rate-limit";
 import {
   DatabaseStartupError,
   verifyDatabaseConnection,
@@ -56,7 +57,7 @@ app.use(cors({
   credentials: true,
 }));
 
-const REQUEST_BODY_LIMIT = "256kb";
+const REQUEST_BODY_LIMIT = "10kb";
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", true);
 }
@@ -230,6 +231,16 @@ app.use((req, res, next) => {
   } else {
     logger.warn({ source: "redis" }, "Redis unavailable — async assessment queue disabled.");
   }
+
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests from this IP, please try again later." }
+  });
+  
+  app.use("/api", apiLimiter);
 
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
