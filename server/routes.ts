@@ -696,13 +696,9 @@ export async function registerRoutes(
       const cursor = cursorStr ? parseInt(cursorStr, 10) : undefined;
       const limit = limitStr ? parseInt(limitStr, 10) : 50;
 
-      const assessments = await storage.getAssessments(limit, cursor, userEmail);
+      const result = await storage.getAssessments(limit, cursor, userEmail);
 
-      const nextCursor = assessments.length === limit && assessments.length > 0 
-        ? assessments[assessments.length - 1].id 
-        : undefined;
-
-      res.json({ data: assessments, nextCursor });
+      res.json(result);
 
     } catch (err) {
       res.status(500).json({
@@ -720,7 +716,7 @@ export async function registerRoutes(
         const assessments = await storage.getAssessments(1000, undefined, userEmail);
 
         const csv = assessmentsToCsv(
-          assessments as unknown as Record<string, unknown>[]
+          assessments.data as unknown as Record<string, unknown>[]
         );
 
         res.header("Content-Type", "text/csv");

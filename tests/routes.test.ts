@@ -15,8 +15,8 @@ vi.mock("child_process", () => ({
   execFile: mockExecFile,
 }));
 
-vi.mock("express-rate-limit", () => ({
-  rateLimit: (options: any) => {
+vi.mock("express-rate-limit", () => {
+  const rateLimitMock = (options: any) => {
     return (req: any, res: any, next: any) => {
       const key = req.ip || "test";
       const count = (rateLimitCounters.get(key) || 0) + 1;
@@ -28,8 +28,12 @@ vi.mock("express-rate-limit", () => ({
       }
       next();
     };
-  },
-}));
+  };
+  return {
+    rateLimit: rateLimitMock,
+    default: rateLimitMock,
+  };
+});
 
 vi.mock("../server/storage", () => ({
   storage: {
@@ -88,6 +92,7 @@ function createAuthenticatedApp() {
       id: "test-user-id",
       email: "test@example.com",
       name: "Test User",
+      emailVerified: true,
     };
     next();
   });
@@ -108,9 +113,7 @@ beforeEach(() => {
   );
   mockGetAssessments.mockResolvedValue({
     data: [],
-    total: 0,
-    page: 1,
-    totalPages: 0,
+    nextCursor: null,
   });
   mockExecFile.mockImplementation((cmd, args, opts, cb) => {
     if (typeof opts === "function") {
@@ -367,19 +370,14 @@ describe("Response shape", () => {
           userId: null,
         },
       ],
-      total: 1,
-      page: 1,
-      totalPages: 1,
+      nextCursor: null,
     });
 
     const res = await request(app).get("/api/assessments");
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("data");
-    expect(res.body).toHaveProperty("total");
-    expect(res.body).toHaveProperty("page");
-    expect(res.body).toHaveProperty("totalPages");
+    expect(res.body).toHaveProperty("nextCursor");
     expect(Array.isArray(res.body.data)).toBe(true);
-    expect(typeof res.body.total).toBe("number");
   });
 });
