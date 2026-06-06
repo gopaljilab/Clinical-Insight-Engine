@@ -30,7 +30,6 @@ import { searchQuerySchema } from "./validation/searchValidation";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
 import { logger } from "./logger";
-import { assessmentQueue } from "./queue";
 export const execFileAsync = promisify(execFile);
 
 function runPythonInference(

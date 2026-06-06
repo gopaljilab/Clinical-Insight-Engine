@@ -177,8 +177,8 @@ describe("Assessment request fingerprint lifecycle", () => {
     await registerRoutes(createServer(), app);
 
     // Make the queue.add() call reject by importing the mocked queue
-    const { assessmentQueue } = await import("../server/queue");
-    (assessmentQueue.add as any).mockRejectedValueOnce(new Error("Redis connection failed"));
+    const { getAssessmentQueue } = await import("../server/queue");
+    (getAssessmentQueue().add as any).mockRejectedValueOnce(new Error("Redis connection failed"));
 
     const res = await request(app)
       .post("/api/assessments")

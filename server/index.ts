@@ -21,6 +21,11 @@ import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
 import { logger } from "./logger";
 import { requestIdMiddleware } from "./middleware/requestId";
+import {
+  verifyRedisConnection,
+  startAssessmentWorker,
+  closeQueue,
+} from "./queue";
 
 
 const execFileAsync = promisify(execFile);
@@ -180,6 +185,14 @@ app.use((req, res, next) => {
     process.exit(1);
   }
 
+  const queueReady = await verifyRedisConnection();
+  if (queueReady) {
+    startAssessmentWorker();
+    logger.info({ source: "redis" }, "Assessment queue ready.");
+  } else {
+    logger.warn({ source: "redis" }, "Redis unavailable — async assessment queue disabled.");
+  }
+
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
   // Register protected patient EMR/EHR integration endpoints
@@ -251,6 +264,8 @@ app.use((req, res, next) => {
 
     httpServer.close(async () => {
       logger.info({ source: "express" }, "HTTP server closed");
+      await closeQueue();
+      logger.info({ source: "express" }, "Assessment queue closed");
       await closePool();
       logger.info({ source: "express" }, "Database pool closed");
       process.exit(0);
