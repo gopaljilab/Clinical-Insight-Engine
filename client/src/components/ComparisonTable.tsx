@@ -1,11 +1,21 @@
 import StatusPill from "@/components/ui/StatusPill";
 import MetricChangeIndicator from "@/components/MetricChangeIndicator";
+import { ClinicalTooltip } from "@/components/ClinicalTooltip";
 import { type AssessmentResponse } from "@shared/routes";
 
 interface ComparisonTableProps {
   leftAssessment: AssessmentResponse;
   rightAssessment: AssessmentResponse;
 }
+
+type ComparisonRow = {
+  label: string;
+  leftDisplay: string;
+  rightDisplay: string;
+  leftCompare: unknown;
+  rightCompare: unknown;
+  tooltipKey?: "hba1c" | "bloodGlucose" | "bmi";
+};
 
 function normalizeStatus(value: unknown) {
   if (value === true) return "Yes";
@@ -84,7 +94,7 @@ function getComparisonType(label: string, leftValue: unknown, rightValue: unknow
 }
 
 export default function ComparisonTable({ leftAssessment, rightAssessment }: ComparisonTableProps) {
-  const rows = [
+  const rows: ComparisonRow[] = [
     {
       label: "Age",
       leftDisplay: String(leftAssessment.age ?? "N/A"),
@@ -98,6 +108,7 @@ export default function ComparisonTable({ leftAssessment, rightAssessment }: Com
       rightDisplay: rightAssessment.bmi !== undefined ? Number(rightAssessment.bmi).toFixed(1) : "N/A",
       leftCompare: leftAssessment.bmi,
       rightCompare: rightAssessment.bmi,
+      tooltipKey: "bmi",
     },
     {
       label: "HbA1c Level",
@@ -105,6 +116,7 @@ export default function ComparisonTable({ leftAssessment, rightAssessment }: Com
       rightDisplay: rightAssessment.hba1cLevel !== undefined ? `${Number(rightAssessment.hba1cLevel).toFixed(1)}%` : "N/A",
       leftCompare: leftAssessment.hba1cLevel,
       rightCompare: rightAssessment.hba1cLevel,
+      tooltipKey: "hba1c",
     },
     {
       label: "Blood Glucose Level",
@@ -112,6 +124,7 @@ export default function ComparisonTable({ leftAssessment, rightAssessment }: Com
       rightDisplay: rightAssessment.bloodGlucoseLevel !== undefined ? String(rightAssessment.bloodGlucoseLevel) : "N/A",
       leftCompare: leftAssessment.bloodGlucoseLevel,
       rightCompare: rightAssessment.bloodGlucoseLevel,
+      tooltipKey: "bloodGlucose",
     },
     {
       label: "Hypertension Status",
@@ -175,7 +188,15 @@ export default function ComparisonTable({ leftAssessment, rightAssessment }: Com
             const { type, label } = getComparisonType(row.label, row.leftCompare, row.rightCompare);
             return (
               <tr key={row.label} className="hover:bg-muted/40 transition-colors">
-                <td className="p-4 font-medium text-foreground whitespace-nowrap">{row.label}</td>
+                <td className="p-4 font-medium text-foreground whitespace-nowrap">
+                  {row.tooltipKey ? (
+                    <ClinicalTooltip metric={row.tooltipKey}>
+                      {row.label}
+                    </ClinicalTooltip>
+                  ) : (
+                    row.label
+                  )}
+                </td>
                 <td className="p-4 text-foreground whitespace-nowrap">{row.leftDisplay}</td>
                 <td className="p-4 text-foreground whitespace-nowrap">{row.rightDisplay}</td>
                 <td className="p-4">
