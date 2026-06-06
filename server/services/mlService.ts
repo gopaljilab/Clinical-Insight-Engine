@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
 
-class SimpleSemaphore {
+export class SimpleSemaphore {
   private activeCount = 0;
   private queue: (() => void)[] = [];
 
@@ -31,12 +31,21 @@ class SimpleSemaphore {
     });
   }
 
-  private release(): void {
+  release(): void {
     this.activeCount--;
     const next = this.queue.shift();
     if (next) {
       this.activeCount++;
       next();
+    }
+  }
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    const release = await this.acquire();
+    try {
+      return await fn();
+    } finally {
+      release();
     }
   }
 }
