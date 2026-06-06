@@ -253,7 +253,7 @@ export function createAuthRouter(): Router {
             medicalLicenseNumber: licenseNumber,
             passwordHash,
             emailVerified: false,
-            role: "provider",
+            role: "DOCTOR",
           })
           .returning();
 
@@ -482,7 +482,7 @@ export function createAuthRouter(): Router {
     if (email === devEmail) {
       name = "Dr. Smith";
       id = "dev";
-      role = "provider";
+      role = "DOCTOR";
       emailVerified = true;
     } else {
       const db = getDb();
@@ -494,10 +494,18 @@ export function createAuthRouter(): Router {
       if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
+
+      if (!user.emailVerified) {
+        await db
+          .update(users)
+          .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
+          .where(eq(users.id, user.id));
+      }
+
       id = user.id;
       name = user.fullName;
-      role = user.role ?? "provider";
-      emailVerified = user.emailVerified ?? false;
+      role = user.role ?? "DOCTOR";
+      emailVerified = true;
     }
 
     try {
@@ -549,7 +557,7 @@ export function createAuthRouter(): Router {
 
       // If already verified, return success
       if (user.emailVerified) {
-        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider", emailVerified: true });
+        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "DOCTOR", emailVerified: true });
         return res.json({ success: true, message: "Email already verified." });
       }
 
@@ -612,7 +620,7 @@ export function createAuthRouter(): Router {
         .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
         .where(eq(users.id, user.id));
 
-      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider", emailVerified: true });
+      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "DOCTOR", emailVerified: true });
 
       await storage.recordLoginAudit({
         userId: user.id,
