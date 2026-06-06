@@ -29,7 +29,6 @@ import { assessmentsToCsv } from "./utils/csvExport";
 import { searchQuerySchema } from "./validation/searchValidation";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
-import { issueToken } from "./services/auth/tokenValidator";
 import { logger } from "./logger";
 import { assessmentQueue } from "./queue";
 export const execFileAsync = promisify(execFile);
@@ -393,17 +392,6 @@ export async function registerRoutes(
   // Mount domain-specific routers
   app.use("/api/auth", authRouter);
   app.use("/api/assessments", assessmentsRouter);
-  // Issue a JWT token for the currently authenticated session user
-  app.get("/api/auth/token", requireAuth, requireVerified, (req, res) => {
-    // Session is guaranteed by requireAuth
-    const user = req.session.user;
-    if (!user || !user.id || !user.email) {
-      return res.status(401).json({ message: "Invalid session user data" });
-    }
-
-    const token = issueToken(user.id, user.email, "provider");
-    res.json({ token });
-  });
 
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);

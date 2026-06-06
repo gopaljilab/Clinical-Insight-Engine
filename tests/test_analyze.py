@@ -110,7 +110,7 @@ def test_predict_file_cli_outputs_json(tmp_path):
         create_synthetic_data()
 
     # Cold-start: remove any cached model so get_model() must retrain
-    model_file = os.path.join(REPO_ROOT, "diabetes_model.joblib")
+    model_file = os.path.join(REPO_ROOT, "diabetes_model.pkl")
     if os.path.exists(model_file):
         os.remove(model_file)
 
@@ -197,13 +197,14 @@ def test_lock_is_exclusive():
 
 
 def test_atomic_write_creates_valid_model(tmp_path):
-    model_file = os.path.join(tmp_path, "test_model.joblib")
+    model_file = os.path.join(tmp_path, "test_model.pkl")
     data = (None, None, ["a", "b"], "dummyhash")
     _atomic_write(model_file, data)
     assert os.path.exists(model_file)
 
-    import joblib
-    loaded = joblib.load(model_file)
+    import pickle
+    with open(model_file, 'rb') as f:
+        loaded = pickle.load(f)
     assert loaded[3] == "dummyhash"
 
 
@@ -286,11 +287,11 @@ def test_lock_prevents_concurrent_writes(tmp_path):
 def test_get_model_metadata_caching(tmp_path, monkeypatch):
     """Test that get_model uses metadata cache and skips hash computation."""
     import analyze
-    import joblib
+    import pickle
     
     # Set up temp paths for test
     test_data_file = os.path.join(tmp_path, "test_diabetes_dataset.csv")
-    test_model_file = os.path.join(tmp_path, "test_diabetes_model.joblib")
+    test_model_file = os.path.join(tmp_path, "test_diabetes_model.pkl")
     
     # Write dummy dataset with both classes
     with open(test_data_file, "w") as f:
@@ -309,7 +310,8 @@ def test_get_model_metadata_caching(tmp_path, monkeypatch):
     assert os.path.exists(test_model_file)
     
     # Load model_data to verify it has 7 elements
-    model_data = joblib.load(test_model_file)
+    with open(test_model_file, 'rb') as f:
+        model_data = pickle.load(f)
     assert len(model_data) == 7
     assert model_data[5] is not None  # mtime
     assert model_data[6] is not None  # size
@@ -341,7 +343,8 @@ def test_get_model_metadata_caching(tmp_path, monkeypatch):
     assert hash_called, "Cryptographic hash was not computed after metadata changed!"
     
     # The second call should have also updated the model file with the new mtime
-    model_data_updated = joblib.load(test_model_file)
+    with open(test_model_file, 'rb') as f:
+        model_data_updated = pickle.load(f)
     new_mtime = os.path.getmtime(test_data_file)
     assert model_data_updated[5] == new_mtime
 
@@ -349,10 +352,10 @@ def test_get_model_metadata_caching(tmp_path, monkeypatch):
 def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
     """Test that legacy 5-element tuple models are loaded correctly and migrated to 7-element tuples."""
     import analyze
-    import joblib
+    import pickle
     
     test_data_file = os.path.join(tmp_path, "test_diabetes_dataset.csv")
-    test_model_file = os.path.join(tmp_path, "test_diabetes_model.joblib")
+    test_model_file = os.path.join(tmp_path, "test_diabetes_model.pkl")
     
     with open(test_data_file, "w") as f:
         f.write("gender,age,hypertension,heart_disease,smoking_history,bmi,HbA1c_level,blood_glucose_level,diabetes\n")
@@ -368,14 +371,16 @@ def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
     dataset_hash = analyze._compute_dataset_hash(test_data_file)
     
     legacy_data = (model, scaler, features, dataset_hash, cov_beta)
-    joblib.dump(legacy_data, test_model_file)
+    with open(test_model_file, 'wb') as f:
+        pickle.dump(legacy_data, f)
     
     # Now load using get_model(). It should detect it's a legacy model, compute the hash, match it,
     # and update the MODEL_FILE with metadata (7-element tuple).
     res = analyze.get_model()
     assert res[0] is not None
     
-    migrated_data = joblib.load(test_model_file)
+    with open(test_model_file, 'rb') as f:
+        migrated_data = pickle.load(f)
     assert len(migrated_data) == 7
     assert migrated_data[3] == dataset_hash
     assert migrated_data[5] == os.path.getmtime(test_data_file)
