@@ -349,6 +349,9 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
             if field_label:
                 imputed_fields.append(field_label)
             return default_val
+        # Sanitize European decimal comma separators (e.g. "25,4" -> "25.4")
+        if isinstance(val, str):
+            val = val.replace(",", ".")
         return val
 
     # Safe extraction mapping utilizing dynamic baseline statistics for optional metrics
