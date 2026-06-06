@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLin
 import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { HealthBadges } from "@/components/HealthBadges";
+import { CopySummaryButton } from "@/components/CopySummaryButton";
 import { useAssessments } from "@/hooks/use-assessments";
 import { calculateHealthBadges } from "@/utils/healthBadges";
 import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
@@ -226,6 +227,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
             {isGeneratingPDF ? "Generating..." : "Download PDF"}
           </button>
+          <CopySummaryButton assessment={assessment} />
           <button
             type="button"
             onClick={exportToJson}

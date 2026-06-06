@@ -3,33 +3,32 @@ import { useAssessments, usePatientAssessments, useClearPatientCache } from "@/h
 import {
   format,
   isValid,
-  isAfter,
-  isBefore,
-  startOfDay,
-  endOfDay,
 } from "date-fns";
 import {
   Loader2,
-  Search,
-  Calendar,
   User,
   Activity,
-  X,
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
+  Upload,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
-import { FileText, RotateCw, Upload } from "lucide-react";
+import { FileText, RotateCw } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { filterAssessments, type GenderFilterValue, type RiskCategoryFilterValue } from "@/utils/filterAssessments";
 import { advancedFilter } from "@/utils/search_filters";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import RiskTrendChart from "@/components/RiskTrendChart";
 import HealthBadges from "@/components/HealthBadges";
 import { calculateHealthBadges } from "@/utils/healthBadges";
+import { AssessmentSearchBar } from "@/components/AssessmentSearchBar";
+import { AssessmentFilters } from "@/components/AssessmentFilters";
+import { ActiveFilterChips } from "@/components/ActiveFilterChips";
+import { ClearFiltersButton } from "@/components/ClearFiltersButton";
 import { validateSearchInput } from "@/validation/filterValidation";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
@@ -67,9 +66,13 @@ export default function History() {
   const { data: infiniteData, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useAssessments();
   const assessments = infiniteData ? infiniteData.pages.flatMap((page) => page.data) : [];
   const [searchTerm, setSearchTerm] = useState("");
-  // Security (Issue #743): track if the last input was rejected so we can show a warning.
-  const [searchRejected, setSearchRejected] = useState(false);
   const [sortBy, setSortBy] = useState<string>("date-desc");
+
+  // New filter state
+  const [riskCategory, setRiskCategory] = useState<RiskCategoryFilterValue>("All");
+  const [gender, setGender] = useState<GenderFilterValue>("All");
+  const [minAge, setMinAge] = useState<number | undefined>(undefined);
+  const [maxAge, setMaxAge] = useState<number | undefined>(undefined);
 
   // Date filter state
   const [startDate, setStartDate] = useState<string>("");
@@ -112,6 +115,10 @@ export default function History() {
     setSelectedPatientKey(key);
     // Reset search/filter state to avoid cross-patient filter bleed-through.
     setSearchTerm("");
+    setRiskCategory("All");
+    setGender("All");
+    setMinAge(undefined);
+    setMaxAge(undefined);
     setStartDate("");
     setEndDate("");
   };
@@ -274,28 +281,21 @@ export default function History() {
     }, 250);
   }
 
-  // 1. Text Search Filtering
-  const textFiltered = assessments
-    ? advancedFilter(assessments, searchTerm)
-    : [];
-
-  // 2. Reactive Date Range Filtering
-  const filteredAssessments = textFiltered.filter((assessment) => {
-    if (!assessment.createdAt) return true;
-    const itemDate = new Date(assessment.createdAt);
-
-    if (startDate) {
-      const startLimit = startOfDay(new Date(startDate));
-      if (isBefore(itemDate, startLimit)) return false;
-    }
-
-    if (endDate) {
-      const endLimit = endOfDay(new Date(endDate));
-      if (isAfter(itemDate, endLimit)) return false;
-    }
-
-    return true;
-  });
+  const filteredAssessments = useMemo(() => {
+    return filterAssessments(assessments, {
+      searchTerm,
+      riskCategory,
+      gender,
+      ageRange: {
+        min: minAge,
+        max: maxAge,
+      },
+      dateRange: {
+        startDate,
+        endDate,
+      },
+    });
+  }, [assessments, searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate]);
 
   // 3. Sorting Records
   const sortedAssessments = [...filteredAssessments].sort((a, b) => {
@@ -353,7 +353,8 @@ export default function History() {
   }, [selectedPatientHistory]);
 
   // 4. Pagination
-  const totalRecords = sortedAssessments.length;
+  const totalRecords = assessments.length;
+  const filteredRecords = sortedAssessments.length;
   const paginatedAssessments = sortedAssessments;
 
   const formatAssessmentDate = (dateVal: any) => {
@@ -387,12 +388,49 @@ export default function History() {
             <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight flex items-center gap-3">
               Patient History
               <span className="text-sm font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200">
-                {totalRecords} Match{totalRecords !== 1 ? 'es' : ''}
+                Showing {filteredRecords} of {totalRecords}
               </span>
             </h1>
             <p className="text-muted-foreground mt-2 text-lg">
               Review past preventive risk assessments.
             </p>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-4">
+              <AssessmentSearchBar
+                value={searchTerm}
+                onSearch={setSearchTerm}
+                onClear={() => setSearchTerm("")}
+              />
+              <AssessmentFilters
+                riskCategory={riskCategory}
+                gender={gender}
+                minAge={minAge}
+                maxAge={maxAge}
+                startDate={startDate}
+                endDate={endDate}
+                onRiskChange={setRiskCategory}
+                onGenderChange={setGender}
+                onAgeChange={({ minAge: nextMinAge, maxAge: nextMaxAge }) => {
+                  setMinAge(nextMinAge);
+                  setMaxAge(nextMaxAge);
+                }}
+                onStartDateChange={setStartDate}
+                onEndDateChange={setEndDate}
+                onClearDateRange={clearDateFilters}
+              />
+            </div>
+            <div className="space-y-4 rounded-3xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Filters active</p>
+                  <p className="text-sm text-muted-foreground">Use these chips to remove filters quickly.</p>
+                </div>
+                <ClearFiltersButton onClear={clearAllFilters} disabled={!hasActiveFilters} />
+              </div>
+              <ActiveFilterChips chips={activeFilterChips} onClearAll={clearAllFilters} />
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
@@ -402,124 +440,6 @@ export default function History() {
               Upload Lab Results
               <input type="file" className="sr-only" onChange={handleUploadLabResults} />
             </label>
-
-            {/* Text Search Field */}
-            <div className="relative">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search history..."
-                value={searchTerm}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  // FIX for Issue #743: validate and sanitize input before storing in
-                  // state. SQL injection patterns (e.g. `' OR 1=1 --`) are rejected
-                  // here at the client layer. The server independently validates via
-                  // Drizzle ORM parameterized queries + Zod schema (defence in depth).
-                  const safe = validateSearchInput(raw, () => {
-                    setSearchRejected(true);
-                    // Auto-clear the warning after 3 seconds
-                    setTimeout(() => setSearchRejected(false), 3000);
-                  });
-                  setSearchTerm(safe);
-                }}
-                className={`pl-10 pr-10 py-2.5 rounded-xl border bg-card focus:outline-none focus:ring-4 transition-all w-full sm:w-64 ${
-                  searchRejected
-                    ? "border-red-400 focus:border-red-500 focus:ring-red-100 dark:focus:ring-red-900/30"
-                    : "border-border focus:border-blue-600 focus:ring-blue-600/20"
-                }`}
-                aria-invalid={searchRejected}
-                aria-describedby={searchRejected ? "search-security-warning" : undefined}
-              />
-              {searchRejected && (
-                <div
-                  id="search-security-warning"
-                  role="alert"
-                  className="absolute top-full mt-1.5 left-0 z-10 flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/40 dark:border-red-800 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 shadow-sm"
-                >
-                  <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
-                  Invalid search pattern detected and blocked.
-                </div>
-              )}
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded-full hover:bg-muted"
-                  aria-label="Clear search query"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {/* Interactive Click-to-Pick Date-Range Selector */}
-            <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 shadow-sm select-none">
-              <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
-
-              <button
-                type="button"
-                onClick={triggerStartPicker}
-                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-                aria-label={startDate ? `Start date: ${format(new Date(startDate), "MMM d, yyyy")}` : "Choose start date"}
-              >
-                <span
-                  className={`text-sm font-medium ${startDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}
-                >
-                  {startDate
-                    ? format(new Date(startDate), "MMM d, yyyy")
-                    : "Start Date"}
-                </span>
-                <input
-                  ref={startInputRef}
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="sr-only"
-                  tabIndex={-1}
-                  aria-hidden="true"
-                />
-              </button>
-
-              <span className="text-muted-foreground text-xs font-bold px-0.5" aria-hidden="true">
-                to
-              </span>
-
-              <button
-                type="button"
-                onClick={triggerEndPicker}
-                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-                aria-label={endDate ? `End date: ${format(new Date(endDate), "MMM d, yyyy")}` : "Choose end date"}
-              >
-                <span
-                  className={`text-sm font-medium ${endDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}
-                >
-                  {endDate
-                    ? format(new Date(endDate), "MMM d, yyyy")
-                    : "End Date"}
-                </span>
-                <input
-                  ref={endInputRef}
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="sr-only"
-                  tabIndex={-1}
-                  aria-hidden="true"
-                />
-              </button>
-
-              {(startDate || endDate) && (
-                <button
-                  type="button"
-                  onClick={clearDateFilters}
-                  className="text-muted-foreground hover:text-foreground ml-1 p-0.5 rounded-full hover:bg-muted transition-colors"
-                  aria-label="Clear date filters"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
 
             {/* Sort Dropdown */}
             <select
@@ -553,18 +473,22 @@ export default function History() {
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4 text-muted-foreground">
               <Activity className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-foreground mb-2">
-              {searchTerm || startDate || endDate
-                ? "No Matching Records"
-                : "No Assessments Found"}
-            </h3>
+            <h3 className="text-xl font-bold text-foreground mb-2">No Assessments Found</h3>
             <p className="text-muted-foreground max-w-md">
-              {searchTerm || startDate || endDate
-                ? "No patient records matching your current filter limits were found. Try refining your parameters."
-                : "There are no patient assessments matching your criteria. Go to the dashboard to create a new assessment."}
+              There are no patient assessments loaded yet. Go to the dashboard to create a new assessment.
             </p>
           </div>
-       ) : (
+        ) : filteredRecords === 0 ? (
+          <div className="bg-card border border-border border-dashed rounded-2xl p-12 text-center flex flex-col items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4 text-muted-foreground">
+              <Activity className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-foreground mb-2">No Matching Records</h3>
+            <p className="text-muted-foreground max-w-md">
+              No patient records matching your current filter limits were found. Try refining or clearing your filters.
+            </p>
+          </div>
+        ) : (
           <>
             <div className="grid gap-6">
               <HealthBadges
