@@ -301,7 +301,7 @@ describe("Rate limiting", () => {
 });
 
 describe("Python inference", () => {
-  it("returns 201 with riskScore, riskCategory, factors on success", async () => {
+  it("returns 202 with jobId on success", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
@@ -319,13 +319,12 @@ describe("Python inference", () => {
       .post("/api/assessments")
       .send(validPayload);
 
-    expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty("riskScore");
-    expect(res.body).toHaveProperty("riskCategory");
-    expect(res.body).toHaveProperty("factors");
+    expect(res.status).toBe(202);
+    expect(res.body).toHaveProperty("message");
+    expect(res.body).toHaveProperty("jobId");
   });
 
-  it("returns 201 with fallback prediction when Python fails", async () => {
+  it("returns 202 with jobId when fallback prediction path is used in background queue", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
@@ -354,11 +353,9 @@ describe("Python inference", () => {
       .post("/api/assessments")
       .send(validPayload);
 
-    expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty("riskScore");
-    expect(res.body).toHaveProperty("riskCategory");
-    expect(res.body).toHaveProperty("factors");
-    expect(typeof res.body.riskScore).toBe("number");
+    expect(res.status).toBe(202);
+    expect(res.body).toHaveProperty("message");
+    expect(res.body).toHaveProperty("jobId");
   });
 
   it("preview returns risk metrics on successful inference", async () => {

@@ -20,6 +20,7 @@ import { FileText, RotateCw } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { filterAssessments, type GenderFilterValue, type RiskCategoryFilterValue } from "@/utils/filterAssessments";
+import { advancedFilter } from "@/utils/search_filters";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import RiskTrendChart from "@/components/RiskTrendChart";
 import HealthBadges from "@/components/HealthBadges";
@@ -28,6 +29,7 @@ import { AssessmentSearchBar } from "@/components/AssessmentSearchBar";
 import { AssessmentFilters } from "@/components/AssessmentFilters";
 import { ActiveFilterChips } from "@/components/ActiveFilterChips";
 import { ClearFiltersButton } from "@/components/ClearFiltersButton";
+import { validateSearchInput } from "@/validation/filterValidation";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
