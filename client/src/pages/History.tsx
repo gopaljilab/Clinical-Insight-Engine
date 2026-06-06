@@ -34,6 +34,7 @@ import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { ClearFiltersButton } from "@/components/ClearFiltersButton";
 import { validateSearchInput } from "@/validation/filterValidation";
 import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
+import { downloadPatientSummaryPdf } from "@/utils/clinicalPdfReport";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
@@ -402,6 +403,29 @@ export default function History() {
     if (sortedHistory.length === 0) return [];
     return calculateHealthBadges(sortedHistory[0], sortedHistory);
   }, [selectedPatientHistory]);
+
+  const sortedSelectedPatientHistory = useMemo(
+    () =>
+      [...selectedPatientHistory].sort(
+        (a, b) =>
+          new Date(b.createdAt || 0).getTime() -
+          new Date(a.createdAt || 0).getTime()
+      ),
+    [selectedPatientHistory]
+  );
+
+  const handleExportPatientSummary = () => {
+    if (sortedSelectedPatientHistory.length === 0) {
+      toast({
+        title: "No patient history available",
+        description: "Select a patient with assessment history before exporting a summary.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    downloadPatientSummaryPdf(sortedSelectedPatientHistory);
+  };
 
   // Reset to first page when filters or sort change
   useEffect(() => {
@@ -788,6 +812,15 @@ export default function History() {
           
           {selectedPatientHistory.length > 0 && (
             <div className="space-y-6 pb-12">
+              <button
+                type="button"
+                onClick={handleExportPatientSummary}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700 sm:w-auto"
+              >
+                <FileText className="h-4 w-4" />
+                Export Patient Summary PDF
+              </button>
+
               <HealthBadges
                 badges={selectedPatientBadges}
                 title="Patient improvement badges"
@@ -806,7 +839,7 @@ export default function History() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {selectedPatientHistory.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((a) => (
+                    {sortedSelectedPatientHistory.map((a) => (
                       <tr key={a.id} className="hover:bg-muted/30 transition-colors">
                         <td className="p-3 whitespace-nowrap">{formatAssessmentDate(a.createdAt)}</td>
                         <td className="p-3 font-bold text-foreground">{Number(a.riskScore).toFixed(1)}%</td>

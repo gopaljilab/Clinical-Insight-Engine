@@ -49,7 +49,6 @@ export interface IStorage {
     limit?: number,
     cursor?: number
   ): Promise<{ data: Assessment[]; nextCursor: number | null }>;
-  /** Returns a single assessment by numeric ID. Authorization must be checked by caller. */
   getAssessmentById(id: number): Promise<Assessment | undefined>;
   createAssessment(assessment: any): Promise<Assessment>;
   deleteAssessment(id: number): Promise<void>;

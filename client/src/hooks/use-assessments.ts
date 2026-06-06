@@ -165,10 +165,10 @@ export function useCreateAssessment() {
     mutationFn: async (data: AssessmentInput) => {
       // Ensure numeric fields are coerced correctly before sending if needed
       const validated = api.assessments.create.input.parse(data);
-      
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 75000); // 75s overall timeout
-      
+
       try {
         const res = await fetch(api.assessments.create.path, {
           method: api.assessments.create.method,
