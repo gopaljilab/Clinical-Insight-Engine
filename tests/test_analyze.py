@@ -308,6 +308,7 @@ def test_get_model_metadata_caching(tmp_path, monkeypatch):
     success = analyze.save_pretrained_model()
     assert success
     assert os.path.exists(test_model_file)
+    assert os.path.exists(test_model_file + ".sig")
     
     # Load model_data to verify it has 7 elements
     with open(test_model_file, 'rb') as f:
@@ -353,6 +354,7 @@ def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
     """Test that legacy 5-element tuple models are loaded correctly and migrated to 7-element tuples."""
     import analyze
     import pickle
+    from app.ml.security import write_signature
     
     test_data_file = os.path.join(tmp_path, "test_diabetes_dataset.csv")
     test_model_file = os.path.join(tmp_path, "test_diabetes_model.pkl")
@@ -373,6 +375,7 @@ def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
     legacy_data = (model, scaler, features, dataset_hash, cov_beta)
     with open(test_model_file, 'wb') as f:
         pickle.dump(legacy_data, f)
+    write_signature(test_model_file)
     
     # Now load using get_model(). It should detect it's a legacy model, compute the hash, match it,
     # and update the MODEL_FILE with metadata (7-element tuple).
@@ -385,3 +388,4 @@ def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
     assert migrated_data[3] == dataset_hash
     assert migrated_data[5] == os.path.getmtime(test_data_file)
     assert migrated_data[6] == os.path.getsize(test_data_file)
+

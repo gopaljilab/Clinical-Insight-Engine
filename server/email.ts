@@ -43,6 +43,29 @@ function isSmtpConfigured(): boolean {
 }
 
 /**
+ * Module-level SMTP transport singleton.
+ * Created once on first use so every sendEmail call reuses the same
+ * connection pool instead of opening a new TCP connection each time.
+ */
+let _transporter: import("nodemailer").Transporter | null = null;
+
+async function getTransporter(): Promise<import("nodemailer").Transporter> {
+  if (!_transporter) {
+    const { createTransport } = await import("nodemailer") as typeof import("nodemailer");
+    _transporter = createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT!, 10),
+      secure: process.env.SMTP_SECURE === "true",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  }
+  return _transporter;
+}
+
+/**
  * Logs a visible OTP block to the console in development.
  */
 function logDevOtp(email: string, code: string): void {
@@ -70,17 +93,7 @@ async function sendEmail(options: EmailOptions): Promise<boolean> {
   }
 
   try {
-    const { createTransport } = await import("nodemailer") as typeof import("nodemailer");
-
-    const transporter = createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT!, 10),
-      secure: process.env.SMTP_SECURE === "true",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+    const transporter = await getTransporter();
 
     await transporter.sendMail({
       from: FROM_ADDRESS,

@@ -1,6 +1,23 @@
 import { type AssessmentResponse } from "@shared/routes";
 
 type ReportAssessment = AssessmentResponse;
+export type PatientSummaryAssessment = Pick<
+  ReportAssessment,
+  | "id"
+  | "patientName"
+  | "gender"
+  | "age"
+  | "createdAt"
+  | "riskScore"
+  | "riskCategory"
+  | "bmi"
+  | "hba1cLevel"
+  | "bloodGlucoseLevel"
+  | "hypertension"
+  | "heartDisease"
+  | "smokingHistory"
+  | "factors"
+>;
 
 type PdfFont = "regular" | "bold" | "italic";
 
@@ -340,6 +357,167 @@ function getReportFilename(assessment: ReportAssessment): string {
   const id = assessment.id ?? "report";
   const patient = (assessment.patientName || "patient").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
   return `clinical-risk-assessment-${patient || "patient"}-${id}.pdf`;
+}
+
+function toNumber(value: unknown): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function compareAssessmentDatesDesc(a: PatientSummaryAssessment, b: PatientSummaryAssessment): number {
+  return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+}
+
+function trendLine(label: string, latestValue: unknown, baselineValue: unknown, suffix = ""): string {
+  const latest = toNumber(latestValue);
+  const baseline = toNumber(baselineValue);
+
+  if (latest === null || baseline === null) {
+    return `${label}: not enough numeric data to calculate a trend.`;
+  }
+
+  const delta = latest - baseline;
+  const direction = delta > 0 ? "increased" : delta < 0 ? "decreased" : "remained stable";
+  const absoluteDelta = Math.abs(delta).toFixed(1);
+  return `${label}: ${direction} by ${absoluteDelta}${suffix} from first to latest assessment.`;
+}
+
+export interface PatientSummaryReport {
+  patientName: string;
+  demographics: Array<[string, string]>;
+  latest: PatientSummaryAssessment | null;
+  latestRows: Array<[string, string]>;
+  trendSummary: string[];
+  recentFactors: RiskFactor[];
+  historyRows: Array<[string, string, string, string, string]>;
+  assessmentCount: number;
+}
+
+export function preparePatientSummaryReport(
+  assessments: PatientSummaryAssessment[],
+): PatientSummaryReport {
+  const sorted = [...assessments].sort(compareAssessmentDatesDesc);
+  const latest = sorted[0] ?? null;
+  const baseline = sorted[sorted.length - 1] ?? null;
+  const patientName = formatValue(latest?.patientName || assessments[0]?.patientName || "Unknown Patient");
+  const factorsByName = new Map<string, RiskFactor>();
+
+  sorted.slice(0, 3).forEach((assessment) => {
+    normalizeFactors(assessment.factors).forEach((factor) => {
+      const key = factor.name.trim().toLowerCase();
+      if (key && !factorsByName.has(key)) {
+        factorsByName.set(key, factor);
+      }
+    });
+  });
+
+  return {
+    patientName,
+    demographics: [
+      ["Patient Name", patientName],
+      ["Gender", formatValue(latest?.gender)],
+      ["Age", formatValue(latest?.age)],
+      ["Smoking History", formatValue(latest?.smokingHistory)],
+      ["Hypertension", formatValue(latest?.hypertension)],
+      ["Heart Disease", formatValue(latest?.heartDisease)],
+    ],
+    latest,
+    latestRows: [
+      ["Latest Assessment", formatDate(latest?.createdAt)],
+      ["Latest Risk Category", formatValue(latest?.riskCategory)],
+      ["Latest Risk Score", formatNumber(latest?.riskScore, 1, "%")],
+      ["Assessments Reviewed", String(sorted.length)],
+    ],
+    trendSummary: latest && baseline
+      ? [
+          trendLine("Risk score", latest.riskScore, baseline.riskScore, "%"),
+          trendLine("BMI", latest.bmi, baseline.bmi),
+          trendLine("HbA1c", latest.hba1cLevel, baseline.hba1cLevel, "%"),
+          trendLine("Blood glucose", latest.bloodGlucoseLevel, baseline.bloodGlucoseLevel),
+        ]
+      : [
+          "Risk score: not enough assessment history to calculate a trend.",
+          "BMI: not enough assessment history to calculate a trend.",
+          "HbA1c: not enough assessment history to calculate a trend.",
+          "Blood glucose: not enough assessment history to calculate a trend.",
+        ],
+    recentFactors: Array.from(factorsByName.values()).slice(0, 6),
+    historyRows: sorted.map((assessment) => [
+      formatDate(assessment.createdAt),
+      formatNumber(assessment.riskScore, 1, "%"),
+      formatValue(assessment.riskCategory),
+      formatNumber(assessment.bmi, 1),
+      formatNumber(assessment.hba1cLevel, 1, "%"),
+    ]),
+    assessmentCount: sorted.length,
+  };
+}
+
+function getPatientSummaryFilename(patientName: string): string {
+  const patient = patientName.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
+  return `patient-longitudinal-summary-${patient || "patient"}.pdf`;
+}
+
+export function downloadPatientSummaryPdf(assessments: PatientSummaryAssessment[]) {
+  const summary = preparePatientSummaryReport(assessments);
+  const pdf = new PdfDocument();
+
+  pdf.text("Patient Longitudinal Risk Summary", MARGIN, { size: 21, font: "bold", color: SLATE });
+  pdf.text(`Generated ${formatDate(new Date().toISOString())}`, MARGIN, { size: 9, color: MUTED });
+  pdf.moveDown(6);
+  pdf.line(MARGIN, pdf.y, PAGE_WIDTH - MARGIN, pdf.y, BORDER);
+  pdf.moveDown(20);
+
+  pdf.sectionTitle("Patient Overview");
+  pdf.keyValueRows(summary.demographics);
+
+  pdf.sectionTitle("Latest Assessment Snapshot");
+  pdf.keyValueRows(summary.latestRows);
+
+  pdf.sectionTitle("Longitudinal Trend Summary");
+  summary.trendSummary.forEach((line) => pdf.bullet(line));
+
+  pdf.sectionTitle("Assessment Timeline");
+  if (summary.historyRows.length === 0) {
+    pdf.text("No assessments were available for this patient.", MARGIN, { size: 10, color: MUTED });
+  } else {
+    summary.historyRows.slice(0, 12).forEach(([date, riskScore, category, bmi, hba1c]) => {
+      pdf.ensureSpace(36);
+      pdf.rect(MARGIN, pdf.y - 28, CONTENT_WIDTH, 28, LIGHT_FILL);
+      pdf.textAt(date, MARGIN + 10, pdf.y - 18, { size: 8.5, font: "bold", color: SLATE });
+      pdf.textAt(`Risk ${riskScore} (${category})`, MARGIN + 170, pdf.y - 18, { size: 8.5, color: MUTED });
+      pdf.textAt(`BMI ${bmi}`, MARGIN + 320, pdf.y - 18, { size: 8.5, color: MUTED });
+      pdf.textAt(`HbA1c ${hba1c}`, MARGIN + 410, pdf.y - 18, { size: 8.5, color: MUTED });
+      pdf.y -= 34;
+    });
+  }
+
+  pdf.sectionTitle("Recent Key Risk Factors");
+  if (summary.recentFactors.length === 0) {
+    pdf.text("No model risk factors were available in the recent assessments.", MARGIN, { size: 10, color: MUTED });
+  } else {
+    summary.recentFactors.forEach((factor) => {
+      const impact = factor.impact === "positive" ? "Increases risk" : "Reduces risk";
+      pdf.ensureSpace(42);
+      pdf.text(factor.name, MARGIN, { size: 10.5, font: "bold", color: SLATE, lineHeight: 14 });
+      pdf.text(`${impact}: ${factor.description || "No description provided."}`, MARGIN, {
+        size: 9.5,
+        color: MUTED,
+        maxWidth: CONTENT_WIDTH,
+        lineHeight: 13,
+      });
+      pdf.moveDown(5);
+    });
+  }
+
+  pdf.sectionTitle("Clinical Summary");
+  pdf.text(
+    `This report summarizes ${summary.assessmentCount} assessment${summary.assessmentCount === 1 ? "" : "s"} for ${summary.patientName}. Use it to review trajectory, discuss follow-up priorities, and compare the latest result against prior records. It is not a standalone diagnosis.`,
+    MARGIN,
+    { size: 10, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 14 },
+  );
+
+  pdf.save(getPatientSummaryFilename(summary.patientName));
 }
 
 export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
