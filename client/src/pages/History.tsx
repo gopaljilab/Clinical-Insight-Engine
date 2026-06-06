@@ -75,8 +75,20 @@ export default function History() {
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
 
-  const [selectedPatientName, setSelectedPatientName] = useState<string | null>(null);
+  const [selectedPatientKey, setSelectedPatientKey] = useState<string | null>(null);
   const clearPatientCache = useClearPatientCache();
+
+  /**
+   * Build a stable per-patient key from the two fields that are recorded at
+   * assessment time and never change for a real patient: name + gender.
+   * Filtering by name alone would merge unrelated patients who share the same
+   * name (issue #794).
+   */
+  const patientKey = (a: { patientName?: string | null; gender?: string | null }) =>
+    `${(a.patientName || "Unknown Patient").toLowerCase().trim()}|${(a.gender || "").toLowerCase().trim()}`;
+
+  // Derive the plain name for the cache-scoped patient query from the composite key.
+  const selectedPatientName = selectedPatientKey ? selectedPatientKey.split("|")[0] : null;
 
   // FIX for Issue #744: use a patient-scoped query so switching patients
   // never leaks the previous patient's cached clinical data into the new view.
@@ -87,13 +99,13 @@ export default function History() {
 
   // When a new patient is selected, clear the previous patient's cache entry
   // and reset search state so no stale data is shown during the transition.
-  const handleSelectPatient = (name: string | null) => {
-    if (selectedPatientName && selectedPatientName !== name) {
-      // Remove the old patient's cache entry so the next lookup always
-      // fetches fresh data from the server instead of serving stale records.
-      clearPatientCache(selectedPatientName);
+  const handleSelectPatient = (key: string | null) => {
+    const prevName = selectedPatientKey ? selectedPatientKey.split("|")[0] : null;
+    const nextName = key ? key.split("|")[0] : null;
+    if (prevName && prevName !== nextName) {
+      clearPatientCache(prevName);
     }
-    setSelectedPatientName(name);
+    setSelectedPatientKey(key);
     // Reset search/filter state to avoid cross-patient filter bleed-through.
     setSearchTerm("");
     setStartDate("");
@@ -101,18 +113,14 @@ export default function History() {
   };
 
   const selectedPatientHistory = useMemo(() => {
-    if (!selectedPatientName) return [];
-    // Use the patient-scoped query data (isolated cache) instead of filtering
-    // from the shared assessments list, which could contain stale data.
-    if (patientInfiniteData) {
-      return patientInfiniteData.pages.flatMap((page) => page.data);
-    }
-    // Fallback: filter from the full list (only used if patient query hasn't loaded yet)
-    return assessments.filter(a => {
-       const pName = a.patientName || "Unknown Patient";
-       return pName === selectedPatientName;
-    });
-  }, [assessments, selectedPatientName, patientInfiniteData]);
+    if (!selectedPatientKey) return [];
+    // Use the patient-scoped query data (isolated cache) filtered by composite
+    // key to prevent same-name cross-patient data leakage (issues #744, #794).
+    const source = patientInfiniteData
+      ? patientInfiniteData.pages.flatMap((page) => page.data)
+      : assessments;
+    return source.filter(a => patientKey(a) === selectedPatientKey);
+  }, [assessments, selectedPatientKey, patientInfiniteData]);
 
   // Suppress unused warning — patientLoading is intentionally tracked for future use
   void patientLoading;

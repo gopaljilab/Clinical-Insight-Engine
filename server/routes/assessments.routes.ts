@@ -81,6 +81,7 @@ assessmentsRouter.post(
   validateDTO(api.assessments.create.input),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
+    const userEmail = req.session.user?.email;
     if (!userId) {
       return res.status(401).json({ message: "Authentication required." });
     }
@@ -115,7 +116,7 @@ assessmentsRouter.post(
           prediction.modelConfidence == null
             ? undefined
             : Number(prediction.modelConfidence),
-        createdBy: userId,
+        createdBy: userEmail || userId,
       });
 
       return res.status(201).json(assessment);
@@ -164,14 +165,13 @@ assessmentsRouter.get(
     try {
       const userEmail = req.session.user?.email;
       
-      const page = Math.max(1, parseInt(req.query.page as string) || 1);
       const limit = Math.min(
         100,
         Math.max(1, parseInt(req.query.limit as string) || 20)
       );
-      const offset = (page - 1) * limit;
+      const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
       
-      const result = await storage.getAssessments(limit, offset, userEmail);
+      const result = await storage.getAssessments(limit, cursor, userEmail);
 
       res.json(result);
     } catch (err) {

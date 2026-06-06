@@ -3,6 +3,8 @@ import request from "supertest";
 import express from "express";
 import session from "express-session";
 import { createServer } from "http";
+import patientsRouter from "../server/routes/patients";
+import { issueToken } from "../server/services/auth/tokenValidator";
 
 const { mockExecFile, rateLimitCounters, mockCreateAssessment, mockGetAssessments } = vi.hoisted(() => ({
   mockExecFile: vi.fn(),
@@ -14,6 +16,50 @@ const { mockExecFile, rateLimitCounters, mockCreateAssessment, mockGetAssessment
 vi.mock("child_process", () => ({
   execFile: mockExecFile,
 }));
+
+vi.mock("ioredis", () => {
+  return {
+    default: vi.fn().mockImplementation(() => {
+      return {
+        on: vi.fn(),
+        info: vi.fn().mockResolvedValue(""),
+      };
+    }),
+  };
+});
+
+vi.mock("bullmq", () => {
+  const mockQueue = {
+    add: vi.fn().mockResolvedValue({ id: "mock-job-id" }),
+    getJob: vi.fn().mockResolvedValue({
+      id: "mock-job-id",
+      getState: vi.fn().mockResolvedValue("completed"),
+      returnvalue: {
+        id: 1,
+        patientName: "John Doe",
+        gender: "Male",
+        age: 45,
+        hypertension: false,
+        heartDisease: false,
+        smokingHistory: "never",
+        bmi: 24.5,
+        hba1cLevel: 5.2,
+        bloodGlucoseLevel: 95,
+        riskScore: 12.3,
+        riskCategory: "LOW",
+        factors: [{ name: "Age", impact: "positive", description: "Increases risk" }],
+        createdBy: "test-user-id",
+        createdAt: new Date(),
+      },
+    }),
+  };
+  return {
+    Queue: vi.fn().mockImplementation(() => mockQueue),
+    Worker: vi.fn().mockImplementation(() => ({
+      on: vi.fn(),
+    })),
+  };
+});
 
 vi.mock("express-rate-limit", () => {
   const rateLimit = (options: any) => {
@@ -32,16 +78,20 @@ vi.mock("express-rate-limit", () => {
   return { rateLimit, default: rateLimit };
 });
 
-vi.mock("../server/storage", () => ({
-  storage: {
+vi.mock("../server/storage", () => {
+  const mockStorageInstance = {
     getAssessments: mockGetAssessments,
     createAssessment: mockCreateAssessment,
     searchAssessments: vi.fn().mockResolvedValue([]),
     getAssessmentById: vi.fn().mockResolvedValue(undefined),
     getUserByEmail: vi.fn().mockResolvedValue({ id: "admin-id" }),
     createUser: vi.fn().mockResolvedValue({ id: "admin-id" }),
-  },
-}));
+  };
+  return {
+    storage: mockStorageInstance,
+    DatabaseStorage: vi.fn().mockImplementation(() => mockStorageInstance),
+  };
+});
 
 vi.mock("fs", () => ({
   existsSync: vi.fn().mockReturnValue(false),
@@ -400,5 +450,76 @@ describe("Response shape", () => {
     expect(res.body).toHaveProperty("totalPages");
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(typeof res.body.total).toBe("number");
+  });
+});
+
+describe("GET /api/patients (JWT protected)", () => {
+  it("returns 401 when Authorization header is missing", async () => {
+    const app = createAuthenticatedApp();
+    app.use("/api/patients", patientsRouter);
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app).get("/api/patients");
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty("error", "Unauthorized");
+  });
+
+  it("returns 401 when Authorization header is malformed", async () => {
+    const app = createAuthenticatedApp();
+    app.use("/api/patients", patientsRouter);
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app)
+      .get("/api/patients")
+      .set("Authorization", "Bearer invalidtoken");
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty("error", "Unauthorized");
+  });
+
+  it("returns 200 with patient data when valid JWT is provided", async () => {
+    const app = createAuthenticatedApp();
+    app.use("/api/patients", patientsRouter);
+    await registerRoutes(createServer(), app);
+
+    const userEmail = "test@example.com";
+    const token = issueToken("test-user-id", userEmail, "provider");
+
+    mockGetAssessments.mockResolvedValue({
+      data: [
+        {
+          id: 1,
+          patientName: "John Doe",
+          gender: "Male",
+          age: 45,
+          hypertension: false,
+          heartDisease: false,
+          smokingHistory: "never",
+          bmi: 24.5,
+          hba1cLevel: 5.2,
+          bloodGlucoseLevel: 95,
+          riskScore: 12.3,
+          riskCategory: "LOW",
+          factors: [],
+          confidenceInterval: "8.5% - 16.1%",
+          modelConfidence: 0.877,
+          createdBy: userEmail,
+          createdAt: new Date(),
+          userId: "test-user-id",
+        },
+      ],
+      nextCursor: null,
+    });
+
+    const res = await request(app)
+      .get("/api/patients")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("data");
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data[0]).toHaveProperty("patientName", "John Doe");
+    // Ensure sensitive creator/user IDs are stripped/sanitized
+    expect(res.body.data[0]).not.toHaveProperty("createdBy");
+    expect(res.body.data[0]).not.toHaveProperty("userId");
   });
 });
