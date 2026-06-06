@@ -334,40 +334,16 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
     """Vectorized batch prediction for a list of patient records using NumPy."""
     if model is None:
         return {"error": "Dataset missing. Please ensure diabetes_dataset.csv is present."}
-    cache = get_cache()
-    cached = cache.get(input_data)
-    if cached is not None:
-        return cached
 
-    input_df = pd.DataFrame(0, index=[0], columns=features)
-    imputed_fields = []
+    n_samples = len(input_data_list)
+    n_features = len(features)
 
-    def _safe_get(data, key, default_val, field_label=None):
-        val = data.get(key)
-        # Identify if value is missing, empty, or unprovided
-        if val is None or val == "" or pd.isna(val):
-            if field_label:
-                imputed_fields.append(field_label)
-            return default_val
-        # Sanitize European decimal comma separators (e.g. "25,4" -> "25.4")
-        if isinstance(val, str):
-            val = val.replace(",", ".")
-        return val
-
-    # Safe extraction mapping utilizing dynamic baseline statistics for optional metrics
-    input_df['age'] = _safe_get(input_data, 'age', 40)
-    input_df['hypertension'] = int(_safe_get(input_data, 'hypertension', False))
-    input_df['heart_disease'] = int(_safe_get(input_data, 'heartDisease', False))
-    input_df['bmi'] = float(_safe_get(input_data, 'bmi', 25.0, 'BMI'))
-    input_df['HbA1c_level'] = float(_safe_get(input_data, 'hba1cLevel', 5.5, 'HbA1c Level'))
-    input_df['blood_glucose_level'] = float(_safe_get(input_data, 'bloodGlucoseLevel', 100.0, 'Blood Glucose Level'))
-    
     # Pre-allocate a 2D NumPy array of zeros
     X_input = np.zeros((n_samples, n_features))
-    
+
     # Map feature names to their indices in the feature list for O(1) lookup
     feature_indices = {feat: idx for idx, feat in enumerate(features)}
-    
+
     # We will build arrays for warnings and cache hits
     results = [None] * n_samples
     cache = get_cache()
