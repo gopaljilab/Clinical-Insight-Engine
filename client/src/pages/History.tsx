@@ -687,6 +687,7 @@ export default function History() {
               </div>
             </div>
           </div>
+          </>
         )}
       </div>
 
@@ -735,7 +736,6 @@ export default function History() {
     </AppLayout>
   );
 }
-
 
 
 

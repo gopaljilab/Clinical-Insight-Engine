@@ -229,6 +229,12 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || "5000", 10);
   const host = process.env.HOST || "0.0.0.0";
 
+  httpServer.on("error", async (error) => {
+    logger.error({ err: error }, "Server startup failed");
+    await closePool();
+    process.exit(1);
+  });
+
   httpServer.listen(
     {
       port,
