@@ -1,5 +1,5 @@
 import { logger } from "../logger";
-import { getAssessmentQueue, isQueueAvailable } from "../queue";
+import { getAssessmentQueue } from "../queue";
 import { Router } from "express";
 import { z } from "zod";
 import { rateLimit } from "express-rate-limit";
@@ -99,13 +99,14 @@ assessmentsRouter.post(
       }
       MLService.activeInferenceRequests.add(requestFingerprint);
 
-      if (!isQueueAvailable()) {
+      const queue = getAssessmentQueue();
+      if (!queue) {
         return res.status(503).json({
           message: "Assessment queue is temporarily unavailable.",
         });
       }
 
-      const job = await getAssessmentQueue().add("predict", {
+      const job = await queue.add("predict", {
         input,
         userId,
         userEmail
@@ -135,13 +136,14 @@ assessmentsRouter.post(
 
 assessmentsRouter.get("/jobs/:id", requireAuth, requireVerified, async (req, res) => {
   try {
-    if (!isQueueAvailable()) {
+    const queue = getAssessmentQueue();
+    if (!queue) {
       return res.status(503).json({
         message: "Assessment queue is temporarily unavailable.",
       });
     }
 
-    const job = await getAssessmentQueue().getJob(req.params.id as string);
+    const job = await queue.getJob(req.params.id as string);
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
     }
