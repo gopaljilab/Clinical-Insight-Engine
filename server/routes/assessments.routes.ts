@@ -89,6 +89,15 @@ assessmentsRouter.post(
     let requestFingerprint: string | undefined;
     try {
       const input = req.body;
+
+      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
+      if (MLService.activeInferenceRequests.has(requestFingerprint)) {
+        return res.status(409).json({
+          message: "An identical assessment request is already being processed.",
+        });
+      }
+      MLService.activeInferenceRequests.add(requestFingerprint);
+
       const job = await assessmentQueue.add("predict", {
         input,
         userId,
