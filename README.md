@@ -583,6 +583,7 @@ Clinical-Insight-Engine/
 
 | Method | Endpoint | Description |
 |---|---|---|
+| `GET` | `/health` | Application health check endpoint for monitoring |
 | `POST` | `/api/assessments` | Submit a new risk assessment |
 | `GET` | `/api/assessments` | Retrieve assessment history |
 | `GET` | `/api/assessments/:id` | Get a specific assessment by ID |
@@ -590,6 +591,10 @@ Clinical-Insight-Engine/
 ### Example Request
 
 ```bash
+# Health Check
+curl -X GET http://localhost:3000/health
+
+# Submit Assessment
 curl -X POST http://localhost:3000/api/assessments \
   -H "Content-Type: application/json" \
   -d '{
@@ -780,3 +785,31 @@ Please read our [**Contributing Guide**](CONTRIBUTING.md) and [**Code of Conduct
 
 ### GSSoC Drizzle Migrations Policy
 - All schema changes must go through drizzle-kit generate.
+
+
+## ✨ README Improvement Notes
+
+### 📌 Formatting Enhancements Needed
+- Improve heading hierarchy for better readability
+- Ensure consistent spacing between sections
+- Use proper Markdown formatting for code blocks and lists
+- Align all installation and usage steps properly
+
+### 🚀 Suggested Structure Upgrade
+- Introduction
+- Features
+- Tech Stack
+- Installation
+- Usage
+- Project Structure
+- Contribution Guidelines
+- License
+
+### 🛠️ Documentation Improvements
+- Add badges (optional): build, license, contributors
+- Add screenshots for better UI understanding
+- Standardize code blocks for commands
+
+### 🎯 Goal
+Improve onboarding experience for new contributors and users by making README more structured, readable, and professional.
+

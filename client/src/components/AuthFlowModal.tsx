@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
+import { ApiClient } from "@/lib/apiClient";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -368,6 +369,7 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
   const [isResending, setIsResending] = useState(false);
   const [countdown, setCountdown] = useState(600); // 10 minutes in seconds
   const [resentAt, setResentAt] = useState<number | null>(null);
+  const [currentDevOtp, setCurrentDevOtp] = useState(devOtp);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const isComplete = otp.every(Boolean);
 
@@ -388,21 +390,33 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
     setIsResending(true);
     setError(null);
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, _resend: true }),
+        body: JSON.stringify({ email, mode }),
         credentials: "include",
       });
       if (response.ok) {
+        const data = await response.json();
         setCountdown(600);
-        setOtp(["", "", "", "", "", ""]);
-        inputRefs.current[0]?.focus();
+        setResentAt(Date.now());
+
+        if (data?.devOtp) {
+          const nextOtp = data.devOtp.split("").slice(0, 6);
+          setCurrentDevOtp(data.devOtp);
+          setOtp(nextOtp);
+          inputRefs.current[Math.min(nextOtp.length, 5)]?.focus();
+        } else {
+          setCurrentDevOtp(undefined);
+          setOtp(["", "", "", "", "", ""]);
+          inputRefs.current[0]?.focus();
+        }
       } else {
-        setError("Failed to resend code. Please try again.");
+        const data = await response.json().catch(() => null);
+        setError(data?.message || "Failed to resend code. Please try again.");
       }
     } catch {
-      setError("Unable to connect. Please try again.");
+      setError("Failed to resend code. Please try again.");
     } finally {
       setIsResending(false);
     }
@@ -417,27 +431,12 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
       // Route to correct endpoint based on flow:
       // login  -> /verify-otp  (in-memory OTP set by /login)
       // register -> /verify-email (DB-backed token set by /register)
-      let response: Response;
       if (mode === "login") {
-        response = await fetch("/api/auth/verify-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, otp: otp.join("") }),
-          credentials: "include",
-        });
+        await ApiClient.post("/api/auth/verify-otp", { email, otp: otp.join("") });
       } else {
-        response = await fetch("/api/auth/verify-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, code: otp.join("") }),
-          credentials: "include",
-        });
+        await ApiClient.post("/api/auth/verify-email", { email, code: otp.join("") });
       }
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Verification failed. Please try again.");
-      }
       onVerify();
     } catch (err: any) {
       setError(err.message || "Verification failed. Please try again.");
@@ -485,9 +484,9 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
         We&apos;ve sent a secure verification code to your email.
       </p>
-      {devOtp && (
+      {currentDevOtp && (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-700">
-          🔧 Dev mode: OTP auto-filled — <span className="font-mono">{devOtp}</span>
+          Dev mode: OTP auto-filled - <span className="font-mono">{currentDevOtp}</span>
         </div>
       )}
       {error && (
@@ -547,6 +546,11 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
         >
           {isResending ? "Sending..." : countdown > 540 ? `Resend available in ${formatCountdown(countdown - 540)}` : "Resend OTP"}
         </button>
+        {resentAt && (
+          <p className="mt-2 text-xs font-semibold text-slate-500">
+            New verification code sent.
+          </p>
+        )}
       </div>
     </form>
   );
@@ -663,38 +667,16 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
     setIsLoading(true);
 
     try {
-      let authResponse: Response;
+      let responseData: any;
 
       if (mode === "register") {
         const fullName = String(formData.get("fullName") ?? "");
         const licenseNumber = String(formData.get("licenseNumber") ?? "");
 
-        authResponse = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fullName, email, password, licenseNumber }),
-          credentials: "include",
-        });
-
-        if (!authResponse.ok) {
-          const data = await authResponse.json();
-          throw new Error(data.message || "Registration failed. Please try again.");
-        }
+        responseData = await ApiClient.post("/api/auth/register", { fullName, email, password, licenseNumber });
       } else {
-        authResponse = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-          credentials: "include",
-        });
-
-        if (!authResponse.ok) {
-          const data = await authResponse.json();
-          throw new Error(data.message || "Invalid email or password.");
-        }
+        responseData = await ApiClient.post("/api/auth/login", { email, password });
       }
-
-      const responseData = await authResponse.json();
       setPendingEmail(email);
       if (responseData?.devOtp) setDevOtp(responseData.devOtp);
       setStep("otp");

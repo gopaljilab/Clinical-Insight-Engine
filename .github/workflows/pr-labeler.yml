@@ -1,0 +1,160 @@
+name: PR Auto Labeler
+
+# Automatically assigns type:* labels from the PR title and changed files,
+# and quality:clean when CI checks pass on the head branch.
+#
+# Label mapping (conventional-commit prefix → existing label):
+#   fix:             → type:bug
+#   fix: + security  → type:security   (checked first, takes priority)
+#   feat:            → type:feature
+#   perf:            → type:performance
+#   test:            → type:testing
+#   docs:            → type:docs
+#   a11y:            → type:UX
+#   style: / ui:     → type:UI
+#   refactor:        → (skipped — no type:refactor label exists)
+#   ci: / ops:       → (skipped — no type:devops label exists)
+#
+# Non-destructive: never removes existing labels. Only adds missing ones.
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auto-label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        id: label-pr
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const prNumber = pr.number;
+
+            core.info(`Auto-labeling PR #${prNumber}: "${pr.title}"`);
+
+            // ── Fetch changed files ──────────────────────────────────────
+            const { data: files } = await github.rest.pulls.listFiles({
+              ...context.repo,
+              pull_number: prNumber,
+            });
+            const changedPaths = files.map((f) => f.filename);
+
+            // ── Detect type:* from title ─────────────────────────────────
+            const title = pr.title;
+            let detectedType = null;
+
+            // Security check first (takes priority over plain fix:)
+            if (/^fix(\(.+\))?!?:\s*.*security/i.test(title)) {
+              detectedType = 'type:security';
+            } else if (/^fix/i.test(title)) {
+              detectedType = 'type:bug';
+            } else if (/^feat/i.test(title)) {
+              detectedType = 'type:feature';
+            } else if (/^perf/i.test(title)) {
+              detectedType = 'type:performance';
+            } else if (/^test/i.test(title)) {
+              detectedType = 'type:testing';
+            } else if (/^docs/i.test(title)) {
+              detectedType = 'type:docs';
+            } else if (/^a11y/i.test(title)) {
+              detectedType = 'type:UX';
+            } else if (/^(style|ui)/i.test(title)) {
+              detectedType = 'type:UI';
+            }
+            // refactor:, ci:, chore: — no matching label exists; skipped
+
+            // ── File-based refinement ─────────────────────────────────────
+            // If only Markdown files changed, force type:docs
+            const allMd = changedPaths.length > 0 &&
+              changedPaths.every((p) => p.endsWith('.md'));
+            if (allMd) {
+              detectedType = 'type:docs';
+            }
+
+            // If auth/security files changed, upgrade to type:security
+            const secPatterns = [
+              'server/auth.ts',
+              'server/middleware/',
+              'helmet',
+              'rate-limit',
+              'express-rate-limit',
+              'security',
+            ];
+            const touchesSecurity = changedPaths.some((p) =>
+              secPatterns.some((pattern) => p.includes(pattern)),
+            );
+            if (touchesSecurity) {
+              detectedType = 'type:security';
+            }
+
+            core.info(`Detected type label: ${detectedType ?? '(none)'}`);
+
+            // ── Check CI status for quality:clean ─────────────────────────
+            let qualityClean = false;
+            try {
+              const { data: combined } =
+                await github.rest.repos.getCombinedStatusForRef({
+                  ...context.repo,
+                  ref: pr.head.sha,
+                });
+
+              // Only assign quality:clean when checks actually ran
+              // and every one passed (state === 'success').
+              if (combined.total_count > 0 && combined.state === 'success') {
+                qualityClean = true;
+                core.info(
+                  `Head commit ${pr.head.sha.slice(0, 7)} — ` +
+                    `${combined.total_count} check(s) all passed → quality:clean`,
+                );
+              } else {
+                core.info(
+                  `Head commit ${pr.head.sha.slice(0, 7)} — ` +
+                    `status: ${combined.state} ` +
+                    `(${combined.total_count} check(s)) — skipping quality:clean`,
+                );
+              }
+            } catch (err) {
+              core.warning(
+                `Could not fetch commit status: ${err.message}`,
+              );
+            }
+
+            // ── Build label list ──────────────────────────────────────────
+            const labelsToAdd = [];
+            if (detectedType) labelsToAdd.push(detectedType);
+            if (qualityClean) labelsToAdd.push('quality:clean');
+
+            if (labelsToAdd.length === 0) {
+              core.info('No labels to add.');
+              return;
+            }
+
+            // ── Fetch existing labels (never remove, only add) ────────────
+            const { data: existingLabels } =
+              await github.rest.issues.listLabelsOnIssue({
+                ...context.repo,
+                issue_number: prNumber,
+              });
+            const existingLabelNames = existingLabels.map((l) => l.name);
+
+            const toAdd = labelsToAdd.filter(
+              (l) => !existingLabelNames.includes(l),
+            );
+
+            if (toAdd.length === 0) {
+              core.info('All target labels already present — nothing to do.');
+              return;
+            }
+
+            core.info(`Adding labels: ${toAdd.join(', ')}`);
+            await github.rest.issues.addLabels({
+              ...context.repo,
+              issue_number: prNumber,
+              labels: toAdd,
+            });

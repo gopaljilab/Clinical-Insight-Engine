@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
+import { ApiClient } from "@/lib/apiClient";
 import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, UploadCloud } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -23,32 +24,45 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [networkError, setNetworkError] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me", { credentials: "include" })
-      .then((res) => {
-        if (res.status === 401) { setLocation("/"); return undefined; }
-        if (!res.ok) { setNetworkError(true); return undefined; }
-        return res.json();
+    ApiClient.get("/api/auth/me")
+      .then((data: any) => { if (data) setUser(data.user); })
+      .catch((error) => {
+        if (error.status === 401) {
+          setLocation("/");
+        } else {
+          setNetworkError(true);
+        }
       })
-      .then((data) => { if (data) setUser(data.user); })
-      .catch(() => setNetworkError(true))
       .finally(() => setChecking(false));
   }, [setLocation]);
 
   useEffect(() => {
     if (!user) return;
 
-    let timeoutId: number;
-    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+    let warningTimeoutId: number;
+    let logoutTimeoutId: number;
+    const WARNING_TIMEOUT = 14 * 60 * 1000; // 14 minutes
+    const LOGOUT_TIMEOUT = 15 * 60 * 1000; // 15 minutes
 
     const resetTimer = () => {
-      window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
+      window.clearTimeout(warningTimeoutId);
+      window.clearTimeout(logoutTimeoutId);
+      
+      warningTimeoutId = window.setTimeout(() => {
         toast({
-          title: "Session Inactivity Warning",
-          description: "You have been inactive. For your security, you will be logged out soon if inactivity continues.",
+          title: "Session Expiring Soon",
+          description: "You have been inactive. For your security, you will be logged out in 1 minute if inactivity continues.",
           variant: "destructive",
         });
-      }, INACTIVITY_TIMEOUT);
+      }, WARNING_TIMEOUT);
+
+      logoutTimeoutId = window.setTimeout(() => {
+        fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+          .finally(() => {
+            queryClient.clear();
+            setLocation("/");
+          });
+      }, LOGOUT_TIMEOUT);
     };
 
     const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
@@ -59,7 +73,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     resetTimer();
 
     return () => {
-      window.clearTimeout(timeoutId);
+      window.clearTimeout(warningTimeoutId);
+      window.clearTimeout(logoutTimeoutId);
       events.forEach((event) => {
         window.removeEventListener(event, resetTimer);
       });
@@ -71,7 +86,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const handleSignOut = async () => {
     setIsSigningOut(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      await ApiClient.post("/api/auth/logout");
       queryClient.clear();
     } finally {
       setIsSigningOut(false);

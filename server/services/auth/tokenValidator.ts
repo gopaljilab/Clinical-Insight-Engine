@@ -162,7 +162,7 @@ export function issueToken(
   expiresIn?: string
 ): string {
   const secret = getJwtSecret();
-  const expiry = (expiresIn ?? process.env.JWT_EXPIRES_IN ?? "1h") as SignOptions["expiresIn"];
+  const expiry = (expiresIn ?? process.env.JWT_EXPIRES_IN ?? "15m") as SignOptions["expiresIn"];
 
   // sub is set directly in the payload; do NOT also set subject in SignOptions
   // (jsonwebtoken throws if both are present and conflict).
