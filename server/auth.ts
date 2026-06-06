@@ -56,7 +56,7 @@ interface PendingOtp {
  * In-memory OTP store keyed by email.
  * Each entry expires after 10 minutes.
  */
-const pendingOtps = new Map<string, PendingOtp>();
+export const pendingOtps = new Map<string, PendingOtp>();
 
 function normalizeRateLimitEmail(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
