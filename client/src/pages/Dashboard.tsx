@@ -116,6 +116,23 @@ export default function Dashboard() {
 
   const parsedForPreview = useMemo(() => formSchema.safeParse(watchedValues), [watchedValues]);
 
+  const bmiIndicator = useMemo(() => {
+    const val = Number(watchedValues.bmi);
+    if (!watchedValues.bmi || isNaN(val)) return null;
+    if (val < 18.5) return { label: "Underweight", bg: "bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/20 dark:text-blue-300 dark:border-blue-900/30" };
+    if (val < 25) return { label: "Normal", bg: "bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-300 dark:border-emerald-900/30" };
+    if (val < 30) return { label: "Overweight", bg: "bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-950/20 dark:text-amber-300 dark:border-amber-900/30" };
+    return { label: "Obese", bg: "bg-rose-50 text-rose-700 border border-rose-100 dark:bg-rose-950/20 dark:text-rose-300 dark:border-rose-900/30" };
+  }, [watchedValues.bmi]);
+
+  const hba1cIndicator = useMemo(() => {
+    const val = Number(watchedValues.hba1cLevel);
+    if (!watchedValues.hba1cLevel || isNaN(val)) return null;
+    if (val < 5.7) return { label: "Normal", bg: "bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-300 dark:border-emerald-900/30" };
+    if (val < 6.5) return { label: "Pre-diabetic", bg: "bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-950/20 dark:text-amber-300 dark:border-amber-900/30" };
+    return { label: "High Risk", bg: "bg-rose-50 text-rose-700 border border-rose-100 dark:bg-rose-950/20 dark:text-rose-300 dark:border-rose-900/30" };
+  }, [watchedValues.hba1cLevel]);
+
   // Load draft from localStorage on mount — discard if older than 8 hours to limit
   // how long PHI (patient name, vitals) persists on shared/public computers.
   const DRAFT_TTL_MS = 8 * 60 * 60 * 1000;
@@ -253,8 +270,8 @@ export default function Dashboard() {
         )}
 
         <div className={`transition-all duration-500 ${result ? "opacity-50 pointer-events-none grayscale" : "opacity-100"}`}>
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
-            <div className="xl:col-span-3">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-5 lg:items-start">
+            <div className="lg:col-span-3 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4">
               <form
                 onSubmit={handleSubmit(onSubmit)}
                 className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] transition-all duration-200 md:p-8"
@@ -351,23 +368,30 @@ export default function Dashboard() {
                     </h3>
                     <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                       <div className="space-y-2">
-                        <div className="flex items-center gap-1.5">
-                          <label htmlFor="bmi" className={labelClass}>BMI (kg/m²)</label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                <Info className="w-3.5 h-3.5" />
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <div className="text-xs max-w-50 space-y-1">
-                                <p className="font-bold">Body Mass Index:</p>
-                                <p>• Normal: 18.5 - 24.9</p>
-                                <p>• Overweight: 25.0 - 29.9</p>
-                                <p>• Obese: ≥ 30.0</p>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-1.5">
+                            <label htmlFor="bmi" className={labelClass}>BMI (kg/m²)</label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                  <Info className="w-3.5 h-3.5" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="text-xs max-w-50 space-y-1">
+                                  <p className="font-bold">Body Mass Index:</p>
+                                  <p>• Normal: 18.5 - 24.9</p>
+                                  <p>• Overweight: 25.0 - 29.9</p>
+                                  <p>• Obese: ≥ 30.0</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          {bmiIndicator && (
+                            <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-bold border transition-all duration-300 ${bmiIndicator.bg}`}>
+                              {bmiIndicator.label}
+                            </span>
+                          )}
                         </div>
                         <div className="relative">
                           <input id="bmi" type="number" step="0.1" {...register("bmi")} className={getInputClass(!!errors.bmi)} placeholder="e.g. 25.0" />
@@ -382,23 +406,30 @@ export default function Dashboard() {
                       </div>
 
                       <div className="space-y-2">
-                        <div className="flex items-center gap-1.5">
-                          <label htmlFor="hba1cLevel" className={labelClass}>HbA1c Level (%)</label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                <Info className="w-3.5 h-3.5" />
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <div className="text-xs max-w-50 space-y-1">
-                                <p className="font-bold">Glycated Hemoglobin:</p>
-                                <p>• Normal: &lt; 5.7%</p>
-                                <p>• Prediabetes: 5.7% - 6.4%</p>
-                                <p>• Diabetes: ≥ 6.5%</p>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-1.5">
+                            <label htmlFor="hba1cLevel" className={labelClass}>HbA1c Level (%)</label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                  <Info className="w-3.5 h-3.5" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="text-xs max-w-50 space-y-1">
+                                  <p className="font-bold">Glycated Hemoglobin:</p>
+                                  <p>• Normal: &lt; 5.7%</p>
+                                  <p>• Prediabetes: 5.7% - 6.4%</p>
+                                  <p>• Diabetes: ≥ 6.5%</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          {hba1cIndicator && (
+                            <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-bold border transition-all duration-300 ${hba1cIndicator.bg}`}>
+                              {hba1cIndicator.label}
+                            </span>
+                          )}
                         </div>
                         <div className="relative">
                           <input id="hba1cLevel" type="number" step="0.1" {...register("hba1cLevel")} className={getInputClass(!!errors.hba1cLevel)} placeholder="e.g. 5.7" />
@@ -511,17 +542,75 @@ export default function Dashboard() {
               </form>
             </div>
 
-            <aside className="xl:col-span-2">
-              <div className="xl:sticky xl:top-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
+            <aside className="lg:col-span-2 lg:sticky lg:top-8">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 p-6 shadow-sm space-y-5">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-lg font-black text-[#1E293B]">Real-Time Risk Panel</h3>
+                  <h3 className="text-lg font-black text-[#1E293B] dark:text-slate-100">Real-Time Risk Panel</h3>
                   <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Auto updating</span>
                 </div>
 
                 {!parsedForPreview.success && (
-                  <p className="text-sm text-slate-500">
-                    Complete required fields to see live risk prediction.
-                  </p>
+                  <div className="space-y-6">
+                    {/* Radial risk gauge skeleton */}
+                    <div className="flex flex-col items-center justify-center p-6 bg-slate-50/50 dark:bg-slate-900/20 rounded-2xl border border-slate-100 dark:border-slate-800/50 relative overflow-hidden group">
+                      {/* Shimmer overlay effect */}
+                      <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent dark:via-white/5" />
+                      
+                      <div className="relative w-36 h-36 flex items-center justify-center">
+                        {/* Outer track */}
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="42"
+                            className="stroke-slate-200 dark:stroke-slate-800/80 fill-none"
+                            strokeWidth="8"
+                          />
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="42"
+                            className="stroke-blue-500/20 dark:stroke-blue-500/10 fill-none"
+                            strokeWidth="8"
+                            strokeDasharray="264"
+                            strokeDashoffset="180"
+                            strokeLinecap="round"
+                            style={{ animation: 'dash 3s ease-in-out infinite' }}
+                          />
+                        </svg>
+                        
+                        {/* Center info */}
+                        <div className="absolute flex flex-col items-center justify-center">
+                          <div className="h-5 w-14 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+                          <div className="h-3 w-8 bg-slate-100 dark:bg-slate-900 rounded mt-1.5 animate-pulse" />
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 h-5 w-24 bg-slate-200 dark:bg-slate-800 rounded-full animate-pulse" />
+                    </div>
+
+                    {/* Comparative metrics skeleton */}
+                    <div className="space-y-4 p-4 bg-slate-50/30 dark:bg-slate-900/10 rounded-2xl border border-slate-100/50 dark:border-slate-800/30">
+                      <div className="h-4 w-32 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+                      
+                      <div className="space-y-3.5">
+                        {[65, 40, 55].map((width, idx) => (
+                          <div key={idx} className="space-y-1.5">
+                            <div className="flex justify-between items-center">
+                              <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+                              <div className="h-3 w-8 bg-slate-100 dark:bg-slate-900 rounded animate-pulse" />
+                            </div>
+                            <div className="h-2 w-full bg-slate-200/50 dark:bg-slate-800/50 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-slate-300 dark:bg-slate-700/60 rounded-full animate-pulse" 
+                                style={{ width: `${width}%` }} 
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {previewPending && (
@@ -535,9 +624,9 @@ export default function Dashboard() {
 
                 {preview && (
                   <>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center">
+                    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-5 text-center">
                       <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Risk Score</p>
-                      <p className="mt-2 text-5xl font-black text-[#1E293B]">{preview.riskScore.toFixed(1)}%</p>
+                      <p className="mt-2 text-5xl font-black text-[#1E293B] dark:text-slate-100">{preview.riskScore.toFixed(1)}%</p>
                       <span className={`mt-3 inline-flex rounded-full border px-3 py-1 text-sm font-bold ${getRiskBadgeClass(preview.riskCategory)}`}>
                         {preview.riskCategory} Risk
                       </span>
@@ -548,11 +637,11 @@ export default function Dashboard() {
                       <div className="space-y-2">
                         {preview.factors.length > 0 ? (
                           preview.factors.slice(0, 3).map((factor) => (
-                            <div key={`${factor.name}-${factor.impact}`} className="rounded-xl border border-slate-200 p-3 bg-white">
+                            <div key={`${factor.name}-${factor.impact}`} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-800/60">
                               <div className="flex items-center justify-between gap-2">
-                                <p className="font-bold text-sm text-[#1E293B]">{factor.name}</p>
+                                <p className="font-bold text-sm text-[#1E293B] dark:text-slate-100">{factor.name}</p>
                                 <span
-                                  className={`text-xs font-bold ${factor.impact === "positive" ? "text-red-600" : "text-green-600"}`}
+                                  className={`text-xs font-bold ${factor.impact === "positive" ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}
                                 >
                                   {factor.impact === "positive" ? "Increases" : "Decreases"}
                                 </span>
