@@ -89,37 +89,16 @@ assessmentsRouter.post(
     let requestFingerprint: string | undefined;
     try {
       const input = req.body;
-      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
-
-      if (MLService.activeInferenceRequests.has(requestFingerprint)) {
-        return res.status(409).json({
-          message: "An identical assessment request is already being processed.",
-        });
-      }
-      MLService.activeInferenceRequests.add(requestFingerprint);
-
-      const { prediction, isFallback } = await MLService.runAssessmentInference(input);
-
-      prediction.disclaimer =
-        "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions." +
-        (isFallback
-          ? " (Generated via fallback rule-based clinical support model due to system unavailability)"
-          : "");
-
-      const assessment = await storage.createAssessment({
-        ...input,
-        riskScore: Number(prediction.riskScore),
-        riskCategory: prediction.riskCategory,
-        factors: prediction.factors,
-        confidenceInterval: prediction.confidenceInterval ?? undefined,
-        modelConfidence:
-          prediction.modelConfidence == null
-            ? undefined
-            : Number(prediction.modelConfidence),
-        createdBy: userEmail || userId,
+      const job = await assessmentQueue.add("predict", {
+        input,
+        userId,
+        userEmail
       });
 
-      return res.status(201).json(assessment);
+      return res.status(202).json({
+        message: "Assessment request accepted and is being processed.",
+        jobId: job.id
+      });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res
