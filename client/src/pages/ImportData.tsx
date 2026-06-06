@@ -59,12 +59,23 @@ export default function ImportData() {
     setIsDragging(e.type === "dragenter" || e.type === "dragover");
   };
 
+  const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB — matches server-side multer limit
+
   const processFile = (file: File) => {
     if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
       toast({
         title: "Invalid file type",
         description: "Please upload a valid CSV file.",
         variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast({
+        title: "File too large",
+        description: "Please upload a CSV file under 5 MB.",
+        variant: "destructive"
       });
       return;
     }
