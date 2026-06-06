@@ -50,7 +50,7 @@ assessmentsRouter.post(
   async (req, res) => {
     try {
       const input = req.body;
-      const { prediction } = await MLService.runAssessmentInference(input);
+      const { prediction, isFallback } = await MLService.runAssessmentInference(input);
 
       return res.json({
         riskScore: prediction.riskScore,
@@ -58,6 +58,7 @@ assessmentsRouter.post(
         factors: prediction.factors ?? [],
         confidenceInterval: prediction.confidenceInterval ?? null,
         modelConfidence: prediction.modelConfidence ?? null,
+        isFallback,
       });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
