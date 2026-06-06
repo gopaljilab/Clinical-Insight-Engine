@@ -1,4 +1,4 @@
-import { useAnalytics } from "@/hooks/use-analytics";
+import { useAnalytics, type CriticalAlert } from "@/hooks/use-analytics";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Activity, Users, AlertTriangle } from "lucide-react";
@@ -122,7 +122,7 @@ export default function Analytics() {
           <CardContent>
             {stats.criticalAlerts.length > 0 ? (
               <div className="space-y-4">
-                {stats.criticalAlerts.map((alert: any) => (
+                {stats.criticalAlerts.map((alert: CriticalAlert) => (
                   <div key={alert.id} className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/10 p-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/20 text-destructive">
@@ -131,7 +131,7 @@ export default function Analytics() {
                       <div>
                         <p className="font-bold text-foreground">{alert.patientName}</p>
                         <p className="text-xs font-semibold text-muted-foreground">
-                          {alert.gender}, {alert.age} yrs • Assessed: {new Date(alert.createdAt).toLocaleDateString()}
+                          {alert.gender}, {alert.age} yrs • Assessed: {alert.createdAt ? new Date(alert.createdAt).toLocaleDateString() : "Unknown"}
                         </p>
                       </div>
                     </div>

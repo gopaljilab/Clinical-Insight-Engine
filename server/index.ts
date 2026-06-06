@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -32,6 +33,29 @@ import { EmailConfigurationError, validateSmtpConfig } from "./email";
 const execFileAsync = promisify(execFile);
 const app = express();
 const httpServer = createServer(app);
+
+// CORS configuration - hardened to reject requests missing the Origin header
+const isProd = process.env.NODE_ENV === "production";
+const allowedOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(",") 
+  : [process.env.APP_URL, process.env.API_URL, "http://localhost:5000", "http://127.0.0.1:5000"].filter(Boolean) as string[];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Reject requests missing the Origin header to prevent unintended access
+    if (!origin) {
+      return callback(new Error("CORS: Origin header is required"), false);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"), false);
+    }
+  },
+  credentials: true,
+}));
+
 const REQUEST_BODY_LIMIT = "256kb";
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", true);
@@ -225,6 +249,11 @@ app.use((req, res, next) => {
 
     // Log the full error internally for debugging, but never send internals to clients
     logger.error({ err }, "Unhandled server error");
+
+    // Handle CORS errors specifically
+    if (err.message === "CORS: Origin header is required" || err.message === "Not allowed by CORS") {
+      return res.status(403).json({ message: err.message });
+    }
 
     // Sanitize database errors — prevents table names, SQL syntax, and pg error codes
     // from reaching the client response body

@@ -1,15 +1,22 @@
 import { useState } from "react";
 import Papa from "papaparse";
-import { UploadCloud, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { UploadCloud, CheckCircle, AlertCircle, Loader2, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ApiClient } from "@/lib/apiClient";
+
+interface SkippedRow {
+  rowNumber: number;
+  reason: string;
+  data: Record<string, unknown>;
+}
 
 export default function ImportData() {
   const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<any[]>([]);
+  const [skippedRows, setSkippedRows] = useState<SkippedRow[]>([]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -36,25 +43,57 @@ export default function ImportData() {
       skipEmptyLines: true,
       complete: async (results: Papa.ParseResult<any>) => {
         setIsProcessing(true);
+        setSkippedRows([]);
         try {
-          // Format headers to match expected schema if necessary
-          const formattedData = results.data.map((row: any) => ({
-            patientName: row.patientName || row.name || "Unknown Patient",
-            gender: row.gender,
-            age: Number(row.age),
-            hypertension: row.hypertension === '1' || row.hypertension === 'true' || row.hypertension === true,
-            heartDisease: row.heartDisease === '1' || row.heartDisease === 'true' || row.heartDisease === true,
-            smokingHistory: row.smokingHistory || row.smoking_history,
-            bmi: Number(row.bmi),
-            hba1cLevel: Number(row.hba1cLevel || row.HbA1c_level),
-            bloodGlucoseLevel: Number(row.bloodGlucoseLevel || row.blood_glucose_level)
-          }));
+          const validRows: any[] = [];
+          const invalid: SkippedRow[] = [];
 
-          const data = await ApiClient.post("/api/assessments/bulk", { assessments: formattedData });
+          results.data.forEach((row: any, index: number) => {
+            const rowNumber = index + 2; // +2: 1-based + header row
+            const rawName = (row.patientName || row.name || "").toString().trim();
+
+            if (!rawName) {
+              invalid.push({
+                rowNumber,
+                reason: "Missing patient name (patientName or name column is empty)",
+                data: row,
+              });
+              return;
+            }
+
+            validRows.push({
+              patientName: rawName,
+              gender: row.gender,
+              age: Number(row.age),
+              hypertension: row.hypertension === '1' || row.hypertension === 'true' || row.hypertension === true,
+              heartDisease: row.heartDisease === '1' || row.heartDisease === 'true' || row.heartDisease === true,
+              smokingHistory: row.smokingHistory || row.smoking_history,
+              bmi: Number(row.bmi),
+              hba1cLevel: Number(row.hba1cLevel || row.HbA1c_level),
+              bloodGlucoseLevel: Number(row.bloodGlucoseLevel || row.blood_glucose_level),
+            });
+          });
+
+          if (invalid.length > 0) {
+            setSkippedRows(invalid);
+          }
+
+          if (validRows.length === 0) {
+            toast({
+              title: "No valid rows",
+              description: "Every row was missing a patient name. Please check your CSV and try again.",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          const data = await ApiClient.post("/api/assessments/bulk", { assessments: validRows });
           setResults(data.assessments);
+
+          const skippedMsg = invalid.length > 0 ? ` ${invalid.length} row(s) skipped due to missing patient name.` : "";
           toast({
-            title: "Success",
-            description: `Successfully imported ${data.count} patient records.`,
+            title: "Import complete",
+            description: `Successfully imported ${data.count} patient record(s).${skippedMsg}`,
           });
         } catch (error: any) {
           toast({
@@ -104,6 +143,7 @@ export default function ImportData() {
           <CardTitle>Upload Patient Data</CardTitle>
           <CardDescription>
             CSV must contain headers: patientName, gender, age, hypertension, heartDisease, smokingHistory, bmi, hba1cLevel, bloodGlucoseLevel.
+            Rows with a missing or empty <code>patientName</code> column will be skipped and reported below.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -117,14 +157,14 @@ export default function ImportData() {
               ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}
             `}
           >
-            <input 
-              type="file" 
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+            <input
+              type="file"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               accept=".csv"
               onChange={handleChange}
               disabled={isProcessing}
             />
-            
+
             {isProcessing ? (
               <div className="flex flex-col items-center gap-3">
                 <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
@@ -142,6 +182,45 @@ export default function ImportData() {
           </div>
         </CardContent>
       </Card>
+
+      {skippedRows.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-amber-800">
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+              {skippedRows.length} Row(s) Skipped
+            </CardTitle>
+            <CardDescription className="text-amber-700">
+              The following rows were not imported because the patient name was missing. Please correct your CSV and re-upload these records.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-amber-700 uppercase bg-amber-100">
+                  <tr>
+                    <th className="px-4 py-3">CSV Row</th>
+                    <th className="px-4 py-3">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {skippedRows.map((row) => (
+                    <tr key={row.rowNumber} className="border-b border-amber-100">
+                      <td className="px-4 py-3 font-medium">{row.rowNumber}</td>
+                      <td className="px-4 py-3 text-amber-800">
+                        <div className="flex items-center gap-2">
+                          <XCircle className="w-4 h-4 shrink-0 text-amber-500" />
+                          {row.reason}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {results.length > 0 && (
         <Card className="border-slate-200">

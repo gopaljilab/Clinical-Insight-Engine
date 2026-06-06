@@ -7,7 +7,41 @@ import { AuditRepository } from "./repositories/audit.repository";
 import { AnalyticsRepository } from "./repositories/analytics.repository";
 
 export interface IStorage {
-  getAssessments(limit?: number, cursor?: number, createdBy?: string): Promise<{ data: Assessment[]; nextCursor: number | null }>;
+  getAssessments(
+    limitOrParams?: number | {
+      limit?: number;
+      page?: number;
+      cursor?: number;
+      createdBy?: string;
+      sortBy?: string;
+      order?: "asc" | "desc";
+      searchTerm?: string;
+      riskCategory?: string;
+      gender?: string;
+      minAge?: number;
+      maxAge?: number;
+      startDate?: string;
+      endDate?: string;
+    },
+    cursor?: number,
+    createdBy?: string
+  ): Promise<{
+    data: Assessment[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    nextCursor: number | null;
+  }>;
+  /**
+   * Searches assessments by patient name, risk category, and other fields.
+   * Uses Drizzle ORM ilike()/eq() — user input is NEVER interpolated into SQL strings.
+   *
+   * FIX for Issue #744: now searches patientName via ilike() so queries for a
+   * specific patient name will correctly return only that patient's records.
+   * Results are always scoped to `createdBy` (the requesting user's email) to
+   * prevent cross-patient data leakage at the database layer.
+   */
   searchAssessments(
     searchTerm: string,
     createdBy?: string,
@@ -39,14 +73,13 @@ export type AssessmentCreateInput = InsertAssessment & {
 };
 
 export class DatabaseStorage implements IStorage {
+
   private assessmentRepository = new AssessmentRepository();
   private userRepository = new UserRepository();
   private auditRepository = new AuditRepository();
   private analyticsRepository = new AnalyticsRepository();
 
-  async getAssessments(limit?: number, cursor?: number, createdBy?: string) { 
-    return this.assessmentRepository.getAssessments(limit, cursor, createdBy); 
-  }
+  getAssessments(limitOrParams?: number | Parameters<AssessmentRepository["getAssessments"]>[0], cursor?: number, createdBy?: string) { return this.assessmentRepository.getAssessments(limitOrParams, cursor, createdBy); }
   
   async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: RiskCategory, limit?: number, cursor?: number) { 
     return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor); 
