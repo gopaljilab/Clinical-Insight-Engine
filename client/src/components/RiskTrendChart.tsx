@@ -47,14 +47,17 @@ export default function RiskTrendChart({ assessments }: Props) {
   const chartData = useMemo(() => {
     return [...assessments]
       .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
-      .map(a => ({
-        date: isValid(new Date(a.createdAt)) ? format(new Date(a.createdAt), "MMM d") : "?",
+      .map(a => {
+        const dateObj = a.createdAt ? new Date(a.createdAt) : null;
+        return {
+        date: dateObj && isValid(dateObj) ? dateObj.toISOString() : "?",
         riskScore: Number(Number(a.riskScore).toFixed(1)),
         bmi: Number(Number(a.bmi).toFixed(1)),
         hba1cLevel: Number(Number(a.hba1cLevel).toFixed(1)),
         bloodGlucoseLevel: Number(Number(a.bloodGlucoseLevel).toFixed(1)),
         riskCategory: a.riskCategory,
-      }));
+      };
+      });
   }, [assessments]);
 
   function toggleMetric(key: string) {
@@ -98,7 +101,15 @@ export default function RiskTrendChart({ assessments }: Props) {
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tickFormatter={(iso: string) => {
+              if (iso === "?") return "?";
+              const d = new Date(iso);
+              return isValid(d) ? format(d, "MMM d, HH:mm") : "?";
+            }}
+          />
           <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
           <Tooltip
             contentStyle={{
