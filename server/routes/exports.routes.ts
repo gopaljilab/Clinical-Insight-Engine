@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logger } from "../logger";
 import { requireAuth, requireVerified } from "../auth";
 import { storage } from "../storage";
 import { assessmentsToCsv } from "../utils/csvExport";
@@ -22,7 +23,7 @@ exportsRouter.get(
       res.attachment("assessments.csv");
       return res.send(csv);
     } catch (err) {
-      console.error("Export error:", err);
+      logger.error({ err }, "Export error");
       return res.status(500).json({ message: "Failed to export data" });
     }
   }

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logger } from "../logger";
 import { requireAuth, requireVerified } from "../auth";
 import { storage } from "../storage";
 
@@ -17,7 +18,7 @@ analyticsRouter.get(
       const stats = await storage.getAnalyticsStats(userEmail);
       return res.json(stats);
     } catch (err) {
-      console.error("Analytics fetch error:", err);
+      logger.error({ err }, "Analytics fetch error");
       return res.status(500).json({ message: "Failed to fetch analytics" });
     }
   }
