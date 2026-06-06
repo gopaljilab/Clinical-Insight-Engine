@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type AssessmentInput, type AssessmentResponse, type AssessmentsListResponse } from "@shared/routes";
 import { useToast } from "./use-toast";
 
@@ -15,22 +15,35 @@ function parseWithLogging<T>(schema: any, data: unknown, label: string): T {
 // The base query key for all assessments list queries.
 const ASSESSMENTS_LIST_QUERY_KEY = api.assessments.list.path;
 
-export function useAssessments() {
-  return useInfiniteQuery({
-    queryKey: [ASSESSMENTS_LIST_QUERY_KEY],
-    queryFn: async ({ pageParam }) => {
+export function useAssessments(params?: {
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  order?: string;
+  searchTerm?: string;
+  riskCategory?: string;
+  gender?: string;
+  minAge?: number;
+  maxAge?: number;
+  startDate?: string;
+  endDate?: string;
+}) {
+  return useQuery({
+    queryKey: [ASSESSMENTS_LIST_QUERY_KEY, params],
+    queryFn: async () => {
       const url = new URL(api.assessments.list.path, window.location.origin);
-      if (pageParam !== undefined) {
-        url.searchParams.set("cursor", String(pageParam));
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== "") {
+            url.searchParams.set(key, String(value));
+          }
+        });
       }
-      url.searchParams.set("limit", "50");
       const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch assessments");
       const data = await res.json();
       return parseWithLogging<AssessmentsListResponse>(api.assessments.list.responses[200], data, "assessments.list");
     },
-    initialPageParam: undefined as number | undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
   });
 }
 

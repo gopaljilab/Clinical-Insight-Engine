@@ -62,8 +62,8 @@ export default function Dashboard() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const { mutate: createAssessment, isPending, error } = useCreateAssessment();
 
-  const { data: infiniteData } = useAssessments();
-  const assessments = infiniteData ? infiniteData.pages.flatMap((page) => page.data) : [];
+  const { data: assessmentsData } = useAssessments({ limit: 50 });
+  const assessments = assessmentsData?.data ?? [];
 
   const stats = useMemo(() => {
     const list = assessments ?? [];
