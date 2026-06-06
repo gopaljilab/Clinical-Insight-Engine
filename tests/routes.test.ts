@@ -520,3 +520,77 @@ describe("GET /api/patients (JWT protected)", () => {
     expect(res.body.data[0]).not.toHaveProperty("userId");
   });
 });
+
+describe("Route uniqueness (no duplicate registrations)", () => {
+  interface RouteEntry {
+    method: string;
+    path: string;
+  }
+
+  function collectRoutes(app: express.Express): RouteEntry[] {
+    const routes: RouteEntry[] = [];
+
+    function walk(stack: any[], prefix: string) {
+      for (const layer of stack) {
+        if (!layer) continue;
+        if (layer.route) {
+          const routePath = (layer.route.path as string) ?? "/";
+          for (const method of Object.keys(layer.route.methods)) {
+            routes.push({ method: method.toUpperCase(), path: prefix + routePath });
+          }
+        } else if (layer.handle?.stack) {
+          const mountPath = typeof layer.path === "string" ? (layer.path as string) : "";
+          walk(layer.handle.stack, prefix + mountPath);
+        }
+      }
+    }
+
+    walk((app as any)._router?.stack || [], "");
+    return routes;
+  }
+
+  it("no duplicate route registrations across the entire app", async () => {
+    const app = express();
+    app.use(express.json());
+    app.use(session({ secret: "test", resave: false, saveUninitialized: false }));
+    app.use((req, _res, next) => {
+      req.session.user = { id: "test", email: "test@test.com", name: "Test" };
+      next();
+    });
+    await registerRoutes(createServer(), app);
+
+    const routes = collectRoutes(app);
+    const keyCounts = new Map<string, number>();
+    for (const r of routes) {
+      const key = `${r.method} ${r.path}`;
+      keyCounts.set(key, (keyCounts.get(key) || 0) + 1);
+    }
+    const duplicates = [...keyCounts.entries()]
+      .filter(([, c]) => c > 1)
+      .map(([k, c]) => `${k} (${c}x)`);
+    expect(duplicates, `Duplicate routes found: ${duplicates.join(", ")}`).toEqual([]);
+  });
+
+  it("each assessment route is registered exactly once", async () => {
+    const app = express();
+    app.use(express.json());
+    app.use(session({ secret: "test", resave: false, saveUninitialized: false }));
+    app.use((req, _res, next) => {
+      req.session.user = { id: "test", email: "test@test.com", name: "Test" };
+      next();
+    });
+    await registerRoutes(createServer(), app);
+
+    const routes = collectRoutes(app);
+    const assessmentRoutes = routes.filter(r => r.path.startsWith("/api/assessments"));
+    const keyCounts = new Map<string, number>();
+    for (const r of assessmentRoutes) {
+      const key = `${r.method} ${r.path}`;
+      keyCounts.set(key, (keyCounts.get(key) || 0) + 1);
+    }
+    const duplicates = [...keyCounts.entries()]
+      .filter(([, c]) => c > 1)
+      .map(([k, c]) => `${k} (${c}x)`);
+    expect(duplicates, `Duplicate assessment routes: ${duplicates.join(", ")}`).toEqual([]);
+  });
+});
