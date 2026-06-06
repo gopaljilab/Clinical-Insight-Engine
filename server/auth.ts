@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { randomInt, randomBytes } from "crypto";
 import bcrypt from "bcrypt";
 import { rateLimit } from "express-rate-limit";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { getDb } from "./db";
 import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
@@ -253,7 +253,7 @@ export function createAuthRouter(): Router {
             medicalLicenseNumber: licenseNumber,
             passwordHash,
             emailVerified: false,
-            role: "provider",
+            role: "DOCTOR",
           })
           .returning();
 
@@ -494,7 +494,7 @@ export function createAuthRouter(): Router {
     if (email === devEmail) {
       name = "Dr. Smith";
       id = "dev";
-      role = "provider";
+      role = "DOCTOR";
       emailVerified = true;
     } else {
       const db = getDb();
@@ -506,10 +506,18 @@ export function createAuthRouter(): Router {
       if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
+
+      if (!user.emailVerified) {
+        await db
+          .update(users)
+          .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
+          .where(eq(users.id, user.id));
+      }
+
       id = user.id;
       name = user.fullName;
-      role = user.role ?? "provider";
-      emailVerified = user.emailVerified ?? false;
+      role = user.role ?? "DOCTOR";
+      emailVerified = true;
     }
 
     try {
@@ -561,7 +569,7 @@ export function createAuthRouter(): Router {
 
       // If already verified, return success
       if (user.emailVerified) {
-        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider", emailVerified: true });
+        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "DOCTOR", emailVerified: true });
         return res.json({ success: true, message: "Email already verified." });
       }
 
@@ -624,7 +632,7 @@ export function createAuthRouter(): Router {
         .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
         .where(eq(users.id, user.id));
 
-      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "provider", emailVerified: true });
+      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "DOCTOR", emailVerified: true });
 
       await storage.recordLoginAudit({
         userId: user.id,
@@ -745,6 +753,13 @@ export function createAuthRouter(): Router {
 
       await db.update(users).set({ passwordHash }).where(eq(users.id, resetToken.userId));
       await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, resetToken.id));
+
+      // Invalidate all active sessions for the user to prevent session hijacking
+      try {
+        await db.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${resetToken.userId}`);
+      } catch (sessErr) {
+        logger.error({ err: sessErr, userId: resetToken.userId }, "Failed to clear user sessions upon password reset");
+      }
 
       return res.json({ success: true, message: "Password has been reset successfully." });
     } catch (err) {
