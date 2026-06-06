@@ -105,10 +105,49 @@ export function useClearPatientCache() {
   };
 }
 
+export function useDeleteAssessment() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/assessments/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) {
+        let errorData;
+        try {
+          errorData = await res.json();
+        } catch {
+          throw new Error("Failed to delete assessment");
+        }
+        throw new Error(errorData.message || "Failed to delete assessment");
+      }
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assessments"] });
+      queryClient.invalidateQueries({ queryKey: ["assessments-patient"] });
+      toast({
+        title: "Assessment deleted",
+        description: "The assessment has been successfully removed.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Deletion failed",
+        description: error.message || "An unexpected error occurred while deleting.",
+        variant: "destructive",
+      });
+    },
+  });
+}
 export function useCreateAssessment() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
       // Ensure numeric fields are coerced correctly before sending if needed

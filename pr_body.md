@@ -1,7 +1,7 @@
 ## ✦ Description
-Implement a robust React Error Boundary to prevent the application from crashing into a blank screen. This includes a user-friendly fallback UI with recovery options and automatic error logging to the backend for developer visibility.
+Add empty state guidance for new users across the Dashboard, History, Analytics, and Admin pages to improve the onboarding experience and clearly explain where data will appear once available.
 
-Fixes #810
+Fixes #811
 
 ---
 
@@ -33,14 +33,14 @@ N/A
 ## Description
 
 ### Root Cause
-Previously, unhandled runtime errors in React components would bubble up to the root, unmounting the entire application tree and leaving users with a blank white screen, with no automated way for developers to be notified.
+Previously, new users who had not created any assessments were presented with empty charts, bare tables, and "0" statistics without any context or explanation, creating a confusing and poor onboarding experience.
 
 ### Changes Made
-- Expanded \`client/src/components/ErrorBoundary.tsx\` to include a stylized fallback UI with a "Reload Page" button and "Contact Support" mailto link.
-- Implemented automatic logging of client errors (including component stack traces) to a new \`POST /api/logs/client-error\` endpoint via \`fetch\`.
-- Added the new logging endpoint to \`server/routes.ts\` using the unified Pino logger.
-- Wrapped the \`Dashboard.tsx\` component in a route-level \`ErrorBoundary\` to ensure failures on the dashboard don't crash the navigation layout.
-- Kept the root-level boundary in \`App.tsx\`.
+- Created a reusable \`EmptyState\` component in \`client/src/components/EmptyState.tsx\`.
+- Integrated \`EmptyState\` into the **History page** to guide users to create their first assessment when none are found.
+- Integrated \`EmptyState\` into the **Dashboard page** to replace empty statistics cards when no assessments exist.
+- Integrated \`EmptyState\` into the **Analytics page** to replace empty charts when there are no population trends available.
+- Added \`EmptyState\` to the **Admin Dashboard** for both the Users and Audit Logs tables when they have no records.
 
 ### Testing Performed
 \`bash

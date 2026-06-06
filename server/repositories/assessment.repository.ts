@@ -130,4 +130,9 @@ export class AssessmentRepository {
       .returning();
     return created;
   }
+
+  async deleteAssessment(id: number): Promise<void> {
+    const db = getDb();
+    await db.delete(assessments).where(eq(assessments.id, id));
+  }
 }

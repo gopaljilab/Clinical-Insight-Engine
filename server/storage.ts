@@ -27,6 +27,7 @@ export interface IStorage {
   /** Returns a single assessment by numeric ID. Authorization must be checked by caller. */
   getAssessmentById(id: number): Promise<Assessment | undefined>;
   createAssessment(assessment: any): Promise<Assessment>;
+  deleteAssessment(id: number): Promise<void>;
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
@@ -67,6 +68,10 @@ export class DatabaseStorage implements IStorage {
   
   async createAssessment(assessment: any) { 
     return this.assessmentRepository.createAssessment(assessment); 
+  }
+  
+  async deleteAssessment(id: number) {
+    return this.assessmentRepository.deleteAssessment(id);
   }
   
   async createUser(data: InsertUser) { 
