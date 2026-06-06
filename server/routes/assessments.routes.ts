@@ -66,7 +66,7 @@ assessmentsRouter.post(
           .json({ message: err.errors[0]?.message ?? "Invalid input" });
       }
       if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
-        return res.status(408).json({ message: "Clinical assessment preview timed out." });
+        return res.status(503).json({ message: "Clinical assessment preview timed out." });
       }
       return res.status(500).json({ message: err.message || "Internal server error" });
     }

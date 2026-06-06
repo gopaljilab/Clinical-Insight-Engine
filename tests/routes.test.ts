@@ -403,6 +403,29 @@ describe("Python inference", () => {
     expect(res.body).toHaveProperty("riskCategory");
     expect(res.body).toHaveProperty("factors");
   });
+
+  it("preview returns 503 when Python process times out", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      const err = new Error("Process timed out");
+      (err as any).killed = true;
+      if (typeof opts === "function") {
+        cb = opts;
+        cb(err, null, "");
+        return;
+      }
+      cb(err, null, "");
+    });
+
+    const res = await request(app)
+      .post("/api/assessments/preview")
+      .send(validPayload);
+
+    expect(res.status).toBe(503);
+    expect(res.body.message).toContain("timed out");
+  });
 });
 
 describe("Response shape", () => {
