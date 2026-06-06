@@ -50,6 +50,7 @@ function verifyPassword(password: string, storedHash: string): boolean {
 interface PendingOtp {
   otp: string;
   expiresAt: number;
+  attempts: number;
 }
 
 /**
@@ -346,7 +347,7 @@ export function createAuthRouter(): Router {
     }
 
     const otp = generateOtp();
-    pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+    pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000, attempts: 0 });
 
     // Send verification email
     const emailSent = await sendVerificationCode(email, otp);
@@ -388,7 +389,7 @@ export function createAuthRouter(): Router {
           return res.status(400).json({ message: "OTP has expired. Please sign in again." });
         }
 
-        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime() });
+        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime(), attempts: 0 });
         const emailSent = await sendVerificationCode(email, otp);
         if (!emailSent) {
           return res.status(503).json({ message: "Failed to send verification email. Please try again." });
@@ -473,12 +474,29 @@ export function createAuthRouter(): Router {
     }
 
     if (pending.otp !== otp) {
+      pending.attempts = (pending.attempts ?? 0) + 1;
+
+      if (pending.attempts >= 3) {
+        pendingOtps.delete(email);
+        await storage.recordLoginAudit({
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+          loginStatus: "otp_failed_lockout",
+        });
+        return res.status(429).json({
+          message: "Too many failed attempts. Please sign in again.",
+        });
+      }
+
       await storage.recordLoginAudit({
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
         loginStatus: "otp_failed",
       });
-      return res.status(401).json({ message: "Invalid OTP. Please try again." });
+      const remaining = 3 - pending.attempts;
+      return res.status(401).json({
+        message: `Invalid OTP. ${remaining} attempt(s) remaining.`,
+      });
     }
 
     pendingOtps.delete(email);
