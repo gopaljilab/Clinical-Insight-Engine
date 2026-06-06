@@ -212,11 +212,20 @@ def _atomic_write(filepath, data):
         os.close(fd)
         with open(tmp_path, 'wb') as f:
             pickle.dump(data, f)
+        
+        from app.ml.security import write_signature
+        write_signature(tmp_path)
+        
         os.replace(tmp_path, filepath)
+        # Also move the signature file to match the filepath
+        if os.path.exists(tmp_path + ".sig"):
+            os.replace(tmp_path + ".sig", filepath + ".sig")
     except BaseException:
         try:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+            if os.path.exists(tmp_path + ".sig"):
+                os.remove(tmp_path + ".sig")
         except OSError:
             pass
         raise
@@ -265,8 +274,15 @@ def get_model():
             current_hash = _compute_dataset_hash(DATA_FILE)
         return current_hash
 
+    from app.ml.security import verify_signature
+
     if os.path.exists(MODEL_FILE):
         try:
+            if not verify_signature(MODEL_FILE):
+                raise PermissionError(
+                    f"Signature verification failed for: {MODEL_FILE}. "
+                    "Refusing to load untrusted model file to prevent Remote Code Execution."
+                )
             with open(MODEL_FILE, 'rb') as f:
                 model_data = pickle.load(f)
             if isinstance(model_data, tuple) and len(model_data) >= 3:
@@ -301,6 +317,11 @@ def get_model():
     try:
         if os.path.exists(MODEL_FILE):
             try:
+                if not verify_signature(MODEL_FILE):
+                    raise PermissionError(
+                        f"Signature verification failed for: {MODEL_FILE}. "
+                        "Refusing to load untrusted model file to prevent Remote Code Execution."
+                    )
                 with open(MODEL_FILE, 'rb') as f:
                     model_data = pickle.load(f)
                 if isinstance(model_data, tuple) and len(model_data) >= 3:
