@@ -41,7 +41,7 @@ const execFileAsync = promisify(execFile);
 export const assessmentWorker = new Worker(
   "assessmentQueue",
   async (job: Job) => {
-    const { input, isPreview, userId } = job.data;
+    const { input, isPreview, userId, userEmail } = job.data;
     const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
 
     try {
@@ -68,7 +68,8 @@ export const assessmentWorker = new Worker(
           prediction.modelConfidence == null
             ? undefined
             : Number(prediction.modelConfidence),
-        createdBy: userId
+        createdBy: userEmail || userId,
+        userId: userId
       });
 
       return {
@@ -94,6 +95,6 @@ export const assessmentWorker = new Worker(
   }
 );
 
-assessmentWorker.on("failed", (job, err) => {
+assessmentWorker.on("failed", (job: Job | undefined, err: Error) => {
   console.error(`Job ${job?.id} failed with error ${err.message}`);
 });

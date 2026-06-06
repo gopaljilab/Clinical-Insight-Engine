@@ -276,8 +276,9 @@ export default function Dashboard() {
                     </h3>
                     <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                       <div className="space-y-2 md:col-span-2">
-                        <label className={labelClass}>Patient Name</label>
+                        <label htmlFor="patientName" className={labelClass}>Patient Name</label>
                         <input
+                          id="patientName"
                           type="text"
                           {...register("patientName")}
                           className={getInputClass(!!errors.patientName)}
@@ -288,7 +289,7 @@ export default function Dashboard() {
 
                       <div className="space-y-2">
                         <div className="flex items-center gap-1.5">
-                          <label className={labelClass}>Age</label>
+                          <label htmlFor="age" className={labelClass}>Age</label>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
@@ -300,13 +301,15 @@ export default function Dashboard() {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <input type="number" {...register("age")} className={getInputClass(!!errors.age)} placeholder="e.g. 45" />
+                        <input id="age" type="number" {...register("age")} className={getInputClass(!!errors.age)} placeholder="e.g. 45" />
                         {errors.age && <p className="text-sm text-red-600 mt-1">{errors.age.message}</p>}
                       </div>
 
                       <div className="space-y-2 md:col-span-3">
-                        <label className={labelClass}>Gender</label>
+                        <span id="gender-label" className={labelClass}>Gender</span>
                         <div
+                          role="group"
+                          aria-labelledby="gender-label"
                           className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 transition-all duration-200 ${errors.gender ? "ring-2 ring-red-500 bg-red-50/30" : ""}`}
                         >
                           {["Male", "Female"].map((g) => (
@@ -322,8 +325,10 @@ export default function Dashboard() {
                       </div>
 
                       <div className="space-y-2 md:col-span-3">
-                        <label className={labelClass}>Smoking History</label>
+                        <span id="smoking-label" className={labelClass}>Smoking History</span>
                         <div
+                          role="group"
+                          aria-labelledby="smoking-label"
                           className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 transition-all duration-200 sm:grid-cols-4 ${errors.smokingHistory ? "ring-2 ring-red-500 bg-red-50/30" : ""}`}
                         >
                           {["never", "No Info", "current", "former"].map((smoking) => (
@@ -347,7 +352,7 @@ export default function Dashboard() {
                     <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                       <div className="space-y-2">
                         <div className="flex items-center gap-1.5">
-                          <label className={labelClass}>BMI (kg/m²)</label>
+                          <label htmlFor="bmi" className={labelClass}>BMI (kg/m²)</label>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
@@ -365,7 +370,7 @@ export default function Dashboard() {
                           </Tooltip>
                         </div>
                         <div className="relative">
-                          <input type="number" step="0.1" {...register("bmi")} className={getInputClass(!!errors.bmi)} placeholder="e.g. 25.0" />
+                          <input id="bmi" type="number" step="0.1" {...register("bmi")} className={getInputClass(!!errors.bmi)} placeholder="e.g. 25.0" />
                           {watchedValues.bmi && (
                             <button type="button" onClick={() => setValue("bmi", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
                               <X className="w-4 h-4" />
@@ -378,7 +383,7 @@ export default function Dashboard() {
 
                       <div className="space-y-2">
                         <div className="flex items-center gap-1.5">
-                          <label className={labelClass}>HbA1c Level (%)</label>
+                          <label htmlFor="hba1cLevel" className={labelClass}>HbA1c Level (%)</label>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
@@ -396,7 +401,7 @@ export default function Dashboard() {
                           </Tooltip>
                         </div>
                         <div className="relative">
-                          <input type="number" step="0.1" {...register("hba1cLevel")} className={getInputClass(!!errors.hba1cLevel)} placeholder="e.g. 5.7" />
+                          <input id="hba1cLevel" type="number" step="0.1" {...register("hba1cLevel")} className={getInputClass(!!errors.hba1cLevel)} placeholder="e.g. 5.7" />
                           {watchedValues.hba1cLevel && (
                             <button type="button" onClick={() => setValue("hba1cLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
                               <X className="w-4 h-4" />
@@ -408,7 +413,7 @@ export default function Dashboard() {
 
                       <div className="space-y-2 lg:col-span-2">
                         <div className="flex items-center gap-1.5">
-                          <label className={labelClass}>Blood Glucose Level (mg/dL)</label>
+                          <label htmlFor="bloodGlucoseLevel" className={labelClass}>Blood Glucose Level (mg/dL)</label>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
@@ -426,7 +431,7 @@ export default function Dashboard() {
                           </Tooltip>
                         </div>
                         <div className="relative">
-                          <input type="number" {...register("bloodGlucoseLevel")} className={getInputClass(!!errors.bloodGlucoseLevel)} placeholder="e.g. 100" />
+                          <input id="bloodGlucoseLevel" type="number" {...register("bloodGlucoseLevel")} className={getInputClass(!!errors.bloodGlucoseLevel)} placeholder="e.g. 100" />
                           {watchedValues.bloodGlucoseLevel && (
                             <button type="button" onClick={() => setValue("bloodGlucoseLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
                               <X className="w-4 h-4" />
