@@ -86,7 +86,8 @@ export class AssessmentRepository {
         or(
           ilike(assessments.gender, pattern),
           ilike(assessments.smokingHistory, pattern),
-          ilike(assessments.riskCategory, pattern)
+          ilike(assessments.riskCategory, pattern),
+          ilike(assessments.patientName, pattern)
         ) as ReturnType<typeof eq>
       );
     }
