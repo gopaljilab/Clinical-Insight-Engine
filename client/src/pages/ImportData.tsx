@@ -1,14 +1,43 @@
 import { useState } from "react";
 import Papa from "papaparse";
-import { UploadCloud, CheckCircle, AlertCircle, Loader2, XCircle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { AlertCircle, CheckCircle, Loader2, ShieldCheck, UploadCloud, XCircle } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { ApiClient } from "@/lib/apiClient";
+import {
+  buildCsvImportPreview,
+  type ImportPreviewRow,
+  type ImportPreviewSummary,
+} from "@/utils/csvImportPreview";
 
-interface SkippedRow {
-  rowNumber: number;
-  reason: string;
-  data: Record<string, unknown>;
+function StatusCount({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${tone}`}>
+      <p className="text-xs font-semibold uppercase tracking-wide">{label}</p>
+      <p className="text-2xl font-black">{value}</p>
+    </div>
+  );
+}
+
+function RowIssues({ row }: { row: ImportPreviewRow }) {
+  const issues = [...row.errors, ...row.warnings];
+  if (issues.length === 0) return <span className="text-slate-500">Ready to import</span>;
+
+  return (
+    <ul className="space-y-1">
+      {issues.map((issue) => (
+        <li key={issue} className="flex items-start gap-2">
+          {row.errors.includes(issue) ? (
+            <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+          ) : (
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          )}
+          <span>{issue}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export default function ImportData() {
@@ -16,118 +45,105 @@ export default function ImportData() {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<any[]>([]);
-  const [skippedRows, setSkippedRows] = useState<SkippedRow[]>([]);
+  const [preview, setPreview] = useState<ImportPreviewSummary | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState<string>("");
+
+  const resetPreview = () => {
+    setPreview(null);
+    setSelectedFileName("");
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setIsDragging(true);
-    } else if (e.type === "dragleave") {
-      setIsDragging(false);
-    }
+    setIsDragging(e.type === "dragenter" || e.type === "dragover");
   };
 
   const processFile = (file: File) => {
-    if (file.type !== "text/csv" && !file.name.endsWith('.csv')) {
+    if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
       toast({
         title: "Invalid file type",
         description: "Please upload a valid CSV file.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
+    setIsProcessing(true);
+    setResults([]);
+    setPreview(null);
+    setSelectedFileName(file.name);
+
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: async (results: Papa.ParseResult<any>) => {
-        setIsProcessing(true);
-        setSkippedRows([]);
-        try {
-          const validRows: any[] = [];
-          const invalid: SkippedRow[] = [];
+      complete: (results: Papa.ParseResult<Record<string, unknown>>) => {
+        const nextPreview = buildCsvImportPreview(results.data);
+        setPreview(nextPreview);
+        setIsProcessing(false);
 
-          results.data.forEach((row: any, index: number) => {
-            const rowNumber = index + 2; // +2: 1-based + header row
-            const rawName = (row.patientName || row.name || "").toString().trim();
-
-            if (!rawName) {
-              invalid.push({
-                rowNumber,
-                reason: "Missing patient name (patientName or name column is empty)",
-                data: row,
-              });
-              return;
-            }
-
-            validRows.push({
-              patientName: rawName,
-              gender: row.gender,
-              age: Number(row.age),
-              hypertension: row.hypertension === '1' || row.hypertension === 'true' || row.hypertension === true,
-              heartDisease: row.heartDisease === '1' || row.heartDisease === 'true' || row.heartDisease === true,
-              smokingHistory: row.smokingHistory || row.smoking_history,
-              bmi: Number(row.bmi),
-              hba1cLevel: Number(row.hba1cLevel || row.HbA1c_level),
-              bloodGlucoseLevel: Number(row.bloodGlucoseLevel || row.blood_glucose_level),
-            });
-          });
-
-          if (invalid.length > 0) {
-            setSkippedRows(invalid);
-          }
-
-          if (validRows.length === 0) {
-            toast({
-              title: "No valid rows",
-              description: "Every row was missing a patient name. Please check your CSV and try again.",
-              variant: "destructive",
-            });
-            return;
-          }
-
-          const data = await ApiClient.post("/api/assessments/bulk", { assessments: validRows });
-          setResults(data.assessments);
-
-          const skippedMsg = invalid.length > 0 ? ` ${invalid.length} row(s) skipped due to missing patient name.` : "";
-          toast({
-            title: "Import complete",
-            description: `Successfully imported ${data.count} patient record(s).${skippedMsg}`,
-          });
-        } catch (error: any) {
-          toast({
-            title: "Import Error",
-            description: error.message,
-            variant: "destructive"
-          });
-        } finally {
-          setIsProcessing(false);
-        }
+        toast({
+          title: "Preview ready",
+          description: `${nextPreview.validRows.length} valid row(s), ${nextPreview.invalidRows.length} invalid row(s). Review before importing.`,
+          variant: nextPreview.validRows.length === 0 ? "destructive" : "default",
+        });
       },
       error: (error: Error) => {
+        setIsProcessing(false);
         toast({
           title: "Parsing Error",
           description: error.message,
-          variant: "destructive"
+          variant: "destructive",
         });
-      }
+      },
     });
+  };
+
+  const confirmImport = async () => {
+    if (!preview || preview.validRows.length === 0) {
+      toast({
+        title: "No valid rows",
+        description: "Import is blocked until at least one row passes validation.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const assessments = preview.validRows.map((row) => row.data);
+      const data = await ApiClient.post("/api/assessments/bulk", { assessments });
+      setResults(data.assessments);
+      toast({
+        title: "Import complete",
+        description: `Successfully imported ${data.count} patient record(s).`,
+      });
+      resetPreview();
+    } catch (error: any) {
+      toast({
+        title: "Import Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    if (e.dataTransfer.files?.[0]) {
       processFile(e.dataTransfer.files[0]);
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
-    if (e.target.files && e.target.files[0]) {
+    if (e.target.files?.[0]) {
       processFile(e.target.files[0]);
+      e.target.value = "";
     }
   };
 
@@ -135,15 +151,17 @@ export default function ImportData() {
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight text-slate-900">Bulk Import</h1>
-        <p className="text-slate-500">Upload a CSV file to process multiple patient risk assessments at once.</p>
+        <p className="text-slate-500">
+          Upload a CSV file, review row-level validation, then confirm import for valid records.
+        </p>
       </div>
 
       <Card className="border-slate-200">
         <CardHeader>
           <CardTitle>Upload Patient Data</CardTitle>
           <CardDescription>
-            CSV must contain headers: patientName, gender, age, hypertension, heartDisease, smokingHistory, bmi, hba1cLevel, bloodGlucoseLevel.
-            Rows with a missing or empty <code>patientName</code> column will be skipped and reported below.
+            CSV must contain patientName, gender, age, hypertension, heartDisease, smokingHistory, bmi, hba1cLevel,
+            and bloodGlucoseLevel. No records are saved until you confirm the preview.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -153,13 +171,13 @@ export default function ImportData() {
             onDragOver={handleDrag}
             onDrop={handleDrop}
             className={`
-              relative flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-xl cursor-pointer transition-colors
-              ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}
+              relative flex h-64 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-colors
+              ${isDragging ? "border-blue-500 bg-blue-50" : "border-slate-300 bg-slate-50 hover:bg-slate-100"}
             `}
           >
             <input
               type="file"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               accept=".csv"
               onChange={handleChange}
               disabled={isProcessing}
@@ -167,15 +185,15 @@ export default function ImportData() {
 
             {isProcessing ? (
               <div className="flex flex-col items-center gap-3">
-                <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
                 <p className="font-semibold text-slate-600">Processing records...</p>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-3">
-                <div className="p-4 bg-white rounded-full shadow-sm">
-                  <UploadCloud className="w-10 h-10 text-slate-500" />
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="rounded-full bg-white p-4 shadow-sm">
+                  <UploadCloud className="h-10 w-10 text-slate-500" />
                 </div>
-                <p className="text-lg font-bold text-slate-700">Click or drag CSV file to upload</p>
+                <p className="text-lg font-bold text-slate-700">Click or drag CSV file to preview</p>
                 <p className="text-sm text-slate-500">Max file size: 5MB</p>
               </div>
             )}
@@ -183,35 +201,65 @@ export default function ImportData() {
         </CardContent>
       </Card>
 
-      {skippedRows.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50">
+      {preview && (
+        <Card className="border-blue-200">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-amber-800">
-              <AlertCircle className="w-5 h-5 text-amber-500" />
-              {skippedRows.length} Row(s) Skipped
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-blue-600" />
+              Import Preview {selectedFileName ? `- ${selectedFileName}` : ""}
             </CardTitle>
-            <CardDescription className="text-amber-700">
-              The following rows were not imported because the patient name was missing. Please correct your CSV and re-upload these records.
+            <CardDescription>
+              Review valid rows, invalid rows, duplicate warnings, and neutralized formula-like values before import.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-amber-700 uppercase bg-amber-100">
+          <CardContent className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-4">
+              <StatusCount label="Valid" value={preview.validRows.length} tone="border-emerald-200 bg-emerald-50 text-emerald-800" />
+              <StatusCount label="Invalid" value={preview.invalidRows.length} tone="border-red-200 bg-red-50 text-red-800" />
+              <StatusCount label="Duplicates" value={preview.duplicateRows.length} tone="border-amber-200 bg-amber-50 text-amber-800" />
+              <StatusCount label="Formula-like" value={preview.formulaRows.length} tone="border-slate-200 bg-slate-50 text-slate-800" />
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button onClick={confirmImport} disabled={isProcessing || preview.validRows.length === 0}>
+                {isProcessing && <Loader2 className="h-4 w-4 animate-spin" />}
+                Confirm Import {preview.validRows.length > 0 ? `(${preview.validRows.length})` : ""}
+              </Button>
+              <Button type="button" variant="outline" onClick={resetPreview} disabled={isProcessing}>
+                Cancel Preview
+              </Button>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-4 py-3">CSV Row</th>
-                    <th className="px-4 py-3">Reason</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Patient</th>
+                    <th className="px-4 py-3">Age / Gender</th>
+                    <th className="px-4 py-3">Issues</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {skippedRows.map((row) => (
-                    <tr key={row.rowNumber} className="border-b border-amber-100">
+                  {preview.rows.map((row) => (
+                    <tr key={row.rowNumber} className="border-t border-slate-100 align-top">
                       <td className="px-4 py-3 font-medium">{row.rowNumber}</td>
-                      <td className="px-4 py-3 text-amber-800">
-                        <div className="flex items-center gap-2">
-                          <XCircle className="w-4 h-4 shrink-0 text-amber-500" />
-                          {row.reason}
-                        </div>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded px-2 py-1 text-xs font-bold ${
+                            row.status === "valid" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {row.status === "valid" ? "Valid" : "Invalid"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">{row.data?.patientName || String(row.raw.patientName || row.raw.name || "N/A")}</td>
+                      <td className="px-4 py-3">
+                        {row.data ? `${row.data.age} / ${row.data.gender}` : "N/A"}
+                      </td>
+                      <td className="max-w-md px-4 py-3 text-slate-700">
+                        <RowIssues row={row} />
                       </td>
                     </tr>
                   ))}
@@ -226,14 +274,14 @@ export default function ImportData() {
         <Card className="border-slate-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-emerald-500" />
+              <CheckCircle className="h-5 w-5 text-emerald-500" />
               Import Successful
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-500 uppercase bg-slate-50">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-4 py-3">Patient</th>
                     <th className="px-4 py-3">Age/Gender</th>
@@ -242,20 +290,26 @@ export default function ImportData() {
                   </tr>
                 </thead>
                 <tbody>
-                  {results.map((r, i) => (
-                    <tr key={i} className="border-b border-slate-100">
-                      <td className="px-4 py-3 font-medium">{r.patientName}</td>
-                      <td className="px-4 py-3">{r.age} / {r.gender}</td>
+                  {results.map((result, index) => (
+                    <tr key={index} className="border-b border-slate-100">
+                      <td className="px-4 py-3 font-medium">{result.patientName}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${
-                          r.riskCategory === 'HIGH' ? 'bg-red-100 text-red-700' :
-                          r.riskCategory === 'MODERATE' ? 'bg-amber-100 text-amber-700' :
-                          'bg-emerald-100 text-emerald-700'
-                        }`}>
-                          {r.riskCategory}
+                        {result.age} / {result.gender}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded px-2 py-1 text-xs font-bold ${
+                            result.riskCategory === "HIGH"
+                              ? "bg-red-100 text-red-700"
+                              : result.riskCategory === "MODERATE"
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {result.riskCategory}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-bold">{r.riskScore}%</td>
+                      <td className="px-4 py-3 font-bold">{result.riskScore}%</td>
                     </tr>
                   ))}
                 </tbody>

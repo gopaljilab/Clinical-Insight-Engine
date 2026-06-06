@@ -390,6 +390,7 @@ export default function History() {
   const filteredRecords = assessmentsData?.total ?? 0;
   const totalPages = assessmentsData?.totalPages ?? 1;
   const safePage = currentPage;
+  const sortedAssessments = assessments;
   const paginatedAssessments = assessments;
 
   const formatAssessmentDate = (dateVal: any) => {
@@ -738,7 +739,7 @@ export default function History() {
         )}
       </div>
 
-      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientName(null)}>
+      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientKey(null)}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto sm:border-l sm:border-slate-200">
           <SheetHeader className="mb-6">
             <SheetTitle className="text-2xl font-bold font-display">Longitudinal Trajectory</SheetTitle>
@@ -783,6 +784,5 @@ export default function History() {
     </AppLayout>
   );
 }
-
 
 

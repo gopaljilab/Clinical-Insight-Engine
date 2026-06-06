@@ -71,7 +71,10 @@ export class AssessmentRepository {
 
     if (gender && gender !== "All") {
       if (gender === "Other") {
-        filters.push(not(or(eq(assessments.gender, "Male"), eq(assessments.gender, "Female"))));
+        const binaryGenderFilter = or(eq(assessments.gender, "Male"), eq(assessments.gender, "Female"));
+        if (binaryGenderFilter) {
+          filters.push(not(binaryGenderFilter));
+        }
       } else {
         filters.push(eq(assessments.gender, gender));
       }
