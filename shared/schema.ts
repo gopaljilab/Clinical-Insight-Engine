@@ -49,7 +49,8 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   age: z.preprocess(
     (v) => {
       if (v === "" || v === undefined || v === null) return undefined;
-      const n = Number(v);
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
       return Number.isNaN(n) ? v : n;
     },
     z
@@ -67,7 +68,8 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   bmi: z.preprocess(
     (v) => {
       if (v === "" || v === undefined || v === null) return undefined;
-      const n = Number(v);
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
       return Number.isNaN(n) ? v : n;
     },
     z
@@ -78,7 +80,8 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   hba1cLevel: z.preprocess(
     (v) => {
       if (v === "" || v === undefined || v === null) return undefined;
-      const n = Number(v);
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
       return Number.isNaN(n) ? v : n;
     },
     z
@@ -89,7 +92,8 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   bloodGlucoseLevel: z.preprocess(
     (v) => {
       if (v === "" || v === undefined || v === null) return undefined;
-      const n = Number(v);
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
       return Number.isNaN(n) ? v : n;
     },
     z

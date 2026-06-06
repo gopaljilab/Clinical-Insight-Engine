@@ -1,7 +1,7 @@
 ## ✦ Description
-Add empty state guidance for new users across the Dashboard, History, Analytics, and Admin pages to improve the onboarding experience and clearly explain where data will appear once available.
+Add a destructive confirmation dialog when deleting a patient assessment from the History page to prevent accidental data loss. This adds a layer of friction for permanent actions while maintaining a smooth user experience through optimistic updates and loading states.
 
-Fixes #811
+Fixes #812
 
 ---
 
@@ -33,14 +33,15 @@ N/A
 ## Description
 
 ### Root Cause
-Previously, new users who had not created any assessments were presented with empty charts, bare tables, and "0" statistics without any context or explanation, creating a confusing and poor onboarding experience.
+Deleting an assessment was previously an immediate action without confirmation, which could lead to accidental and irreversible data loss of patient records.
 
 ### Changes Made
-- Created a reusable \`EmptyState\` component in \`client/src/components/EmptyState.tsx\`.
-- Integrated \`EmptyState\` into the **History page** to guide users to create their first assessment when none are found.
-- Integrated \`EmptyState\` into the **Dashboard page** to replace empty statistics cards when no assessments exist.
-- Integrated \`EmptyState\` into the **Analytics page** to replace empty charts when there are no population trends available.
-- Added \`EmptyState\` to the **Admin Dashboard** for both the Users and Audit Logs tables when they have no records.
+- Created a reusable \`ConfirmDeleteDialog\` component in \`client/src/components/ConfirmDeleteDialog.tsx\` using shadcn/ui Alert Dialog primitives.
+- Integrated the \`ConfirmDeleteDialog\` into the actions column of the History page table.
+- Created a \`useDeleteAssessment\` hook in \`client/src/hooks/use-assessments.ts\` using React Query to handle the API call, success/error toast notifications, and cache invalidation.
+- Implemented the \`DELETE /api/assessments/:id\` endpoint in \`server/routes/assessments.routes.ts\`.
+- Added \`deleteAssessment\` to the \`storage\` layer (\`server/storage.ts\` and \`server/repositories/assessment.repository.ts\`).
+- Included security checks (IDOR protection) in the delete endpoint to ensure a user can only delete assessments they created.
 
 ### Testing Performed
 \`bash
