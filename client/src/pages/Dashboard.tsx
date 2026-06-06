@@ -624,6 +624,15 @@ export default function Dashboard() {
 
                 {preview && (
                   <>
+                    {preview.isFallback && (
+                      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <span className="mt-0.5 shrink-0">⚠️</span>
+                        <span>
+                          <strong>Rule-based estimate</strong> — ML model unavailable. Results are from a simplified heuristic and may be less accurate.
+                        </span>
+                      </div>
+                    )}
+
                     <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-5 text-center">
                       <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Risk Score</p>
                       <p className="mt-2 text-5xl font-black text-[#1E293B] dark:text-slate-100">{preview.riskScore.toFixed(1)}%</p>

@@ -138,7 +138,7 @@ export function useCreateAssessment() {
           credentials: "include",
           signal: controller.signal,
         });
-        
+
         if (!res.ok) {
           if (res.status === 400) {
             const errorData = await res.json();
@@ -146,17 +146,31 @@ export function useCreateAssessment() {
           }
           throw new Error("Failed to create assessment");
         }
-        
+
         const responseData = await res.json();
-        
+
         // If the backend returns 202, it means the job is queued
         if (res.status === 202 && responseData.jobId) {
+          const POLL_INTERVAL_MS = 2000;
+          const MAX_ATTEMPTS = 30; // 30 × 2s = 60-second total timeout
+
           return new Promise<AssessmentResponse>((resolve, reject) => {
             controller.signal.addEventListener("abort", () => {
               reject(new Error("Clinical assessment timed out. Please try again."));
             });
 
+            let attempts = 0;
+
             const poll = async () => {
+              if (attempts >= MAX_ATTEMPTS) {
+                reject(new Error(
+                  "Assessment is taking longer than expected. Please check your History for results."
+                ));
+                return;
+              }
+
+              attempts += 1;
+
               if (controller.signal.aborted) return;
               try {
                 const jobRes = await fetch(`/api/assessments/jobs/${responseData.jobId}`, {
@@ -165,14 +179,13 @@ export function useCreateAssessment() {
                 });
                 if (!jobRes.ok) throw new Error("Failed to check job status");
                 const jobData = await jobRes.json();
-                
+
                 if (jobData.status === "completed") {
                   resolve(parseWithLogging<AssessmentResponse>(api.assessments.create.responses[201], jobData.result, "assessments.create.job"));
                 } else if (jobData.status === "failed") {
                   reject(new Error(jobData.error || "Job failed"));
                 } else {
-                  // Poll again in 2 seconds
-                  setTimeout(poll, 2000);
+                  setTimeout(poll, POLL_INTERVAL_MS);
                 }
               } catch (err) {
                 reject(err);

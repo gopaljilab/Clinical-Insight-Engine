@@ -87,6 +87,7 @@ export const api = {
           ),
           confidenceInterval: z.string().nullable().optional(),
           modelConfidence: z.number().nullable().optional(),
+          isFallback: z.boolean().optional(),
         }),
         400: errorSchemas.validation,
         500: errorSchemas.internal,
