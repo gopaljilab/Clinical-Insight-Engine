@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { HealthBadges } from "@/components/HealthBadges";
+import { CopySummaryButton } from "@/components/CopySummaryButton";
+import { useAssessments } from "@/hooks/use-assessments";
+import { calculateHealthBadges } from "@/utils/healthBadges";
 import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { jsPDF } from "jspdf";
@@ -118,6 +122,13 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     }
   };
 
+  const { data: assessmentsResponse } = useAssessments();
+  const assessmentHistory = assessmentsResponse?.data ?? [];
+  const improvementBadges = useMemo(
+    () => calculateHealthBadges(assessment, assessmentHistory),
+    [assessment, assessmentHistory]
+  );
+
   const factors = normalizeFactors(assessment.factors);
   const totalFactors = Math.max(factors.length, 1);
   const factorBreakdown: FactorBreakdown[] = factors.map((factor, index) => ({
@@ -156,7 +167,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       id="assessment-result-wrapper"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 overflow-hidden flex flex-col"
+      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 flex flex-col"
     >
       {/* Header/Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 bg-muted/30 p-2.5">
@@ -216,6 +227,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
             {isGeneratingPDF ? "Generating..." : "Download PDF"}
           </button>
+          <CopySummaryButton assessment={assessment} />
           <button
             type="button"
             onClick={exportToJson}
@@ -269,6 +281,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   Based on your provided information, your preventive diabetes risk is considered <strong>{assessment.riskCategory.toLowerCase()}</strong>.
                 </p>
               </div>
+
+              <HealthBadges
+                badges={improvementBadges}
+                title="Progress badges"
+                description="See improvements and long-term trends based on this assessment and past history."
+              />
 
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">

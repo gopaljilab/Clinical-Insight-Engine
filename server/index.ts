@@ -182,6 +182,8 @@ app.use((req, res, next) => {
 
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
+  // Register protected patient EMR/EHR integration endpoints
+  app.use("/api/patients", patientsRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
   execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
@@ -227,6 +229,12 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || "5000", 10);
   const host = process.env.HOST || "0.0.0.0";
 
+  httpServer.on("error", async (error) => {
+    logger.error({ err: error }, "Server startup failed");
+    await closePool();
+    process.exit(1);
+  });
+
   httpServer.listen(
     {
       port,
@@ -258,8 +266,3 @@ app.use((req, res, next) => {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 })();
-
-
-// GSSoC Issue #687 Patch
-    // GSSoC Issue #687 exit process on DB fail
-    process.exit(1);

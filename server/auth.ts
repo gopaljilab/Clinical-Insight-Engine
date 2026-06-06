@@ -97,14 +97,27 @@ if (otpCleanupTimer.unref) {
 }
 
 /**
- * Rate limiters for verification endpoints.
+ * Strict rate limiter for sensitive endpoints (e.g., registration).
+ * Prevents mass account creation and brute-force attacks.
  */
-const authLimiter = rateLimit({
+const strictAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 5, // Stricter limit to prevent brute force (Fixes #624)
+  limit: 5, // Stricter limit (Fixes #624)
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { error: "Too many authentication attempts. Please try again later." },
+});
+
+/**
+ * General rate limiter for standard auth endpoints (e.g., login).
+ * More lenient than strictAuthLimiter to avoid frustrating legitimate users.
+ */
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 15,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many login/registration attempts. Please try again in 15 minutes." },
 });
 
 const otpLimiter = rateLimit({
@@ -132,6 +145,18 @@ const resendLimiter = rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { error: "Too many resend requests. Please try again later." },
+});
+
+/**
+ * Stricter rate limiter for password-reset endpoint.
+ * Guards against token brute-force on the only credential-changing unauthenticated route.
+ */
+const passwordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 3,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many password reset attempts. Please try again later." },
 });
 
 function generateOtp(): string {
@@ -193,7 +218,7 @@ export function createAuthRouter(): Router {
    * POST /api/auth/register
    * Validates registration fields, creates a new user account, and establishes a session.
    */
-  router.post("/register", authLimiter, validateDTO(registerDTOSchema), async (req: Request, res: Response) => {
+  router.post("/register", strictAuthLimiter, validateDTO(registerDTOSchema), async (req: Request, res: Response) => {
     const { fullName, email, password, licenseNumber } = req.body;
 
 
@@ -249,10 +274,10 @@ export function createAuthRouter(): Router {
           used: false,
           attemptCount: 0,
         });
-
-        // Send verification email
-        await sendVerificationCode(email, otp);
       });
+
+      // Send verification email
+      await sendVerificationCode(email, otp);
 
       // In production, send OTP via email. For development, return it in the response.
       logDevOtp(email, otp);
@@ -320,10 +345,91 @@ export function createAuthRouter(): Router {
     const otp = generateOtp();
     pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
 
+    // Send verification email
+    await sendVerificationCode(email, otp);
+
     // In production, send OTP via email. For development, return it in the response.
     logDevOtp(email, otp);
 
     return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+  });
+
+  /**
+   * POST /api/auth/resend-otp
+   * Resends a verification code for an already-started login or registration flow.
+   */
+  router.post("/resend-otp", resendLimiter, async (req: Request, res: Response) => {
+    const email = (req.body?.email ?? "").trim().toLowerCase();
+    const mode = req.body?.mode === "register" ? "register" : "login";
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+
+    const otp = generateOtp();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    try {
+      if (mode === "login") {
+        const pending = pendingOtps.get(email);
+
+        if (!pending) {
+          return res.status(400).json({ message: "No pending verification found for this email. Please sign in again." });
+        }
+
+        if (Date.now() > pending.expiresAt) {
+          pendingOtps.delete(email);
+          return res.status(400).json({ message: "OTP has expired. Please sign in again." });
+        }
+
+        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime() });
+        await sendVerificationCode(email, otp);
+        logDevOtp(email, otp);
+
+        return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+      }
+
+      const db = getDb();
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      if (user.emailVerified) {
+        return res.status(400).json({ message: "Email is already verified." });
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(emailVerificationTokens)
+          .set({ used: true })
+          .where(and(
+            eq(emailVerificationTokens.userId, user.id),
+            eq(emailVerificationTokens.used, false),
+          ));
+
+        await tx.insert(emailVerificationTokens).values({
+          userId: user.id,
+          verificationCode: otp,
+          expiresAt,
+          used: false,
+          attemptCount: 0,
+        });
+      });
+
+      await sendVerificationCode(email, otp);
+      logDevOtp(email, otp);
+
+      return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+    } catch (err) {
+      logger.error({ err }, "OTP resend error");
+      return res.status(500).json({ message: "Failed to resend verification code." });
+    }
   });
 
   /**
@@ -558,7 +664,7 @@ export function createAuthRouter(): Router {
    * POST /api/auth/forgot-password
    * Accepts email, creates a password reset token, and logs the reset link.
    */
-  router.post("/forgot-password", validateDTO(forgotPasswordDTOSchema), async (req: Request, res: Response) => {
+  router.post("/forgot-password", authLimiter, validateDTO(forgotPasswordDTOSchema), async (req: Request, res: Response) => {
     const { email } = req.body;
 
     try {
@@ -605,7 +711,7 @@ export function createAuthRouter(): Router {
    * POST /api/auth/reset-password
    * Accepts token and new password, validates token, updates password.
    */
-  router.post("/reset-password", validateDTO(resetPasswordDTOSchema), async (req: Request, res: Response) => {
+  router.post("/reset-password", passwordLimiter, validateDTO(resetPasswordDTOSchema), async (req: Request, res: Response) => {
     const { token, newPassword } = req.body;
 
     try {

@@ -81,14 +81,16 @@ assessmentsRouter.post(
   validateDTO(api.assessments.create.input),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
+    const userEmail = req.session.user?.email;
     if (!userId) {
       return res.status(401).json({ message: "Authentication required." });
     }
 
+    let requestFingerprint: string | undefined;
     try {
       const input = req.body;
-      const requestFingerprint = MLService.generateRequestFingerprint(input, userId);
 
+      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
         return res.status(409).json({
           message: "An identical assessment request is already being processed.",
@@ -96,32 +98,16 @@ assessmentsRouter.post(
       }
       MLService.activeInferenceRequests.add(requestFingerprint);
 
-      try {
-        const { prediction, isFallback } = await MLService.runAssessmentInference(input);
+      const job = await assessmentQueue.add("predict", {
+        input,
+        userId,
+        userEmail
+      });
 
-        prediction.disclaimer =
-          "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions." +
-          (isFallback
-            ? " (Generated via fallback rule-based clinical support model due to system unavailability)"
-            : "");
-
-        const assessment = await storage.createAssessment({
-          ...input,
-          riskScore: Number(prediction.riskScore),
-          riskCategory: prediction.riskCategory,
-          factors: prediction.factors,
-          confidenceInterval: prediction.confidenceInterval ?? undefined,
-          modelConfidence:
-            prediction.modelConfidence == null
-              ? undefined
-              : Number(prediction.modelConfidence),
-          createdBy: userId,
-        });
-
-        return res.status(201).json(assessment);
-      } finally {
-        MLService.activeInferenceRequests.delete(requestFingerprint);
-      }
+      return res.status(202).json({
+        message: "Assessment request accepted and is being processed.",
+        jobId: job.id
+      });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res
@@ -132,6 +118,10 @@ assessmentsRouter.post(
       return res
         .status(500)
         .json({ message: "Failed to queue clinical assessment." });
+    } finally {
+      if (requestFingerprint) {
+        MLService.activeInferenceRequests.delete(requestFingerprint);
+      }
     }
   }
 );
@@ -163,14 +153,13 @@ assessmentsRouter.get(
     try {
       const userEmail = req.session.user?.email;
       
-      const page = Math.max(1, parseInt(req.query.page as string) || 1);
       const limit = Math.min(
         100,
         Math.max(1, parseInt(req.query.limit as string) || 20)
       );
-      const offset = (page - 1) * limit;
+      const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
       
-      const result = await storage.getAssessments(limit, offset, userEmail);
+      const result = await storage.getAssessments(limit, cursor, userEmail);
 
       res.json(result);
     } catch (err) {

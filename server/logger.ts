@@ -6,7 +6,7 @@ export const requestContext = new AsyncLocalStorage<string>();
 const baseLogger = pino({
   level: process.env.LOG_LEVEL || "info",
   formatters: {
-    level: (label) => {
+    level: (label: string) => {
       return { level: label };
     },
   },

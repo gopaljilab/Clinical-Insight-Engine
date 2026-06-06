@@ -9,7 +9,7 @@ import pandas as pd
 from app.ml.prediction_cache import get_cache
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
-import joblib
+import pickle
 
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
 
@@ -24,7 +24,7 @@ DATA_FILE = os.path.join(SCRIPT_DIR, "attached_assets", "diabetes_dataset.csv")
 # Fall back to the legacy location if attached_assets doesn't have it
 if not os.path.exists(DATA_FILE):
     DATA_FILE = os.path.join(SCRIPT_DIR, "diabetes_dataset.csv")
-MODEL_FILE = os.path.join(SCRIPT_DIR, "diabetes_model.joblib")
+MODEL_FILE = os.path.join(SCRIPT_DIR, "diabetes_model.pkl")
 LOCK_FILE = MODEL_FILE + ".lock"
 
 def create_synthetic_data():
@@ -42,7 +42,7 @@ def create_synthetic_data():
     
     # Calculate a synthetic risk score 
     risk_score = (age * 0.05 + hypertension * 1.5 + heart_disease * 2.0 + 
-                 (bmi - 25) * 0.1 + (hba1c_level - 5.5) * 2.0 + (blood_glucose_level - 100) * 0.02)
+                  (bmi - 25) * 0.1 + (hba1c_level - 5.5) * 2.0 + (blood_glucose_level - 100) * 0.02)
     
     # Convert score to probabilities and sample binary diabetes target
     prob = 1 / (1 + np.exp(-(risk_score - 3)))
@@ -210,7 +210,8 @@ def _atomic_write(filepath, data):
     fd, tmp_path = tempfile.mkstemp(dir=dirpath, suffix='.tmp')
     try:
         os.close(fd)
-        joblib.dump(data, tmp_path)
+        with open(tmp_path, 'wb') as f:
+            pickle.dump(data, f)
         os.replace(tmp_path, filepath)
     except BaseException:
         try:
@@ -249,15 +250,7 @@ def save_pretrained_model():
 
 
 def get_model():
-    """Load pre-trained model, scaler, and features from disk with dataset change detection.
-
-    Computes a SHA-256 hash of the current dataset only when the file metadata
-    (modification time and size) changes. If the dataset has changed (or no valid
-    cache exists), the model is retrained automatically.
-
-    Uses file locking and atomic writes to prevent cache corruption when
-    multiple processes concurrently access the model file.
-    """
+    """Load pre-trained model, scaler, and features from disk with dataset change detection."""
     try:
         current_mtime = os.path.getmtime(DATA_FILE)
         current_size = os.path.getsize(DATA_FILE)
@@ -272,10 +265,10 @@ def get_model():
             current_hash = _compute_dataset_hash(DATA_FILE)
         return current_hash
 
-    # Try to load the cached model without locking first (fast path)
     if os.path.exists(MODEL_FILE):
         try:
-            model_data = joblib.load(MODEL_FILE)
+            with open(MODEL_FILE, 'rb') as f:
+                model_data = pickle.load(f)
             if isinstance(model_data, tuple) and len(model_data) >= 3:
                 model, scaler, features = model_data[:3]
                 cached_hash = model_data[3] if len(model_data) >= 4 else None
@@ -283,16 +276,13 @@ def get_model():
                 cached_mtime = model_data[5] if len(model_data) >= 6 else None
                 cached_size = model_data[6] if len(model_data) >= 7 else None
 
-                # Fast path: check if metadata matches and is valid
                 if (current_mtime is not None and current_size is not None and
                     cached_mtime == current_mtime and cached_size == current_size and
                     cov_beta is not None):
                     return model, scaler, features, cov_beta
 
-                # Fallback: check if the content hash actually changed
                 h = get_current_hash()
                 if h is not None and h == cached_hash and cov_beta is not None:
-                    # Update the cached metadata in MODEL_FILE to avoid hashing next time.
                     if _acquire_lock():
                         try:
                             _atomic_write(MODEL_FILE, (model, scaler, features, h, cov_beta, current_mtime, current_size))
@@ -304,17 +294,15 @@ def get_model():
         except Exception as e:
             print(f"Failed to load pre-trained model: {e}", file=sys.stderr)
 
-    # Acquire lock before retraining and writing
     if not _acquire_lock():
         print("Could not acquire lock for model retraining.", file=sys.stderr)
         return None, None, None, None
 
     try:
-        # Double-check after acquiring lock: another process may have
-        # already retrained and written a fresh model while we waited
         if os.path.exists(MODEL_FILE):
             try:
-                model_data = joblib.load(MODEL_FILE)
+                with open(MODEL_FILE, 'rb') as f:
+                    model_data = pickle.load(f)
                 if isinstance(model_data, tuple) and len(model_data) >= 3:
                     cached_hash = model_data[3] if len(model_data) >= 4 else None
                     cov_beta = model_data[4] if len(model_data) >= 5 else None
@@ -333,7 +321,6 @@ def get_model():
             except Exception:
                 pass
 
-        # No valid cache — train from scratch and atomically write
         model, scaler, features, cov_beta = train_model_pipeline()
         if model is not None:
             h = get_current_hash()
@@ -362,23 +349,28 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
     cache = get_cache()
     
     # We first extract index values and fill the numpy matrix in a single pass
+    imputed_fields_list = [[] for _ in range(n_samples)]
     for i, input_data in enumerate(input_data_list):
         cached = cache.get(input_data)
         if cached is not None:
             results[i] = cached
             continue
             
-        def _safe_get(data, key, default_val):
+        def _safe_get(data, key, default_val, field_label=None):
             val = data.get(key)
-            return val if val is not None else default_val
+            if val is None or val == "" or pd.isna(val):
+                if field_label:
+                    imputed_fields_list[i].append(field_label)
+                return default_val
+            return val
 
         # Fill the non-dummy features using the pre-mapped indices
         X_input[i, feature_indices['age']] = _safe_get(input_data, 'age', 40)
         X_input[i, feature_indices['hypertension']] = int(_safe_get(input_data, 'hypertension', False))
         X_input[i, feature_indices['heart_disease']] = int(_safe_get(input_data, 'heartDisease', False))
-        X_input[i, feature_indices['bmi']] = _safe_get(input_data, 'bmi', 25)
-        X_input[i, feature_indices['HbA1c_level']] = _safe_get(input_data, 'hba1cLevel', 5.5)
-        X_input[i, feature_indices['blood_glucose_level']] = _safe_get(input_data, 'bloodGlucoseLevel', 100)
+        X_input[i, feature_indices['bmi']] = float(_safe_get(input_data, 'bmi', 25.0, 'BMI'))
+        X_input[i, feature_indices['HbA1c_level']] = float(_safe_get(input_data, 'hba1cLevel', 5.5, 'HbA1c Level'))
+        X_input[i, feature_indices['blood_glucose_level']] = float(_safe_get(input_data, 'bloodGlucoseLevel', 100.0, 'Blood Glucose Level'))
         
         gender_value = _safe_get(input_data, 'gender', 'Female')
         X_input[i, feature_indices['gender_Male']] = 1 if gender_value == 'Male' else 0
@@ -512,7 +504,9 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
                 "clinicianAdvice": clinician_advice,
                 "patientAdvice": patient_advice,
                 "confidenceInterval": confidence_interval,
-                "modelConfidence": round(float(max(prob, 1 - prob)), 4)
+                "modelConfidence": round(float(max(prob, 1 - prob)), 4),
+                "is_partial_data": len(imputed_fields_list[original_idx]) > 0,
+                "imputed_fields": imputed_fields_list[original_idx]
             }
             if gender_outside_training_distribution:
                 result["warning"] = (
@@ -555,7 +549,6 @@ if __name__ == "__main__":
             print(f"Features used: {features}")
             print(f"Model Coefficients (Weights): {model.coef_[0]}")
     else:
-        # Step 1-6: Execution when run directly
         print("Running complete exploratory and modeling pipeline...\n")
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")

@@ -3,6 +3,7 @@
 # Stage 1: Build Node.js application
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
+ENV PUPPETEER_SKIP_DOWNLOAD="true"
 COPY package*.json ./
 RUN npm ci
 COPY . .

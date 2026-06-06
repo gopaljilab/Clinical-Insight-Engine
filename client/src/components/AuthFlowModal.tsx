@@ -369,6 +369,7 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
   const [isResending, setIsResending] = useState(false);
   const [countdown, setCountdown] = useState(600); // 10 minutes in seconds
   const [resentAt, setResentAt] = useState<number | null>(null);
+  const [currentDevOtp, setCurrentDevOtp] = useState(devOtp);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const isComplete = otp.every(Boolean);
 
@@ -389,10 +390,31 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
     setIsResending(true);
     setError(null);
     try {
-      await ApiClient.post("/api/auth/login", { email, _resend: true });
-      setCountdown(600);
-      setOtp(["", "", "", "", "", ""]);
-      inputRefs.current[0]?.focus();
+      const response = await fetch("/api/auth/resend-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, mode }),
+        credentials: "include",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCountdown(600);
+        setResentAt(Date.now());
+
+        if (data?.devOtp) {
+          const nextOtp = data.devOtp.split("").slice(0, 6);
+          setCurrentDevOtp(data.devOtp);
+          setOtp(nextOtp);
+          inputRefs.current[Math.min(nextOtp.length, 5)]?.focus();
+        } else {
+          setCurrentDevOtp(undefined);
+          setOtp(["", "", "", "", "", ""]);
+          inputRefs.current[0]?.focus();
+        }
+      } else {
+        const data = await response.json().catch(() => null);
+        setError(data?.message || "Failed to resend code. Please try again.");
+      }
     } catch {
       setError("Failed to resend code. Please try again.");
     } finally {
@@ -462,9 +484,9 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
         We&apos;ve sent a secure verification code to your email.
       </p>
-      {devOtp && (
+      {currentDevOtp && (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-700">
-          🔧 Dev mode: OTP auto-filled — <span className="font-mono">{devOtp}</span>
+          Dev mode: OTP auto-filled - <span className="font-mono">{currentDevOtp}</span>
         </div>
       )}
       {error && (
@@ -524,6 +546,11 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
         >
           {isResending ? "Sending..." : countdown > 540 ? `Resend available in ${formatCountdown(countdown - 540)}` : "Resend OTP"}
         </button>
+        {resentAt && (
+          <p className="mt-2 text-xs font-semibold text-slate-500">
+            New verification code sent.
+          </p>
+        )}
       </div>
     </form>
   );
