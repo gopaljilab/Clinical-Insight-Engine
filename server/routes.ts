@@ -390,6 +390,11 @@ function calculateClinicalFallback(input: any): PredictionResult {
   };
 }
 
+import {
+  generalLimiter,
+  adminLimiter,
+} from "./middleware/rateLimit";
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -409,13 +414,17 @@ export async function registerRoutes(
 
   // Mount domain-specific routers
   app.use("/api/auth", authRouter);
-  app.use("/api/assessments", analyticsRouter);
+  
+  app.use("/api/assessments", generalLimiter, analyticsRouter);
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
   
-  app.use("/api/assessments", assessmentsRouter);
+  app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   // ─── Admin Routes ────────────────────────────────────────────────
+  
+  // Apply admin rate limiter to all admin routes
+  app.use("/api/admin", adminLimiter);
 
   app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
     try {

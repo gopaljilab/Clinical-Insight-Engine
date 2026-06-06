@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireAuth, requireVerified } from "../auth";
 import { storage } from "../storage";
 import { assessmentsToCsv } from "../utils/csvExport";
+import { exportLimiter } from "../middleware/rateLimit";
 
 const exportsRouter = Router();
 
@@ -9,6 +10,7 @@ exportsRouter.get(
   "/export.csv",
   requireAuth,
   requireVerified,
+  exportLimiter,
   async (req, res) => {
     try {
       const userEmail = req.session.user?.email;

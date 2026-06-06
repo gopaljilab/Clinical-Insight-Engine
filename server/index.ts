@@ -27,7 +27,7 @@ import {
   closeQueue,
 } from "./queue";
 import { EmailConfigurationError, validateSmtpConfig } from "./email";
-
+import { generalLimiter } from "./middleware/rateLimit";
 
 const execFileAsync = promisify(execFile);
 const app = express();
@@ -210,7 +210,7 @@ app.use((req, res, next) => {
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
   // Register protected patient EMR/EHR integration endpoints
-  app.use("/api/patients", patientsRouter);
+  app.use("/api/patients", generalLimiter, patientsRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
   execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
