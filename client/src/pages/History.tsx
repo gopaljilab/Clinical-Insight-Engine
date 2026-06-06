@@ -496,7 +496,7 @@ export default function History() {
             <label className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors shadow-sm">
               <Upload className="w-4 h-4" />
               Upload Lab Results
-              <input type="file" className="sr-only" onChange={handleUploadLabResults} />
+              <input type="file" className="sr-only" accept=".csv" onChange={handleUploadLabResults} />
             </label>
 
             {/* Sort Dropdown */}
