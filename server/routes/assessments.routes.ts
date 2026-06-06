@@ -1,7 +1,8 @@
 import { logger } from "../logger";
+import { getAssessmentQueue, isQueueAvailable } from "../queue";
 import { Router } from "express";
 import { z } from "zod";
-import rateLimit from "express-rate-limit";
+import { rateLimit } from "express-rate-limit";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
@@ -14,6 +15,7 @@ import {
 import { searchQuerySchema } from "../validation/searchValidation";
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
+import { validateDTO } from "../middleware/validateDTO";
 
 const assessmentsRouter = Router();
 
@@ -44,9 +46,10 @@ assessmentsRouter.post(
   requireAuth,
   requireVerified,
   previewLimiter,
+  validateDTO(api.assessments.preview.input),
   async (req, res) => {
     try {
-      const input = api.assessments.preview.input.parse(req.body);
+      const input = req.body;
       const { prediction } = await MLService.runAssessmentInference(input);
 
       return res.json({
@@ -63,7 +66,7 @@ assessmentsRouter.post(
           .json({ message: err.errors[0]?.message ?? "Invalid input" });
       }
       if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
-        return res.status(408).json({ message: "Clinical assessment preview timed out." });
+        return res.status(503).json({ message: "Clinical assessment preview timed out." });
       }
       return res.status(500).json({ message: err.message || "Internal server error" });
     }
@@ -75,18 +78,19 @@ assessmentsRouter.post(
   requireAuth,
   requireVerified,
   assessmentLimiter,
+  validateDTO(api.assessments.create.input),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
+    const userEmail = req.session.user?.email;
     if (!userId) {
       return res.status(401).json({ message: "Authentication required." });
     }
 
-    let requestFingerprint: string | null = null;
-
+    let requestFingerprint: string | undefined;
     try {
-      const input = api.assessments.create.input.parse(req.body);
-      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
+      const input = req.body;
 
+      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
         return res.status(409).json({
           message: "An identical assessment request is already being processed.",
@@ -94,41 +98,32 @@ assessmentsRouter.post(
       }
       MLService.activeInferenceRequests.add(requestFingerprint);
 
-      const { prediction, isFallback } = await MLService.runAssessmentInference(input);
+      if (!isQueueAvailable()) {
+        return res.status(503).json({
+          message: "Assessment queue is temporarily unavailable.",
+        });
+      }
 
-      prediction.disclaimer =
-        "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions." +
-        (isFallback
-          ? " (Generated via fallback rule-based clinical support model due to system unavailability)"
-          : "");
-
-      const assessment = await storage.createAssessment({
-        ...input,
-        riskScore: Number(prediction.riskScore),
-        riskCategory: prediction.riskCategory,
-        factors: prediction.factors,
-        confidenceInterval: prediction.confidenceInterval ?? undefined,
-        modelConfidence:
-          prediction.modelConfidence == null
-            ? undefined
-            : Number(prediction.modelConfidence),
-        createdBy: userId,
+      const job = await getAssessmentQueue().add("predict", {
+        input,
+        userId,
+        userEmail
       });
 
-      return res.status(201).json({ ...assessment, prediction });
+      return res.status(202).json({
+        message: "Assessment request accepted and is being processed.",
+        jobId: job.id
+      });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res
           .status(400)
-          .json({ message: err.errors[0]?.message ?? "Invalid input" });
+          .json({ message: err.errors[0]?.message ?? "Invalid input data" });
       }
-      if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
-        return res.status(408).json({ message: "Clinical assessment generation timed out." });
-      }
-      logger.error("Error creating assessment:", err);
+      logger.error({ err }, "Assessment creation error:");
       return res
         .status(500)
-        .json({ message: err.message || "Failed to generate clinical assessment." });
+        .json({ message: "Failed to queue clinical assessment." });
     } finally {
       if (requestFingerprint) {
         MLService.activeInferenceRequests.delete(requestFingerprint);
@@ -137,6 +132,31 @@ assessmentsRouter.post(
   }
 );
 
+assessmentsRouter.get("/jobs/:id", requireAuth, requireVerified, async (req, res) => {
+  try {
+    if (!isQueueAvailable()) {
+      return res.status(503).json({
+        message: "Assessment queue is temporarily unavailable.",
+      });
+    }
+
+    const job = await getAssessmentQueue().getJob(req.params.id as string);
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+    const state = await job.getState();
+    if (state === "completed") {
+      return res.json({ status: "completed", result: job.returnvalue });
+    } else if (state === "failed") {
+      return res.status(500).json({ status: "failed", error: job.failedReason });
+    } else {
+      return res.json({ status: state });
+    }
+  } catch (err) {
+    return res.status(500).json({ message: "Error fetching job status" });
+  }
+});
+
 assessmentsRouter.get(
   "/",
   requireAuth,
@@ -144,11 +164,11 @@ assessmentsRouter.get(
   async (req, res) => {
     try {
       const userEmail = req.session.user?.email;
-      const cursorStr = req.query.cursor as string;
-      const limitStr = req.query.limit as string;
-      const cursor = cursorStr ? parseInt(cursorStr, 10) : undefined;
-      const limit = limitStr ? parseInt(limitStr, 10) : 50;
-
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(req.query.limit as string) || 20)
+      );
+      const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
       const result = await storage.getAssessments(limit, cursor, userEmail);
 
       res.json(result);

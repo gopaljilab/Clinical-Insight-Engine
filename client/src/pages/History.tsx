@@ -1,43 +1,47 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useAssessments } from "@/hooks/use-assessments";
+import { useAssessments, usePatientAssessments, useClearPatientCache } from "@/hooks/use-assessments";
 import {
   format,
   isValid,
-  isAfter,
-  isBefore,
-  startOfDay,
-  endOfDay,
 } from "date-fns";
 import {
   Loader2,
-  Search,
-  Calendar,
   User,
   Activity,
-  X,
   ChevronLeft,
   ChevronRight,
+  ShieldAlert,
+  Upload,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
 import { FileText, RotateCw } from "lucide-react";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { filterAssessments, type GenderFilterValue, type RiskCategoryFilterValue } from "@/utils/filterAssessments";
 import { advancedFilter } from "@/utils/search_filters";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import RiskTrendChart from "@/components/RiskTrendChart";
+import HealthBadges from "@/components/HealthBadges";
+import { calculateHealthBadges } from "@/utils/healthBadges";
+import { AssessmentSearchBar } from "@/components/AssessmentSearchBar";
+import { AssessmentFilters } from "@/components/AssessmentFilters";
+import { ActiveFilterChips } from "@/components/ActiveFilterChips";
+import { ClearFiltersButton } from "@/components/ClearFiltersButton";
+import { validateSearchInput } from "@/validation/filterValidation";
+import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
 
-  const regex = new RegExp(
-    `(${search.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")})`,
-    "gi"
-  );
-  const parts = text.split(regex);
+  const escaped = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
 
   return (
     <>
       {parts.map((part, i) =>
-        regex.test(part) ? (
+        i % 2 === 1 ? (
           <mark
             key={i}
             className="bg-yellow-100 text-[#1E293B] rounded px-0.5 font-bold"
@@ -52,15 +56,27 @@ function HighlightText({ text, search }: { text: string; search: string }) {
   );
 }
 
+const PAGE_SIZE = 10;
+
 export default function History() {
   useEffect(() => {
     document.title = "Clinical Insight Engine - Assessment History";
   }, []);
 
+  const { toast } = useToast();
+
+
   const { data: infiniteData, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useAssessments();
   const assessments = infiniteData ? infiniteData.pages.flatMap((page) => page.data) : [];
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // New filter state
+  const [riskCategory, setRiskCategory] = useState<RiskCategoryFilterValue>("All");
+  const [gender, setGender] = useState<GenderFilterValue>("All");
+  const [minAge, setMinAge] = useState<number | undefined>(undefined);
+  const [maxAge, setMaxAge] = useState<number | undefined>(undefined);
 
   // Date filter state
   const [startDate, setStartDate] = useState<string>("");
@@ -70,20 +86,60 @@ export default function History() {
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
 
-  const [selectedPatientName, setSelectedPatientName] = useState<string | null>(null);
+  const [selectedPatientKey, setSelectedPatientKey] = useState<string | null>(null);
+  const clearPatientCache = useClearPatientCache();
+
+  /**
+   * Build a stable per-patient key from the two fields that are recorded at
+   * assessment time and never change for a real patient: name + gender.
+   * Filtering by name alone would merge unrelated patients who share the same
+   * name (issue #794).
+   */
+  const patientKey = (a: { patientName?: string | null; gender?: string | null }) =>
+    `${(a.patientName || "Unknown Patient").toLowerCase().trim()}|${(a.gender || "").toLowerCase().trim()}`;
+
+  // Derive the plain name for the cache-scoped patient query from the composite key.
+  const selectedPatientName = selectedPatientKey ? selectedPatientKey.split("|")[0] : null;
+
+  // FIX for Issue #744: use a patient-scoped query so switching patients
+  // never leaks the previous patient's cached clinical data into the new view.
+  const {
+    data: patientInfiniteData,
+    isLoading: patientLoading,
+  } = usePatientAssessments(selectedPatientName);
+
+  // When a new patient is selected, clear the previous patient's cache entry
+  // and reset search state so no stale data is shown during the transition.
+  const handleSelectPatient = (key: string | null) => {
+    const prevName = selectedPatientKey ? selectedPatientKey.split("|")[0] : null;
+    const nextName = key ? key.split("|")[0] : null;
+    if (prevName && prevName !== nextName) {
+      clearPatientCache(prevName);
+    }
+    setSelectedPatientKey(key);
+    // Reset search/filter state to avoid cross-patient filter bleed-through.
+    setSearchTerm("");
+    setRiskCategory("All");
+    setGender("All");
+    setMinAge(undefined);
+    setMaxAge(undefined);
+    setStartDate("");
+    setEndDate("");
+    setCurrentPage(1);
+  };
 
   const selectedPatientHistory = useMemo(() => {
-    if (!selectedPatientName || !assessments) return [];
-    return assessments.filter(a => {
-       const pName = a.patientName || "Unknown Patient";
-       return pName === selectedPatientName;
-    });
-  }, [assessments, selectedPatientName]);
+    if (!selectedPatientKey) return [];
+    // Use the patient-scoped query data (isolated cache) filtered by composite
+    // key to prevent same-name cross-patient data leakage (issues #744, #794).
+    const source = patientInfiniteData
+      ? patientInfiniteData.pages.flatMap((page) => page.data)
+      : assessments;
+    return source.filter(a => patientKey(a) === selectedPatientKey);
+  }, [assessments, selectedPatientKey, patientInfiniteData]);
 
-  // Reset pagination when search/filter changes
-  useEffect(() => {
-    // Handled by react-query
-  }, [searchTerm, sortBy, startDate, endDate]);
+  // Suppress unused warning — patientLoading is intentionally tracked for future use
+  void patientLoading;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -95,6 +151,70 @@ export default function History() {
     const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
     window.history.replaceState({}, '', newUrl);
   }, [searchTerm]);
+
+  const hasActiveFilters =
+    searchTerm !== "" ||
+    riskCategory !== "All" ||
+    gender !== "All" ||
+    minAge !== undefined ||
+    maxAge !== undefined ||
+    startDate !== "" ||
+    endDate !== "";
+
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setRiskCategory("All");
+    setGender("All");
+    setMinAge(undefined);
+    setMaxAge(undefined);
+    setStartDate("");
+    setEndDate("");
+  };
+
+  const activeFilterChips = useMemo(() => {
+    const chips: any[] = [];
+    if (searchTerm) {
+      chips.push({ id: 'search', label: `Search: ${searchTerm}`, onRemove: () => setSearchTerm("") });
+    }
+    if (riskCategory !== "All") {
+      chips.push({ id: 'risk', label: `Risk: ${riskCategory}`, onRemove: () => setRiskCategory("All") });
+    }
+    if (gender !== "All") {
+      chips.push({ id: 'gender', label: `Gender: ${gender}`, onRemove: () => setGender("All") });
+    }
+    if (minAge !== undefined || maxAge !== undefined) {
+      const min = minAge !== undefined ? minAge : 0;
+      const max = maxAge !== undefined ? maxAge : '120+';
+      chips.push({ id: 'age', label: `Age: ${min} - ${max}`, onRemove: () => { setMinAge(undefined); setMaxAge(undefined); } });
+    }
+    if (startDate || endDate) {
+      const start = startDate ? format(new Date(startDate), "MMM d, yyyy") : "Any";
+      const end = endDate ? format(new Date(endDate), "MMM d, yyyy") : "Any";
+      chips.push({ id: 'date', label: `Date: ${start} - ${end}`, onRemove: () => { setStartDate(""); setEndDate(""); } });
+    }
+    return chips;
+  }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate]);
+
+  const handleUploadLabResults = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload/lab-results", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to upload");
+      toast({ title: "Success", description: data.message });
+    } catch (err: any) {
+      toast({ title: "Upload Error", description: err.message, variant: "destructive" });
+    }
+    e.target.value = ''; // Reset input
+  };
 
   const getRiskBadge = (category: string) => {
     const key = (category || "").toUpperCase();
@@ -136,29 +256,6 @@ export default function History() {
 
   const [, setLocation] = useLocation();
 
-  function exportAsPdf(assessment: any) {
-    const patientName = assessment.patientName || "Unknown Patient";
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${assessment.id}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Patient:</strong> ${patientName}</p><p class="kv"><strong>Date:</strong> ${new Date(assessment.createdAt).toLocaleString()}</p><p class="kv"><strong>Risk Score:</strong> ${Number(assessment.riskScore).toFixed(1)}%</p><p class="kv"><strong>Category:</strong> <span class="pill">${assessment.riskCategory}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals & Inputs</h2><table><tbody><tr><td>Age</td><td>${assessment.age}</td></tr><tr><td>BMI</td><td>${assessment.bmi}</td></tr><tr><td>HbA1c</td><td>${assessment.hba1cLevel}%</td></tr><tr><td>Blood Glucose</td><td>${assessment.bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${assessment.hypertension ? "Yes" : "No"}</td></tr><tr><td>Heart Disease</td><td>${assessment.heartDisease ? "Yes" : "No"}</td></tr><tr><td>Smoking</td><td>${assessment.smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(
-      assessment.factors || []
-    )
-      .slice(0, 5)
-      .map((f: any) => `<li>${f.name} — ${f.description} (${f.impact})</li>`)
-      .join("")}</ul></body></html>`;
-
-    const w = window.open("", "_blank", "noopener,noreferrer");
-    if (!w) {
-      alert("Please allow popups to enable PDF export.");
-      return;
-    }
-
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => {
-      w.print();
-    }, 250);
-  }
-
   function reloadToForm(assessment: any) {
     const draft = {
       patientName: assessment.patientName ?? "",
@@ -192,7 +289,7 @@ export default function History() {
       .replace(/'/g, "&#039;");
   }
 
-  function handleExportPDF(assessment: any) {
+  function exportAsPdf(assessment: any) {
     if (!assessment) return;
 
     const patientName = escapeHtml(assessment.patientName || "Unknown Patient");
@@ -232,28 +329,21 @@ export default function History() {
     }, 250);
   }
 
-  // 1. Text Search Filtering
-  const textFiltered = assessments
-    ? advancedFilter(assessments, searchTerm)
-    : [];
-
-  // 2. Reactive Date Range Filtering
-  const filteredAssessments = textFiltered.filter((assessment) => {
-    if (!assessment.createdAt) return true;
-    const itemDate = new Date(assessment.createdAt);
-
-    if (startDate) {
-      const startLimit = startOfDay(new Date(startDate));
-      if (isBefore(itemDate, startLimit)) return false;
-    }
-
-    if (endDate) {
-      const endLimit = endOfDay(new Date(endDate));
-      if (isAfter(itemDate, endLimit)) return false;
-    }
-
-    return true;
-  });
+  const filteredAssessments = useMemo(() => {
+    return filterAssessments(assessments, {
+      searchTerm,
+      riskCategory,
+      gender,
+      ageRange: {
+        min: minAge,
+        max: maxAge,
+      },
+      dateRange: {
+        startDate,
+        endDate,
+      },
+    });
+  }, [assessments, searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate]);
 
   // 3. Sorting Records
   const sortedAssessments = [...filteredAssessments].sort((a, b) => {
@@ -285,9 +375,45 @@ export default function History() {
     }
   });
 
+  const latestBadgeAssessment = useMemo(() => {
+    if (sortedAssessments.length === 0) return null;
+    return (
+      sortedAssessments.find((assessment) =>
+        calculateHealthBadges(assessment, sortedAssessments).length > 0
+      ) || sortedAssessments[0]
+    );
+  }, [sortedAssessments]);
+
+  const latestBadges = useMemo(() => {
+    if (!latestBadgeAssessment) return [];
+    return calculateHealthBadges(latestBadgeAssessment, sortedAssessments);
+  }, [latestBadgeAssessment, sortedAssessments]);
+
+  const selectedPatientBadges = useMemo(() => {
+    const sortedHistory = [...selectedPatientHistory].sort(
+      (a, b) =>
+        new Date(b.createdAt || 0).getTime() -
+        new Date(a.createdAt || 0).getTime()
+    );
+
+    if (sortedHistory.length === 0) return [];
+    return calculateHealthBadges(sortedHistory[0], sortedHistory);
+  }, [selectedPatientHistory]);
+
+  // Reset to first page when filters or sort change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate, sortBy]);
+
   // 4. Pagination
-  const totalRecords = sortedAssessments.length;
-  const paginatedAssessments = sortedAssessments;
+  const totalRecords = assessments.length;
+  const filteredRecords = sortedAssessments.length;
+  const totalPages = Math.max(1, Math.ceil(filteredRecords / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedAssessments = sortedAssessments.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE
+  );
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
@@ -320,7 +446,7 @@ export default function History() {
             <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight flex items-center gap-3">
               Patient History
               <span className="text-sm font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200">
-                {totalRecords} Match{totalRecords !== 1 ? 'es' : ''}
+                Showing {filteredRecords} of {totalRecords}
               </span>
             </h1>
             <p className="text-muted-foreground mt-2 text-lg">
@@ -328,90 +454,50 @@ export default function History() {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
-            {/* Text Search Field */}
-            <div className="relative">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search history..."
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-4">
+              <AssessmentSearchBar
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-10 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20 transition-all w-full sm:w-64"
+                onSearch={setSearchTerm}
+                onClear={() => setSearchTerm("")}
               />
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded-full hover:bg-muted"
-                  aria-label="Clear search query"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
+              <AssessmentFilters
+                riskCategory={riskCategory}
+                gender={gender}
+                minAge={minAge}
+                maxAge={maxAge}
+                startDate={startDate}
+                endDate={endDate}
+                onRiskChange={setRiskCategory}
+                onGenderChange={setGender}
+                onAgeChange={({ minAge: nextMinAge, maxAge: nextMaxAge }) => {
+                  setMinAge(nextMinAge);
+                  setMaxAge(nextMaxAge);
+                }}
+                onStartDateChange={setStartDate}
+                onEndDateChange={setEndDate}
+                onClearDateRange={clearDateFilters}
+              />
             </div>
-
-            {/* Interactive Click-to-Pick Date-Range Selector */}
-            <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 shadow-sm select-none">
-              <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
-
-              <div
-                onClick={triggerStartPicker}
-                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center"
-              >
-                <span
-                  className={`text-sm font-medium ${startDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}
-                >
-                  {startDate
-                    ? format(new Date(startDate), "MMM d, yyyy")
-                    : "Start Date"}
-                </span>
-                <input
-                  ref={startInputRef}
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="sr-only"
-                  aria-label="Start date"
-                />
+            <div className="space-y-4 rounded-3xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Filters active</p>
+                  <p className="text-sm text-muted-foreground">Use these chips to remove filters quickly.</p>
+                </div>
+                <ClearFiltersButton onClear={clearAllFilters} disabled={!hasActiveFilters} />
               </div>
-
-              <span className="text-muted-foreground text-xs font-bold px-0.5">
-                to
-              </span>
-
-              <div
-                onClick={triggerEndPicker}
-                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center"
-              >
-                <span
-                  className={`text-sm font-medium ${endDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}
-                >
-                  {endDate
-                    ? format(new Date(endDate), "MMM d, yyyy")
-                    : "End Date"}
-                </span>
-                <input
-                  ref={endInputRef}
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="sr-only"
-                  aria-label="End date"
-                />
-              </div>
-
-              {(startDate || endDate) && (
-                <button
-                  type="button"
-                  onClick={clearDateFilters}
-                  className="text-muted-foreground hover:text-foreground ml-1 p-0.5 rounded-full hover:bg-muted transition-colors"
-                  aria-label="Clear date filters"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+              <ActiveFilterChips chips={activeFilterChips} onClearAll={clearAllFilters} />
             </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
+            {/* Upload Lab Results Button */}
+            <label className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors shadow-sm">
+              <Upload className="w-4 h-4" />
+              Upload Lab Results
+              <input type="file" className="sr-only" onChange={handleUploadLabResults} />
+            </label>
 
             {/* Sort Dropdown */}
             <select
@@ -445,19 +531,34 @@ export default function History() {
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4 text-muted-foreground">
               <Activity className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-foreground mb-2">
-              {searchTerm || startDate || endDate
-                ? "No Matching Records"
-                : "No Assessments Found"}
-            </h3>
+            <h3 className="text-xl font-bold text-foreground mb-2">No Assessments Found</h3>
             <p className="text-muted-foreground max-w-md">
-              {searchTerm || startDate || endDate
-                ? "No patient records matching your current filter limits were found. Try refining your parameters."
-                : "There are no patient assessments matching your criteria. Go to the dashboard to create a new assessment."}
+              There are no patient assessments loaded yet. Go to the dashboard to create a new assessment.
+            </p>
+          </div>
+        ) : filteredRecords === 0 ? (
+          <div className="bg-card border border-border border-dashed rounded-2xl p-12 text-center flex flex-col items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4 text-muted-foreground">
+              <Activity className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-foreground mb-2">No Matching Records</h3>
+            <p className="text-muted-foreground max-w-md">
+              No patient records matching your current filter limits were found. Try refining or clearing your filters.
             </p>
           </div>
         ) : (
-          <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+          <>
+            <div className="grid gap-6">
+              <HealthBadges
+                badges={latestBadges}
+                title="Latest improvement badges"
+                description="Badges earned when a patient assessment improves key metrics or lowers overall risk compared to prior records."
+              />
+              <AssessmentComparisonCard
+                assessments={sortedAssessments}
+              />
+            </div>
+            <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -616,16 +717,42 @@ export default function History() {
               <div className="text-sm text-muted-foreground font-medium">
                 Showing{" "}
                 <span className="font-semibold text-foreground">
-                  {totalRecords === 0 ? 0 : 1}
+                  {filteredRecords === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}
                 </span>{" "}
                 to{" "}
                 <span className="font-semibold text-foreground">
-                  {totalRecords}
+                  {Math.min(safePage * PAGE_SIZE, filteredRecords)}
                 </span>{" "}
-                records on this page
+                of{" "}
+                <span className="font-semibold text-foreground">
+                  {filteredRecords}
+                </span>{" "}
+                filtered records (page {safePage} of {totalPages})
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="inline-flex items-center justify-center p-2 px-3 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-30 transition-colors shadow-sm cursor-pointer font-bold text-sm"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Prev
+                </button>
+                <span className="text-sm text-muted-foreground font-medium px-2">
+                  {safePage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  disabled={safePage >= totalPages}
+                  className="inline-flex items-center justify-center p-2 px-3 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-30 transition-colors shadow-sm cursor-pointer font-bold text-sm"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </button>
+
                 {hasNextPage && (
                   <button
                     type="button"
@@ -640,16 +767,58 @@ export default function History() {
                     )}
                   </button>
                 )}
-
               </div>
             </div>
           </div>
+          </>
         )}
       </div>
+
+      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientName(null)}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto sm:border-l sm:border-slate-200">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="text-2xl font-bold font-display">Longitudinal Trajectory</SheetTitle>
+            <p className="text-sm text-muted-foreground">Patient: <span className="font-semibold text-foreground">{selectedPatientName}</span></p>
+          </SheetHeader>
+          
+          {selectedPatientHistory.length > 0 && (
+            <div className="space-y-6 pb-12">
+              <HealthBadges
+                badges={selectedPatientBadges}
+                title="Patient improvement badges"
+                description="Track earned badges for this patient's trajectory across the selected assessments."
+              />
+              <RiskTrendChart assessments={selectedPatientHistory} />
+              
+              <div className="border border-border rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead className="bg-muted/50 border-b border-border">
+                    <tr>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">Date</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">Risk Score</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">BMI</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">HbA1c</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {selectedPatientHistory.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((a) => (
+                      <tr key={a.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="p-3 whitespace-nowrap">{formatAssessmentDate(a.createdAt)}</td>
+                        <td className="p-3 font-bold text-foreground">{Number(a.riskScore).toFixed(1)}%</td>
+                        <td className="p-3">{Number(a.bmi).toFixed(1)}</td>
+                        <td className="p-3">{Number(a.hba1cLevel).toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </AppLayout>
   );
 }
-
 
 
 

@@ -1,0 +1,56 @@
+import { format } from "date-fns";
+import { type AssessmentResponse } from "@shared/routes";
+
+interface AssessmentSelectorProps {
+  label: string;
+  assessments: AssessmentResponse[];
+  selectedId: string | number | null;
+  onChange: (id: string) => void;
+  excludeId?: string | number | null;
+}
+
+export default function AssessmentSelector({
+  label,
+  assessments,
+  selectedId,
+  onChange,
+  excludeId,
+}: AssessmentSelectorProps) {
+  const formatOption = (assessment: AssessmentResponse) => {
+    const dateValue = assessment.createdAt
+      ? new Date(assessment.createdAt)
+      : new Date();
+    const dateLabel = isNaN(dateValue.getTime())
+      ? "Unknown date"
+      : format(dateValue, "MMM d, yyyy");
+    const score = Number(assessment.riskScore);
+
+    return `${assessment.patientName || "Patient"} • ${dateLabel} • ${
+      !Number.isNaN(score) ? `${score.toFixed(1)}% risk` : "No risk score"
+    }`;
+  };
+
+  return (
+    <label className="block text-sm font-semibold text-foreground">
+      <span className="mb-2 block text-sm font-semibold text-muted-foreground">{label}</span>
+      <select
+        value={selectedId ?? ""}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-sm text-foreground focus:border-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-600/20 transition-colors"
+      >
+        <option value="" disabled>
+          Select assessment
+        </option>
+        {assessments.map((assessment) => {
+          const idString = String(assessment.id);
+          const disabled = excludeId !== undefined && String(excludeId) === idString;
+          return (
+            <option key={idString} value={idString} disabled={disabled}>
+              {formatOption(assessment)}
+            </option>
+          );
+        })}
+      </select>
+    </label>
+  );
+}

@@ -21,6 +21,12 @@ import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
 import { logger } from "./logger";
 import { requestIdMiddleware } from "./middleware/requestId";
+import {
+  verifyRedisConnection,
+  startAssessmentWorker,
+  closeQueue,
+} from "./queue";
+import { EmailConfigurationError, validateSmtpConfig } from "./email";
 
 
 const execFileAsync = promisify(execFile);
@@ -64,6 +70,7 @@ app.use(
     secret: getSessionSecret(),
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     store: new PgSession({
       pool: getPool(),
       tableName: "session",
@@ -73,7 +80,7 @@ app.use(
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 15 * 60 * 1000, // 15 minutes
     },
   })
 );
@@ -179,8 +186,31 @@ app.use((req, res, next) => {
     process.exit(1);
   }
 
+  try {
+    validateSmtpConfig();
+  } catch (error) {
+    if (error instanceof EmailConfigurationError) {
+      logger.error({ err: error }, error.message);
+    } else {
+      logger.error({ err: error }, "Unexpected email configuration error");
+    }
+
+    await closePool();
+    process.exit(1);
+  }
+
+  const queueReady = await verifyRedisConnection();
+  if (queueReady) {
+    startAssessmentWorker();
+    logger.info({ source: "redis" }, "Assessment queue ready.");
+  } else {
+    logger.warn({ source: "redis" }, "Redis unavailable — async assessment queue disabled.");
+  }
+
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
+  // Register protected patient EMR/EHR integration endpoints
+  app.use("/api/patients", patientsRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
   execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
@@ -226,6 +256,12 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || "5000", 10);
   const host = process.env.HOST || "0.0.0.0";
 
+  httpServer.on("error", async (error) => {
+    logger.error({ err: error }, "Server startup failed");
+    await closePool();
+    process.exit(1);
+  });
+
   httpServer.listen(
     {
       port,
@@ -242,6 +278,8 @@ app.use((req, res, next) => {
 
     httpServer.close(async () => {
       logger.info({ source: "express" }, "HTTP server closed");
+      await closeQueue();
+      logger.info({ source: "express" }, "Assessment queue closed");
       await closePool();
       logger.info({ source: "express" }, "Database pool closed");
       process.exit(0);
@@ -257,8 +295,3 @@ app.use((req, res, next) => {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 })();
-
-
-// GSSoC Issue #687 Patch
-    // GSSoC Issue #687 exit process on DB fail
-    process.exit(1);
