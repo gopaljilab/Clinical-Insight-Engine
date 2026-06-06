@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { randomInt, randomBytes } from "crypto";
 import bcrypt from "bcrypt";
 import { rateLimit } from "express-rate-limit";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { getDb } from "./db";
 import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
@@ -50,13 +50,14 @@ function verifyPassword(password: string, storedHash: string): boolean {
 interface PendingOtp {
   otp: string;
   expiresAt: number;
+  attempts: number;
 }
 
 /**
  * In-memory OTP store keyed by email.
  * Each entry expires after 10 minutes.
  */
-const pendingOtps = new Map<string, PendingOtp>();
+export const pendingOtps = new Map<string, PendingOtp>();
 
 function normalizeRateLimitEmail(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -346,7 +347,7 @@ export function createAuthRouter(): Router {
     }
 
     const otp = generateOtp();
-    pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+    pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000, attempts: 0 });
 
     // Send verification email
     const emailSent = await sendVerificationCode(email, otp);
@@ -388,7 +389,7 @@ export function createAuthRouter(): Router {
           return res.status(400).json({ message: "OTP has expired. Please sign in again." });
         }
 
-        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime() });
+        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime(), attempts: 0 });
         const emailSent = await sendVerificationCode(email, otp);
         if (!emailSent) {
           return res.status(503).json({ message: "Failed to send verification email. Please try again." });
@@ -473,12 +474,29 @@ export function createAuthRouter(): Router {
     }
 
     if (pending.otp !== otp) {
+      pending.attempts = (pending.attempts ?? 0) + 1;
+
+      if (pending.attempts >= 3) {
+        pendingOtps.delete(email);
+        await storage.recordLoginAudit({
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+          loginStatus: "otp_failed_lockout",
+        });
+        return res.status(429).json({
+          message: "Too many failed attempts. Please sign in again.",
+        });
+      }
+
       await storage.recordLoginAudit({
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
         loginStatus: "otp_failed",
       });
-      return res.status(401).json({ message: "Invalid OTP. Please try again." });
+      const remaining = 3 - pending.attempts;
+      return res.status(401).json({
+        message: `Invalid OTP. ${remaining} attempt(s) remaining.`,
+      });
     }
 
     pendingOtps.delete(email);
@@ -753,6 +771,13 @@ export function createAuthRouter(): Router {
 
       await db.update(users).set({ passwordHash }).where(eq(users.id, resetToken.userId));
       await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, resetToken.id));
+
+      // Invalidate all active sessions for the user to prevent session hijacking
+      try {
+        await db.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${resetToken.userId}`);
+      } catch (sessErr) {
+        logger.error({ err: sessErr, userId: resetToken.userId }, "Failed to clear user sessions upon password reset");
+      }
 
       return res.json({ success: true, message: "Password has been reset successfully." });
     } catch (err) {

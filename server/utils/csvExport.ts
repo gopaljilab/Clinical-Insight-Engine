@@ -6,5 +6,5 @@ export function assessmentsToCsv(data: Record<string, unknown>[]): string {
   const rows = data.map((row) =>
     headers.map((h) => escapeCsvCell(row[h])).join(",")
   );
-  return [headers.map(escapeCsvCell).join(","), ...rows].join("\\n");
+  return [headers.map(escapeCsvCell).join(","), ...rows].join("\n");
 }
