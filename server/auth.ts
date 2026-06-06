@@ -6,7 +6,7 @@ import { eq, and, gte } from "drizzle-orm";
 import { storage } from "./storage";
 import { getDb } from "./db";
 import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
-import { sendVerificationCode } from "./email";
+import { sendVerificationCode, sendPasswordResetEmail } from "./email";
 import { logger } from "./logger";
 import { validateDTO } from "./middleware/validateDTO";
 import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswordDTOSchema, verifyEmailDTOSchema, verifyOtpDTOSchema } from "./validation/auth.dto";
@@ -277,7 +277,10 @@ export function createAuthRouter(): Router {
       });
 
       // Send verification email
-      await sendVerificationCode(email, otp);
+      const emailSent = await sendVerificationCode(email, otp);
+      if (!emailSent) {
+        return res.status(503).json({ message: "Failed to send verification email. Please try again." });
+      }
 
       // In production, send OTP via email. For development, return it in the response.
       logDevOtp(email, otp);
@@ -346,7 +349,10 @@ export function createAuthRouter(): Router {
     pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
 
     // Send verification email
-    await sendVerificationCode(email, otp);
+    const emailSent = await sendVerificationCode(email, otp);
+    if (!emailSent) {
+      return res.status(503).json({ message: "Failed to send verification email. Please try again." });
+    }
 
     // In production, send OTP via email. For development, return it in the response.
     logDevOtp(email, otp);
@@ -383,7 +389,10 @@ export function createAuthRouter(): Router {
         }
 
         pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime() });
-        await sendVerificationCode(email, otp);
+        const emailSent = await sendVerificationCode(email, otp);
+        if (!emailSent) {
+          return res.status(503).json({ message: "Failed to send verification email. Please try again." });
+        }
         logDevOtp(email, otp);
 
         return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
@@ -422,7 +431,10 @@ export function createAuthRouter(): Router {
         });
       });
 
-      await sendVerificationCode(email, otp);
+      const emailSent = await sendVerificationCode(email, otp);
+      if (!emailSent) {
+        return res.status(503).json({ message: "Failed to send verification email. Please try again." });
+      }
       logDevOtp(email, otp);
 
       return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
@@ -691,13 +703,9 @@ export function createAuthRouter(): Router {
 
       const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password?token=${token}`;
 
-      if (process.env.NODE_ENV !== "production") {
-        const border = "=".repeat(44);
-        logger.info(`\n${border}`);
-        logger.info("  PASSWORD RESET");
-        logger.info(`  To: ${email}`);
-        logger.info(`  Link: ${resetLink}`);
-        logger.info(`${border}\n`);
+      const emailSent = await sendPasswordResetEmail(email, resetLink);
+      if (!emailSent) {
+        return res.status(503).json({ message: "Failed to send password reset email. Please try again." });
       }
 
       return res.json({ success: true, message: "If an account exists, a reset link has been sent." });

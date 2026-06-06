@@ -9,6 +9,7 @@ import { randomUUID } from "crypto";
 import { writeFile, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import { fileURLToPath } from "url";
+import { sendCriticalRiskAlert } from "./email";
 import { logger } from "./logger";
 
 export function getPythonExecutable() {
@@ -133,6 +134,21 @@ export function startAssessmentWorker(): void {
           createdBy: userEmail || userId,
           userId: userId
         });
+
+        if (prediction.riskCategory === "HIGH" && userEmail) {
+          const alertSent = await sendCriticalRiskAlert(
+            userEmail,
+            input.patientName ?? "Unknown Patient",
+            Number(prediction.riskScore),
+            assessment.id,
+          );
+          if (!alertSent) {
+            logger.error(
+              { assessmentId: assessment.id, userEmail },
+              "Critical risk alert email failed to send",
+            );
+          }
+        }
 
         return {
           ...assessment,

@@ -26,6 +26,7 @@ import {
   startAssessmentWorker,
   closeQueue,
 } from "./queue";
+import { EmailConfigurationError, validateSmtpConfig } from "./email";
 
 
 const execFileAsync = promisify(execFile);
@@ -179,6 +180,19 @@ app.use((req, res, next) => {
       logger.error({ err: error }, error.message);
     } else {
       logger.error({ err: error }, "Unexpected database startup error");
+    }
+
+    await closePool();
+    process.exit(1);
+  }
+
+  try {
+    validateSmtpConfig();
+  } catch (error) {
+    if (error instanceof EmailConfigurationError) {
+      logger.error({ err: error }, error.message);
+    } else {
+      logger.error({ err: error }, "Unexpected email configuration error");
     }
 
     await closePool();
