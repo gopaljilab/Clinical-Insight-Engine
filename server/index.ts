@@ -182,6 +182,8 @@ app.use((req, res, next) => {
 
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
+  // Register protected patient EMR/EHR integration endpoints
+  app.use("/api/patients", patientsRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
   execFileAsync(getPythonExecutable(), ["analyze.py", "train"])

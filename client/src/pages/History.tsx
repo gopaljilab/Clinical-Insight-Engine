@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useAssessments } from "@/hooks/use-assessments";
+import { useAssessments, usePatientAssessments, useClearPatientCache } from "@/hooks/use-assessments";
 import {
   format,
   isValid,
@@ -17,27 +17,27 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ShieldAlert,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
-import { FileText, RotateCw } from "lucide-react";
+import { FileText, RotateCw, Upload } from "lucide-react";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 import { advancedFilter } from "@/utils/search_filters";
+import { validateSearchInput } from "@/validation/filterValidation";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
 
-  const regex = new RegExp(
-    `(${search.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")})`,
-    "gi"
-  );
-  const parts = text.split(regex);
+  const escaped = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
 
   return (
     <>
       {parts.map((part, i) =>
-        regex.test(part) ? (
+        i % 2 === 1 ? (
           <mark
             key={i}
             className="bg-yellow-100 text-[#1E293B] rounded px-0.5 font-bold"
@@ -57,9 +57,14 @@ export default function History() {
     document.title = "Clinical Insight Engine - Assessment History";
   }, []);
 
+  const { toast } = useToast();
+
+
   const { data: infiniteData, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useAssessments();
   const assessments = infiniteData ? infiniteData.pages.flatMap((page) => page.data) : [];
   const [searchTerm, setSearchTerm] = useState("");
+  // Security (Issue #743): track if the last input was rejected so we can show a warning.
+  const [searchRejected, setSearchRejected] = useState(false);
   const [sortBy, setSortBy] = useState<string>("date-desc");
 
   // Date filter state
@@ -70,20 +75,55 @@ export default function History() {
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
 
-  const [selectedPatientName, setSelectedPatientName] = useState<string | null>(null);
+  const [selectedPatientKey, setSelectedPatientKey] = useState<string | null>(null);
+  const clearPatientCache = useClearPatientCache();
+
+  /**
+   * Build a stable per-patient key from the two fields that are recorded at
+   * assessment time and never change for a real patient: name + gender.
+   * Filtering by name alone would merge unrelated patients who share the same
+   * name (issue #794).
+   */
+  const patientKey = (a: { patientName?: string | null; gender?: string | null }) =>
+    `${(a.patientName || "Unknown Patient").toLowerCase().trim()}|${(a.gender || "").toLowerCase().trim()}`;
+
+  // Derive the plain name for the cache-scoped patient query from the composite key.
+  const selectedPatientName = selectedPatientKey ? selectedPatientKey.split("|")[0] : null;
+
+  // FIX for Issue #744: use a patient-scoped query so switching patients
+  // never leaks the previous patient's cached clinical data into the new view.
+  const {
+    data: patientInfiniteData,
+    isLoading: patientLoading,
+  } = usePatientAssessments(selectedPatientName);
+
+  // When a new patient is selected, clear the previous patient's cache entry
+  // and reset search state so no stale data is shown during the transition.
+  const handleSelectPatient = (key: string | null) => {
+    const prevName = selectedPatientKey ? selectedPatientKey.split("|")[0] : null;
+    const nextName = key ? key.split("|")[0] : null;
+    if (prevName && prevName !== nextName) {
+      clearPatientCache(prevName);
+    }
+    setSelectedPatientKey(key);
+    // Reset search/filter state to avoid cross-patient filter bleed-through.
+    setSearchTerm("");
+    setStartDate("");
+    setEndDate("");
+  };
 
   const selectedPatientHistory = useMemo(() => {
-    if (!selectedPatientName || !assessments) return [];
-    return assessments.filter(a => {
-       const pName = a.patientName || "Unknown Patient";
-       return pName === selectedPatientName;
-    });
-  }, [assessments, selectedPatientName]);
+    if (!selectedPatientKey) return [];
+    // Use the patient-scoped query data (isolated cache) filtered by composite
+    // key to prevent same-name cross-patient data leakage (issues #744, #794).
+    const source = patientInfiniteData
+      ? patientInfiniteData.pages.flatMap((page) => page.data)
+      : assessments;
+    return source.filter(a => patientKey(a) === selectedPatientKey);
+  }, [assessments, selectedPatientKey, patientInfiniteData]);
 
-  // Reset pagination when search/filter changes
-  useEffect(() => {
-    // Handled by react-query
-  }, [searchTerm, sortBy, startDate, endDate]);
+  // Suppress unused warning — patientLoading is intentionally tracked for future use
+  void patientLoading;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -95,6 +135,27 @@ export default function History() {
     const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
     window.history.replaceState({}, '', newUrl);
   }, [searchTerm]);
+
+  const handleUploadLabResults = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload/lab-results", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to upload");
+      toast({ title: "Success", description: data.message });
+    } catch (err: any) {
+      toast({ title: "Upload Error", description: err.message, variant: "destructive" });
+    }
+    e.target.value = ''; // Reset input
+  };
 
   const getRiskBadge = (category: string) => {
     const key = (category || "").toUpperCase();
@@ -329,6 +390,13 @@ export default function History() {
           </div>
 
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
+            {/* Upload Lab Results Button */}
+            <label className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors shadow-sm">
+              <Upload className="w-4 h-4" />
+              Upload Lab Results
+              <input type="file" className="sr-only" onChange={handleUploadLabResults} />
+            </label>
+
             {/* Text Search Field */}
             <div className="relative">
               <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -336,9 +404,37 @@ export default function History() {
                 type="text"
                 placeholder="Search history..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-10 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20 transition-all w-full sm:w-64"
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  // FIX for Issue #743: validate and sanitize input before storing in
+                  // state. SQL injection patterns (e.g. `' OR 1=1 --`) are rejected
+                  // here at the client layer. The server independently validates via
+                  // Drizzle ORM parameterized queries + Zod schema (defence in depth).
+                  const safe = validateSearchInput(raw, () => {
+                    setSearchRejected(true);
+                    // Auto-clear the warning after 3 seconds
+                    setTimeout(() => setSearchRejected(false), 3000);
+                  });
+                  setSearchTerm(safe);
+                }}
+                className={`pl-10 pr-10 py-2.5 rounded-xl border bg-card focus:outline-none focus:ring-4 transition-all w-full sm:w-64 ${
+                  searchRejected
+                    ? "border-red-400 focus:border-red-500 focus:ring-red-100 dark:focus:ring-red-900/30"
+                    : "border-border focus:border-blue-600 focus:ring-blue-600/20"
+                }`}
+                aria-invalid={searchRejected}
+                aria-describedby={searchRejected ? "search-security-warning" : undefined}
               />
+              {searchRejected && (
+                <div
+                  id="search-security-warning"
+                  role="alert"
+                  className="absolute top-full mt-1.5 left-0 z-10 flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/40 dark:border-red-800 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 shadow-sm"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                  Invalid search pattern detected and blocked.
+                </div>
+              )}
               {searchTerm && (
                 <button
                   type="button"
@@ -355,9 +451,11 @@ export default function History() {
             <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 shadow-sm select-none">
               <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
 
-              <div
+              <button
+                type="button"
                 onClick={triggerStartPicker}
-                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center"
+                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                aria-label={startDate ? `Start date: ${format(new Date(startDate), "MMM d, yyyy")}` : "Choose start date"}
               >
                 <span
                   className={`text-sm font-medium ${startDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}
@@ -372,17 +470,20 @@ export default function History() {
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   className="sr-only"
-                  aria-label="Start date"
+                  tabIndex={-1}
+                  aria-hidden="true"
                 />
-              </div>
+              </button>
 
-              <span className="text-muted-foreground text-xs font-bold px-0.5">
+              <span className="text-muted-foreground text-xs font-bold px-0.5" aria-hidden="true">
                 to
               </span>
 
-              <div
+              <button
+                type="button"
                 onClick={triggerEndPicker}
-                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center"
+                className="cursor-pointer hover:bg-muted/50 px-2 py-0.5 rounded transition-colors min-w-[85px] text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                aria-label={endDate ? `End date: ${format(new Date(endDate), "MMM d, yyyy")}` : "Choose end date"}
               >
                 <span
                   className={`text-sm font-medium ${endDate ? "text-foreground font-semibold" : "text-muted-foreground"}`}
@@ -397,9 +498,10 @@ export default function History() {
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="sr-only"
-                  aria-label="End date"
+                  tabIndex={-1}
+                  aria-hidden="true"
                 />
-              </div>
+              </button>
 
               {(startDate || endDate) && (
                 <button

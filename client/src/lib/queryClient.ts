@@ -41,7 +41,10 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: true,
-      staleTime: 30 * 1000, // 30 seconds
+      // Set to 0 so assessment data is never considered "fresh" from cache.
+      // This prevents stale patient records from being served when navigating
+      // between patients (fix for Issue #744: Cross-Patient Data Leakage).
+      staleTime: 0,
       retry: false,
     },
     mutations: {

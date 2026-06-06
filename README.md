@@ -583,6 +583,7 @@ Clinical-Insight-Engine/
 
 | Method | Endpoint | Description |
 |---|---|---|
+| `GET` | `/health` | Application health check endpoint for monitoring |
 | `POST` | `/api/assessments` | Submit a new risk assessment |
 | `GET` | `/api/assessments` | Retrieve assessment history |
 | `GET` | `/api/assessments/:id` | Get a specific assessment by ID |
@@ -590,6 +591,10 @@ Clinical-Insight-Engine/
 ### Example Request
 
 ```bash
+# Health Check
+curl -X GET http://localhost:3000/health
+
+# Submit Assessment
 curl -X POST http://localhost:3000/api/assessments \
   -H "Content-Type: application/json" \
   -d '{

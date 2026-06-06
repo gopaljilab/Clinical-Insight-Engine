@@ -9,7 +9,7 @@ import pandas as pd
 from app.ml.prediction_cache import get_cache
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
-import joblib
+import pickle
 
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
 
@@ -24,7 +24,7 @@ DATA_FILE = os.path.join(SCRIPT_DIR, "attached_assets", "diabetes_dataset.csv")
 # Fall back to the legacy location if attached_assets doesn't have it
 if not os.path.exists(DATA_FILE):
     DATA_FILE = os.path.join(SCRIPT_DIR, "diabetes_dataset.csv")
-MODEL_FILE = os.path.join(SCRIPT_DIR, "diabetes_model.joblib")
+MODEL_FILE = os.path.join(SCRIPT_DIR, "diabetes_model.pkl")
 LOCK_FILE = MODEL_FILE + ".lock"
 
 def create_synthetic_data():
@@ -210,7 +210,8 @@ def _atomic_write(filepath, data):
     fd, tmp_path = tempfile.mkstemp(dir=dirpath, suffix='.tmp')
     try:
         os.close(fd)
-        joblib.dump(data, tmp_path)
+        with open(tmp_path, 'wb') as f:
+            pickle.dump(data, f)
         os.replace(tmp_path, filepath)
     except BaseException:
         try:
@@ -275,7 +276,8 @@ def get_model():
     # Try to load the cached model without locking first (fast path)
     if os.path.exists(MODEL_FILE):
         try:
-            model_data = joblib.load(MODEL_FILE)
+            with open(MODEL_FILE, 'rb') as f:
+                model_data = pickle.load(f)
             if isinstance(model_data, tuple) and len(model_data) >= 3:
                 model, scaler, features = model_data[:3]
                 cached_hash = model_data[3] if len(model_data) >= 4 else None
@@ -314,7 +316,8 @@ def get_model():
         # already retrained and written a fresh model while we waited
         if os.path.exists(MODEL_FILE):
             try:
-                model_data = joblib.load(MODEL_FILE)
+                with open(MODEL_FILE, 'rb') as f:
+                    model_data = pickle.load(f)
                 if isinstance(model_data, tuple) and len(model_data) >= 3:
                     cached_hash = model_data[3] if len(model_data) >= 4 else None
                     cov_beta = model_data[4] if len(model_data) >= 5 else None
@@ -355,20 +358,25 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     input_df = pd.DataFrame(0, index=[0], columns=features)
     # ... (rest of the logic remains same but ensuring non-diagnostic language)
     
-    input_df['age'] = input_data.get('age', 40)
-    input_df['hypertension'] = int(input_data.get('hypertension', False))
-    input_df['heart_disease'] = int(input_data.get('heartDisease', False))
-    input_df['bmi'] = input_data.get('bmi', 25)
-    input_df['HbA1c_level'] = input_data.get('hba1cLevel', 5.5)
-    input_df['blood_glucose_level'] = input_data.get('bloodGlucoseLevel', 100)
-    gender_value = input_data.get('gender')
+    def _safe_get(data, key, default_val):
+        val = data.get(key)
+        return val if val is not None else default_val
+
+    input_df['age'] = _safe_get(input_data, 'age', 40)
+    input_df['hypertension'] = int(_safe_get(input_data, 'hypertension', False))
+    input_df['heart_disease'] = int(_safe_get(input_data, 'heartDisease', False))
+    input_df['bmi'] = _safe_get(input_data, 'bmi', 25)
+    input_df['HbA1c_level'] = _safe_get(input_data, 'hba1cLevel', 5.5)
+    input_df['blood_glucose_level'] = _safe_get(input_data, 'bloodGlucoseLevel', 100)
+    gender_value = _safe_get(input_data, 'gender', 'Female')
     # The model was trained exclusively on Male/Female data — 'Other' gender
     # patients are silently encoded as 0 (Female) since gender_Male is a binary
     # feature. Emit a warning so this limitation is visible in the response.
     gender_outside_training_distribution = gender_value not in ('Male', 'Female')
     input_df['gender_Male'] = 1 if gender_value == 'Male' else 0
     
-    smoke_col = f"smoke_{input_data.get('smokingHistory', 'never')}"
+    smoking_history = _safe_get(input_data, 'smokingHistory', 'never')
+    smoke_col = f"smoke_{smoking_history}"
     if smoke_col in features:
         input_df[smoke_col] = 1
         

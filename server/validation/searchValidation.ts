@@ -22,7 +22,7 @@ const SQL_INJECTION_PATTERNS: RegExp[] = [
   /'\s*(OR|AND)\s*'/i,                                           // ' OR '
   /UNION\s+(ALL\s+)?SELECT/i,                                    // UNION SELECT
   /;\s*(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|TRUNCATE)\b/i,    // ; DROP TABLE ...
-  /--\s*$/m,                                                     // -- comment
+  /--+/,                                                         // SQL line comment: -- or trailing -- space
   /\/\*.*\*\//s,                                                 // /* block comment */
   /\bEXEC\s*\(/i,                                               // EXEC(
   /\bxp_\w+/i,                                                  // xp_ stored procs

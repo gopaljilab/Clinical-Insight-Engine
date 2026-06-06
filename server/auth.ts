@@ -327,6 +327,84 @@ export function createAuthRouter(): Router {
   });
 
   /**
+   * POST /api/auth/resend-otp
+   * Resends a verification code for an already-started login or registration flow.
+   */
+  router.post("/resend-otp", resendLimiter, async (req: Request, res: Response) => {
+    const email = (req.body?.email ?? "").trim().toLowerCase();
+    const mode = req.body?.mode === "register" ? "register" : "login";
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+
+    const otp = generateOtp();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    try {
+      if (mode === "login") {
+        const pending = pendingOtps.get(email);
+
+        if (!pending) {
+          return res.status(400).json({ message: "No pending verification found for this email. Please sign in again." });
+        }
+
+        if (Date.now() > pending.expiresAt) {
+          pendingOtps.delete(email);
+          return res.status(400).json({ message: "OTP has expired. Please sign in again." });
+        }
+
+        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime() });
+        await sendVerificationCode(email, otp);
+        logDevOtp(email, otp);
+
+        return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+      }
+
+      const db = getDb();
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      if (user.emailVerified) {
+        return res.status(400).json({ message: "Email is already verified." });
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(emailVerificationTokens)
+          .set({ used: true })
+          .where(and(
+            eq(emailVerificationTokens.userId, user.id),
+            eq(emailVerificationTokens.used, false),
+          ));
+
+        await tx.insert(emailVerificationTokens).values({
+          userId: user.id,
+          verificationCode: otp,
+          expiresAt,
+          used: false,
+          attemptCount: 0,
+        });
+      });
+
+      await sendVerificationCode(email, otp);
+      logDevOtp(email, otp);
+
+      return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+    } catch (err) {
+      logger.error({ err }, "OTP resend error");
+      return res.status(500).json({ message: "Failed to resend verification code." });
+    }
+  });
+
+  /**
    * POST /api/auth/verify-otp
    * Verifies the OTP sent after login/register and establishes a session.
    */
