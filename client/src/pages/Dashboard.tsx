@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { EmptyState } from "@/components/EmptyState";
 import { AssessmentResult } from "@/components/AssessmentResult";
 import { BMIClassificationHelper } from "@/components/BMIClassificationHelper";
 import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
@@ -225,20 +226,30 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:min-w-115">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div
-                  key={stat.label}
-                  className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500">
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    <Icon className="h-5 w-5" />
+            {assessments.length === 0 ? (
+              <div className="sm:col-span-3">
+                <EmptyState
+                  icon={Activity}
+                  title="No Assessments Yet"
+                  description="Your statistics will appear here once you run your first risk assessment."
+                />
+              </div>
+            ) : (
+              stats.map((stat) => {
+                const Icon = stat.icon;
+                return (
+                  <div
+                    key={stat.label}
+                    className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <p className="text-lg font-black text-[#1E293B]">{stat.value}</p>
+                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{stat.label}</p>
                   </div>
-                  <p className="text-lg font-black text-[#1E293B]">{stat.value}</p>
-                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{stat.label}</p>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 

@@ -23,6 +23,7 @@ import { filterAssessments, type GenderFilterValue, type RiskCategoryFilterValue
 import { advancedFilter } from "@/utils/search_filters";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import RiskTrendChart from "@/components/RiskTrendChart";
+import { EmptyState } from "@/components/EmptyState";
 import HealthBadges from "@/components/HealthBadges";
 import { calculateHealthBadges } from "@/utils/healthBadges";
 import { AssessmentSearchBar } from "@/components/AssessmentSearchBar";
@@ -527,15 +528,13 @@ export default function History() {
             Failed to load history. Please try again later.
           </div>
         ) : totalRecords === 0 ? (
-          <div className="bg-card border border-border border-dashed rounded-2xl p-12 text-center flex flex-col items-center justify-center">
-            <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4 text-muted-foreground">
-              <Activity className="w-8 h-8" />
-            </div>
-            <h3 className="text-xl font-bold text-foreground mb-2">No Assessments Found</h3>
-            <p className="text-muted-foreground max-w-md">
-              There are no patient assessments loaded yet. Go to the dashboard to create a new assessment.
-            </p>
-          </div>
+          <EmptyState
+            icon={Activity}
+            title="No Assessments Found"
+            description="There are no patient assessments loaded yet. Create your first assessment to start tracking patient health trajectories."
+            actionLabel="Create First Assessment"
+            actionHref="/dashboard"
+          />
         ) : filteredRecords === 0 ? (
           <div className="bg-card border border-border border-dashed rounded-2xl p-12 text-center flex flex-col items-center justify-center">
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4 text-muted-foreground">

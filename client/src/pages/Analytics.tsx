@@ -1,7 +1,8 @@
 import { useAnalytics } from "@/hooks/use-analytics";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Activity, Users, AlertTriangle } from "lucide-react";
+import { Activity, Users, AlertTriangle, BarChart3 } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
 
 const COLORS = {
   LOW: "#10b981", // Emerald 500
@@ -24,6 +25,24 @@ export default function Analytics() {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="text-lg text-destructive">Failed to load analytics data.</div>
+      </div>
+    );
+  }
+
+  if (stats.totalPatients === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-black tracking-tight text-foreground">Provider Analytics</h1>
+          <p className="text-muted-foreground">Population health management and risk distribution across your patients.</p>
+        </div>
+        <EmptyState
+          icon={BarChart3}
+          title="No Analytics Data"
+          description="There is no patient data available to generate analytics. Create assessments to see population health trends."
+          actionLabel="Create Assessment"
+          actionHref="/dashboard"
+        />
       </div>
     );
   }
