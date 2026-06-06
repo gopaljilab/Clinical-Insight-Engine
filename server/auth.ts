@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { randomInt, randomBytes } from "crypto";
 import bcrypt from "bcrypt";
 import { rateLimit } from "express-rate-limit";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, sql } from "drizzle-orm";
 import { storage } from "./storage";
 import { getDb } from "./db";
 import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
@@ -745,6 +745,13 @@ export function createAuthRouter(): Router {
 
       await db.update(users).set({ passwordHash }).where(eq(users.id, resetToken.userId));
       await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, resetToken.id));
+
+      // Invalidate all active sessions for the user to prevent session hijacking
+      try {
+        await db.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${resetToken.userId}`);
+      } catch (sessErr) {
+        logger.error({ err: sessErr, userId: resetToken.userId }, "Failed to clear user sessions upon password reset");
+      }
 
       return res.json({ success: true, message: "Password has been reset successfully." });
     } catch (err) {
