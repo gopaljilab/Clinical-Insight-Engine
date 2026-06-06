@@ -464,5 +464,27 @@ export async function registerRoutes(
   });
 
   app.use("/api/upload", uploadRouter);
+
+  // Endpoint to capture and log client-side React errors
+  app.post("/api/logs/client-error", (req, res) => {
+    try {
+      const { message, stack, componentStack, url, timestamp } = req.body;
+      logger.error(
+        {
+          source: "client",
+          url,
+          componentStack,
+          timestamp,
+          stack,
+        },
+        `[Client Error] ${message}`
+      );
+      res.status(200).json({ success: true });
+    } catch (err) {
+      logger.error({ err }, "Failed to parse client error log");
+      res.status(500).json({ success: false });
+    }
+  });
+
   return httpServer;
 }

@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AssessmentResult } from "@/components/AssessmentResult";
 import { BMIClassificationHelper } from "@/components/BMIClassificationHelper";
 import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
@@ -207,7 +208,8 @@ export default function Dashboard() {
   }, [formData, result, DRAFT_TTL_MS]);
 
   return (
-    <AppLayout>
+    <ErrorBoundary>
+      <AppLayout>
       <TooltipProvider delayDuration={300}>
         <div className="space-y-8">
         <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -574,5 +576,6 @@ export default function Dashboard() {
       </div>
       </TooltipProvider>
     </AppLayout>
+    </ErrorBoundary>
   );
 }
