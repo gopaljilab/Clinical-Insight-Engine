@@ -35,7 +35,6 @@ describe("assessmentsToCsv", () => {
 
     expect(csv).toBe(
       'patientName,riskCategory,notes\n"Jane, Doe",\'=HIGH,"Needs ""follow-up"""'
-      "patientName,riskCategory,notes\n\"Jane, Doe\",'=HIGH,\"Needs \"\"follow-up\"\"\""
     );
   });
 });
