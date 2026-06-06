@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useAssessments, usePatientAssessments, useClearPatientCache } from "@/hooks/use-assessments";
+import { useAssessments, usePatientAssessments, useClearPatientCache, useDeleteAssessment } from "@/hooks/use-assessments";
 import {
   format,
   isValid,
@@ -28,6 +28,7 @@ import { calculateHealthBadges } from "@/utils/healthBadges";
 import { AssessmentSearchBar } from "@/components/AssessmentSearchBar";
 import { AssessmentFilters } from "@/components/AssessmentFilters";
 import { ActiveFilterChips } from "@/components/ActiveFilterChips";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { ClearFiltersButton } from "@/components/ClearFiltersButton";
 import { validateSearchInput } from "@/validation/filterValidation";
 import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
@@ -67,6 +68,7 @@ export default function History() {
 
 
   const { data: infiniteData, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useAssessments();
+  const { mutate: deleteAssessment } = useDeleteAssessment();
   const assessments = infiniteData ? infiniteData.pages.flatMap((page) => page.data) : [];
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
@@ -704,6 +706,15 @@ export default function History() {
                             <FileText className="w-4 h-4" />
                             Export
                           </button>
+                          {assessment.id && (
+                            <ConfirmDeleteDialog
+                              patientName={assessment.patientName || "Unknown Patient"}
+                              assessmentDate={formatAssessmentDate(assessment.createdAt)}
+                              onConfirm={async () => {
+                                await deleteAssessment(assessment.id!);
+                              }}
+                            />
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -774,7 +785,7 @@ export default function History() {
         )}
       </div>
 
-      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientName(null)}>
+      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientKey(null)}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto sm:border-l sm:border-slate-200">
           <SheetHeader className="mb-6">
             <SheetTitle className="text-2xl font-bold font-display">Longitudinal Trajectory</SheetTitle>
