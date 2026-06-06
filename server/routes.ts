@@ -29,7 +29,6 @@ import { assessmentsToCsv } from "./utils/csvExport";
 import { searchQuerySchema } from "./validation/searchValidation";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
-import { issueToken } from "./services/auth/tokenValidator";
 import { logger } from "./logger";
 import { assessmentQueue } from "./queue";
 export const execFileAsync = promisify(execFile);
@@ -208,19 +207,38 @@ export function getPythonExecutable() {
 }
 
 async function seedDatabase() {
-  const existingAdmin = await storage.getUserByEmail("admin@clinical-insight-engine.dev");
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (process.env.NODE_ENV === "production") {
+    if (!adminEmail) {
+      throw new Error("ADMIN_EMAIL environment variable is required in production.");
+    }
+    if (!adminPassword) {
+      throw new Error("ADMIN_PASSWORD environment variable is required in production.");
+    }
+  }
+
+  const email = adminEmail || "admin@clinical-insight-engine.dev";
+  const password = adminPassword || "admin123";
+
+  if (!adminEmail || !adminPassword) {
+    logger.warn("[DEV] Using default admin credentials. Set ADMIN_EMAIL and ADMIN_PASSWORD env vars for production.");
+  }
+
+  const existingAdmin = await storage.getUserByEmail(email);
   if (!existingAdmin) {
-    const adminPasswordHash = bcrypt.hashSync("admin123", 10);
+    const adminPasswordHash = bcrypt.hashSync(password, 10);
     await storage.createUser({
       fullName: "System Admin",
-      email: "admin@clinical-insight-engine.dev",
+      email,
       medicalLicenseNumber: "ADMIN-000001",
       passwordHash: adminPasswordHash,
       role: "ADMIN",
       isActive: true,
       emailVerified: true,
     });
-    logger.info("Seeded admin user: admin@clinical-insight-engine.dev / admin123");
+    logger.info("Admin user seeded successfully.");
   }
 
   const existing = await storage.getAssessments();
@@ -403,17 +421,6 @@ export async function registerRoutes(
   // Mount domain-specific routers
   app.use("/api/auth", authRouter);
   app.use("/api/assessments", assessmentsRouter);
-  // Issue a JWT token for the currently authenticated session user
-  app.get("/api/auth/token", requireAuth, requireVerified, (req, res) => {
-    // Session is guaranteed by requireAuth
-    const user = req.session.user;
-    if (!user || !user.id || !user.email) {
-      return res.status(401).json({ message: "Invalid session user data" });
-    }
-
-    const token = issueToken(user.id, user.email, "provider");
-    res.json({ token });
-  });
 
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);

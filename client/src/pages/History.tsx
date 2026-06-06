@@ -79,8 +79,20 @@ export default function History() {
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
 
-  const [selectedPatientName, setSelectedPatientName] = useState<string | null>(null);
+  const [selectedPatientKey, setSelectedPatientKey] = useState<string | null>(null);
   const clearPatientCache = useClearPatientCache();
+
+  /**
+   * Build a stable per-patient key from the two fields that are recorded at
+   * assessment time and never change for a real patient: name + gender.
+   * Filtering by name alone would merge unrelated patients who share the same
+   * name (issue #794).
+   */
+  const patientKey = (a: { patientName?: string | null; gender?: string | null }) =>
+    `${(a.patientName || "Unknown Patient").toLowerCase().trim()}|${(a.gender || "").toLowerCase().trim()}`;
+
+  // Derive the plain name for the cache-scoped patient query from the composite key.
+  const selectedPatientName = selectedPatientKey ? selectedPatientKey.split("|")[0] : null;
 
   // FIX for Issue #744: use a patient-scoped query so switching patients
   // never leaks the previous patient's cached clinical data into the new view.
@@ -91,13 +103,13 @@ export default function History() {
 
   // When a new patient is selected, clear the previous patient's cache entry
   // and reset search state so no stale data is shown during the transition.
-  const handleSelectPatient = (name: string | null) => {
-    if (selectedPatientName && selectedPatientName !== name) {
-      // Remove the old patient's cache entry so the next lookup always
-      // fetches fresh data from the server instead of serving stale records.
-      clearPatientCache(selectedPatientName);
+  const handleSelectPatient = (key: string | null) => {
+    const prevName = selectedPatientKey ? selectedPatientKey.split("|")[0] : null;
+    const nextName = key ? key.split("|")[0] : null;
+    if (prevName && prevName !== nextName) {
+      clearPatientCache(prevName);
     }
-    setSelectedPatientName(name);
+    setSelectedPatientKey(key);
     // Reset search/filter state to avoid cross-patient filter bleed-through.
     setSearchTerm("");
     setStartDate("");
@@ -105,18 +117,14 @@ export default function History() {
   };
 
   const selectedPatientHistory = useMemo(() => {
-    if (!selectedPatientName) return [];
-    // Use the patient-scoped query data (isolated cache) instead of filtering
-    // from the shared assessments list, which could contain stale data.
-    if (patientInfiniteData) {
-      return patientInfiniteData.pages.flatMap((page) => page.data);
-    }
-    // Fallback: filter from the full list (only used if patient query hasn't loaded yet)
-    return assessments.filter(a => {
-       const pName = a.patientName || "Unknown Patient";
-       return pName === selectedPatientName;
-    });
-  }, [assessments, selectedPatientName, patientInfiniteData]);
+    if (!selectedPatientKey) return [];
+    // Use the patient-scoped query data (isolated cache) filtered by composite
+    // key to prevent same-name cross-patient data leakage (issues #744, #794).
+    const source = patientInfiniteData
+      ? patientInfiniteData.pages.flatMap((page) => page.data)
+      : assessments;
+    return source.filter(a => patientKey(a) === selectedPatientKey);
+  }, [assessments, selectedPatientKey, patientInfiniteData]);
 
   // Suppress unused warning — patientLoading is intentionally tracked for future use
   void patientLoading;
@@ -193,29 +201,6 @@ export default function History() {
 
   const [, setLocation] = useLocation();
 
-  function exportAsPdf(assessment: any) {
-    const patientName = assessment.patientName || "Unknown Patient";
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${assessment.id}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; padding:24px; color:#0f172a} h1{font-size:20px} .kv{margin:6px 0} .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-weight:700} table{width:100%;border-collapse:collapse;margin-top:12px} td{padding:6px;border-bottom:1px solid #e6e6e6}</style></head><body><h1>Assessment Summary</h1><p class="kv"><strong>Patient:</strong> ${patientName}</p><p class="kv"><strong>Date:</strong> ${new Date(assessment.createdAt).toLocaleString()}</p><p class="kv"><strong>Risk Score:</strong> ${Number(assessment.riskScore).toFixed(1)}%</p><p class="kv"><strong>Category:</strong> <span class="pill">${assessment.riskCategory}</span></p><h2 style="margin-top:18px;font-size:16px">Vitals & Inputs</h2><table><tbody><tr><td>Age</td><td>${assessment.age}</td></tr><tr><td>BMI</td><td>${assessment.bmi}</td></tr><tr><td>HbA1c</td><td>${assessment.hba1cLevel}%</td></tr><tr><td>Blood Glucose</td><td>${assessment.bloodGlucoseLevel}</td></tr><tr><td>Hypertension</td><td>${assessment.hypertension ? "Yes" : "No"}</td></tr><tr><td>Heart Disease</td><td>${assessment.heartDisease ? "Yes" : "No"}</td></tr><tr><td>Smoking</td><td>${assessment.smokingHistory}</td></tr></tbody></table><h2 style="margin-top:18px;font-size:16px">Top Factors</h2><ul>${(
-      assessment.factors || []
-    )
-      .slice(0, 5)
-      .map((f: any) => `<li>${f.name} — ${f.description} (${f.impact})</li>`)
-      .join("")}</ul></body></html>`;
-
-    const w = window.open("", "_blank", "noopener,noreferrer");
-    if (!w) {
-      alert("Please allow popups to enable PDF export.");
-      return;
-    }
-
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => {
-      w.print();
-    }, 250);
-  }
-
   function reloadToForm(assessment: any) {
     const draft = {
       patientName: assessment.patientName ?? "",
@@ -249,7 +234,7 @@ export default function History() {
       .replace(/'/g, "&#039;");
   }
 
-  function handleExportPDF(assessment: any) {
+  function exportAsPdf(assessment: any) {
     if (!assessment) return;
 
     const patientName = escapeHtml(assessment.patientName || "Unknown Patient");
