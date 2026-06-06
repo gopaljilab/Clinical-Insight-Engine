@@ -97,14 +97,27 @@ if (otpCleanupTimer.unref) {
 }
 
 /**
- * Rate limiters for verification endpoints.
+ * Strict rate limiter for sensitive endpoints (e.g., registration).
+ * Prevents mass account creation and brute-force attacks.
  */
-const authLimiter = rateLimit({
+const strictAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 5, // Stricter limit to prevent brute force (Fixes #624)
+  limit: 5, // Stricter limit (Fixes #624)
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { error: "Too many authentication attempts. Please try again later." },
+});
+
+/**
+ * General rate limiter for standard auth endpoints (e.g., login).
+ * More lenient than strictAuthLimiter to avoid frustrating legitimate users.
+ */
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 15,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many login/registration attempts. Please try again in 15 minutes." },
 });
 
 const otpLimiter = rateLimit({
@@ -205,7 +218,7 @@ export function createAuthRouter(): Router {
    * POST /api/auth/register
    * Validates registration fields, creates a new user account, and establishes a session.
    */
-  router.post("/register", authLimiter, validateDTO(registerDTOSchema), async (req: Request, res: Response) => {
+  router.post("/register", strictAuthLimiter, validateDTO(registerDTOSchema), async (req: Request, res: Response) => {
     const { fullName, email, password, licenseNumber } = req.body;
 
 
