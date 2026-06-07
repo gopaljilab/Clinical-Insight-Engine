@@ -93,6 +93,48 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    simulate: {
+      method: "POST" as const,
+      path: "/api/assessments/simulate" as const,
+      input: insertAssessmentSchema,
+      responses: {
+        200: z.object({
+          simulatedRisk: z.number(),
+          riskCategory: z.enum(["LOW", "MODERATE", "HIGH"]),
+          confidence: z.number().nullable().optional(),
+          factorContributions: z
+            .array(
+              z.object({
+                name: z.string(),
+                impact: z.enum(["positive", "negative"]),
+                description: z.string(),
+              })
+            )
+            .optional(),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    biomarkerAlerts: {
+      method: "GET" as const,
+      path: "/api/assessments/biomarker-alerts" as const,
+      responses: {
+        200: z.object({
+          alerts: z.array(
+            z.object({
+              biomarker: z.enum(["HbA1c", "Blood Glucose", "BMI"]),
+              trend: z.enum(["increasing", "decreasing", "stable"]),
+              severity: z.enum(["warning", "info"]),
+              message: z.string(),
+              values: z.array(z.object({ ts: z.string().optional(), value: z.number() })),
+            })
+          ),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
   },
 };
 
@@ -114,6 +156,46 @@ export type PredictionAdvice = {
   patientAdvice?: string[];
 };
 
+export type Recommendation = {
+  id: string;
+  title: string;
+  description: string;
+  urgency?: "low" | "medium" | "high";
+  audience?: "clinician" | "patient" | "both";
+  checklist?: boolean;
+};
+
+export type QualityAlert = {
+  severity: "warning" | "info";
+  message: string;
+  code?: string;
+};
+
+export type BiomarkerAlert = {
+  biomarker: "HbA1c" | "Blood Glucose" | "BMI";
+  trend: "increasing" | "decreasing" | "stable";
+  severity: "warning" | "info";
+  message: string;
+  values: Array<{ ts?: string; value: number }>;
+};
+
+export type ExplanationContributor = {
+  name: string;
+  impact: string;
+  strength: number;
+  description?: string;
+  why: string;
+};
+
+export type PredictionExplanation = {
+  summary: string;
+  patientSummary: string;
+  clinicianSummary: string;
+  topContributors: ExplanationContributor[];
+  strongestPositive: ExplanationContributor[];
+  strongestNegative: ExplanationContributor[];
+};
+
 export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]> & {
   prediction?: PredictionAdvice & {
     riskScore?: number;
@@ -123,6 +205,10 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
     disclaimer?: string;
     isFallback?: boolean;
   };
+  recommendations?: Recommendation[];
+  qualityAlerts?: QualityAlert[];
+  explanation?: PredictionExplanation;
 };
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
 export type AssessmentPreviewResponse = z.infer<typeof api.assessments.preview.responses[200]>;
+export type AssessmentSimulationResponse = z.infer<typeof api.assessments.simulate.responses[200]>;

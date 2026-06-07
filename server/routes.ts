@@ -9,191 +9,18 @@ import assessmentsRouter from "./routes/assessments.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { api } from "@shared/routes";
-import { z } from "zod";
-import { existsSync } from "fs";
-import { writeFile, unlink } from "fs/promises";
-import { randomUUID, createHash } from "crypto";
-import { execFile } from "child_process";
-import { promisify } from "util";
 import bcrypt from "bcrypt";
-import os from "os";
-import path from "path";
-import { fileURLToPath } from "url";
-import { rateLimit } from "express-rate-limit";
+import { logger } from "./logger";
+import { assessmentsToCsv } from "./utils/csvExport";
+import { searchQuerySchema } from "./validation/searchValidation";
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,
   logSecurityEvent,
 } from "./security/sqlProtection";
-import { assessmentsToCsv } from "./utils/csvExport";
-import { searchQuerySchema } from "./validation/searchValidation";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
-import { logger } from "./logger";
-export const execFileAsync = promisify(execFile);
 
-function runPythonInference(
-  executable: string,
-  args: string[],
-  inputData: any,
-  timeoutMs: number = 30000
-): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const child = execFile(
-      executable,
-      args,
-      { timeout: timeoutMs },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve({ stdout, stderr });
-        }
-      }
-    );
-
-    if (child.stdin) {
-      child.stdin.on("error", (err) => {
-        logger.error({ err }, "Stdin write error");
-      });
-      child.stdin.write(JSON.stringify(inputData));
-      child.stdin.end();
-    }
-  });
-}
-
-export class SimpleSemaphore {
-  private activeCount = 0;
-  private queue: (() => void)[] = [];
-
-  constructor(private maxConcurrency: number) {}
-
-  async acquire(): Promise<void> {
-    if (this.activeCount < this.maxConcurrency) {
-      this.activeCount++;
-      return;
-    }
-    return new Promise<void>((resolve) => {
-      this.queue.push(resolve);
-    });
-  }
-
-  release(): void {
-    if (this.queue.length > 0) {
-      const next = this.queue.shift();
-      if (next) next();
-    } else {
-      this.activeCount--;
-    }
-  }
-
-  async run<T>(fn: () => Promise<T>): Promise<T> {
-    await this.acquire();
-    try {
-      return await fn();
-    } finally {
-      this.release();
-    }
-  }
-}
-
-const inferenceConcurrencyLimiter = new SimpleSemaphore(4);
-
-/**
- * Tracks currently running inference requests to prevent
- * duplicate concurrent ML execution for identical payloads.
- */
-const activeInferenceRequests = new Set<string>();
-
-
-const predictionFactorSchema = z.object({
-  name: z.string(),
-  impact: z.enum(["positive", "negative"]),
-  description: z.string(),
-});
-
-const pythonPredictionSchema = z.union([
-  z.object({
-    error: z.string().min(1),
-  }),
-  z.object({
-    riskScore: z.coerce.number().min(0).max(100),
-    riskCategory: z.enum(["LOW", "MODERATE", "HIGH"]),
-    factors: z.array(predictionFactorSchema).default([]),
-    confidenceInterval: z.string().nullable().optional(),
-    modelConfidence: z.coerce.number().min(0).max(1).nullable().optional(),
-  }),
-]);
-
-type PythonPrediction = z.infer<typeof pythonPredictionSchema>;
-
-function parsePythonPrediction(stdout: string): PythonPrediction {
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(stdout.trim());
-  } catch {
-    throw new Error("Python prediction output was not valid JSON.");
-  }
-
-  return pythonPredictionSchema.parse(parsed);
-}
-
-function canonicalStringify(obj: unknown): string {
-  if (obj === null || typeof obj !== "object") {
-    return JSON.stringify(obj);
-  }
-  if (Array.isArray(obj)) {
-    return "[" + obj.map(canonicalStringify).join(",") + "]";
-  }
-  const keys = Object.keys(obj as Record<string, unknown>).sort();
-  const pairs = keys.map((k) => JSON.stringify(k) + ":" + canonicalStringify((obj as Record<string, unknown>)[k]));
-  return "{" + pairs.join(",") + "}";
-}
-
-function generateRequestFingerprint(payload: unknown, userId: string): string {
-  const uid = userId || "anonymous";
-  return createHash("sha256")
-    .update(`${uid}::${canonicalStringify(payload)}`)
-    .digest("hex");
-}
-
-// ESM-compatible path resolution for analyze.py
-// Resolve relative to this source file, not process.cwd()
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
-
-/**
- * Rate limiter for the ML assessment endpoint.
- * This endpoint spawns a Python subprocess for each request, which is resource-intensive.
- * Limits to 5 requests per minute per IP to prevent DoS attacks.
- */
-const assessmentLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  limit: 5, // 5 requests per IP per window
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: {
-    error: "Too many assessment requests. Please try again later.",
-    retryAfter: 60, // seconds
-  },
-});
-
-
-export function getPythonExecutable() {
-  const candidates = process.platform === "win32"
-    ? [
-        path.resolve(".venv", "Scripts", "python.exe"),
-        path.resolve("venv", "Scripts", "python.exe")
-      ]
-    : [
-        path.resolve(".venv", "bin", "python"),
-        path.resolve("venv", "bin", "python")
-      ];
-
-  return candidates.find((candidate) => existsSync(candidate)) ?? "python3";
-}
 
 async function seedDatabase() {
   const adminEmail = process.env.ADMIN_EMAIL;
@@ -377,7 +204,7 @@ function calculateClinicalFallback(input: any): PredictionResult {
     riskScore,
     riskCategory,
     factors: factors.length > 0 ? factors : [{ name: "Stable Profile", impact: "negative", description: "No major clinical risk drivers detected." }],
-    clinicianAdvice: riskCategory === "HIGH" 
+    clinicianAdvice: riskCategory === "HIGH"
       ? ["High risk. Refer for diagnostic oral glucose tolerance testing (OGTT)."]
       : riskCategory === "MODERATE"
       ? ["Moderate risk. Suggest nutritional counseling and review in 6 months."]
@@ -390,10 +217,57 @@ function calculateClinicalFallback(input: any): PredictionResult {
   };
 }
 
+import { rateLimit } from "express-rate-limit";
+import {
+  generalLimiter,
+  adminLimiter,
+} from "./middleware/rateLimit";
+import { validateDTO } from "./middleware/validateDTO";
+import { z } from "zod";
+import { MLService, generateRequestFingerprint } from "./services/mlService";
+import { getAssessmentQueue, getPythonExecutable } from "./queue";
+import { execFile } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+import os from "os";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
+function execFileAsync(file: string, args: string[], options: any): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, options, (err, stdout, stderr) => {
+      if (err) reject(err);
+      else resolve({ stdout: stdout as unknown as string, stderr: stderr as unknown as string });
+    });
+  });
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const previewLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 10,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Too many preview requests. Please try again later.", retryAfter: 60 },
+  });
+
+  const assessmentLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 5,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: {
+      error: "Too many assessment requests. Please try again later.",
+      retryAfter: 60,
+    },
+  });
+
   // Seed database on startup — development only to prevent fake data in production
   if (process.env.NODE_ENV !== "production") {
     seedDatabase().catch((err) => logger.error({ err }, "Database seeding failed"));
@@ -409,13 +283,518 @@ export async function registerRoutes(
 
   // Mount domain-specific routers
   app.use("/api/auth", authRouter);
-  app.use("/api/assessments", analyticsRouter);
+  
+  app.use("/api/assessments", generalLimiter, analyticsRouter);
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", analyticsRouter);
+  app.post(
+    api.assessments.preview.path,
+    requireAuth,
+    requireVerified,
+    previewLimiter,
+    validateDTO(api.assessments.preview.input),
+    async (req, res) => {
+      const input = api.assessments.preview.input.parse(req.body);
+      const tempFile = path.join(
+        os.tmpdir(),
+        `${randomUUID()}.json`
+      );
+
+      try {
+        await writeFile(tempFile, JSON.stringify(input));
+
+        let prediction;
+        try {
+          const { stdout, stderr } = await execFileAsync(
+            getPythonExecutable(),
+            [analyzePyPath, "predict_file", tempFile],
+            {
+              timeout: 30000
+            }
+          );
+          prediction = JSON.parse(stdout.trim());
+          if (prediction.error) {
+            return res.status(400).json({
+              message: prediction.error
+            });
+          }
+        } catch (error: any) {
+          if (error.killed || error.signal === "SIGTERM") {
+            return res.status(503).json({
+              message: "Clinical assessment preview timed out."
+            });
+          }
+          logger.warn("Python prediction preview failed, running clinical rule-based fallback:", error);
+          prediction = calculateClinicalFallback(input);
+        }
+        logger.info(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
+        return res.json({
+          riskScore: prediction.riskScore,
+          riskCategory: prediction.riskCategory,
+          factors: prediction.factors ?? [],
+          confidenceInterval: prediction.confidenceInterval ?? null,
+          modelConfidence: prediction.modelConfidence ?? null
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({
+            message: err.errors[0].message
+          });
+        }
+        logger.error({ err }, "Error creating assessment preview");
+        return res.status(500).json({ message: "Internal server error" });
+      } finally {
+        try {
+          await unlink(tempFile);
+        } catch (e) {
+          logger.warn({ e, tempFile }, "Failed to clean up temp file (preview):");
+        }
+      }
+    }
+  );
+
+  app.post(
+    api.assessments.simulate.path,
+    requireAuth,
+    requireVerified,
+    previewLimiter,
+    validateDTO(api.assessments.simulate.input),
+    async (req, res) => {
+      const input = api.assessments.simulate.input.parse(req.body);
+      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
+
+      try {
+        await writeFile(tempFile, JSON.stringify(input));
+
+        let prediction: any;
+        try {
+          const { stdout } = await execFileAsync(
+            getPythonExecutable(),
+            [analyzePyPath, "predict_file", tempFile],
+            { timeout: 30000 }
+          );
+
+          prediction = JSON.parse(stdout.trim());
+          if (prediction.error) {
+            return res.status(400).json({ message: prediction.error });
+          }
+        } catch (error: any) {
+          if (error.killed || error.signal === "SIGTERM") {
+            return res.status(408).json({ message: "Clinical assessment simulation timed out." });
+          }
+
+          logger.warn(
+            "Python prediction simulation failed, falling back to clinical rule-based model:",
+            error
+          );
+          prediction = calculateClinicalFallback(input);
+        }
+
+        logger.info(
+          `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+        );
+
+        return res.json({
+          simulatedRisk: prediction.riskScore,
+          riskCategory: prediction.riskCategory,
+          confidence: prediction.modelConfidence ?? null,
+          factorContributions: prediction.factors ?? [],
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: err.errors[0].message });
+        }
+        logger.error({ err }, "Error creating assessment simulation");
+        return res.status(500).json({ message: "Internal server error" });
+      } finally {
+        try {
+          await unlink(tempFile);
+        } catch (e) {
+          logger.warn({ e, tempFile }, "Failed to clean up temp file (simulate):");
+        }
+      }
+    }
+  );
+
+  app.post(
+    api.assessments.create.path,
+    requireAuth,
+    requireVerified,
+    assessmentLimiter,
+    async (req, res) => {
+      const userId = req.session.user?.email;
+      if (!userId) {
+        return res.status(401).json({
+          message: "Authentication required.",
+        });
+      }
+
+      let requestFingerprint: string | undefined;
+      let didAdd = false;
+      try {
+        const input = api.assessments.create.input.parse(req.body);
+        requestFingerprint = generateRequestFingerprint(input, userId);
+
+        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
+          return res.status(409).json({ message: "Assessment request is already being processed." });
+        }
+        MLService.activeInferenceRequests.add(requestFingerprint);
+        didAdd = true;
+
+        const queue = getAssessmentQueue();
+        if (!queue) {
+          return res.status(503).json({
+            message: "Assessment queue is temporarily unavailable.",
+          });
+        }
+        const job = await queue.add("predict", {
+          input,
+          userId,
+          requestFingerprint
+        });
+
+        return res.status(202).json({
+          message: "Assessment request accepted and is being processed.",
+          jobId: job.id
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({
+            message: err.errors[0].message
+          });
+        }
+        logger.error({ err }, "Error queueing assessment");
+        return res
+          .status(500)
+          .json({ message: "Failed to queue clinical assessment." });
+      } finally {
+        if (didAdd) {
+          MLService.activeInferenceRequests.delete(requestFingerprint!);
+        }
+      }
+    }
+  );
+
+  app.get(
+    "/api/assessments/jobs/:id",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const jobId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+        const queue = getAssessmentQueue();
+        if (!queue) {
+          return res.status(503).json({ message: "Assessment queue is temporarily unavailable." });
+        }
+        const job = await queue.getJob(jobId as string);
+        if (!job) {
+          return res.status(404).json({ message: "Job not found" });
+        }
+        const state = await job.getState();
+        if (state === "completed") {
+          return res.json({ status: "completed", result: job.returnvalue });
+        } else if (state === "failed") {
+          return res.status(500).json({ status: "failed", error: job.failedReason });
+        } else {
+          return res.json({ status: state });
+        }
+      } catch (err) {
+        return res.status(500).json({ message: "Error fetching job status" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/assessments/bulk",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      const userId = (req.session.user as any)?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required." });
+      }
+
+      const inputSchema = z.array(api.assessments.create.input);
+      let tempFilePath: string | null = null;
+      let requestFingerprint: string | null = null;
+
+      try {
+        const input = inputSchema.parse(req.body.assessments);
+        
+        requestFingerprint = generateRequestFingerprint(input, userId);
+        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
+          return res.status(409).json({ message: "Bulk request already processing." });
+        }
+        MLService.activeInferenceRequests.add(requestFingerprint);
+
+        tempFilePath = path.join(os.tmpdir(), `bulk_${randomUUID()}.json`);
+        await writeFile(tempFilePath, JSON.stringify(input));
+
+        let predictions: any[];
+        try {
+          const { stdout } = await execFileAsync(
+            getPythonExecutable(),
+            [analyzePyPath, "predict_file", tempFilePath],
+            { timeout: 60000, maxBuffer: 50 * 1024 * 1024 }
+          );
+
+          predictions = JSON.parse(stdout.trim());
+          if (!Array.isArray(predictions)) {
+            throw new Error("Expected array of predictions");
+          }
+        } catch (error: any) {
+          return res.status(500).json({ message: "Bulk ML processing failed or timed out." });
+        }
+
+        const createdAssessments = await Promise.all(
+          input.map((assessment, index) => {
+            const prediction = predictions[index];
+            return storage.createAssessment({
+              ...assessment,
+              riskScore: Number(prediction.riskScore),
+              riskCategory: prediction.riskCategory,
+              factors: prediction.factors,
+              confidenceInterval: prediction.confidenceInterval ?? null,
+              modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
+              createdBy: userId,
+            });
+          })
+        );
+
+        return res.status(201).json({ count: createdAssessments.length, assessments: createdAssessments });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: "Invalid bulk input data format. Ensure all rows meet schema requirements." });
+        }
+        logger.error({ err }, "Bulk create error:");
+        return res.status(500).json({ message: "Failed to generate bulk assessments." });
+      } finally {
+        if (tempFilePath) {
+          try { await unlink(tempFilePath); } catch {}
+        }
+        if (requestFingerprint) {
+          MLService.activeInferenceRequests.delete(requestFingerprint);
+        }
+      }
+    }
+  );
+
+
+
+  app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
+    try {
+      const userEmail = req.session.user?.email;
+      const cursorStr = req.query.cursor as string;
+      const limitStr = req.query.limit as string;
+      const cursor = cursorStr ? parseInt(cursorStr, 10) : undefined;
+      const limit = limitStr ? parseInt(limitStr, 10) : 50;
+
+      const assessments = await storage.getAssessments(limit, cursor, userEmail);
+
+      res.json(assessments);
+
+    } catch (err) {
+      res.status(500).json({
+        message: "Failed to fetch assessments"
+      });
+    }
+  });
+  app.get(
+    "/api/assessments/export.csv",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const userEmail = req.session.user?.email;
+        const assessments = await storage.getAssessments(1000, undefined, userEmail);
+
+        const csv = assessmentsToCsv(
+          assessments.data as unknown as Record<string, unknown>[]
+        );
+
+        res.header("Content-Type", "text/csv");
+        res.attachment("assessments.csv");
+        return res.send(csv);
+      } catch (err) {
+        logger.error({ err }, "Export error:");
+        return res.status(500).json({ message: "Failed to export data" });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/search
+   *
+   * Secure patient/assessment search endpoint.
+   *
+   * Security controls:
+   * 1. PRIMARY: Drizzle ORM ilike()/eq() — query parameters are bound placeholders,
+   *    never interpolated into raw SQL strings.  This prevents SQL injection.
+   * 2. SUPPLEMENTARY: Zod schema validates input length, character set, and rejects
+   *    known injection signatures before the query is even constructed.
+   * 3. Security logging: suspicious patterns are logged (without PHI) for audit.
+   * 4. User scoping: results are always filtered to the authenticated user's records.
+   * 5. Generic errors: DB errors are sanitized — no table names or SQL syntax leaked.
+   *
+   * Query params:
+   *   q            - search term (max 200 chars, safe characters only)
+   *   riskCategory - optional: LOW | MODERATE | HIGH
+   *   page         - page number (default 1)
+   *   limit        - results per page, max 100 (default 20)
+   */
+  app.get(
+    "/api/assessments/search",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const parseResult = searchQuerySchema.safeParse(req.query);
+
+        if (!parseResult.success) {
+          const rawQ = typeof req.query.q === "string" ? req.query.q : "";
+          const analysis = analyzeSearchInput(rawQ);
+
+          if (!analysis.safe) {
+            logSecurityEvent(
+              "SQL_INJECTION_ATTEMPT",
+              "Injection-like pattern detected in search query parameter",
+              req,
+              {
+                matchedPattern: analysis.pattern,
+                userId: req.session.user?.id,
+              }
+            );
+          } else {
+            logSecurityEvent(
+              "MALFORMED_SEARCH_QUERY",
+              "Search query failed validation",
+              req,
+              { userId: req.session.user?.id }
+            );
+          }
+
+          return res.status(400).json({
+            message: parseResult.error.errors[0]?.message ?? "Invalid search parameters.",
+          });
+        }
+
+        const { q, riskCategory, cursor, limit } = parseResult.data;
+        const userEmail = req.session.user?.email;
+
+        if (q) {
+          const analysis = analyzeSearchInput(q);
+          if (!analysis.safe) {
+            logSecurityEvent(
+              "SUSPICIOUS_SEARCH_PATTERN",
+              "Validated search term contains a suspicious pattern",
+              req,
+              { matchedPattern: analysis.pattern, userId: req.session.user?.id }
+            );
+          }
+        }
+
+        const results = await storage.searchAssessments(
+          q ?? "",
+          userEmail,
+          riskCategory,
+          limit,
+          cursor
+        );
+
+        return res.json(results);
+
+      } catch (err) {
+        logger.error({ err }, "Assessment search error:");
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
+
+  app.get(
+    "/api/assessments/analytics",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const userEmail = req.session.user?.email;
+        if (!userEmail) {
+           return res.status(401).json({ message: "Unauthorized" });
+        }
+        const stats = await storage.getAnalyticsStats(userEmail);
+        return res.json(stats);
+      } catch (err) {
+        logger.error({ err }, "Analytics fetch error:");
+        return res.status(500).json({ message: "Failed to fetch analytics" });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/:id
+   *
+   * Fetch a single assessment by numeric ID.
+   * Object-level authorization is enforced explicitly before returning records.
+   */
+  app.get(
+    "/api/assessments/:id",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const paramId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+        const id = parseInt(paramId as string, 10);
+
+        if (isNaN(id) || id <= 0) {
+          return res.status(400).json({ message: "Invalid assessment ID." });
+        }
+
+        const user = req.session.user;
+        if (!user) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const assessment = await storage.getAssessmentById(id);
+
+        if (!assessment) {
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        // Object-Level Authorization Check
+        if (!canAccessPatientRecord(user as any, assessment)) {
+          // Log unauthorized access attempt (IDOR/Enumeration attempt)
+          logAccessAttempt(
+            user.id,
+            "Assessment",
+            id,
+            false,
+            "IDOR attempt: User not authorized to access this patient record"
+          );
+          
+          // Return 404 to prevent ID enumeration
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        // Authorized access
+        logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
+        return res.json(assessment);
+
+      } catch (err) {
+        // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
+        logger.error({ err }, "Assessment search error");
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
   
-  app.use("/api/assessments", assessmentsRouter);
+  app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   // ─── Admin Routes ────────────────────────────────────────────────
+  
+  // Apply admin rate limiter to all admin routes
+  app.use("/api/admin", adminLimiter);
 
   app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -464,5 +843,27 @@ export async function registerRoutes(
   });
 
   app.use("/api/upload", uploadRouter);
+
+  // Endpoint to capture and log client-side React errors
+  app.post("/api/logs/client-error", (req, res) => {
+    try {
+      const { message, stack, componentStack, url, timestamp } = req.body;
+      logger.error(
+        {
+          source: "client",
+          url,
+          componentStack,
+          timestamp,
+          stack,
+        },
+        `[Client Error] ${message}`
+      );
+      res.status(200).json({ success: true });
+    } catch (err) {
+      logger.error({ err }, "Failed to parse client error log");
+      res.status(500).json({ success: false });
+    }
+  });
+
   return httpServer;
 }

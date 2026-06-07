@@ -7,9 +7,10 @@ import type { AssessmentResponse } from "@shared/routes";
 
 interface CopySummaryButtonProps {
   assessment: AssessmentResponse;
+  iconOnly?: boolean;
 }
 
-export function CopySummaryButton({ assessment }: CopySummaryButtonProps) {
+export function CopySummaryButton({ assessment, iconOnly = false }: CopySummaryButtonProps) {
   const [isCopying, setIsCopying] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -45,7 +46,11 @@ export function CopySummaryButton({ assessment }: CopySummaryButtonProps) {
             onClick={() => void handleCopy(summary)}
             disabled={isCopying}
             aria-label="Copy assessment summary to clipboard"
-            className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
+            className={`flex items-center justify-center rounded-xl transition-all duration-200 active:scale-[0.98] ${
+              iconOnly 
+                ? "w-9 h-9 p-0 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm" 
+                : "gap-2 px-4 py-2 text-sm font-semibold"
+            }`}
           >
             {isCopying ? (
               <LoaderPlaceholder />
@@ -54,7 +59,7 @@ export function CopySummaryButton({ assessment }: CopySummaryButtonProps) {
             ) : (
               <Copy className="w-4 h-4" />
             )}
-            {isCopying ? "Copying..." : copied ? "Copied" : "Copy Summary"}
+            {!iconOnly && (isCopying ? "Copying..." : copied ? "Copied" : "Copy Summary")}
           </Button>
           {copied && <CopySuccessToast />}
           {copyError && (

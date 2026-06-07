@@ -183,6 +183,7 @@ export class AssessmentRepository {
           createdAt: (assessments as any).createdAt ?? (assessments as any).created_at,
           createdBy: (assessments as any).createdBy ?? (assessments as any).created_by,
           userId: (assessments as any).userId ?? (assessments as any).user_id,
+          ownerId: assessments.ownerId,
         })
         .from(assessments)
         .orderBy(desc(assessments.id))
@@ -227,6 +228,7 @@ export class AssessmentRepository {
         createdAt: (assessments as any).createdAt ?? (assessments as any).created_at,
         createdBy: (assessments as any).createdBy ?? (assessments as any).created_by,
         userId: (assessments as any).userId ?? (assessments as any).user_id,
+        ownerId: assessments.ownerId,
       })
       .from(assessments)
       .orderBy(orderByClause, desc(assessments.id))
@@ -274,6 +276,7 @@ export class AssessmentRepository {
       const pattern = `%${searchTerm.trim()}%`;
       conditions.push(
         or(
+          ilike(assessments.patientName, pattern),
           ilike(assessments.gender, pattern),
           ilike(assessments.smokingHistory, pattern),
           ilike(assessments.riskCategory, pattern),
@@ -320,6 +323,37 @@ export class AssessmentRepository {
       .values(assessment as any)
       .returning();
     return created;
+  }
+
+  async autocompletePatientNames(
+    query: string,
+    createdBy?: string,
+    limit: number = 10
+  ): Promise<string[]> {
+    const db = getDb();
+    const conditions: ReturnType<typeof eq>[] = [];
+
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy));
+    }
+
+    let queryBuilder = db
+      .select({ patientName: assessments.patientName })
+      .from(assessments)
+      .where(
+        and(
+          ilike(assessments.patientName, `%${query}%`),
+          ...conditions
+        ) as any
+      )
+      .$dynamic();
+
+    const rows = await queryBuilder
+      .groupBy(assessments.patientName)
+      .orderBy(assessments.patientName)
+      .limit(limit);
+
+    return rows.map((r) => r.patientName).filter(Boolean) as string[];
   }
 
   async deleteAssessment(id: number): Promise<void> {

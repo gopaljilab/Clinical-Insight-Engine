@@ -4,12 +4,26 @@ import { UploadCloud, CheckCircle, AlertCircle, Loader2, FileText, Download, X }
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ApiClient } from "@/lib/apiClient";
-import {
-  buildCsvImportPreview,
-  type ImportPreviewRow,
-  type ImportPreviewSummary,
-} from "@/utils/csvImportPreview";
+import { useBulkImport } from "@/hooks/use-bulk-import";
+import { AppLayout } from "@/components/layout/AppLayout";
+import type { ImportPreviewRow } from "@/utils/csvImportPreview";
+
+const ACCEPTED_TYPES = ".csv,.xlsx,.xls";
+
+const STEP_LABELS: Record<string, string> = {
+  idle: "",
+  parsing: "Parsing file...",
+  validating: "Validating data...",
+  importing: "Processing ML predictions...",
+  done: "Import complete!",
+  error: "Import failed",
+};
+
+const RISK_COLORS: Record<string, string> = {
+  HIGH: "bg-red-100 text-red-700",
+  MODERATE: "bg-amber-100 text-amber-700",
+  LOW: "bg-emerald-100 text-emerald-700",
+};
 
 function StatusCount({ label, value, tone }: { label: string; value: number; tone: string }) {
   return (
@@ -23,7 +37,6 @@ function StatusCount({ label, value, tone }: { label: string; value: number; ton
 function RowIssues({ row }: { row: ImportPreviewRow }) {
   const issues = [...row.errors, ...row.warnings];
   if (issues.length === 0) return <span className="text-slate-500">Ready to import</span>;
-
   return (
     <ul className="space-y-1">
       {issues.map((issue) => (
@@ -150,35 +163,15 @@ export default function ImportData() {
     });
   };
 
-  const confirmImport = async () => {
-    if (!preview || preview.validRows.length === 0) {
-      toast({
-        title: "No valid rows",
-        description: "Import is blocked until at least one row passes validation.",
-        variant: "destructive",
-      });
+  const handleFile = (file: File | null) => {
+    if (!file) return;
+    const isCsv = file.name.endsWith(".csv");
+    const isExcel = file.name.endsWith(".xlsx") || file.name.endsWith(".xls");
+    if (!isCsv && !isExcel) {
+      toast({ title: "Invalid file type", description: "Please upload a CSV or Excel (.xlsx, .xls) file.", variant: "destructive" });
       return;
     }
-
-    setIsProcessing(true);
-    try {
-      const assessments = preview.validRows.map((row) => row.data);
-      const data = await ApiClient.post("/api/assessments/bulk", { assessments });
-      setResults(data.assessments);
-      toast({
-        title: "Import complete",
-        description: `Successfully imported ${data.count} patient record(s).`,
-      });
-      resetPreview();
-    } catch (error: any) {
-      toast({
-        title: "Import Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+    parseFile(file);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -191,11 +184,12 @@ export default function ImportData() {
   };
 
   return (
+    <AppLayout>
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight text-slate-900">Bulk Import</h1>
         <p className="text-slate-500">
-          Upload a CSV file, review row-level validation, then confirm import for valid records.
+          Upload a CSV or Excel file with patient data. Each row is validated and processed through the ML risk model.
         </p>
       </div>
 
@@ -267,15 +261,15 @@ export default function ImportData() {
         </CardContent>
       </Card>
 
-      {preview && (
+      {preview && step !== "idle" && step !== "parsing" && (
         <Card className="border-blue-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-blue-600" />
-              Import Preview {selectedFileName ? `- ${selectedFileName}` : ""}
+              Import Preview {fileName ? `- ${fileName}` : ""}
             </CardTitle>
             <CardDescription>
-              Review valid rows, invalid rows, duplicate warnings, and neutralized formula-like values before import.
+              Review valid and invalid rows before confirming the import.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -287,20 +281,23 @@ export default function ImportData() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button onClick={confirmImport} disabled={isProcessing || preview.validRows.length === 0}>
+              <Button
+                onClick={handleConfirm}
+                disabled={isProcessing || preview.validRows.length === 0}
+              >
                 {isProcessing && <Loader2 className="h-4 w-4 animate-spin" />}
                 Confirm Import {preview.validRows.length > 0 ? `(${preview.validRows.length})` : ""}
               </Button>
-              <Button type="button" variant="outline" onClick={resetPreview} disabled={isProcessing}>
-                Cancel Preview
+              <Button type="button" variant="outline" onClick={reset} disabled={isProcessing}>
+                Cancel
               </Button>
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <div className="overflow-x-auto rounded-lg border border-slate-200 max-h-80 overflow-y-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 sticky top-0">
                   <tr>
-                    <th className="px-4 py-3">CSV Row</th>
+                    <th className="px-4 py-3">Row</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Patient</th>
                     <th className="px-4 py-3">Age / Gender</th>
@@ -312,11 +309,7 @@ export default function ImportData() {
                     <tr key={row.rowNumber} className="border-t border-slate-100 align-top">
                       <td className="px-4 py-3 font-medium">{row.rowNumber}</td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`rounded px-2 py-1 text-xs font-bold ${
-                            row.status === "valid" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-                          }`}
-                        >
+                        <span className={`rounded px-2 py-1 text-xs font-bold ${row.status === "valid" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
                           {row.status === "valid" ? "Valid" : "Invalid"}
                         </span>
                       </td>
@@ -345,6 +338,13 @@ export default function ImportData() {
           </table></div></CardContent>
         </Card>
       )}
+
+      {step === "done" && results.length > 0 && (
+        <Button variant="outline" onClick={reset}>
+          Import Another File
+        </Button>
+      )}
     </div>
+    </AppLayout>
   );
 }
