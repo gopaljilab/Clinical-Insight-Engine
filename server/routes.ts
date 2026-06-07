@@ -8,6 +8,7 @@ import authRouter from "./routes/auth.routes";
 import assessmentsRouter from "./routes/assessments.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
+import { api } from "@shared/routes";
 import bcrypt from "bcrypt";
 import { logger } from "./logger";
 
@@ -207,10 +208,33 @@ function calculateClinicalFallback(input: any): PredictionResult {
   };
 }
 
+import { rateLimit } from "express-rate-limit";
 import {
   generalLimiter,
   adminLimiter,
 } from "./middleware/rateLimit";
+import { validateDTO } from "./middleware/validateDTO";
+import { z } from "zod";
+import { MLService, generateRequestFingerprint } from "./services/mlService";
+import { getAssessmentQueue, getPythonExecutable } from "./queue";
+import { execFile } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+import os from "os";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
+function execFileAsync(file: string, args: string[], options: any): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, options, (err, stdout, stderr) => {
+      if (err) reject(err);
+      else resolve({ stdout: stdout as string, stderr: stderr as string });
+    });
+  });
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -260,6 +284,7 @@ export async function registerRoutes(
     requireAuth,
     requireVerified,
     previewLimiter,
+    validateDTO(api.assessments.preview.input),
     async (req, res) => {
       const input = api.assessments.preview.input.parse(req.body);
       const tempFile = path.join(
@@ -408,7 +433,13 @@ export async function registerRoutes(
         MLService.activeInferenceRequests.add(requestFingerprint);
         didAdd = true;
 
-        const job = await assessmentQueue.add("predict", {
+        const queue = getAssessmentQueue();
+        if (!queue) {
+          return res.status(503).json({
+            message: "Assessment queue is temporarily unavailable.",
+          });
+        }
+        const job = await queue.add("predict", {
           input,
           userId,
           requestFingerprint
@@ -443,7 +474,11 @@ export async function registerRoutes(
     async (req, res) => {
       try {
         const jobId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        const job = await assessmentQueue.getJob(jobId as string);
+        const queue = getAssessmentQueue();
+        if (!queue) {
+          return res.status(503).json({ message: "Assessment queue is temporarily unavailable." });
+        }
+        const job = await queue.getJob(jobId as string);
         if (!job) {
           return res.status(404).json({ message: "Job not found" });
         }
