@@ -2,6 +2,7 @@ import { useAnalytics, type CriticalAlert } from "@/hooks/use-analytics";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Activity, Users, AlertTriangle } from "lucide-react";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 const COLORS = {
   LOW: "#10b981", // Emerald 500
@@ -14,17 +15,21 @@ export default function Analytics() {
 
   if (isLoading) {
     return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <div className="text-lg text-muted-foreground animate-pulse">Loading analytics...</div>
-      </div>
+      <AppLayout>
+        <div className="flex h-[50vh] items-center justify-center">
+          <div className="text-lg text-muted-foreground animate-pulse">Loading analytics...</div>
+        </div>
+      </AppLayout>
     );
   }
 
   if (error || !stats) {
     return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <div className="text-lg text-destructive">Failed to load analytics data.</div>
-      </div>
+      <AppLayout>
+        <div className="flex h-[50vh] items-center justify-center">
+          <div className="text-lg text-destructive">Failed to load analytics data.</div>
+        </div>
+      </AppLayout>
     );
   }
 
@@ -40,6 +45,7 @@ export default function Analytics() {
   ];
 
   return (
+    <AppLayout>
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight text-foreground">Provider Analytics</h1>
@@ -151,5 +157,6 @@ export default function Analytics() {
         </Card>
       </div>
     </div>
+    </AppLayout>
   );
 }

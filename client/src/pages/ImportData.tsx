@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { ApiClient } from "@/lib/apiClient";
+import { AppLayout } from "@/components/layout/AppLayout";
 import {
   buildCsvImportPreview,
   type ImportPreviewRow,
@@ -159,6 +160,7 @@ export default function ImportData() {
   };
 
   return (
+    <AppLayout>
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight text-slate-900">Bulk Import</h1>
@@ -330,5 +332,6 @@ export default function ImportData() {
         </Card>
       )}
     </div>
+    </AppLayout>
   );
 }
