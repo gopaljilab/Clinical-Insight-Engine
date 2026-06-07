@@ -6,6 +6,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 import authRouter from "./routes/auth.routes";
 import assessmentsRouter from "./routes/assessments.routes";
+import { MLService } from "./services/mlService";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { api } from "@shared/routes";
@@ -295,46 +296,34 @@ export async function registerRoutes(
     previewLimiter,
     validateDTO(api.assessments.preview.input),
     async (req, res) => {
-      const input = api.assessments.preview.input.parse(req.body);
-      const tempFile = path.join(
-        os.tmpdir(),
-        `${randomUUID()}.json`
-      );
-
       try {
-        await writeFile(tempFile, JSON.stringify(input));
+        const input = api.assessments.preview.input.parse(req.body);
+        let prediction: any;
+        let isFallback = false;
 
-        let prediction;
         try {
-          const { stdout, stderr } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            {
-              timeout: 30000
-            }
-          );
-          prediction = JSON.parse(stdout.trim());
-          if (prediction.error) {
-            return res.status(400).json({
-              message: prediction.error
-            });
-          }
+          const result = await MLService.runAssessmentInference(input);
+          prediction = result.prediction;
+          isFallback = result.isFallback;
         } catch (error: any) {
-          if (error.killed || error.signal === "SIGTERM") {
+          if (error.message?.includes("timed out")) {
             return res.status(503).json({
               message: "Clinical assessment preview timed out."
             });
           }
           logger.warn("Python prediction preview failed, running clinical rule-based fallback:", error);
           prediction = calculateClinicalFallback(input);
+          isFallback = true;
         }
+
         logger.info(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
         return res.json({
           riskScore: prediction.riskScore,
           riskCategory: prediction.riskCategory,
           factors: prediction.factors ?? [],
           confidenceInterval: prediction.confidenceInterval ?? null,
-          modelConfidence: prediction.modelConfidence ?? null
+          modelConfidence: prediction.modelConfidence ?? null,
+          isFallback
         });
       } catch (err) {
         if (err instanceof z.ZodError) {
@@ -344,12 +333,6 @@ export async function registerRoutes(
         }
         logger.error({ err }, "Error creating assessment preview");
         return res.status(500).json({ message: "Internal server error" });
-      } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {
-          logger.warn({ e, tempFile }, "Failed to clean up temp file (preview):");
-        }
       }
     }
   );
@@ -361,26 +344,15 @@ export async function registerRoutes(
     previewLimiter,
     validateDTO(api.assessments.simulate.input),
     async (req, res) => {
-      const input = api.assessments.simulate.input.parse(req.body);
-      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
-
       try {
-        await writeFile(tempFile, JSON.stringify(input));
-
+        const input = api.assessments.simulate.input.parse(req.body);
         let prediction: any;
-        try {
-          const { stdout } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            { timeout: 30000 }
-          );
 
-          prediction = JSON.parse(stdout.trim());
-          if (prediction.error) {
-            return res.status(400).json({ message: prediction.error });
-          }
+        try {
+          const result = await MLService.runAssessmentInference(input);
+          prediction = result.prediction;
         } catch (error: any) {
-          if (error.killed || error.signal === "SIGTERM") {
+          if (error.message?.includes("timed out")) {
             return res.status(408).json({ message: "Clinical assessment simulation timed out." });
           }
 
@@ -407,12 +379,6 @@ export async function registerRoutes(
         }
         logger.error({ err }, "Error creating assessment simulation");
         return res.status(500).json({ message: "Internal server error" });
-      } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {
-          logger.warn({ e, tempFile }, "Failed to clean up temp file (simulate):");
-        }
       }
     }
   );
