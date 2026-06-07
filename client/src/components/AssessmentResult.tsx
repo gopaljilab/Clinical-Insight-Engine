@@ -124,7 +124,6 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   };
 
   const { data: assessmentsResponse } = useAssessments();
-  const assessmentHistory = assessmentsResponse?.data ?? [];
   const assessmentHistory = useMemo(
     () => assessmentsResponse?.data ?? [],
     [assessmentsResponse]
