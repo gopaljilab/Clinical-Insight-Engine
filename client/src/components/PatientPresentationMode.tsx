@@ -66,7 +66,7 @@ export function PatientPresentationMode({ assessment, onClose }: Props) {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex flex-col bg-slate-50/95 backdrop-blur-md overflow-y-auto"
     >
-      <div className="flex-1 w-full max-w-5xl mx-auto p-6 md:p-12 relative">
+      <div className="w-full max-w-5xl mx-auto p-4 sm:p-6 md:p-12 relative">
         <button
           onClick={onClose}
           className="absolute top-6 right-6 md:top-8 md:right-8 p-3 bg-white border border-slate-200 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 shadow-sm transition-all duration-200 active:scale-[0.92]"
@@ -75,7 +75,7 @@ export function PatientPresentationMode({ assessment, onClose }: Props) {
           <X className="w-6 h-6" />
         </button>
 
-        <div className="text-center space-y-6 max-w-3xl mx-auto pt-10 md:pt-16">
+        <div className="text-center space-y-4 sm:space-y-6 max-w-3xl mx-auto pt-6 sm:pt-10 md:pt-16">
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-primary">
             <UserCircle className="h-5 w-5" />
             Patient Presentation Mode
@@ -85,16 +85,16 @@ export function PatientPresentationMode({ assessment, onClose }: Props) {
             Your Health Assessment
           </h1>
 
-          <div className="py-8 md:py-12">
+          <div className="py-6 sm:py-8 md:py-12">
             <div
-              className={`mx-auto flex flex-col items-center justify-center w-56 h-56 md:w-72 md:h-72 rounded-full border-[12px] ring-4 ring-offset-4 ${getRiskColor(
+              className={`mx-auto flex flex-col items-center justify-center w-40 h-40 sm:w-56 sm:h-56 md:w-72 md:h-72 rounded-full border-[8px] sm:border-[12px] ring-4 ring-offset-4 ${getRiskColor(
                 assessment.riskCategory
               )}`}
             >
-              <span className="text-base md:text-lg font-bold uppercase tracking-widest opacity-80 mb-2">
+              <span className="text-xs sm:text-base md:text-lg font-bold uppercase tracking-widest opacity-80 mb-1 sm:mb-2">
                 Risk Level
               </span>
-              <span className="text-5xl md:text-6xl font-display font-black tracking-tight">
+              <span className="text-3xl sm:text-5xl md:text-6xl font-display font-black tracking-tight">
                 {assessment.riskCategory}
               </span>
             </div>
@@ -106,7 +106,7 @@ export function PatientPresentationMode({ assessment, onClose }: Props) {
           </p>
         </div>
 
-        <div className="mt-16 md:mt-24 space-y-8 max-w-4xl mx-auto">
+        <div className="mt-8 sm:mt-16 md:mt-24 space-y-6 sm:space-y-8 max-w-4xl mx-auto">
           <h3 className="font-bold text-2xl flex items-center gap-3 border-b pb-4">
             <Target className="w-7 h-7 text-primary" /> Clinical Smart Goals
           </h3>
@@ -129,7 +129,7 @@ export function PatientPresentationMode({ assessment, onClose }: Props) {
           </div>
         </div>
 
-        <div className="mt-16 text-center pb-12">
+        <div className="mt-8 sm:mt-16 text-center pb-8 sm:pb-12">
           <button
             onClick={onClose}
             className="inline-flex items-center gap-2 px-8 py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 shadow-md transition-all duration-200 active:scale-[0.98]"

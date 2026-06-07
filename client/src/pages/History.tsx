@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useAssessments, usePatientAssessments, useClearPatientCache } from "@/hooks/use-assessments";
+import { useAssessments, usePatientAssessments, useClearPatientCache, useDeleteAssessment } from "@/hooks/use-assessments";
 import {
   format,
   isValid,
@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ShieldAlert,
   Upload,
+  Download,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
@@ -20,8 +21,8 @@ import { FileText, RotateCw } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { filterAssessments, type GenderFilterValue, type RiskCategoryFilterValue } from "@/utils/filterAssessments";
+import { advancedFilter } from "@/utils/search_filters";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
 import RiskTrendChart from "@/components/RiskTrendChart";
 import HealthBadges from "@/components/HealthBadges";
 import { calculateHealthBadges } from "@/utils/healthBadges";
@@ -29,6 +30,11 @@ import { AssessmentSearchBar } from "@/components/AssessmentSearchBar";
 import { AssessmentFilters } from "@/components/AssessmentFilters";
 import { ActiveFilterChips } from "@/components/ActiveFilterChips";
 import { ClearFiltersButton } from "@/components/ClearFiltersButton";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
+import { ClearFiltersButton } from "@/components/ClearFiltersButton";
+import { validateSearchInput } from "@/validation/filterValidation";
+import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
+import { downloadPatientSummaryPdf } from "@/utils/clinicalPdfReport";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
@@ -54,6 +60,8 @@ function HighlightText({ text, search }: { text: string; search: string }) {
   );
 }
 
+const PAGE_SIZE = 10;
+
 export default function History() {
   useEffect(() => {
     document.title = "Clinical Insight Engine - Assessment History";
@@ -62,10 +70,33 @@ export default function History() {
   const { toast } = useToast();
 
 
-  const { data: infiniteData, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useAssessments();
-  const assessments = infiniteData ? infiniteData.pages.flatMap((page) => page.data) : [];
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Parse sortBy into field and order for backend query
+  const [sortField, sortOrder] = useMemo(() => {
+    const parts = sortBy.split("-");
+    const fieldMap: Record<string, string> = {
+      date: "createdAt",
+      risk: "riskScore",
+      age: "age",
+      bmi: "bmi"
+    };
+    return [fieldMap[parts[0]] || "createdAt", parts[1] || "desc"];
+  }, [sortBy]);
+
+  // New filter state
+  const [riskCategory, setRiskCategory] = useState<RiskCategoryFilterValue>("All");
+  const [gender, setGender] = useState<GenderFilterValue>("All");
+  const [minAge, setMinAge] = useState<number | undefined>(undefined);
+  const [maxAge, setMaxAge] = useState<number | undefined>(undefined);
+
+  // New filter state
+  const [riskCategory, setRiskCategory] = useState<RiskCategoryFilterValue>("All");
+  const [gender, setGender] = useState<GenderFilterValue>("All");
+  const [minAge, setMinAge] = useState<number | undefined>(undefined);
+  const [maxAge, setMaxAge] = useState<number | undefined>(undefined);
 
   // New filter state
   const [riskCategory, setRiskCategory] = useState<RiskCategoryFilterValue>("All");
@@ -76,6 +107,24 @@ export default function History() {
   // Date filter state
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+
+  const { data: assessmentsData, isLoading, error } = useAssessments({
+    page: currentPage,
+    limit: PAGE_SIZE,
+    sortBy: sortField,
+    order: sortOrder,
+    searchTerm: searchTerm || undefined,
+    riskCategory: riskCategory !== "All" ? riskCategory : undefined,
+    gender: gender !== "All" ? gender : undefined,
+    minAge,
+    maxAge,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined
+  });
+
+  const assessments = assessmentsData?.data ?? [];
+
+  const { mutate: deleteAssessment } = useDeleteAssessment();
 
   // Refs to programmatically trigger the pop-up calendar on click
   const startInputRef = useRef<HTMLInputElement>(null);
@@ -150,6 +199,7 @@ export default function History() {
     setMaxAge(undefined);
     setStartDate("");
     setEndDate("");
+    setCurrentPage(1);
   };
 
   const selectedPatientHistory = useMemo(() => {
@@ -176,6 +226,49 @@ export default function History() {
     window.history.replaceState({}, '', newUrl);
   }, [searchTerm]);
 
+  const hasActiveFilters =
+    searchTerm !== "" ||
+    riskCategory !== "All" ||
+    gender !== "All" ||
+    minAge !== undefined ||
+    maxAge !== undefined ||
+    startDate !== "" ||
+    endDate !== "";
+
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setRiskCategory("All");
+    setGender("All");
+    setMinAge(undefined);
+    setMaxAge(undefined);
+    setStartDate("");
+    setEndDate("");
+  };
+
+  const activeFilterChips = useMemo(() => {
+    const chips: any[] = [];
+    if (searchTerm) {
+      chips.push({ id: 'search', label: `Search: ${searchTerm}`, onRemove: () => setSearchTerm("") });
+    }
+    if (riskCategory !== "All") {
+      chips.push({ id: 'risk', label: `Risk: ${riskCategory}`, onRemove: () => setRiskCategory("All") });
+    }
+    if (gender !== "All") {
+      chips.push({ id: 'gender', label: `Gender: ${gender}`, onRemove: () => setGender("All") });
+    }
+    if (minAge !== undefined || maxAge !== undefined) {
+      const min = minAge !== undefined ? minAge : 0;
+      const max = maxAge !== undefined ? maxAge : '120+';
+      chips.push({ id: 'age', label: `Age: ${min} - ${max}`, onRemove: () => { setMinAge(undefined); setMaxAge(undefined); } });
+    }
+    if (startDate || endDate) {
+      const start = startDate ? format(new Date(startDate), "MMM d, yyyy") : "Any";
+      const end = endDate ? format(new Date(endDate), "MMM d, yyyy") : "Any";
+      chips.push({ id: 'date', label: `Date: ${start} - ${end}`, onRemove: () => { setStartDate(""); setEndDate(""); } });
+    }
+    return chips;
+  }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate]);
+
   const handleUploadLabResults = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -195,6 +288,24 @@ export default function History() {
       toast({ title: "Upload Error", description: err.message, variant: "destructive" });
     }
     e.target.value = ''; // Reset input
+  };
+
+  const exportFilteredCsv = () => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("limit", String(Math.min(Math.max(filteredRecords || PAGE_SIZE, PAGE_SIZE), 1000)));
+    params.set("sortBy", sortField);
+    params.set("order", sortOrder);
+
+    if (searchTerm) params.set("searchTerm", searchTerm);
+    if (riskCategory !== "All") params.set("riskCategory", riskCategory);
+    if (gender !== "All") params.set("gender", gender);
+    if (minAge !== undefined) params.set("minAge", String(minAge));
+    if (maxAge !== undefined) params.set("maxAge", String(maxAge));
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+
+    window.location.href = `/api/assessments/export.csv?${params.toString()}`;
   };
 
   const getRiskBadge = (category: string) => {
@@ -325,36 +436,83 @@ export default function History() {
       },
     });
   }, [assessments, searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate]);
+  const latestBadgeAssessment = useMemo(() => {
+    if (assessments.length === 0) return null;
+    return (
+      assessments.find((assessment) =>
+        calculateHealthBadges(assessment, assessments).length > 0
+      ) || assessments[0]
+    );
+  }, [assessments]);
 
-  // 3. Sorting Records
-  const sortedAssessments = [...filteredAssessments].sort((a, b) => {
-    switch (sortBy) {
-      case "date-desc":
-        return (
+  const latestBadges = useMemo(() => {
+    if (!latestBadgeAssessment) return [];
+    return calculateHealthBadges(latestBadgeAssessment, assessments);
+  }, [latestBadgeAssessment, assessments]);
+
+  const selectedPatientBadges = useMemo(() => {
+    const sortedHistory = [...selectedPatientHistory].sort(
+      (a, b) =>
+        new Date(b.createdAt || 0).getTime() -
+        new Date(a.createdAt || 0).getTime()
+    );
+
+    if (sortedHistory.length === 0) return [];
+    return calculateHealthBadges(sortedHistory[0], sortedHistory);
+  }, [selectedPatientHistory]);
+
+  const sortedSelectedPatientHistory = useMemo(
+    () =>
+      [...selectedPatientHistory].sort(
+        (a, b) =>
           new Date(b.createdAt || 0).getTime() -
           new Date(a.createdAt || 0).getTime()
-        );
-      case "date-asc":
-        return (
-          new Date(a.createdAt || 0).getTime() -
-          new Date(b.createdAt || 0).getTime()
-        );
-      case "risk-desc":
-        return Number(b.riskScore) - Number(a.riskScore);
-      case "risk-asc":
-        return Number(a.riskScore) - Number(b.riskScore);
-      case "age-desc":
-        return b.age - a.age;
-      case "age-asc":
-        return a.age - b.age;
-      case "bmi-desc":
-        return Number(b.bmi) - Number(a.bmi);
-      case "bmi-asc":
-        return Number(a.bmi) - Number(b.bmi);
-      default:
-        return 0;
+      ),
+    [selectedPatientHistory]
+  );
+
+  const handleExportPatientSummary = () => {
+    if (sortedSelectedPatientHistory.length === 0) {
+      toast({
+        title: "No patient history available",
+        description: "Select a patient with assessment history before exporting a summary.",
+        variant: "destructive",
+      });
+      return;
     }
-  });
+
+    downloadPatientSummaryPdf(sortedSelectedPatientHistory);
+  };
+
+  // Reset to first page when filters or sort change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate, sortBy]);
+
+  const latestBadgeAssessment = useMemo(() => {
+    if (sortedAssessments.length === 0) return null;
+    return (
+      sortedAssessments.find((assessment) =>
+        calculateHealthBadges(assessment, sortedAssessments).length > 0
+      ) || sortedAssessments[0]
+    );
+  }, [sortedAssessments]);
+
+  const latestBadges = useMemo(() => {
+    if (!latestBadgeAssessment) return [];
+    return calculateHealthBadges(latestBadgeAssessment, sortedAssessments);
+  }, [latestBadgeAssessment, sortedAssessments]);
+
+  const selectedPatientBadges = useMemo(() => {
+    const sortedHistory = [...selectedPatientHistory].sort(
+      (a, b) =>
+        new Date(b.createdAt || 0).getTime() -
+        new Date(a.createdAt || 0).getTime()
+    );
+
+    if (sortedHistory.length === 0) return [];
+    return calculateHealthBadges(sortedHistory[0], sortedHistory);
+  }, [selectedPatientHistory]);
 
   const latestBadgeAssessment = useMemo(() => {
     if (sortedAssessments.length === 0) return null;
@@ -385,6 +543,13 @@ export default function History() {
   const totalRecords = assessments.length;
   const filteredRecords = sortedAssessments.length;
   const paginatedAssessments = sortedAssessments;
+  // 4. Pagination (Server-Side)
+  const totalRecords = assessmentsData?.total ?? 0;
+  const filteredRecords = assessmentsData?.total ?? 0;
+  const totalPages = assessmentsData?.totalPages ?? 1;
+  const safePage = currentPage;
+  const sortedAssessments = assessments;
+  const paginatedAssessments = assessments;
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
@@ -470,11 +635,21 @@ export default function History() {
               <input type="file" className="sr-only" onChange={handleUploadLabResults} />
             </label>
 
+            <button
+              type="button"
+              onClick={exportFilteredCsv}
+              disabled={isLoading || filteredRecords === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </button>
+
             {/* Sort Dropdown */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20 transition-all w-full sm:w-48 text-sm font-semibold text-foreground cursor-pointer"
+              className="px-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20 transition-all duration-200 ease-in-out w-full sm:w-48 text-sm font-semibold text-foreground cursor-pointer"
             >
               <option value="date-desc">Newest First</option>
               <option value="date-asc">Oldest First</option>
@@ -489,9 +664,28 @@ export default function History() {
         </div>
 
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <Loader2 className="w-8 h-8 animate-spin mb-4 text-primary" />
-            <p>Loading assessment history...</p>
+          <div className="space-y-6 animate-pulse">
+            <div className="grid gap-6">
+              <div className="h-48 rounded-3xl bg-card border border-border"></div>
+              <div className="h-64 rounded-3xl bg-card border border-border"></div>
+            </div>
+            <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+              <div className="h-12 bg-muted/50 border-b border-border"></div>
+              <div className="divide-y divide-border">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="flex items-center justify-between p-4 h-16">
+                    <div className="h-4 bg-muted rounded w-24"></div>
+                    <div className="h-4 bg-muted rounded w-32"></div>
+                    <div className="h-4 bg-muted rounded w-16"></div>
+                    <div className="h-4 bg-muted rounded w-16"></div>
+                    <div className="h-4 bg-muted rounded w-16"></div>
+                    <div className="h-4 bg-muted rounded w-16"></div>
+                    <div className="h-4 bg-muted rounded w-20"></div>
+                    <div className="h-6 bg-muted rounded-full w-24"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         ) : error ? (
           <div className="p-6 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-center">
@@ -601,7 +795,7 @@ export default function History() {
                         />
                       </td>
                       <td className="p-4">
-                        <div className="font-bold flex items-center gap-3">
+                        <div className="font-black text-base flex items-center gap-3">
                           <span>
                             {Number(assessment.riskScore).toFixed(1)}%
                           </span>
@@ -675,6 +869,15 @@ export default function History() {
                             <FileText className="w-4 h-4" />
                             Export
                           </button>
+                          {assessment.id && (
+                            <ConfirmDeleteDialog
+                              patientName={assessment.patientName || "Unknown Patient"}
+                              assessmentDate={formatAssessmentDate(assessment.createdAt)}
+                              onConfirm={async () => {
+                                await deleteAssessment(assessment.id!);
+                              }}
+                            />
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -688,30 +891,42 @@ export default function History() {
               <div className="text-sm text-muted-foreground font-medium">
                 Showing{" "}
                 <span className="font-semibold text-foreground">
-                  {totalRecords === 0 ? 0 : 1}
+                  {filteredRecords === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}
                 </span>{" "}
                 to{" "}
                 <span className="font-semibold text-foreground">
-                  {totalRecords}
+                  {Math.min(safePage * PAGE_SIZE, filteredRecords)}
                 </span>{" "}
-                records on this page
+                of{" "}
+                <span className="font-semibold text-foreground">
+                  {filteredRecords}
+                </span>{" "}
+                filtered records (page {safePage} of {totalPages})
               </div>
 
               <div className="flex items-center gap-2">
-                {hasNextPage && (
-                  <button
-                    type="button"
-                    onClick={() => fetchNextPage()}
-                    disabled={isFetchingNextPage}
-                    className="inline-flex items-center justify-center p-2 px-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-40 transition-colors shadow-sm cursor-pointer mr-4 font-bold text-sm"
-                  >
-                    {isFetchingNextPage ? (
-                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading...</>
-                    ) : (
-                      "Load More from Server"
-                    )}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="inline-flex items-center justify-center p-2 px-3 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-30 transition-colors shadow-sm cursor-pointer font-bold text-sm"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Prev
+                </button>
+                <span className="text-sm text-muted-foreground font-medium px-2">
+                  {safePage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  disabled={safePage >= totalPages}
+                  className="inline-flex items-center justify-center p-2 px-3 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-30 transition-colors shadow-sm cursor-pointer font-bold text-sm"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </button>
+
 
               </div>
             </div>
@@ -720,6 +935,7 @@ export default function History() {
         )}
       </div>
 
+      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientName(null)}>
       <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientKey(null)}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto sm:border-l sm:border-slate-200">
           <SheetHeader className="mb-6">
@@ -729,6 +945,15 @@ export default function History() {
           
           {selectedPatientHistory.length > 0 && (
             <div className="space-y-6 pb-12">
+              <button
+                type="button"
+                onClick={handleExportPatientSummary}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700 sm:w-auto"
+              >
+                <FileText className="h-4 w-4" />
+                Export Patient Summary PDF
+              </button>
+
               <HealthBadges
                 badges={selectedPatientBadges}
                 title="Patient improvement badges"
@@ -748,6 +973,7 @@ export default function History() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {selectedPatientHistory.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((a) => (
+                    {sortedSelectedPatientHistory.map((a) => (
                       <tr key={a.id} className="hover:bg-muted/30 transition-colors">
                         <td className="p-3 whitespace-nowrap">{formatAssessmentDate(a.createdAt)}</td>
                         <td className="p-3 font-bold text-foreground">{Number(a.riskScore).toFixed(1)}%</td>
@@ -765,7 +991,5 @@ export default function History() {
     </AppLayout>
   );
 }
-
-
 
 

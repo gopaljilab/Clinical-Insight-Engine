@@ -38,6 +38,7 @@ export const HealthBadges: FC<HealthBadgesProps> = ({
 }) => {
   return (
     <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+    <div className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-sm">
       <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.24em] font-bold text-muted-foreground">
@@ -55,6 +56,26 @@ export const HealthBadges: FC<HealthBadgesProps> = ({
       {badges.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-background p-6 text-sm text-muted-foreground">
           Keep tracking patient assessments to start earning improvement badges. Badges appear when metrics or overall risk trend better compared to previous evaluations.
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 opacity-60 grayscale cursor-not-allowed">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="group rounded-3xl border border-dashed border-border bg-background/50 p-5">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-muted bg-muted/20 text-muted-foreground">
+                  <Activity className="h-5 w-5 opacity-50" />
+                </span>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-4 w-3/4 rounded bg-muted/40" />
+                  <div className="h-3 w-full rounded bg-muted/30" />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <Badge variant="outline" className="uppercase tracking-[0.2em] text-[10px] text-muted-foreground">
+                  Locked
+                </Badge>
+                <span className="text-[10px] text-muted-foreground">Needs more data</span>
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <TooltipProvider delayDuration={200}>
