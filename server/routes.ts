@@ -7,9 +7,31 @@ import type { Server } from "http";
 import authRouter from "./routes/auth.routes";
 import assessmentsRouter from "./routes/assessments.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
-import { requireAuth, requireAdmin } from "./auth";
+import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import bcrypt from "bcrypt";
 import { logger } from "./logger";
+import { z } from "zod";
+import { api } from "@shared/routes";
+import { validateDTO } from "./middleware/validateDTO";
+import { getAssessmentQueue } from "./queue";
+import { generateRequestFingerprint, getPythonExecutable, calculateClinicalFallback } from "./services/mlService";
+import { assessmentsToCsv } from "./utils/csvExport";
+import { searchQuerySchema } from "./validation/searchValidation";
+import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
+import { canAccessPatientRecord } from "./services/authz/patient-access";
+import { logAccessAttempt } from "./security/access-audit";
+import { assessmentLimiter, previewLimiter } from "./routes/assessments.routes";
+import { promisify } from "util";
+import { execFile } from "child_process";
+import path from "path";
+import os from "os";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
+
+const execFileAsync = promisify(execFile);
+const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
+const activeInferenceRequests = new Set<string>();
+const assessmentQueue = getAssessmentQueue();
 
 async function seedDatabase() {
   const adminEmail = process.env.ADMIN_EMAIL;

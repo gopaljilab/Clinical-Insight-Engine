@@ -19,7 +19,7 @@ import { validateDTO } from "../middleware/validateDTO";
 
 const assessmentsRouter = Router();
 
-const assessmentLimiter = rateLimit({
+export const assessmentLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 5,
   standardHeaders: "draft-8",
@@ -30,7 +30,7 @@ const assessmentLimiter = rateLimit({
   },
 });
 
-const previewLimiter = rateLimit({
+export const previewLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 10,
   standardHeaders: "draft-8",
