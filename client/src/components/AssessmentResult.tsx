@@ -10,9 +10,6 @@ import { calculateHealthBadges } from "@/utils/healthBadges";
 import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
-import { Recommendations } from "./Recommendations";
-import { PredictionExplanation } from "./PredictionExplanation";
-import { DataQualityAlerts } from "./DataQualityAlerts";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -127,9 +124,11 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   };
 
   const { data: assessmentsResponse } = useAssessments();
-  const assessmentHistory = assessmentsResponse?.pages
-    ? assessmentsResponse.pages.flatMap((p: any) => p.data)
-    : [];
+  const assessmentHistory = assessmentsResponse?.data ?? [];
+  const assessmentHistory = useMemo(
+    () => assessmentsResponse?.data ?? [],
+    [assessmentsResponse]
+  );
   const improvementBadges = useMemo(
     () => calculateHealthBadges(assessment, assessmentHistory),
     [assessment, assessmentHistory]
@@ -173,7 +172,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       id="assessment-result-wrapper"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 overflow-hidden flex flex-col"
+      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 flex flex-col"
     >
       {/* Header/Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 bg-muted/30 p-2.5">
@@ -294,8 +293,6 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 description="See improvements and long-term trends based on this assessment and past history."
               />
 
-              <DataQualityAlerts alerts={assessment.qualityAlerts} />
-
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
@@ -328,10 +325,6 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   </div>
                 ))}
               </div>
-
-              <Recommendations recommendations={assessment.recommendations} audience="patient" />
-
-              <PredictionExplanation explanation={assessment.explanation} view="patient" />
 
               <WhatIfRiskSimulator assessment={assessment} />
 
@@ -458,9 +451,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 <div className="h-56 sm:h-64 w-full overflow-x-auto">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                      <ReferenceLine x={0} stroke="#cbd5e1" />
+                      <ReferenceLine x={0} stroke="hsl(var(--border))" />
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: '#64748b', fontSize: 12 }} />
+                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
                       <Tooltip 
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
