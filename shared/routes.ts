@@ -38,7 +38,11 @@ export const api = {
       responses: {
         200: z.object({
           data: z.array(z.custom<typeof assessments.$inferSelect>()),
-          nextCursor: z.number().nullable(),
+          nextCursor: z.number().nullable().optional(),
+          total: z.number(),
+          page: z.number(),
+          limit: z.number(),
+          totalPages: z.number(),
         }),
       },
     },
@@ -83,60 +87,29 @@ export const api = {
           ),
           confidenceInterval: z.string().nullable().optional(),
           modelConfidence: z.number().nullable().optional(),
-          recommendations: z
+          isFallback: z.boolean().optional(),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    simulate: {
+      method: "POST" as const,
+      path: "/api/assessments/simulate" as const,
+      input: insertAssessmentSchema,
+      responses: {
+        200: z.object({
+          simulatedRisk: z.number(),
+          riskCategory: z.enum(["LOW", "MODERATE", "HIGH"]),
+          confidence: z.number().nullable().optional(),
+          factorContributions: z
             .array(
               z.object({
-                id: z.string(),
-                title: z.string(),
+                name: z.string(),
+                impact: z.enum(["positive", "negative"]),
                 description: z.string(),
-                urgency: z.enum(["low", "medium", "high"]).optional(),
-                audience: z.enum(["clinician", "patient", "both"]).optional(),
-                checklist: z.boolean().optional(),
               })
             )
-            .optional(),
-          qualityAlerts: z
-            .array(
-              z.object({
-                severity: z.enum(["warning", "info"]),
-                message: z.string(),
-                code: z.string().optional(),
-              })
-            )
-            .optional(),
-          explanation: z
-            .object({
-              summary: z.string(),
-              patientSummary: z.string(),
-              clinicianSummary: z.string(),
-              topContributors: z.array(
-                z.object({
-                  name: z.string(),
-                  impact: z.enum(["positive", "negative"]),
-                  strength: z.number(),
-                  description: z.string(),
-                  why: z.string(),
-                })
-              ),
-              strongestPositive: z.array(
-                z.object({
-                  name: z.string(),
-                  impact: z.enum(["positive", "negative"]),
-                  strength: z.number(),
-                  description: z.string(),
-                  why: z.string(),
-                })
-              ),
-              strongestNegative: z.array(
-                z.object({
-                  name: z.string(),
-                  impact: z.enum(["positive", "negative"]),
-                  strength: z.number(),
-                  description: z.string(),
-                  why: z.string(),
-                })
-              ),
-            })
             .optional(),
         }),
         400: errorSchemas.validation,
