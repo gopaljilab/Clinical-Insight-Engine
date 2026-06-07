@@ -14,7 +14,7 @@ import { z } from "zod";
 import { api } from "@shared/routes";
 import { validateDTO } from "./middleware/validateDTO";
 import { getAssessmentQueue } from "./queue";
-import { generateRequestFingerprint, getPythonExecutable, calculateClinicalFallback } from "./services/mlService";
+import { generateRequestFingerprint, getPythonExecutable, calculateClinicalFallback, MLService } from "./services/mlService";
 import { assessmentsToCsv } from "./utils/csvExport";
 import { searchQuerySchema } from "./validation/searchValidation";
 import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
@@ -30,7 +30,6 @@ import { writeFile, unlink } from "fs/promises";
 
 const execFileAsync = promisify(execFile);
 const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
-const activeInferenceRequests = new Set<string>();
 const assessmentQueue = getAssessmentQueue();
 
 async function seedDatabase() {
@@ -303,10 +302,18 @@ export async function registerRoutes(
         });
       }
 
+      let requestFingerprint: string | undefined;
+      let didAdd = false;
       try {
         const input = api.assessments.create.input.parse(req.body);
-        const requestFingerprint = generateRequestFingerprint(input, userId);
-        
+        requestFingerprint = generateRequestFingerprint(input, userId);
+
+        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
+          return res.status(409).json({ message: "Assessment request is already being processed." });
+        }
+        MLService.activeInferenceRequests.add(requestFingerprint);
+        didAdd = true;
+
         const job = await assessmentQueue.add("predict", {
           input,
           userId,
@@ -327,6 +334,10 @@ export async function registerRoutes(
         return res
           .status(500)
           .json({ message: "Failed to queue clinical assessment." });
+      } finally {
+        if (didAdd) {
+          MLService.activeInferenceRequests.delete(requestFingerprint!);
+        }
       }
     }
   );
@@ -374,10 +385,10 @@ export async function registerRoutes(
         const input = inputSchema.parse(req.body.assessments);
         
         requestFingerprint = generateRequestFingerprint(input, userId);
-        if (activeInferenceRequests.has(requestFingerprint)) {
+        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
           return res.status(409).json({ message: "Bulk request already processing." });
         }
-        activeInferenceRequests.add(requestFingerprint);
+        MLService.activeInferenceRequests.add(requestFingerprint);
 
         tempFilePath = path.join(os.tmpdir(), `bulk_${randomUUID()}.json`);
         await writeFile(tempFilePath, JSON.stringify(input));
@@ -425,7 +436,7 @@ export async function registerRoutes(
           try { await unlink(tempFilePath); } catch {}
         }
         if (requestFingerprint) {
-          activeInferenceRequests.delete(requestFingerprint);
+          MLService.activeInferenceRequests.delete(requestFingerprint);
         }
       }
     }
