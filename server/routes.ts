@@ -10,27 +10,52 @@ import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import bcrypt from "bcrypt";
 import { logger } from "./logger";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import { z } from "zod";
+import { rateLimit } from "express-rate-limit";
+import path from "path";
+import os from "os";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
+import { fileURLToPath } from "url";
 import { api } from "@shared/routes";
+import { getPythonExecutable, calculateClinicalFallback, generateRequestFingerprint, MLService } from "./services/mlService";
 import { validateDTO } from "./middleware/validateDTO";
 import { getAssessmentQueue } from "./queue";
-import { generateRequestFingerprint, getPythonExecutable, calculateClinicalFallback, MLService } from "./services/mlService";
 import { assessmentsToCsv } from "./utils/csvExport";
 import { searchQuerySchema } from "./validation/searchValidation";
 import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
-import { assessmentLimiter, previewLimiter } from "./routes/assessments.routes";
-import { promisify } from "util";
-import { execFile } from "child_process";
-import path from "path";
-import os from "os";
-import { randomUUID } from "crypto";
-import { writeFile, unlink } from "fs/promises";
 
 const execFileAsync = promisify(execFile);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
 const assessmentQueue = getAssessmentQueue();
+
+const previewLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many preview requests. Please try again later.",
+    retryAfter: 60,
+  },
+});
+
+const assessmentLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many assessment requests. Please try again later.",
+    retryAfter: 60,
+  },
+});
 
 async function seedDatabase() {
   const adminEmail = process.env.ADMIN_EMAIL;
