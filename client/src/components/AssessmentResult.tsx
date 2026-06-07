@@ -10,6 +10,7 @@ import { calculateHealthBadges } from "@/utils/healthBadges";
 import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
+import { Recommendations } from "./Recommendations";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -124,7 +125,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   };
 
   const { data: assessmentsResponse } = useAssessments();
-  const assessmentHistory = assessmentsResponse?.data ?? [];
+  const assessmentHistory = assessmentsResponse?.pages
+    ? assessmentsResponse.pages.flatMap((p: any) => p.data)
+    : [];
   const improvementBadges = useMemo(
     () => calculateHealthBadges(assessment, assessmentHistory),
     [assessment, assessmentHistory]
@@ -322,6 +325,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 ))}
               </div>
 
+              <Recommendations recommendations={assessment.recommendations} audience="patient" />
+
               <WhatIfRiskSimulator assessment={assessment} />
 
               <ExplainabilityPanel
@@ -489,6 +494,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                     </div>
                   ))}
                 </div>
+              </div>
+              <div className="mt-4">
+                <Recommendations recommendations={assessment.recommendations} audience="clinician" />
               </div>
             </motion.div>
           )}

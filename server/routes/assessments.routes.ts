@@ -7,6 +7,7 @@ import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { MLService } from "../services/mlService";
+import { generateRecommendations } from "../services/recommendation-engine";
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,
@@ -51,6 +52,10 @@ assessmentsRouter.post(
     try {
       const input = req.body;
       const { prediction } = await MLService.runAssessmentInference(input);
+      const recommendations = generateRecommendations({
+        ...input,
+        riskCategory: prediction.riskCategory,
+      });
 
       return res.json({
         riskScore: prediction.riskScore,
@@ -58,6 +63,7 @@ assessmentsRouter.post(
         factors: prediction.factors ?? [],
         confidenceInterval: prediction.confidenceInterval ?? null,
         modelConfidence: prediction.modelConfidence ?? null,
+        recommendations,
       });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
@@ -119,7 +125,12 @@ assessmentsRouter.post(
         createdBy: userEmail || userId,
       });
 
-      return res.status(201).json(assessment);
+      const recommendations = generateRecommendations({
+        ...assessment,
+        riskCategory: assessment.riskCategory,
+      });
+
+      return res.status(201).json({ ...assessment, recommendations });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res
@@ -172,8 +183,16 @@ assessmentsRouter.get(
       const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
       
       const result = await storage.getAssessments(limit, cursor, userEmail);
+      // Attach lightweight recommendations to each assessment in the list (generated dynamically)
+      const mapped = {
+        data: result.data.map((a) => ({
+          ...a,
+          recommendations: generateRecommendations({ ...a, riskCategory: a.riskCategory }),
+        })),
+        nextCursor: result.nextCursor,
+      };
 
-      res.json(result);
+      res.json(mapped);
     } catch (err) {
       return res.status(500).json({ message: "Failed to fetch assessments" });
     }
@@ -289,7 +308,8 @@ assessmentsRouter.get(
       }
 
       logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
-      return res.json(assessment);
+      const recommendations = generateRecommendations({ ...assessment, riskCategory: assessment.riskCategory });
+      return res.json({ ...assessment, recommendations });
     } catch (err) {
       logger.error({ err }, "Assessment fetch error:");
       const { statusCode, message } = sanitizeDatabaseError(err);

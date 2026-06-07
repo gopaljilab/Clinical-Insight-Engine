@@ -43,6 +43,7 @@ interface WhatIfRiskSimulatorProps {
 export function WhatIfRiskSimulator({ assessment }: WhatIfRiskSimulatorProps) {
   const { toast } = useToast();
   const simulateMutation = useSimulateAssessment();
+  const simulateIsLoading = (simulateMutation as any).isLoading || (simulateMutation as any).isMutating || simulateMutation.status === "loading";
 
   const [values, setValues] = useState({
     bmi: assessment.bmi ?? 0,
@@ -119,11 +120,11 @@ export function WhatIfRiskSimulator({ assessment }: WhatIfRiskSimulatorProps) {
         </div>
         <button
           type="button"
-          disabled={simulateMutation.isLoading}
+          disabled={Boolean(simulateIsLoading)}
           onClick={handleRunSimulation}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {simulateMutation.isLoading ? (
+          {simulateIsLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <TrendingUp className="h-4 w-4" />

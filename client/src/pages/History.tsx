@@ -21,6 +21,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { filterAssessments, type GenderFilterValue, type RiskCategoryFilterValue } from "@/utils/filterAssessments";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
 import RiskTrendChart from "@/components/RiskTrendChart";
 import HealthBadges from "@/components/HealthBadges";
 import { calculateHealthBadges } from "@/utils/healthBadges";
@@ -82,6 +83,36 @@ export default function History() {
 
   const [selectedPatientKey, setSelectedPatientKey] = useState<string | null>(null);
   const clearPatientCache = useClearPatientCache();
+
+  // Active filters helper
+  const hasActiveFilters = Boolean(
+    searchTerm ||
+    (riskCategory && riskCategory !== "All") ||
+    (gender && gender !== "All") ||
+    minAge != null ||
+    maxAge != null ||
+    startDate ||
+    endDate
+  );
+
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setRiskCategory("All");
+    setGender("All");
+    setMinAge(undefined);
+    setMaxAge(undefined);
+    setStartDate("");
+    setEndDate("");
+  };
+
+  const activeFilterChips = [] as { id: string; label: string; onRemove: () => void }[];
+  if (searchTerm) activeFilterChips.push({ id: "q", label: `Search: ${searchTerm}`, onRemove: () => setSearchTerm("") });
+  if (riskCategory && riskCategory !== "All") activeFilterChips.push({ id: "rc", label: `Category: ${riskCategory}`, onRemove: () => setRiskCategory("All") });
+  if (gender && gender !== "All") activeFilterChips.push({ id: "g", label: `Gender: ${gender}`, onRemove: () => setGender("All") });
+  if (minAge != null) activeFilterChips.push({ id: "minAge", label: `Min age: ${minAge}`, onRemove: () => setMinAge(undefined) });
+  if (maxAge != null) activeFilterChips.push({ id: "maxAge", label: `Max age: ${maxAge}`, onRemove: () => setMaxAge(undefined) });
+  if (startDate) activeFilterChips.push({ id: "startDate", label: `From: ${startDate}`, onRemove: () => setStartDate("") });
+  if (endDate) activeFilterChips.push({ id: "endDate", label: `To: ${endDate}`, onRemove: () => setEndDate("") });
 
   /**
    * Build a stable per-patient key from the two fields that are recorded at
@@ -685,10 +716,11 @@ export default function History() {
               </div>
             </div>
           </div>
+          </>
         )}
       </div>
 
-      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientName(null)}>
+      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientKey(null)}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto sm:border-l sm:border-slate-200">
           <SheetHeader className="mb-6">
             <SheetTitle className="text-2xl font-bold font-display">Longitudinal Trajectory</SheetTitle>
