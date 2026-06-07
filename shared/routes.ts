@@ -116,29 +116,6 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
-    simulate: {
-      method: "POST" as const,
-      path: "/api/assessments/simulate" as const,
-      input: insertAssessmentSchema,
-      responses: {
-        200: z.object({
-          simulatedRisk: z.number(),
-          riskCategory: z.enum(["LOW", "MODERATE", "HIGH"]),
-          confidence: z.number().nullable().optional(),
-          factorContributions: z
-            .array(
-              z.object({
-                name: z.string(),
-                impact: z.enum(["positive", "negative"]),
-                description: z.string(),
-              })
-            )
-            .optional(),
-        }),
-        400: errorSchemas.validation,
-        500: errorSchemas.internal,
-      },
-    },
 +    biomarkerAlerts: {
 +      method: "GET" as const,
 +      path: "/api/assessments/biomarker-alerts" as const,

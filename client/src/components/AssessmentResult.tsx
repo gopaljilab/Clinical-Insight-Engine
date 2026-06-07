@@ -409,9 +409,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
               </div>
 
-              <div className="mt-4 space-y-4">
+              <div className="mt-4">
                 <DataQualityAlerts alerts={assessment.qualityAlerts} />
-                <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
