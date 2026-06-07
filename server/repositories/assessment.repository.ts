@@ -279,8 +279,7 @@ export class AssessmentRepository {
           ilike(assessments.patientName, pattern),
           ilike(assessments.gender, pattern),
           ilike(assessments.smokingHistory, pattern),
-          ilike(assessments.riskCategory, pattern),
-          ilike(assessments.patientName, pattern)
+          ilike(assessments.riskCategory, pattern)
         ) as ReturnType<typeof eq>
       );
     }
