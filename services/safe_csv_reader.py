@@ -16,7 +16,14 @@ def read_csv_safely(filepath, chunksize=10000, max_rows=150000, timeout_seconds=
         
         # 3. Read Headers first to validate
         try:
-            df_preview = pd.read_csv(filepath, nrows=0)
+            df_preview = pd.read_csv(
+                filepath, 
+                nrows=0,
+                engine='c',
+                on_bad_lines='error',
+                encoding='utf-8',
+                low_memory=True
+            )
             validate_headers(df_preview.columns)
         except Exception as e:
             if isinstance(e, ValidationError):
@@ -27,7 +34,14 @@ def read_csv_safely(filepath, chunksize=10000, max_rows=150000, timeout_seconds=
         chunks = []
         try:
             from app.utils.csv_sanitizer import sanitize_csv_value
-            for chunk in pd.read_csv(filepath, chunksize=chunksize):
+            for chunk in pd.read_csv(
+                filepath, 
+                chunksize=chunksize,
+                engine='c',
+                on_bad_lines='error',
+                encoding='utf-8',
+                low_memory=True
+            ):
                 guard.check_resource_limits(len(chunk))
                 # Sanitize all string inputs against CSV injection
                 for col in chunk.select_dtypes(include=['object']):

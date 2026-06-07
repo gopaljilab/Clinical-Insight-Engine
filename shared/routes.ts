@@ -38,7 +38,11 @@ export const api = {
       responses: {
         200: z.object({
           data: z.array(z.custom<typeof assessments.$inferSelect>()),
-          nextCursor: z.number().nullable(),
+          nextCursor: z.number().nullable().optional(),
+          total: z.number(),
+          page: z.number(),
+          limit: z.number(),
+          totalPages: z.number(),
         }),
       },
     },
@@ -83,18 +87,7 @@ export const api = {
           ),
           confidenceInterval: z.string().nullable().optional(),
           modelConfidence: z.number().nullable().optional(),
-          recommendations: z
-            .array(
-              z.object({
-                id: z.string(),
-                title: z.string(),
-                description: z.string(),
-                urgency: z.enum(["low", "medium", "high"]).optional(),
-                audience: z.enum(["clinician", "patient", "both"]).optional(),
-                checklist: z.boolean().optional(),
-              })
-            )
-            .optional(),
+          isFallback: z.boolean().optional(),
         }),
         400: errorSchemas.validation,
         500: errorSchemas.internal,

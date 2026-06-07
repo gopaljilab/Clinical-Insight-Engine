@@ -59,12 +59,12 @@ function getCategory(bmi: number): string {
 export function BMIClassificationHelper({
   bmi,
 }: BMIClassificationHelperProps) {
-  // Don't render if BMI is empty or invalid
-  if (bmi === undefined || bmi === null || isNaN(bmi)) {
+  const numericBmi = Number(bmi);
+  if (isNaN(numericBmi) || bmi === undefined || bmi === null) {
     return null;
   }
 
-  const categoryKey = getCategory(bmi);
+  const categoryKey = getCategory(numericBmi);
   const category = BMI_CATEGORIES[categoryKey];
 
   if (!category) {
@@ -87,7 +87,7 @@ export function BMIClassificationHelper({
             variant={category.badgeVariant}
             className="text-xs whitespace-nowrap"
           >
-            {bmi.toFixed(1)}
+            {numericBmi.toFixed(1)}
           </Badge>
         </div>
         <p className={`text-xs ${category.textClass} opacity-90`}>

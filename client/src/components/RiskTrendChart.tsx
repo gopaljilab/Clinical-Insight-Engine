@@ -11,19 +11,10 @@ import {
   ReferenceLine,
 } from "recharts";
 import { format, isValid } from "date-fns";
-
-interface Assessment {
-  id: number;
-  createdAt: any;
-  riskScore: any;
-  bmi: any;
-  hba1cLevel: any;
-  bloodGlucoseLevel: any;
-  riskCategory: string;
-}
+import type { Assessment } from "@shared/schema";
 
 interface Props {
-  assessments: Assessment[];
+  assessments: Pick<Assessment, "id" | "createdAt" | "riskScore" | "bmi" | "hba1cLevel" | "bloodGlucoseLevel" | "riskCategory">[];
 }
 
 const METRICS = [
@@ -34,9 +25,9 @@ const METRICS = [
 ];
 
 function getRiskColor(score: number) {
-  if (score >= 50) return "#EF4444";
-  if (score >= 20) return "#F59E0B";
-  return "#10B981";
+  if (score >= 50) return "hsl(var(--destructive))";
+  if (score >= 20) return "hsl(var(--chart-3))";
+  return "hsl(var(--chart-2))";
 }
 
 export default function RiskTrendChart({ assessments }: Props) {
@@ -47,14 +38,17 @@ export default function RiskTrendChart({ assessments }: Props) {
   const chartData = useMemo(() => {
     return [...assessments]
       .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
-      .map(a => ({
-        date: isValid(new Date(a.createdAt)) ? format(new Date(a.createdAt), "MMM d") : "?",
-        riskScore: Number(Number(a.riskScore).toFixed(1)),
-        bmi: Number(Number(a.bmi).toFixed(1)),
-        hba1cLevel: Number(Number(a.hba1cLevel).toFixed(1)),
-        bloodGlucoseLevel: Number(Number(a.bloodGlucoseLevel).toFixed(1)),
-        riskCategory: a.riskCategory,
-      }));
+      .map(a => {
+        const dateObj = a.createdAt ? new Date(a.createdAt) : null;
+        return {
+          date: dateObj && isValid(dateObj) ? dateObj.toISOString() : "?",
+          riskScore: Number(Number(a.riskScore).toFixed(1)),
+          bmi: Number(Number(a.bmi).toFixed(1)),
+          hba1cLevel: Number(Number(a.hba1cLevel).toFixed(1)),
+          bloodGlucoseLevel: Number(Number(a.bloodGlucoseLevel).toFixed(1)),
+          riskCategory: a.riskCategory,
+        };
+      });
   }, [assessments]);
 
   function toggleMetric(key: string) {
@@ -80,6 +74,8 @@ export default function RiskTrendChart({ assessments }: Props) {
           {METRICS.map(({ key, label, color }) => (
             <button
               key={key}
+              type="button"
+              aria-pressed={activeMetrics[key]}
               onClick={() => toggleMetric(key)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                 activeMetrics[key]
@@ -98,7 +94,15 @@ export default function RiskTrendChart({ assessments }: Props) {
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tickFormatter={(iso: string) => {
+              if (iso === "?") return "?";
+              const d = new Date(iso);
+              return isValid(d) ? format(d, "MMM d, HH:mm") : "?";
+            }}
+          />
           <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
           <Tooltip
             contentStyle={{
@@ -108,12 +112,12 @@ export default function RiskTrendChart({ assessments }: Props) {
               fontSize: "12px",
             }}
           />
-          <Legend wrapperStyle={{ fontSize: "12px" }} />
+          <Legend wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }} />
           {/* Risk threshold reference lines */}
           {activeMetrics["riskScore"] && (
             <>
-              <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="4 4" label={{ value: "High", fontSize: 10, fill: "#EF4444" }} />
-              <ReferenceLine y={20} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "Moderate", fontSize: 10, fill: "#F59E0B" }} />
+              <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="4 4" label={{ value: "High Risk", fontSize: 10, fill: "#EF4444" }} />
+              <ReferenceLine y={20} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "Moderate Risk", fontSize: 10, fill: "#F59E0B" }} />
             </>
           )}
           {METRICS.map(({ key, label, color }) =>
