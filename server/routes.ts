@@ -29,7 +29,17 @@ import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./s
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
 
-const execFileAsync = promisify(execFile);
+function execFileAsync(file: string, args: string[], options: { timeout: number }): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, options, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve({ stdout, stderr });
+      }
+    });
+  });
+}
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
@@ -218,7 +228,7 @@ export async function registerRoutes(
           }
         } catch (error: any) {
           if (error.killed || error.signal === "SIGTERM") {
-            return res.status(408).json({
+            return res.status(503).json({
               message: "Clinical assessment preview timed out."
             });
           }
