@@ -13,6 +13,7 @@ import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { Recommendations } from "./Recommendations";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -125,12 +126,11 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   };
 
   const { data: assessmentsResponse } = useAssessments();
-  const assessmentHistory = assessmentsResponse?.pages
-    ? assessmentsResponse.pages.flatMap((p: any) => p.data)
-    : [];
-  const assessmentHistory = assessmentsResponse?.data ?? [];
   const assessmentHistory = useMemo(
     () => assessmentsResponse?.data ?? [],
+    () => assessmentsResponse?.pages 
+      ? assessmentsResponse.pages.flatMap((p: any) => p.data)
+      : (assessmentsResponse?.data ?? []),
     [assessmentsResponse]
   );
   const improvementBadges = useMemo(
@@ -236,23 +236,46 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
             {isGeneratingPDF ? "Generating..." : "Download PDF"}
           </button>
-          <CopySummaryButton assessment={assessment} />
-          <button
-            type="button"
-            onClick={exportToJson}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <Download className="w-3.5 h-3.5" />
-            JSON
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            Print
-          </button>
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <CopySummaryButton assessment={assessment} iconOnly />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Copy Summary</p>
+            </TooltipContent>
+          </UiTooltip>
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={exportToJson}
+                className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                aria-label="Export JSON"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Export JSON</p>
+            </TooltipContent>
+          </UiTooltip>
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                aria-label="Print"
+              >
+                <Printer className="w-4 h-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Print Report</p>
+            </TooltipContent>
+          </UiTooltip>
         </div>
       </div>
 
@@ -273,6 +296,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
               className="space-y-8"
             >
               {/* Patient Hero */}
@@ -346,6 +370,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
               className="space-y-8"
             >
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
