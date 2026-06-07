@@ -194,7 +194,7 @@ describe("Assessment request fingerprint lifecycle", () => {
     await registerRoutes(createServer(), app);
 
     // Pre-populate the fingerprint to simulate an in-flight request
-    const fingerprint = MLService.generateRequestFingerprint(validPayload, "test-user-id");
+    const fingerprint = MLService.generateRequestFingerprint(validPayload, "test@example.com");
     MLService.activeInferenceRequests.add(fingerprint);
 
     const res = await request(app)

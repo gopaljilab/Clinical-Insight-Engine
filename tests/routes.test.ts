@@ -329,7 +329,6 @@ describe("Python inference", () => {
     expect(Array.isArray(res.body.factorContributions)).toBe(true);
   });
 
-  it("returns 201 with riskScore, riskCategory, factors on success", async () => {
   it("returns 202 with jobId on success", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);

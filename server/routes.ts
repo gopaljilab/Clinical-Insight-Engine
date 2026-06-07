@@ -8,15 +8,19 @@ import authRouter from "./routes/auth.routes";
 import assessmentsRouter from "./routes/assessments.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
+import { api } from "@shared/routes";
 import bcrypt from "bcrypt";
 import { logger } from "./logger";
-import { api } from "@shared/routes";
-import { rateLimit } from "express-rate-limit";
-import { randomUUID } from "crypto";
-import { writeFile, unlink } from "fs/promises";
-import path from "path";
-import os from "os";
-import { validateDTO } from "./middleware/validateDTO";
+import { assessmentsToCsv } from "./utils/csvExport";
+import { searchQuerySchema } from "./validation/searchValidation";
+import {
+  sanitizeDatabaseError,
+  analyzeSearchInput,
+  logSecurityEvent,
+} from "./security/sqlProtection";
+import { canAccessPatientRecord } from "./services/authz/patient-access";
+import { logAccessAttempt } from "./security/access-audit";
+
 
 async function seedDatabase() {
   const adminEmail = process.env.ADMIN_EMAIL;
@@ -213,10 +217,33 @@ function calculateClinicalFallback(input: any): PredictionResult {
   };
 }
 
+import { rateLimit } from "express-rate-limit";
 import {
   generalLimiter,
   adminLimiter,
 } from "./middleware/rateLimit";
+import { validateDTO } from "./middleware/validateDTO";
+import { z } from "zod";
+import { MLService, generateRequestFingerprint } from "./services/mlService";
+import { getAssessmentQueue, getPythonExecutable } from "./queue";
+import { execFile } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+import os from "os";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
+function execFileAsync(file: string, args: string[], options: any): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, options, (err, stdout, stderr) => {
+      if (err) reject(err);
+      else resolve({ stdout: stdout as unknown as string, stderr: stderr as unknown as string });
+    });
+  });
+}
 
 export async function registerRoutes(
   httpServer: Server,

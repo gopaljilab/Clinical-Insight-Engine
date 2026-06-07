@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useBulkImport } from "@/hooks/use-bulk-import";
+import { AppLayout } from "@/components/layout/AppLayout";
 import type { ImportPreviewRow } from "@/utils/csvImportPreview";
 
 const ACCEPTED_TYPES = ".csv,.xlsx,.xls";
@@ -189,6 +190,7 @@ export default function ImportData() {
   };
 
   return (
+    <AppLayout>
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight text-slate-900">Bulk Import</h1>
@@ -342,5 +344,6 @@ export default function ImportData() {
         </Button>
       )}
     </div>
+    </AppLayout>
   );
 }

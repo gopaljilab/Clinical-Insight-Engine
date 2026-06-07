@@ -74,7 +74,6 @@ export type AssessmentCreateInput = InsertAssessment & {
 };
 
 export class DatabaseStorage implements IStorage {
-
   private assessmentRepository = new AssessmentRepository();
   private userRepository = new UserRepository();
   private auditRepository = new AuditRepository();

@@ -34,6 +34,7 @@ import { AssessmentSearchBar } from "@/components/AssessmentSearchBar";
 import { AssessmentFilters } from "@/components/AssessmentFilters";
 import { ActiveFilterChips } from "@/components/ActiveFilterChips";
 import { ClearFiltersButton } from "@/components/ClearFiltersButton";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { validateSearchInput } from "@/validation/filterValidation";
 import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
 import { downloadPatientSummaryPdf } from "@/utils/clinicalPdfReport";
@@ -482,7 +483,6 @@ export default function History() {
     if (sortedHistory.length === 0) return [];
     return calculateHealthBadges(sortedHistory[0], sortedHistory);
   }, [selectedPatientHistory]);
-
   const sortedSelectedPatientHistory = useMemo(
     () =>
       [...selectedPatientHistory].sort(
@@ -510,14 +510,6 @@ export default function History() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate, sortBy]);
-
-  // 4. Pagination (Server-Side)
-  const totalRecords = assessmentsData?.total ?? 0;
-  const filteredRecords = assessmentsData?.total ?? 0;
-  const totalPages = assessmentsData?.totalPages ?? 1;
-  const safePage = currentPage;
-  const sortedAssessments = assessments;
-  const paginatedAssessments = assessments;
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
