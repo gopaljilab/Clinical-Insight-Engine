@@ -8,15 +8,19 @@ import authRouter from "./routes/auth.routes";
 import assessmentsRouter from "./routes/assessments.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
+import { api } from "@shared/routes";
 import bcrypt from "bcrypt";
 import { logger } from "./logger";
-import { api } from "@shared/routes";
-import { rateLimit } from "express-rate-limit";
-import { randomUUID } from "crypto";
-import { writeFile, unlink } from "fs/promises";
-import path from "path";
-import os from "os";
-import { validateDTO } from "./middleware/validateDTO";
+import { assessmentsToCsv } from "./utils/csvExport";
+import { searchQuerySchema } from "./validation/searchValidation";
+import {
+  sanitizeDatabaseError,
+  analyzeSearchInput,
+  logSecurityEvent,
+} from "./security/sqlProtection";
+import { canAccessPatientRecord } from "./services/authz/patient-access";
+import { logAccessAttempt } from "./security/access-audit";
+
 
 async function seedDatabase() {
   const adminEmail = process.env.ADMIN_EMAIL;
@@ -213,10 +217,33 @@ function calculateClinicalFallback(input: any): PredictionResult {
   };
 }
 
+import { rateLimit } from "express-rate-limit";
 import {
   generalLimiter,
   adminLimiter,
 } from "./middleware/rateLimit";
+import { validateDTO } from "./middleware/validateDTO";
+import { z } from "zod";
+import { MLService, generateRequestFingerprint } from "./services/mlService";
+import { getAssessmentQueue, getPythonExecutable } from "./queue";
+import { execFile } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+import os from "os";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
+function execFileAsync(file: string, args: string[], options: any): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, options, (err, stdout, stderr) => {
+      if (err) reject(err);
+      else resolve({ stdout: stdout as unknown as string, stderr: stderr as unknown as string });
+    });
+  });
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -266,6 +293,7 @@ export async function registerRoutes(
     requireAuth,
     requireVerified,
     previewLimiter,
+    validateDTO(api.assessments.preview.input),
     async (req, res) => {
       const input = api.assessments.preview.input.parse(req.body);
       const tempFile = path.join(
@@ -293,7 +321,7 @@ export async function registerRoutes(
           }
         } catch (error: any) {
           if (error.killed || error.signal === "SIGTERM") {
-            return res.status(408).json({
+            return res.status(503).json({
               message: "Clinical assessment preview timed out."
             });
           }
@@ -402,11 +430,25 @@ export async function registerRoutes(
         });
       }
 
+      let requestFingerprint: string | undefined;
+      let didAdd = false;
       try {
         const input = api.assessments.create.input.parse(req.body);
-        const requestFingerprint = generateRequestFingerprint(input, userId);
-        
-        const job = await assessmentQueue.add("predict", {
+        requestFingerprint = generateRequestFingerprint(input, userId);
+
+        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
+          return res.status(409).json({ message: "Assessment request is already being processed." });
+        }
+        MLService.activeInferenceRequests.add(requestFingerprint);
+        didAdd = true;
+
+        const queue = getAssessmentQueue();
+        if (!queue) {
+          return res.status(503).json({
+            message: "Assessment queue is temporarily unavailable.",
+          });
+        }
+        const job = await queue.add("predict", {
           input,
           userId,
           requestFingerprint
@@ -426,6 +468,10 @@ export async function registerRoutes(
         return res
           .status(500)
           .json({ message: "Failed to queue clinical assessment." });
+      } finally {
+        if (didAdd) {
+          MLService.activeInferenceRequests.delete(requestFingerprint!);
+        }
       }
     }
   );
@@ -437,7 +483,11 @@ export async function registerRoutes(
     async (req, res) => {
       try {
         const jobId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        const job = await assessmentQueue.getJob(jobId as string);
+        const queue = getAssessmentQueue();
+        if (!queue) {
+          return res.status(503).json({ message: "Assessment queue is temporarily unavailable." });
+        }
+        const job = await queue.getJob(jobId as string);
         if (!job) {
           return res.status(404).json({ message: "Job not found" });
         }
@@ -473,10 +523,10 @@ export async function registerRoutes(
         const input = inputSchema.parse(req.body.assessments);
         
         requestFingerprint = generateRequestFingerprint(input, userId);
-        if (activeInferenceRequests.has(requestFingerprint)) {
+        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
           return res.status(409).json({ message: "Bulk request already processing." });
         }
-        activeInferenceRequests.add(requestFingerprint);
+        MLService.activeInferenceRequests.add(requestFingerprint);
 
         tempFilePath = path.join(os.tmpdir(), `bulk_${randomUUID()}.json`);
         await writeFile(tempFilePath, JSON.stringify(input));
@@ -524,7 +574,7 @@ export async function registerRoutes(
           try { await unlink(tempFilePath); } catch {}
         }
         if (requestFingerprint) {
-          activeInferenceRequests.delete(requestFingerprint);
+          MLService.activeInferenceRequests.delete(requestFingerprint);
         }
       }
     }

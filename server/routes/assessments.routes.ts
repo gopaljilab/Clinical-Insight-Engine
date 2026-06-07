@@ -158,7 +158,7 @@ assessmentsRouter.get(
         createdBy: userEmail,
       });
 
-      res.json(mapped);
+      res.json(result);
     } catch (err) {
       logger.error({ err }, "Fetch assessments error:");
       return res.status(500).json({ message: "Failed to fetch assessments" });

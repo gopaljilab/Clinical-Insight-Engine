@@ -165,6 +165,37 @@ export type Recommendation = {
   checklist?: boolean;
 };
 
+export type QualityAlert = {
+  severity: "warning" | "info";
+  message: string;
+  code?: string;
+};
+
+export type BiomarkerAlert = {
+  biomarker: "HbA1c" | "Blood Glucose" | "BMI";
+  trend: "increasing" | "decreasing" | "stable";
+  severity: "warning" | "info";
+  message: string;
+  values: Array<{ ts?: string; value: number }>;
+};
+
+export type ExplanationContributor = {
+  name: string;
+  impact: string;
+  strength: number;
+  description?: string;
+  why: string;
+};
+
+export type PredictionExplanation = {
+  summary: string;
+  patientSummary: string;
+  clinicianSummary: string;
+  topContributors: ExplanationContributor[];
+  strongestPositive: ExplanationContributor[];
+  strongestNegative: ExplanationContributor[];
+};
+
 export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]> & {
   prediction?: PredictionAdvice & {
     riskScore?: number;
@@ -175,6 +206,8 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
     isFallback?: boolean;
   };
   recommendations?: Recommendation[];
+  qualityAlerts?: QualityAlert[];
+  explanation?: PredictionExplanation;
 };
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
 export type AssessmentPreviewResponse = z.infer<typeof api.assessments.preview.responses[200]>;

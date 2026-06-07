@@ -82,11 +82,11 @@ export function WhatIfRiskSimulator({ assessment }: WhatIfRiskSimulatorProps) {
     try {
       const response = await simulateMutation.mutateAsync({
         patientName: assessment.patientName,
-        gender: assessment.gender,
+        gender: assessment.gender as "Male" | "Female",
         age: assessment.age,
         hypertension: assessment.hypertension,
         heartDisease: assessment.heartDisease,
-        smokingHistory: values.smokingHistory,
+        smokingHistory: values.smokingHistory as "current" | "never" | "No Info" | "former",
         bmi: values.bmi,
         hba1cLevel: values.hba1cLevel,
         bloodGlucoseLevel: values.bloodGlucoseLevel,
@@ -119,11 +119,11 @@ export function WhatIfRiskSimulator({ assessment }: WhatIfRiskSimulatorProps) {
         </div>
         <button
           type="button"
-          disabled={simulateMutation.isLoading}
+          disabled={simulateMutation.isPending}
           onClick={handleRunSimulation}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {simulateMutation.isLoading ? (
+          {simulateMutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <TrendingUp className="h-4 w-4" />

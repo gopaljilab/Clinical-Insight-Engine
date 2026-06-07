@@ -11,6 +11,8 @@ import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { Recommendations } from "./Recommendations";
+import { DataQualityAlerts } from "./DataQualityAlerts";
+import { PredictionExplanation } from "./PredictionExplanation";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -128,9 +130,6 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const { data: assessmentsResponse } = useAssessments();
   const assessmentHistory = useMemo(
     () => assessmentsResponse?.data ?? [],
-    () => assessmentsResponse?.pages 
-      ? assessmentsResponse.pages.flatMap((p: any) => p.data)
-      : (assessmentsResponse?.data ?? []),
     [assessmentsResponse]
   );
   const improvementBadges = useMemo(
