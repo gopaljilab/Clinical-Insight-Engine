@@ -7,9 +7,16 @@ import type { Server } from "http";
 import authRouter from "./routes/auth.routes";
 import assessmentsRouter from "./routes/assessments.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
-import { requireAuth, requireAdmin } from "./auth";
+import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import bcrypt from "bcrypt";
 import { logger } from "./logger";
+import { api } from "@shared/routes";
+import { rateLimit } from "express-rate-limit";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
+import path from "path";
+import os from "os";
+import { validateDTO } from "./middleware/validateDTO";
 
 async function seedDatabase() {
   const adminEmail = process.env.ADMIN_EMAIL;
@@ -215,6 +222,25 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const previewLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 10,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Too many preview requests. Please try again later.", retryAfter: 60 },
+  });
+
+  const assessmentLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 5,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: {
+      error: "Too many assessment requests. Please try again later.",
+      retryAfter: 60,
+    },
+  });
+
   // Seed database on startup — development only to prevent fake data in production
   if (process.env.NODE_ENV !== "production") {
     seedDatabase().catch((err) => logger.error({ err }, "Database seeding failed"));

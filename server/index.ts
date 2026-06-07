@@ -36,16 +36,16 @@ const app = express();
 const httpServer = createServer(app);
 
 // CORS configuration - hardened to reject requests missing the Origin header
-const isProd = process.env.NODE_ENV === "production";
 const allowedOrigins = process.env.CORS_ORIGINS 
   ? process.env.CORS_ORIGINS.split(",") 
-  : [process.env.APP_URL, process.env.API_URL, "http://localhost:5000", "http://127.0.0.1:5000"].filter(Boolean) as string[];
+  : [process.env.APP_URL, process.env.API_URL, "http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:3000", "http://127.0.0.1:3000"].filter(Boolean) as string[];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Reject requests missing the Origin header to prevent unintended access
+    // Allow requests with no origin (like mobile apps or curl requests)
+    // This is required for the browser to load the initial HTML document
     if (!origin) {
-      return callback(new Error("CORS: Origin header is required"), false);
+      return callback(null, true);
     }
     
     if (allowedOrigins.includes(origin)) {
