@@ -1,18 +1,58 @@
 import { createHash, randomUUID } from "crypto";
 import { execFile } from "child_process";
-import { promisify } from "util";
 import { existsSync } from "fs";
 import { writeFile, unlink } from "fs/promises";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
-
-const execFileAsync = promisify(execFile);
+import { logger } from "../logger";
 
 // ESM-compatible path resolution for analyze.py
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
+
+export class SimpleSemaphore {
+  private activeCount = 0;
+  private queue: (() => void)[] = [];
+
+  constructor(private maxConcurrency: number) {}
+
+  async acquire(): Promise<() => void> {
+    if (this.activeCount < this.maxConcurrency) {
+      this.activeCount++;
+      return () => this.release();
+    }
+
+    return new Promise<() => void>((resolve) => {
+      this.queue.push(() => {
+        resolve(() => this.release());
+      });
+    });
+  }
+
+  release(): void {
+    this.activeCount--;
+    const next = this.queue.shift();
+    if (next) {
+      this.activeCount++;
+      next();
+    }
+  }
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    const release = await this.acquire();
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
+  }
+}
+
+const ML_TIMEOUT_MS = parseInt(process.env.ML_TIMEOUT_MS || "30000", 10);
+const maxConcurrency = parseInt(process.env.ML_MAX_CONCURRENCY || "2", 10);
+const mlConcurrency = new SimpleSemaphore(maxConcurrency);
 
 /**
  * Tracks currently running inference requests to prevent
@@ -195,19 +235,41 @@ export function calculateClinicalFallback(input: unknown): PredictionResult {
 }
 
 export async function runAssessmentInference(input: unknown): Promise<{ prediction: PredictionResult, isFallback: boolean }> {
+  const release = await mlConcurrency.acquire();
   const tempFilePath = path.join(os.tmpdir(), `${randomUUID()}.json`);
 
   try {
     await writeFile(tempFilePath, JSON.stringify(input));
 
-    const { stdout } = await execFileAsync(
-      getPythonExecutable(),
-      [analyzePyPath, "predict_file", tempFilePath],
-      {
-        timeout: 30000,
-        maxBuffer: 10 * 1024 * 1024,
-      }
-    );
+    const stdout = await new Promise<string>((resolve, reject) => {
+      const child = execFile(
+        getPythonExecutable(),
+        [analyzePyPath, "predict_file", tempFilePath],
+        {
+          timeout: ML_TIMEOUT_MS,
+          killSignal: "SIGTERM",
+          maxBuffer: 10 * 1024 * 1024,
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(stdout);
+          }
+        }
+      );
+
+      const fallbackTimer = setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch (e) {
+          // ignore
+        }
+        reject(new Error("Clinical assessment timed out (forced kill)."));
+      }, ML_TIMEOUT_MS + 5000);
+
+      child.on("close", () => clearTimeout(fallbackTimer));
+    });
 
     const prediction = JSON.parse(stdout.trim());
     if (prediction?.error) {
@@ -216,13 +278,15 @@ export async function runAssessmentInference(input: unknown): Promise<{ predicti
     
     return { prediction, isFallback: false };
   } catch (error: any) {
-    if (error?.killed || error?.signal === "SIGTERM") {
+    if (error?.killed || error?.signal === "SIGTERM" || error.message?.includes("timed out")) {
+      logger.error({ error: "ML prediction timed out", timeout: ML_TIMEOUT_MS });
       throw new Error("Clinical assessment timed out.");
     }
     
     // Use fallback
     return { prediction: calculateClinicalFallback(input), isFallback: true };
   } finally {
+    release();
     try {
       await unlink(tempFilePath);
     } catch {

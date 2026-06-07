@@ -1,12 +1,19 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { HealthBadges } from "@/components/HealthBadges";
+import { CopySummaryButton } from "@/components/CopySummaryButton";
+import { useAssessments } from "@/hooks/use-assessments";
+import { calculateHealthBadges } from "@/utils/healthBadges";
 import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
+import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
+import { Recommendations } from "./Recommendations";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -118,6 +125,19 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     }
   };
 
+  const { data: assessmentsResponse } = useAssessments();
+  const assessmentHistory = useMemo(
+    () => assessmentsResponse?.data ?? [],
+    () => assessmentsResponse?.pages 
+      ? assessmentsResponse.pages.flatMap((p: any) => p.data)
+      : (assessmentsResponse?.data ?? []),
+    [assessmentsResponse]
+  );
+  const improvementBadges = useMemo(
+    () => calculateHealthBadges(assessment, assessmentHistory),
+    [assessment, assessmentHistory]
+  );
+
   const factors = normalizeFactors(assessment.factors);
   const totalFactors = Math.max(factors.length, 1);
   const factorBreakdown: FactorBreakdown[] = factors.map((factor, index) => ({
@@ -156,7 +176,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       id="assessment-result-wrapper"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 overflow-hidden flex flex-col"
+      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 flex flex-col"
     >
       {/* Header/Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 bg-muted/30 p-2.5">
@@ -216,22 +236,46 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
             {isGeneratingPDF ? "Generating..." : "Download PDF"}
           </button>
-          <button
-            type="button"
-            onClick={exportToJson}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <Download className="w-3.5 h-3.5" />
-            JSON
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            Print
-          </button>
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <CopySummaryButton assessment={assessment} iconOnly />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Copy Summary</p>
+            </TooltipContent>
+          </UiTooltip>
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={exportToJson}
+                className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                aria-label="Export JSON"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Export JSON</p>
+            </TooltipContent>
+          </UiTooltip>
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                aria-label="Print"
+              >
+                <Printer className="w-4 h-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Print Report</p>
+            </TooltipContent>
+          </UiTooltip>
         </div>
       </div>
 
@@ -252,6 +296,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
               className="space-y-8"
             >
               {/* Patient Hero */}
@@ -269,6 +314,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   Based on your provided information, your preventive diabetes risk is considered <strong>{assessment.riskCategory.toLowerCase()}</strong>.
                 </p>
               </div>
+
+              <HealthBadges
+                badges={improvementBadges}
+                title="Progress badges"
+                description="See improvements and long-term trends based on this assessment and past history."
+              />
 
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
@@ -303,6 +354,10 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 ))}
               </div>
 
+              <Recommendations recommendations={assessment.recommendations} audience="patient" />
+
+              <WhatIfRiskSimulator assessment={assessment} />
+
               <ExplainabilityPanel
                 factors={factorBreakdown}
                 increasedRiskFactors={increasedRiskFactors}
@@ -315,6 +370,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
               className="space-y-8"
             >
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
@@ -378,6 +434,10 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
               </div>
 
+              <div className="mt-4">
+                <DataQualityAlerts alerts={assessment.qualityAlerts} />
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                   <h3 className="mb-3 flex items-center gap-2 font-bold">
@@ -422,9 +482,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 <div className="h-56 sm:h-64 w-full overflow-x-auto">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                      <ReferenceLine x={0} stroke="#cbd5e1" />
+                      <ReferenceLine x={0} stroke="hsl(var(--border))" />
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: '#64748b', fontSize: 12 }} />
+                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
                       <Tooltip 
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
@@ -459,6 +519,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 reducedRiskFactors={reducedRiskFactors}
               />
 
+              <PredictionExplanation explanation={assessment.explanation} view="clinician" />
+
               <div className="rounded-xl border border-border bg-muted/30 p-5">
                 <h3 className="mb-4 font-bold">Suggested clinical follow-up</h3>
                 <div className="grid gap-3 md:grid-cols-3">
@@ -468,6 +530,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                     </div>
                   ))}
                 </div>
+              </div>
+              <div className="mt-4">
+                <Recommendations recommendations={assessment.recommendations} audience="clinician" />
               </div>
             </motion.div>
           )}

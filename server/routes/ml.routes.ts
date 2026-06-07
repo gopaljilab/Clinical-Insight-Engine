@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logger } from "../logger";
 import { z } from "zod";
 import os from "os";
 import path from "path";
@@ -12,6 +13,7 @@ import { validateDTO } from "../middleware/validateDTO";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { fileURLToPath } from "url";
+import { mlLimiter } from "../middleware/rateLimit";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -24,6 +26,7 @@ mlRouter.post(
   "/bulk",
   requireAuth,
   requireVerified,
+  mlLimiter,
   validateDTO(z.object({ assessments: z.array(api.assessments.create.input) })),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
@@ -82,7 +85,7 @@ mlRouter.post(
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid bulk input data format. Ensure all rows meet schema requirements." });
       }
-      console.error("Bulk create error:", err);
+      logger.error({ err }, "Bulk create error");
       return res.status(500).json({ message: "Failed to generate bulk assessments." });
     } finally {
       if (tempFilePath) {
