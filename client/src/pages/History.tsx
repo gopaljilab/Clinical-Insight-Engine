@@ -10,9 +10,11 @@ import {
   Activity,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ShieldAlert,
   Upload,
   Download,
+  FileDown,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
@@ -23,7 +25,8 @@ import { useToast } from "@/hooks/use-toast";
 import { filterAssessments, type GenderFilterValue, type RiskCategoryFilterValue } from "@/utils/filterAssessments";
 import { advancedFilter } from "@/utils/search_filters";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import RiskTrendChart from "@/components/RiskTrendChart";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import RiskTrendChart, { PATIENT_COLORS } from "@/components/RiskTrendChart";
 import HealthBadges from "@/components/HealthBadges";
 import { calculateHealthBadges } from "@/utils/healthBadges";
 import { AssessmentSearchBar } from "@/components/AssessmentSearchBar";
@@ -35,6 +38,13 @@ import { ClearFiltersButton } from "@/components/ClearFiltersButton";
 import { validateSearchInput } from "@/validation/filterValidation";
 import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
 import { downloadPatientSummaryPdf } from "@/utils/clinicalPdfReport";
+import { downloadBulkAssessmentPdf } from "@/utils/bulkPdfExport";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
@@ -98,6 +108,12 @@ export default function History() {
   const [minAge, setMinAge] = useState<number | undefined>(undefined);
   const [maxAge, setMaxAge] = useState<number | undefined>(undefined);
 
+  // New filter state
+  const [riskCategory, setRiskCategory] = useState<RiskCategoryFilterValue>("All");
+  const [gender, setGender] = useState<GenderFilterValue>("All");
+  const [minAge, setMinAge] = useState<number | undefined>(undefined);
+  const [maxAge, setMaxAge] = useState<number | undefined>(undefined);
+
   // Date filter state
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -127,6 +143,24 @@ export default function History() {
   const [selectedPatientKey, setSelectedPatientKey] = useState<string | null>(null);
   const clearPatientCache = useClearPatientCache();
 
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedCompareIds, setSelectedCompareIds] = useState<Set<number>>(new Set());
+  const [showCompareSheet, setShowCompareSheet] = useState(false);
+
+  const toggleCompareId = (id: number) => {
+    setSelectedCompareIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < 4) next.add(id);
+      return next;
+    });
+  };
+
+  const clearCompareSelection = () => {
+    setSelectedCompareIds(new Set());
+    setCompareMode(false);
+  };
+
   /**
    * Build a stable per-patient key from the two fields that are recorded at
    * assessment time and never change for a real patient: name + gender.
@@ -135,6 +169,23 @@ export default function History() {
    */
   const patientKey = (a: { patientName?: string | null; gender?: string | null }) =>
     `${(a.patientName || "Unknown Patient").toLowerCase().trim()}|${(a.gender || "").toLowerCase().trim()}`;
+
+  const compareGroups = useMemo(() => {
+    if (selectedCompareIds.size < 2) return [];
+    const selected = assessments.filter(a => selectedCompareIds.has(a.id));
+    const grouped = new Map<string, typeof selected>();
+    for (const a of selected) {
+      const key = patientKey(a);
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(a);
+    }
+    return Array.from(grouped.entries()).map(([key, records], i) => ({
+      key,
+      patientName: key.split("|")[0],
+      records,
+      color: PATIENT_COLORS[i % PATIENT_COLORS.length],
+    }));
+  }, [selectedCompareIds, assessments, patientKey]);
 
   // Derive the plain name for the cache-scoped patient query from the composite key.
   const selectedPatientName = selectedPatientKey ? selectedPatientKey.split("|")[0] : null;
@@ -181,14 +232,21 @@ export default function History() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (searchTerm) {
-      params.set("filter", searchTerm);
-    } else {
-      params.delete("filter");
-    }
+    const setParam = (key: string, val: string | undefined | null) => {
+      if (val && val !== "" && val !== "All") params.set(key, val);
+      else params.delete(key);
+    };
+    setParam("filter", searchTerm || null);
+    setParam("risk", riskCategory !== "All" ? riskCategory : null);
+    setParam("gender", gender !== "All" ? gender : null);
+    setParam("minAge", minAge !== undefined ? String(minAge) : null);
+    setParam("maxAge", maxAge !== undefined ? String(maxAge) : null);
+    setParam("startDate", startDate || null);
+    setParam("endDate", endDate || null);
+    setParam("sort", sortBy !== "date-desc" ? sortBy : null);
     const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
     window.history.replaceState({}, '', newUrl);
-  }, [searchTerm]);
+  }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate, sortBy]);
 
   const hasActiveFilters =
     searchTerm !== "" ||
@@ -254,7 +312,7 @@ export default function History() {
     e.target.value = ''; // Reset input
   };
 
-  const exportFilteredCsv = () => {
+  const buildExportParams = () => {
     const params = new URLSearchParams();
     params.set("page", "1");
     params.set("limit", String(Math.min(Math.max(filteredRecords || PAGE_SIZE, PAGE_SIZE), 1000)));
@@ -269,7 +327,26 @@ export default function History() {
     if (startDate) params.set("startDate", startDate);
     if (endDate) params.set("endDate", endDate);
 
-    window.location.href = `/api/assessments/export.csv?${params.toString()}`;
+    return params;
+  };
+
+  const exportFilteredCsv = () => {
+    window.location.href = `/api/assessments/export.csv?${buildExportParams().toString()}`;
+  };
+
+  const exportFilteredPdf = async () => {
+    try {
+      const params = buildExportParams();
+      params.set("limit", "1000");
+      const res = await fetch(`/api/assessments/?${params.toString()}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch assessment data");
+      const data = await res.json();
+      downloadBulkAssessmentPdf(data.data ?? []);
+    } catch (err: any) {
+      toast({ title: "Export Error", description: err.message, variant: "destructive" });
+    }
   };
 
   const getRiskBadge = (category: string) => {
@@ -478,6 +555,31 @@ export default function History() {
     return calculateHealthBadges(sortedHistory[0], sortedHistory);
   }, [selectedPatientHistory]);
 
+  const latestBadgeAssessment = useMemo(() => {
+    if (sortedAssessments.length === 0) return null;
+    return (
+      sortedAssessments.find((assessment) =>
+        calculateHealthBadges(assessment, sortedAssessments).length > 0
+      ) || sortedAssessments[0]
+    );
+  }, [sortedAssessments]);
+
+  const latestBadges = useMemo(() => {
+    if (!latestBadgeAssessment) return [];
+    return calculateHealthBadges(latestBadgeAssessment, sortedAssessments);
+  }, [latestBadgeAssessment, sortedAssessments]);
+
+  const selectedPatientBadges = useMemo(() => {
+    const sortedHistory = [...selectedPatientHistory].sort(
+      (a, b) =>
+        new Date(b.createdAt || 0).getTime() -
+        new Date(a.createdAt || 0).getTime()
+    );
+
+    if (sortedHistory.length === 0) return [];
+    return calculateHealthBadges(sortedHistory[0], sortedHistory);
+  }, [selectedPatientHistory]);
+
   // 4. Pagination
   const totalRecords = assessments.length;
   const filteredRecords = sortedAssessments.length;
@@ -536,6 +638,41 @@ export default function History() {
                 onSearch={setSearchTerm}
                 onClear={() => setSearchTerm("")}
               />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setRiskCategory("High"); setCurrentPage(1); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                    riskCategory === "High" && gender === "All" && !minAge && !maxAge && !startDate && !endDate && !searchTerm
+                      ? "bg-red-100 border-red-300 text-red-700"
+                      : "bg-card border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  High Risk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRiskCategory("Moderate"); setCurrentPage(1); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                    riskCategory === "Moderate" && gender === "All" && !minAge && !maxAge && !startDate && !endDate && !searchTerm
+                      ? "bg-yellow-100 border-yellow-300 text-yellow-700"
+                      : "bg-card border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  Moderate Risk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSearchTerm(""); setRiskCategory("All"); setGender("All"); setMinAge(undefined); setMaxAge(undefined); setStartDate(""); setEndDate(""); setCurrentPage(1); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                    !hasActiveFilters
+                      ? "bg-blue-100 border-blue-300 text-blue-700"
+                      : "bg-card border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  All Patients
+                </button>
+              </div>
               <AssessmentFilters
                 riskCategory={riskCategory}
                 gender={gender}
@@ -574,15 +711,29 @@ export default function History() {
               <input type="file" className="sr-only" onChange={handleUploadLabResults} />
             </label>
 
-            <button
-              type="button"
-              onClick={exportFilteredCsv}
-              disabled={isLoading || filteredRecords === 0}
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-            >
-              <Download className="w-4 h-4" />
-              Export CSV
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  disabled={isLoading || filteredRecords === 0}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                >
+                  <FileDown className="w-4 h-4" />
+                  Export All
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={exportFilteredCsv} className="cursor-pointer gap-3">
+                  <Download className="w-4 h-4 text-muted-foreground" />
+                  <span>Export as CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportFilteredPdf} className="cursor-pointer gap-3">
+                  <FileDown className="w-4 h-4 text-muted-foreground" />
+                  <span>Export as PDF</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Sort Dropdown */}
             <select
@@ -667,6 +818,7 @@ export default function History() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-muted/50 border-b border-border text-xs text-muted-foreground uppercase tracking-wider">
+                    {compareMode && <th className="p-4 font-semibold w-10"><span className="sr-only">Select</span></th>}
                     <th className="p-4 font-semibold">Date</th>
                     <th className="p-4 font-semibold">Patient</th>
                     <th className="p-4 font-semibold">Age</th>
@@ -685,8 +837,20 @@ export default function History() {
                   {paginatedAssessments.map((assessment) => (
                     <tr
                       key={assessment.id}
-                      className="hover:bg-muted/30 transition-colors text-sm"
+                      className={`hover:bg-muted/30 transition-colors text-sm ${
+                        compareMode && selectedCompareIds.has(assessment.id) ? "bg-blue-50 dark:bg-blue-950/20" : ""
+                      }`}
                     >
+                      {compareMode && (
+                        <td className="p-4">
+                          <Checkbox
+                            checked={selectedCompareIds.has(assessment.id)}
+                            onCheckedChange={() => toggleCompareId(assessment.id)}
+                            disabled={!selectedCompareIds.has(assessment.id) && selectedCompareIds.size >= 4}
+                            aria-label={`Select ${assessment.patientName}`}
+                          />
+                        </td>
+                      )}
                       <td className="p-4 whitespace-nowrap">
                         {formatAssessmentDate(assessment.createdAt)}
                       </td>
@@ -874,7 +1038,102 @@ export default function History() {
         )}
       </div>
 
-      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientName(null)}>
+      <Sheet open={showCompareSheet} onOpenChange={(open) => !open && setShowCompareSheet(false)}>
+        <SheetContent className="w-full sm:max-w-4xl overflow-y-auto sm:border-l sm:border-slate-200">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="text-2xl font-bold font-display">Patient Comparison</SheetTitle>
+            <p className="text-sm text-muted-foreground">
+              Comparing {compareGroups.length} patients ({selectedCompareIds.size} assessments selected)
+            </p>
+          </SheetHeader>
+
+          {compareGroups.length >= 2 && (
+            <ScrollArea className="h-[calc(100vh-12rem)]">
+              <div className="space-y-8 pb-12 pr-2">
+                {/* Risk Trend Chart */}
+                <RiskTrendChart
+                  assessments={[]}
+                  patientGroups={compareGroups.map(g => ({
+                    patientName: g.patientName,
+                    assessments: g.records,
+                    color: g.color,
+                  }))}
+                />
+
+                {/* Side-by-side latest metrics table */}
+                <div className="border border-border rounded-xl overflow-hidden shadow-sm">
+                  <div className="bg-muted/50 border-b border-border px-4 py-3">
+                    <h3 className="text-base font-bold text-foreground">Latest Metrics Comparison</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm border-collapse">
+                      <thead className="bg-muted/30 border-b border-border">
+                        <tr>
+                          <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">Metric</th>
+                          {compareGroups.map(g => (
+                            <th key={g.key} className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">
+                              <span className="inline-flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }} />
+                                {g.patientName}
+                              </span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {[
+                          { label: "Age", get: (r: any[]) => r[0]?.age ?? "—" },
+                          { label: "BMI", get: (r: any[]) => Number(r[0]?.bmi ?? 0).toFixed(1) },
+                          { label: "HbA1c (%)", get: (r: any[]) => `${Number(r[0]?.hba1cLevel ?? 0).toFixed(1)}%` },
+                          { label: "Blood Glucose", get: (r: any[]) => Number(r[0]?.bloodGlucoseLevel ?? 0).toFixed(0) },
+                          { label: "Hypertension", get: (r: any[]) => (r[0]?.hypertension ? "Yes" : "No") },
+                          { label: "Heart Disease", get: (r: any[]) => (r[0]?.heartDisease ? "Yes" : "No") },
+                          { label: "Smoking", get: (r: any[]) => r[0]?.smokingHistory ?? "—" },
+                          { label: "Risk Score", get: (r: any[]) => `${Number(r[0]?.riskScore ?? 0).toFixed(1)}%` },
+                          { label: "Risk Category", get: (r: any[]) => r[0]?.riskCategory ?? "—" },
+                        ].map(row => (
+                          <tr key={row.label} className="hover:bg-muted/20 transition-colors">
+                            <td className="p-3 font-semibold text-muted-foreground whitespace-nowrap">{row.label}</td>
+                            {compareGroups.map(g => {
+                              const sorted = [...g.records].sort(
+                                (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+                              );
+                              return (
+                                <td key={g.key} className="p-3 text-foreground font-medium whitespace-nowrap">
+                                  {row.get(sorted)}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Health badges per patient */}
+                <div className="grid gap-6 md:grid-cols-2">
+                  {compareGroups.map(g => {
+                    const sorted = [...g.records].sort(
+                      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+                    );
+                    const badges = calculateHealthBadges(sorted[0], sorted);
+                    return (
+                      <HealthBadges
+                        key={g.key}
+                        badges={badges}
+                        title={`${g.patientName}`}
+                        description="Health improvement badges based on available assessments."
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+        </SheetContent>
+      </Sheet>
+
       <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientKey(null)}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto sm:border-l sm:border-slate-200">
           <SheetHeader className="mb-6">
