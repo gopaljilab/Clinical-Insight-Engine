@@ -123,7 +123,10 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   };
 
   const { data: assessmentsResponse } = useAssessments();
-  const assessmentHistory = assessmentsResponse?.data ?? [];
+  const assessmentHistory = useMemo(
+    () => assessmentsResponse?.pages.flatMap((page) => page.data) ?? [],
+    [assessmentsResponse]
+  );
   const improvementBadges = useMemo(
     () => calculateHealthBadges(assessment, assessmentHistory),
     [assessment, assessmentHistory]

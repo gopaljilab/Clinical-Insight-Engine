@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import type { Assessment } from "@shared/schema";
 
 export type AnalyticsDistribution = {
   category: "LOW" | "MODERATE" | "HIGH";
@@ -10,11 +11,16 @@ export type AnalyticsAverages = {
   hba1c: number;
 };
 
+export type CriticalAlert = Pick<
+  Assessment,
+  "id" | "patientName" | "gender" | "age" | "riskScore" | "riskCategory" | "createdAt"
+>;
+
 export type AnalyticsStats = {
   totalPatients: number;
   distribution: AnalyticsDistribution[];
   averages: AnalyticsAverages;
-  criticalAlerts: any[]; // The top 5 assessments
+  criticalAlerts: CriticalAlert[];
 };
 
 export function useAnalytics() {

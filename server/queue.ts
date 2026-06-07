@@ -109,8 +109,33 @@ export function startAssessmentWorker(): void {
 
       try {
         await writeFile(tempFile, JSON.stringify(input));
-        const { stdout } = await execFileAsync(getPythonExecutable(), [analyzePyPath, "predict_file", tempFile], {
-          timeout: 60000,
+        const stdout = await new Promise<string>((resolve, reject) => {
+          const child = execFile(
+            getPythonExecutable(),
+            [analyzePyPath, "predict_file", tempFile],
+            {
+              timeout: 60000,
+              killSignal: "SIGTERM",
+            },
+            (error, stdout, stderr) => {
+              if (error) {
+                reject(error);
+              } else {
+                resolve(stdout);
+              }
+            }
+          );
+
+          const fallbackTimer = setTimeout(() => {
+            try {
+              child.kill("SIGKILL");
+            } catch (e) {
+              // ignore
+            }
+            reject(new Error("Clinical assessment timed out (forced kill)."));
+          }, 65000);
+
+          child.on("close", () => clearTimeout(fallbackTimer));
         });
 
         const prediction = JSON.parse(stdout.trim());

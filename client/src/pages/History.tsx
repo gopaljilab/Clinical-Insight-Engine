@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useAssessments, usePatientAssessments, useClearPatientCache } from "@/hooks/use-assessments";
+import { useAssessments, usePatientAssessments, useClearPatientCache, useDeleteAssessment } from "@/hooks/use-assessments";
 import {
   format,
   isValid,
@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ShieldAlert,
   Upload,
+  Download,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
@@ -28,9 +29,11 @@ import { calculateHealthBadges } from "@/utils/healthBadges";
 import { AssessmentSearchBar } from "@/components/AssessmentSearchBar";
 import { AssessmentFilters } from "@/components/AssessmentFilters";
 import { ActiveFilterChips } from "@/components/ActiveFilterChips";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { ClearFiltersButton } from "@/components/ClearFiltersButton";
 import { validateSearchInput } from "@/validation/filterValidation";
 import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
+import { downloadPatientSummaryPdf } from "@/utils/clinicalPdfReport";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
@@ -56,6 +59,8 @@ function HighlightText({ text, search }: { text: string; search: string }) {
   );
 }
 
+const PAGE_SIZE = 10;
+
 export default function History() {
   useEffect(() => {
     document.title = "Clinical Insight Engine - Assessment History";
@@ -64,10 +69,21 @@ export default function History() {
   const { toast } = useToast();
 
 
-  const { data: infiniteData, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useAssessments();
-  const assessments = infiniteData ? infiniteData.pages.flatMap((page) => page.data) : [];
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Parse sortBy into field and order for backend query
+  const [sortField, sortOrder] = useMemo(() => {
+    const parts = sortBy.split("-");
+    const fieldMap: Record<string, string> = {
+      date: "createdAt",
+      risk: "riskScore",
+      age: "age",
+      bmi: "bmi"
+    };
+    return [fieldMap[parts[0]] || "createdAt", parts[1] || "desc"];
+  }, [sortBy]);
 
   // New filter state
   const [riskCategory, setRiskCategory] = useState<RiskCategoryFilterValue>("All");
@@ -78,6 +94,24 @@ export default function History() {
   // Date filter state
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+
+  const { data: assessmentsData, isLoading, error } = useAssessments({
+    page: currentPage,
+    limit: PAGE_SIZE,
+    sortBy: sortField,
+    order: sortOrder,
+    searchTerm: searchTerm || undefined,
+    riskCategory: riskCategory !== "All" ? riskCategory : undefined,
+    gender: gender !== "All" ? gender : undefined,
+    minAge,
+    maxAge,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined
+  });
+
+  const assessments = assessmentsData?.data ?? [];
+
+  const { mutate: deleteAssessment } = useDeleteAssessment();
 
   // Refs to programmatically trigger the pop-up calendar on click
   const startInputRef = useRef<HTMLInputElement>(null);
@@ -122,6 +156,7 @@ export default function History() {
     setMaxAge(undefined);
     setStartDate("");
     setEndDate("");
+    setCurrentPage(1);
   };
 
   const selectedPatientHistory = useMemo(() => {
@@ -210,6 +245,24 @@ export default function History() {
       toast({ title: "Upload Error", description: err.message, variant: "destructive" });
     }
     e.target.value = ''; // Reset input
+  };
+
+  const exportFilteredCsv = () => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("limit", String(Math.min(Math.max(filteredRecords || PAGE_SIZE, PAGE_SIZE), 1000)));
+    params.set("sortBy", sortField);
+    params.set("order", sortOrder);
+
+    if (searchTerm) params.set("searchTerm", searchTerm);
+    if (riskCategory !== "All") params.set("riskCategory", riskCategory);
+    if (gender !== "All") params.set("gender", gender);
+    if (minAge !== undefined) params.set("minAge", String(minAge));
+    if (maxAge !== undefined) params.set("maxAge", String(maxAge));
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+
+    window.location.href = `/api/assessments/export.csv?${params.toString()}`;
   };
 
   const getRiskBadge = (category: string) => {
@@ -325,65 +378,19 @@ export default function History() {
     }, 250);
   }
 
-  const filteredAssessments = useMemo(() => {
-    return filterAssessments(assessments, {
-      searchTerm,
-      riskCategory,
-      gender,
-      ageRange: {
-        min: minAge,
-        max: maxAge,
-      },
-      dateRange: {
-        startDate,
-        endDate,
-      },
-    });
-  }, [assessments, searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate]);
-
-  // 3. Sorting Records
-  const sortedAssessments = [...filteredAssessments].sort((a, b) => {
-    switch (sortBy) {
-      case "date-desc":
-        return (
-          new Date(b.createdAt || 0).getTime() -
-          new Date(a.createdAt || 0).getTime()
-        );
-      case "date-asc":
-        return (
-          new Date(a.createdAt || 0).getTime() -
-          new Date(b.createdAt || 0).getTime()
-        );
-      case "risk-desc":
-        return Number(b.riskScore) - Number(a.riskScore);
-      case "risk-asc":
-        return Number(a.riskScore) - Number(b.riskScore);
-      case "age-desc":
-        return b.age - a.age;
-      case "age-asc":
-        return a.age - b.age;
-      case "bmi-desc":
-        return Number(b.bmi) - Number(a.bmi);
-      case "bmi-asc":
-        return Number(a.bmi) - Number(b.bmi);
-      default:
-        return 0;
-    }
-  });
-
   const latestBadgeAssessment = useMemo(() => {
-    if (sortedAssessments.length === 0) return null;
+    if (assessments.length === 0) return null;
     return (
-      sortedAssessments.find((assessment) =>
-        calculateHealthBadges(assessment, sortedAssessments).length > 0
-      ) || sortedAssessments[0]
+      assessments.find((assessment) =>
+        calculateHealthBadges(assessment, assessments).length > 0
+      ) || assessments[0]
     );
-  }, [sortedAssessments]);
+  }, [assessments]);
 
   const latestBadges = useMemo(() => {
     if (!latestBadgeAssessment) return [];
-    return calculateHealthBadges(latestBadgeAssessment, sortedAssessments);
-  }, [latestBadgeAssessment, sortedAssessments]);
+    return calculateHealthBadges(latestBadgeAssessment, assessments);
+  }, [latestBadgeAssessment, assessments]);
 
   const selectedPatientBadges = useMemo(() => {
     const sortedHistory = [...selectedPatientHistory].sort(
@@ -396,10 +403,41 @@ export default function History() {
     return calculateHealthBadges(sortedHistory[0], sortedHistory);
   }, [selectedPatientHistory]);
 
-  // 4. Pagination
-  const totalRecords = assessments.length;
-  const filteredRecords = sortedAssessments.length;
-  const paginatedAssessments = sortedAssessments;
+  const sortedSelectedPatientHistory = useMemo(
+    () =>
+      [...selectedPatientHistory].sort(
+        (a, b) =>
+          new Date(b.createdAt || 0).getTime() -
+          new Date(a.createdAt || 0).getTime()
+      ),
+    [selectedPatientHistory]
+  );
+
+  const handleExportPatientSummary = () => {
+    if (sortedSelectedPatientHistory.length === 0) {
+      toast({
+        title: "No patient history available",
+        description: "Select a patient with assessment history before exporting a summary.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    downloadPatientSummaryPdf(sortedSelectedPatientHistory);
+  };
+
+  // Reset to first page when filters or sort change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate, sortBy]);
+
+  // 4. Pagination (Server-Side)
+  const totalRecords = assessmentsData?.total ?? 0;
+  const filteredRecords = assessmentsData?.total ?? 0;
+  const totalPages = assessmentsData?.totalPages ?? 1;
+  const safePage = currentPage;
+  const sortedAssessments = assessments;
+  const paginatedAssessments = assessments;
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";
@@ -484,6 +522,16 @@ export default function History() {
               Upload Lab Results
               <input type="file" className="sr-only" onChange={handleUploadLabResults} />
             </label>
+
+            <button
+              type="button"
+              onClick={exportFilteredCsv}
+              disabled={isLoading || filteredRecords === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </button>
 
             {/* Sort Dropdown */}
             <select
@@ -690,6 +738,15 @@ export default function History() {
                             <FileText className="w-4 h-4" />
                             Export
                           </button>
+                          {assessment.id && (
+                            <ConfirmDeleteDialog
+                              patientName={assessment.patientName || "Unknown Patient"}
+                              assessmentDate={formatAssessmentDate(assessment.createdAt)}
+                              onConfirm={async () => {
+                                await deleteAssessment(assessment.id!);
+                              }}
+                            />
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -703,30 +760,42 @@ export default function History() {
               <div className="text-sm text-muted-foreground font-medium">
                 Showing{" "}
                 <span className="font-semibold text-foreground">
-                  {totalRecords === 0 ? 0 : 1}
+                  {filteredRecords === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}
                 </span>{" "}
                 to{" "}
                 <span className="font-semibold text-foreground">
-                  {totalRecords}
+                  {Math.min(safePage * PAGE_SIZE, filteredRecords)}
                 </span>{" "}
-                records on this page
+                of{" "}
+                <span className="font-semibold text-foreground">
+                  {filteredRecords}
+                </span>{" "}
+                filtered records (page {safePage} of {totalPages})
               </div>
 
               <div className="flex items-center gap-2">
-                {hasNextPage && (
-                  <button
-                    type="button"
-                    onClick={() => fetchNextPage()}
-                    disabled={isFetchingNextPage}
-                    className="inline-flex items-center justify-center p-2 px-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-40 transition-colors shadow-sm cursor-pointer mr-4 font-bold text-sm"
-                  >
-                    {isFetchingNextPage ? (
-                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading...</>
-                    ) : (
-                      "Load More from Server"
-                    )}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="inline-flex items-center justify-center p-2 px-3 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-30 transition-colors shadow-sm cursor-pointer font-bold text-sm"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Prev
+                </button>
+                <span className="text-sm text-muted-foreground font-medium px-2">
+                  {safePage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  disabled={safePage >= totalPages}
+                  className="inline-flex items-center justify-center p-2 px-3 rounded-xl border border-border bg-card text-foreground hover:bg-muted disabled:opacity-30 transition-colors shadow-sm cursor-pointer font-bold text-sm"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </button>
+
 
               </div>
             </div>
@@ -735,7 +804,7 @@ export default function History() {
         )}
       </div>
 
-      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientName(null)}>
+      <Sheet open={!!selectedPatientName} onOpenChange={(open) => !open && setSelectedPatientKey(null)}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto sm:border-l sm:border-slate-200">
           <SheetHeader className="mb-6">
             <SheetTitle className="text-2xl font-bold font-display">Longitudinal Trajectory</SheetTitle>
@@ -744,6 +813,15 @@ export default function History() {
           
           {selectedPatientHistory.length > 0 && (
             <div className="space-y-6 pb-12">
+              <button
+                type="button"
+                onClick={handleExportPatientSummary}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700 sm:w-auto"
+              >
+                <FileText className="h-4 w-4" />
+                Export Patient Summary PDF
+              </button>
+
               <HealthBadges
                 badges={selectedPatientBadges}
                 title="Patient improvement badges"
@@ -762,7 +840,7 @@ export default function History() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {selectedPatientHistory.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((a) => (
+                    {sortedSelectedPatientHistory.map((a) => (
                       <tr key={a.id} className="hover:bg-muted/30 transition-colors">
                         <td className="p-3 whitespace-nowrap">{formatAssessmentDate(a.createdAt)}</td>
                         <td className="p-3 font-bold text-foreground">{Number(a.riskScore).toFixed(1)}%</td>
@@ -780,6 +858,5 @@ export default function History() {
     </AppLayout>
   );
 }
-
 
 

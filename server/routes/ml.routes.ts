@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logger } from "../logger";
 import { z } from "zod";
 import os from "os";
 import path from "path";
@@ -82,7 +83,7 @@ mlRouter.post(
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid bulk input data format. Ensure all rows meet schema requirements." });
       }
-      console.error("Bulk create error:", err);
+      logger.error({ err }, "Bulk create error");
       return res.status(500).json({ message: "Failed to generate bulk assessments." });
     } finally {
       if (tempFilePath) {
