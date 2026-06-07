@@ -322,6 +322,37 @@ export class AssessmentRepository {
     return created;
   }
 
+  async autocompletePatientNames(
+    query: string,
+    createdBy?: string,
+    limit: number = 10
+  ): Promise<string[]> {
+    const db = getDb();
+    const conditions: ReturnType<typeof eq>[] = [];
+
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy));
+    }
+
+    let queryBuilder = db
+      .select({ patientName: assessments.patientName })
+      .from(assessments)
+      .where(
+        and(
+          ilike(assessments.patientName, `%${query}%`),
+          ...conditions
+        ) as any
+      )
+      .$dynamic();
+
+    const rows = await queryBuilder
+      .groupBy(assessments.patientName)
+      .orderBy(assessments.patientName)
+      .limit(limit);
+
+    return rows.map((r) => r.patientName).filter(Boolean) as string[];
+  }
+
   async deleteAssessment(id: number): Promise<void> {
     const db = getDb();
     await db.delete(assessments).where(eq(assessments.id, id));

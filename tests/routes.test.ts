@@ -201,6 +201,18 @@ describe("Auth gating", () => {
     expect(res.body).toHaveProperty("message");
   });
 
+  it("returns 401 for POST /api/assessments/simulate without session", async () => {
+    const app = createUnauthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app)
+      .post("/api/assessments/simulate")
+      .send(validPayload);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty("message");
+  });
+
   it("returns 401 for GET /api/assessments without session", async () => {
     const app = createUnauthenticatedApp();
     await registerRoutes(createServer(), app);
@@ -301,6 +313,23 @@ describe("Rate limiting", () => {
 });
 
 describe("Python inference", () => {
+  it("returns 200 with simulated risk, risk category, and factor contributions", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app)
+      .post("/api/assessments/simulate")
+      .send(validPayload);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("simulatedRisk", 12.3);
+    expect(res.body).toHaveProperty("riskCategory", "LOW");
+    expect(res.body).toHaveProperty("confidence", 0.877);
+    expect(res.body).toHaveProperty("factorContributions");
+    expect(Array.isArray(res.body.factorContributions)).toBe(true);
+  });
+
+  it("returns 201 with riskScore, riskCategory, factors on success", async () => {
   it("returns 202 with jobId on success", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);

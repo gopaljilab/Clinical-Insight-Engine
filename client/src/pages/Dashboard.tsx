@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { AssessmentResult } from "@/components/AssessmentResult";
 import { BMIClassificationHelper } from "@/components/BMIClassificationHelper";
 import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
-import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UserCircle, Info, X } from "lucide-react";
+import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UploadCloud, UserCircle, Info, X } from "lucide-react";
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
 import { insertAssessmentSchema } from "@shared/schema";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
@@ -242,9 +242,9 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:min-w-115">
+<div className="grid grid-cols-1 gap-3 sm:grid-cols-4 lg:min-w-115">
             {assessments.length === 0 ? (
-              <div className="sm:col-span-3">
+              <div className="sm:col-span-4">
                 <EmptyState
                   icon={Activity}
                   title="No Assessments Yet"
@@ -252,20 +252,32 @@ export default function Dashboard() {
                 />
               </div>
             ) : (
-              stats.map((stat) => {
-                const Icon = stat.icon;
-                return (
-                  <div
-                    key={stat.label}
-                    className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500">
-                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                      <Icon className="h-5 w-5" />
+              <>
+                {stats.map((stat) => {
+                  const Icon = stat.icon;
+                  return (
+                    <div
+                      key={stat.label}
+                      className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500">
+                      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <p className="text-lg font-black text-[#1E293B]">{stat.value}</p>
+                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{stat.label}</p>
                     </div>
-                    <p className="text-lg font-black text-[#1E293B]">{stat.value}</p>
-                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{stat.label}</p>
+                  );
+                })}
+                <a
+                  href="/import"
+                  className="group rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-400 hover:bg-blue-50 cursor-pointer"
+                >
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-600 group-hover:bg-blue-200 transition-colors">
+                    <UploadCloud className="h-5 w-5" />
                   </div>
-                );
-              })
+                  <p className="text-lg font-black text-blue-700">Batch Import</p>
+                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-blue-500">CSV / Excel &rarr;</p>
+                </a>
+              </>
             )}
           </div>
         </div>

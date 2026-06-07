@@ -1,3 +1,5 @@
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, type AssessmentInput, type AssessmentResponse, type AssessmentSimulationResponse, type AssessmentsListResponse } from "@shared/routes";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type AssessmentInput, type AssessmentResponse, type AssessmentsListResponse } from "@shared/routes";
 import { useToast } from "./use-toast";
@@ -254,6 +256,58 @@ export function useCreateAssessment() {
           : error.message || "An unexpected error occurred during the assessment.",
         variant: "destructive",
       });
+    },
+  });
+}
+
+export function useSimulateAssessment() {
+  return useMutation({
+    mutationFn: async (data: AssessmentInput) => {
+      const validated = api.assessments.simulate.input.parse(data);
+      const res = await fetch(api.assessments.simulate.path, {
+        method: api.assessments.simulate.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to simulate assessment");
+      }
+
+      const responseData = await res.json();
+      return parseWithLogging<AssessmentSimulationResponse>(
+        api.assessments.simulate.responses[200],
+        responseData,
+        "assessments.simulate"
+      );
+    },
+  });
+}
+
+export function useSimulateAssessment() {
+  return useMutation({
+    mutationFn: async (data: AssessmentInput) => {
+      const validated = api.assessments.simulate.input.parse(data);
+      const res = await fetch(api.assessments.simulate.path, {
+        method: api.assessments.simulate.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to simulate assessment");
+      }
+
+      const responseData = await res.json();
+      return parseWithLogging<AssessmentSimulationResponse>(
+        api.assessments.simulate.responses[200],
+        responseData,
+        "assessments.simulate"
+      );
     },
   });
 }

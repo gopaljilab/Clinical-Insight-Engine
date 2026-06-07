@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { type AssessmentResponse } from "@shared/routes";
 import AssessmentSelector from "@/components/AssessmentSelector";
@@ -62,7 +62,7 @@ export default function AssessmentComparisonCard({
   };
 
   return (
-    <section className="mb-6 rounded-3xl border border-border bg-card p-6 shadow-sm">
+    <section className="mb-6 rounded-3xl border border-border bg-card p-6 md:p-8 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-muted-foreground">
@@ -83,6 +83,7 @@ export default function AssessmentComparisonCard({
             selectedId={leftId}
             excludeId={rightId}
             onChange={setLeftId}
+            disabled={sortedAssessments.length < 2}
           />
           <AssessmentSelector
             label="Assessment B"
@@ -90,16 +91,13 @@ export default function AssessmentComparisonCard({
             selectedId={rightId}
             excludeId={leftId}
             onChange={setRightId}
+            disabled={sortedAssessments.length < 2}
           />
         </div>
       </div>
 
       <div className="mt-6 space-y-4">
-        {sortedAssessments.length < 2 ? (
-          <div className="rounded-3xl border border-dashed border-border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
-            At least two historical assessments are required to compare results.
-          </div>
-        ) : !leftAssessment || !rightAssessment ? (
+        {sortedAssessments.length < 2 ? null : !leftAssessment || !rightAssessment ? (
           <div className="rounded-3xl border border-dashed border-border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
             Select two different assessments to see a side-by-side comparison.
           </div>
