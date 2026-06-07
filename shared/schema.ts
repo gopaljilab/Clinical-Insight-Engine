@@ -27,6 +27,7 @@ export const assessments = pgTable("assessments", {
   confidenceInterval: jsonb("confidence_interval").$type<string | null>(),
   modelConfidence: doublePrecision("model_confidence"),
   
+  ownerId: uuid("owner_id").references(() => users.id),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   userId: text("user_id"),
