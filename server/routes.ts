@@ -196,13 +196,17 @@ export async function registerRoutes(
         logger.error({ err }, "Error creating assessment preview");
         return res.status(500).json({ message: "Internal server error" });
       } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {
-          logger.warn({ e, tempFile }, "Failed to clean up temp file (preview):");
-        }
-      }
+  try {
+    if (tempFilePath) {
+      await unlink(tempFilePath);
     }
+  } catch (e) {
+    logger.warn(
+      { e, tempFilePath },
+      "Failed to clean up temp file (preview):"
+    );
+  }
+}
   );
 
   app.post(
