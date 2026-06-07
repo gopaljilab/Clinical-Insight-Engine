@@ -179,29 +179,6 @@ export type PredictionAdvice = {
   patientAdvice?: string[];
 };
 
-export type QualityAlert = {
-  severity: "warning" | "info";
-  message: string;
-  code?: string;
-};
-
-export type ExplanationContributor = {
-  name: string;
-  impact: "positive" | "negative";
-  strength: number;
-  description: string;
-  why: string;
-};
-
-export type PredictionExplanation = {
-  summary: string;
-  patientSummary: string;
-  clinicianSummary: string;
-  topContributors: ExplanationContributor[];
-  strongestPositive: ExplanationContributor[];
-  strongestNegative: ExplanationContributor[];
-};
-
 export type Recommendation = {
   id: string;
   title: string;
@@ -209,17 +186,6 @@ export type Recommendation = {
   urgency?: "low" | "medium" | "high";
   audience?: "clinician" | "patient" | "both";
   checklist?: boolean;
-};
-
-export type AttentionPriority = {
-  factor: string;
-  priority: "high" | "moderate" | "monitor";
-  reason: string;
-  value?: number;
-};
-
-export type AttentionNavigator = {
-  priorities: AttentionPriority[];
 };
 
 export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]> & {
@@ -232,9 +198,6 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
     isFallback?: boolean;
   };
   recommendations?: Recommendation[];
-  explanation?: PredictionExplanation;
-  qualityAlerts?: QualityAlert[];
-  attentionNavigator?: AttentionNavigator;
 };
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
 export type AssessmentPreviewResponse = z.infer<typeof api.assessments.preview.responses[200]>;

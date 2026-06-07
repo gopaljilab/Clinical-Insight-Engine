@@ -1,5 +1,5 @@
 import { logger } from "../logger";
-import { getAssessmentQueue, isQueueAvailable } from "../queue";
+import { getAssessmentQueue } from "../queue";
 import { Router } from "express";
 import { z } from "zod";
 import { rateLimit } from "express-rate-limit";
@@ -8,9 +8,6 @@ import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { MLService } from "../services/mlService";
 import { generateRecommendations } from "../services/recommendation-engine";
-import { generatePredictionExplanation } from "../services/prediction-explainer";
-import { generateQualityAlerts } from "../services/assessment-quality-checker";
-import { generateAttentionNavigator } from "../services/clinical-attention-navigator";
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,
@@ -103,13 +100,14 @@ assessmentsRouter.post(
       }
       MLService.activeInferenceRequests.add(requestFingerprint);
 
-      if (!isQueueAvailable()) {
+      const queue = getAssessmentQueue();
+      if (!queue) {
         return res.status(503).json({
           message: "Assessment queue is temporarily unavailable.",
         });
       }
 
-      const job = await getAssessmentQueue().add("predict", {
+      const job = await queue.add("predict", {
         input,
         userId,
         userEmail
@@ -139,13 +137,14 @@ assessmentsRouter.post(
 
 assessmentsRouter.get("/jobs/:id", requireAuth, requireVerified, async (req, res) => {
   try {
-    if (!isQueueAvailable()) {
+    const queue = getAssessmentQueue();
+    if (!queue) {
       return res.status(503).json({
         message: "Assessment queue is temporarily unavailable.",
       });
     }
 
-    const job = await getAssessmentQueue().getJob(req.params.id as string);
+    const job = await queue.getJob(req.params.id as string);
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
     }
@@ -286,6 +285,25 @@ assessmentsRouter.get(
 );
 
 assessmentsRouter.get(
+  "/autocomplete",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+      if (!q || q.length < 2) {
+        return res.json([]);
+      }
+      const userEmail = req.session.user?.email;
+      const names = await storage.autocompletePatientNames(q, userEmail, 10);
+      return res.json(names);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch autocomplete suggestions" });
+    }
+  }
+);
+
+assessmentsRouter.get(
   "/:id",
   requireAuth,
   requireVerified,
@@ -321,18 +339,7 @@ assessmentsRouter.get(
 
       logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
       const recommendations = generateRecommendations({ ...assessment, riskCategory: assessment.riskCategory });
-      const explanation = generatePredictionExplanation({
-        ...assessment,
-        riskCategory: assessment.riskCategory,
-        factors: assessment.factors,
-      });
-      const qualityAlerts = generateQualityAlerts({ ...assessment, factors: assessment.factors });
-      const attentionNavigator = generateAttentionNavigator({
-        ...assessment,
-        riskCategory: assessment.riskCategory,
-        factors: assessment.factors,
-      });
-      return res.json({ ...assessment, recommendations, explanation, qualityAlerts, attentionNavigator });
+      return res.json({ ...assessment, recommendations });
     } catch (err) {
       logger.error({ err }, "Assessment fetch error:");
       const { statusCode, message } = sanitizeDatabaseError(err);

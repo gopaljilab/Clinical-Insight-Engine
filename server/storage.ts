@@ -52,6 +52,7 @@ export interface IStorage {
   getAssessmentById(id: number): Promise<Assessment | undefined>;
   createAssessment(assessment: any): Promise<Assessment>;
   deleteAssessment(id: number): Promise<void>;
+  autocompletePatientNames(query: string, createdBy?: string, limit?: number): Promise<string[]>;
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
@@ -97,6 +98,10 @@ export class DatabaseStorage implements IStorage {
     return this.assessmentRepository.deleteAssessment(id);
   }
   
+  async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {
+    return this.assessmentRepository.autocompletePatientNames(query, createdBy, limit);
+  }
+
   async createUser(data: InsertUser) { 
     return this.userRepository.createUser(data); 
   }
