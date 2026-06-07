@@ -13,6 +13,7 @@ import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { Recommendations } from "./Recommendations";
 import { PredictionExplanation } from "./PredictionExplanation";
 import { DataQualityAlerts } from "./DataQualityAlerts";
+import { BiomarkerAlerts } from "./BiomarkerAlerts";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -333,6 +334,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <PredictionExplanation explanation={assessment.explanation} view="patient" />
 
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
+
               <WhatIfRiskSimulator assessment={assessment} />
 
               <ExplainabilityPanel
@@ -496,6 +499,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               />
 
               <PredictionExplanation explanation={assessment.explanation} view="clinician" />
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
 
               <div className="rounded-xl border border-border bg-muted/30 p-5">
                 <h3 className="mb-4 font-bold">Suggested clinical follow-up</h3>

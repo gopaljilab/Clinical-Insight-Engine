@@ -219,6 +219,26 @@ assessmentsRouter.get(
   }
 );
 
+// Biomarker alerts endpoint
+assessmentsRouter.get(
+  "/biomarker-alerts",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const userEmail = req.session.user?.email;
+      // Retrieve comprehensive history for the user to analyze trends
+      const all = await storage.getAssessments(1000, undefined, userEmail);
+      const alerts = (await import("../services/biomarker-trend-analyzer")).analyzeBiomarkerTrends({ assessments: all.data, lookback: 12 });
+      return res.json({ alerts });
+    } catch (err) {
+      logger.error({ err }, "Biomarker alert error:");
+      return res.status(500).json({ message: "Failed to compute biomarker alerts" });
+    }
+  }
+);
+
+
 assessmentsRouter.get(
   "/search",
   requireAuth,
