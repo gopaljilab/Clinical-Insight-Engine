@@ -8,6 +8,7 @@ import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { MLService } from "../services/mlService";
 import { generateRecommendations } from "../services/recommendation-engine";
+import { generatePredictionExplanation } from "../services/prediction-explainer";
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,
@@ -64,6 +65,11 @@ assessmentsRouter.post(
         confidenceInterval: prediction.confidenceInterval ?? null,
         modelConfidence: prediction.modelConfidence ?? null,
         recommendations,
+        explanation: generatePredictionExplanation({
+          ...input,
+          riskCategory: prediction.riskCategory,
+          factors: prediction.factors,
+        }),
       });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
@@ -129,8 +135,13 @@ assessmentsRouter.post(
         ...assessment,
         riskCategory: assessment.riskCategory,
       });
+      const explanation = generatePredictionExplanation({
+        ...input,
+        riskCategory: prediction.riskCategory,
+        factors: prediction.factors,
+      });
 
-      return res.status(201).json({ ...assessment, recommendations });
+      return res.status(201).json({ ...assessment, recommendations, explanation });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res
@@ -188,6 +199,11 @@ assessmentsRouter.get(
         data: result.data.map((a) => ({
           ...a,
           recommendations: generateRecommendations({ ...a, riskCategory: a.riskCategory }),
+          explanation: generatePredictionExplanation({
+            ...a,
+            riskCategory: a.riskCategory,
+            factors: a.factors,
+          }),
         })),
         nextCursor: result.nextCursor,
       };
@@ -309,7 +325,12 @@ assessmentsRouter.get(
 
       logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
       const recommendations = generateRecommendations({ ...assessment, riskCategory: assessment.riskCategory });
-      return res.json({ ...assessment, recommendations });
+      const explanation = generatePredictionExplanation({
+        ...assessment,
+        riskCategory: assessment.riskCategory,
+        factors: assessment.factors,
+      });
+      return res.json({ ...assessment, recommendations, explanation });
     } catch (err) {
       logger.error({ err }, "Assessment fetch error:");
       const { statusCode, message } = sanitizeDatabaseError(err);

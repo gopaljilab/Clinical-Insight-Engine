@@ -95,6 +95,40 @@ export const api = {
               })
             )
             .optional(),
+          explanation: z
+            .object({
+              summary: z.string(),
+              patientSummary: z.string(),
+              clinicianSummary: z.string(),
+              topContributors: z.array(
+                z.object({
+                  name: z.string(),
+                  impact: z.enum(["positive", "negative"]),
+                  strength: z.number(),
+                  description: z.string(),
+                  why: z.string(),
+                })
+              ),
+              strongestPositive: z.array(
+                z.object({
+                  name: z.string(),
+                  impact: z.enum(["positive", "negative"]),
+                  strength: z.number(),
+                  description: z.string(),
+                  why: z.string(),
+                })
+              ),
+              strongestNegative: z.array(
+                z.object({
+                  name: z.string(),
+                  impact: z.enum(["positive", "negative"]),
+                  strength: z.number(),
+                  description: z.string(),
+                  why: z.string(),
+                })
+              ),
+            })
+            .optional(),
         }),
         400: errorSchemas.validation,
         500: errorSchemas.internal,
@@ -144,6 +178,23 @@ export type PredictionAdvice = {
   patientAdvice?: string[];
 };
 
+export type ExplanationContributor = {
+  name: string;
+  impact: "positive" | "negative";
+  strength: number;
+  description: string;
+  why: string;
+};
+
+export type PredictionExplanation = {
+  summary: string;
+  patientSummary: string;
+  clinicianSummary: string;
+  topContributors: ExplanationContributor[];
+  strongestPositive: ExplanationContributor[];
+  strongestNegative: ExplanationContributor[];
+};
+
 export type Recommendation = {
   id: string;
   title: string;
@@ -163,6 +214,7 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
     isFallback?: boolean;
   };
   recommendations?: Recommendation[];
+  explanation?: PredictionExplanation;
 };
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
 export type AssessmentPreviewResponse = z.infer<typeof api.assessments.preview.responses[200]>;

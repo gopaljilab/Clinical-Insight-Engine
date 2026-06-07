@@ -11,6 +11,7 @@ import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { Recommendations } from "./Recommendations";
+import { PredictionExplanation } from "./PredictionExplanation";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -327,6 +328,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <Recommendations recommendations={assessment.recommendations} audience="patient" />
 
+              <PredictionExplanation explanation={assessment.explanation} view="patient" />
+
               <WhatIfRiskSimulator assessment={assessment} />
 
               <ExplainabilityPanel
@@ -484,6 +487,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 increasedRiskFactors={increasedRiskFactors}
                 reducedRiskFactors={reducedRiskFactors}
               />
+
+              <PredictionExplanation explanation={assessment.explanation} view="clinician" />
 
               <div className="rounded-xl border border-border bg-muted/30 p-5">
                 <h3 className="mb-4 font-bold">Suggested clinical follow-up</h3>
