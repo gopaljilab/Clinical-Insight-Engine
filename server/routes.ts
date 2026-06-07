@@ -29,7 +29,7 @@ import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./s
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
 
-function execFileAsync(file: string, args: string[], options: { timeout: number }): Promise<{ stdout: string; stderr: string }> {
+function execFileAsync(file: string, args: string[], options: { timeout: number; maxBuffer?: number }): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     execFile(file, args, options, (error, stdout, stderr) => {
       if (error) {
