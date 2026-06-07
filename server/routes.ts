@@ -491,6 +491,69 @@ export async function registerRoutes(
   );
 
   app.post(
+    api.assessments.simulate.path,
+    requireAuth,
+    requireVerified,
+    previewLimiter,
+    validateDTO(api.assessments.simulate.input),
+    async (req, res) => {
+      const input = api.assessments.simulate.input.parse(req.body);
+      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
+
+      try {
+        await writeFile(tempFile, JSON.stringify(input));
+
+        let prediction: any;
+        try {
+          const { stdout } = await execFileAsync(
+            getPythonExecutable(),
+            [analyzePyPath, "predict_file", tempFile],
+            { timeout: 30000 }
+          );
+
+          prediction = JSON.parse(stdout.trim());
+          if (prediction.error) {
+            return res.status(400).json({ message: prediction.error });
+          }
+        } catch (error: any) {
+          if (error.killed || error.signal === "SIGTERM") {
+            return res.status(408).json({ message: "Clinical assessment simulation timed out." });
+          }
+
+          logger.warn(
+            "Python prediction simulation failed, falling back to clinical rule-based model:",
+            error
+          );
+          prediction = calculateClinicalFallback(input);
+        }
+
+        logger.info(
+          `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+        );
+
+        return res.json({
+          simulatedRisk: prediction.riskScore,
+          riskCategory: prediction.riskCategory,
+          confidence: prediction.modelConfidence ?? null,
+          factorContributions: prediction.factors ?? [],
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: err.errors[0].message });
+        }
+        logger.error({ err }, "Error creating assessment simulation");
+        return res.status(500).json({ message: "Internal server error" });
+      } finally {
+        try {
+          await unlink(tempFile);
+        } catch (e) {
+          logger.warn({ e, tempFile }, "Failed to clean up temp file (simulate):");
+        }
+      }
+    }
+  );
+
+  app.post(
     api.assessments.create.path,
     requireAuth,
     requireVerified,

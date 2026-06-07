@@ -9,6 +9,7 @@ import { useAssessments } from "@/hooks/use-assessments";
 import { calculateHealthBadges } from "@/utils/healthBadges";
 import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
+import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -320,6 +321,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   </div>
                 ))}
               </div>
+
+              <WhatIfRiskSimulator assessment={assessment} />
 
               <ExplainabilityPanel
                 factors={factorBreakdown}
