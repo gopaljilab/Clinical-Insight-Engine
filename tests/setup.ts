@@ -5,8 +5,11 @@ vi.mock("ioredis", () => {
   return {
     default: vi.fn().mockImplementation(() => {
       return {
+        status: "ready",
         on: vi.fn(),
-        quit: vi.fn(),
+        connect: vi.fn().mockResolvedValue(undefined),
+        ping: vi.fn().mockResolvedValue("PONG"),
+        quit: vi.fn().mockResolvedValue(undefined),
         defineCommand: vi.fn(),
       };
     }),
