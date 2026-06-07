@@ -105,14 +105,14 @@ export function startAssessmentWorker(): void {
     "assessmentQueue",
     async (job: Job) => {
       const { input, userId, userEmail } = job.data;
-      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
+      const tempFilePath = path.join(os.tmpdir(), `${randomUUID()}.json`);
 
       try {
-        await writeFile(tempFile, JSON.stringify(input));
+        await writeFile(tempFilePath, JSON.stringify(input));
         const stdout = await new Promise<string>((resolve, reject) => {
           const child = execFile(
             getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
+            [analyzePyPath, "predict_file", tempFilePath],
             {
               timeout: 60000,
               killSignal: "SIGTERM",
@@ -186,7 +186,7 @@ export function startAssessmentWorker(): void {
         throw err;
       } finally {
         try {
-          await unlink(tempFile);
+          await unlink(tempFilePath);
         } catch (e) {
           // ignore
         }
