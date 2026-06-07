@@ -95,6 +95,15 @@ export const api = {
               })
             )
             .optional(),
+          qualityAlerts: z
+            .array(
+              z.object({
+                severity: z.enum(["warning", "info"]),
+                message: z.string(),
+                code: z.string().optional(),
+              })
+            )
+            .optional(),
           explanation: z
             .object({
               summary: z.string(),
@@ -178,6 +187,12 @@ export type PredictionAdvice = {
   patientAdvice?: string[];
 };
 
+export type QualityAlert = {
+  severity: "warning" | "info";
+  message: string;
+  code?: string;
+};
+
 export type ExplanationContributor = {
   name: string;
   impact: "positive" | "negative";
@@ -215,6 +230,7 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
   };
   recommendations?: Recommendation[];
   explanation?: PredictionExplanation;
+  qualityAlerts?: QualityAlert[];
 };
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
 export type AssessmentPreviewResponse = z.infer<typeof api.assessments.preview.responses[200]>;

@@ -12,6 +12,7 @@ import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { Recommendations } from "./Recommendations";
 import { PredictionExplanation } from "./PredictionExplanation";
+import { DataQualityAlerts } from "./DataQualityAlerts";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -293,6 +294,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 description="See improvements and long-term trends based on this assessment and past history."
               />
 
+              <DataQualityAlerts alerts={assessment.qualityAlerts} />
+
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
@@ -405,6 +408,10 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-4">
+                <DataQualityAlerts alerts={assessment.qualityAlerts} />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">

@@ -9,6 +9,7 @@ import { storage } from "../storage";
 import { MLService } from "../services/mlService";
 import { generateRecommendations } from "../services/recommendation-engine";
 import { generatePredictionExplanation } from "../services/prediction-explainer";
+import { generateQualityAlerts } from "../services/assessment-quality-checker";
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,
@@ -65,6 +66,7 @@ assessmentsRouter.post(
         confidenceInterval: prediction.confidenceInterval ?? null,
         modelConfidence: prediction.modelConfidence ?? null,
         recommendations,
+        qualityAlerts: generateQualityAlerts({ ...input, factors: prediction.factors }),
         explanation: generatePredictionExplanation({
           ...input,
           riskCategory: prediction.riskCategory,
@@ -140,8 +142,9 @@ assessmentsRouter.post(
         riskCategory: prediction.riskCategory,
         factors: prediction.factors,
       });
+      const qualityAlerts = generateQualityAlerts({ ...input, factors: prediction.factors });
 
-      return res.status(201).json({ ...assessment, recommendations, explanation });
+      return res.status(201).json({ ...assessment, recommendations, explanation, qualityAlerts });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res
@@ -204,6 +207,7 @@ assessmentsRouter.get(
             riskCategory: a.riskCategory,
             factors: a.factors,
           }),
+          qualityAlerts: generateQualityAlerts({ ...a, factors: a.factors }),
         })),
         nextCursor: result.nextCursor,
       };
@@ -330,7 +334,8 @@ assessmentsRouter.get(
         riskCategory: assessment.riskCategory,
         factors: assessment.factors,
       });
-      return res.json({ ...assessment, recommendations, explanation });
+      const qualityAlerts = generateQualityAlerts({ ...assessment, factors: assessment.factors });
+      return res.json({ ...assessment, recommendations, explanation, qualityAlerts });
     } catch (err) {
       logger.error({ err }, "Assessment fetch error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
