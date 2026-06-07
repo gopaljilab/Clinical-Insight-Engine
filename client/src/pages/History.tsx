@@ -217,14 +217,21 @@ export default function History() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (searchTerm) {
-      params.set("filter", searchTerm);
-    } else {
-      params.delete("filter");
-    }
+    const setParam = (key: string, val: string | undefined | null) => {
+      if (val && val !== "" && val !== "All") params.set(key, val);
+      else params.delete(key);
+    };
+    setParam("filter", searchTerm || null);
+    setParam("risk", riskCategory !== "All" ? riskCategory : null);
+    setParam("gender", gender !== "All" ? gender : null);
+    setParam("minAge", minAge !== undefined ? String(minAge) : null);
+    setParam("maxAge", maxAge !== undefined ? String(maxAge) : null);
+    setParam("startDate", startDate || null);
+    setParam("endDate", endDate || null);
+    setParam("sort", sortBy !== "date-desc" ? sortBy : null);
     const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
     window.history.replaceState({}, '', newUrl);
-  }, [searchTerm]);
+  }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate, sortBy]);
 
   const hasActiveFilters =
     searchTerm !== "" ||
@@ -597,6 +604,41 @@ export default function History() {
                 onSearch={setSearchTerm}
                 onClear={() => setSearchTerm("")}
               />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setRiskCategory("High"); setCurrentPage(1); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                    riskCategory === "High" && gender === "All" && !minAge && !maxAge && !startDate && !endDate && !searchTerm
+                      ? "bg-red-100 border-red-300 text-red-700"
+                      : "bg-card border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  High Risk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRiskCategory("Moderate"); setCurrentPage(1); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                    riskCategory === "Moderate" && gender === "All" && !minAge && !maxAge && !startDate && !endDate && !searchTerm
+                      ? "bg-yellow-100 border-yellow-300 text-yellow-700"
+                      : "bg-card border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  Moderate Risk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSearchTerm(""); setRiskCategory("All"); setGender("All"); setMinAge(undefined); setMaxAge(undefined); setStartDate(""); setEndDate(""); setCurrentPage(1); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                    !hasActiveFilters
+                      ? "bg-blue-100 border-blue-300 text-blue-700"
+                      : "bg-card border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  All Patients
+                </button>
+              </div>
               <AssessmentFilters
                 riskCategory={riskCategory}
                 gender={gender}
