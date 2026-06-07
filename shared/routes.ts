@@ -116,6 +116,25 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    biomarkerAlerts: {
+      method: "GET" as const,
+      path: "/api/assessments/biomarker-alerts" as const,
+      responses: {
+        200: z.object({
+          alerts: z.array(
+            z.object({
+              biomarker: z.enum(["HbA1c", "Blood Glucose", "BMI"]),
+              trend: z.enum(["increasing", "decreasing", "stable"]),
+              severity: z.enum(["warning", "info"]),
+              message: z.string(),
+              values: z.array(z.object({ ts: z.string().optional(), value: z.number() })),
+            })
+          ),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
   },
 };
 
@@ -137,6 +156,15 @@ export type PredictionAdvice = {
   patientAdvice?: string[];
 };
 
+export type Recommendation = {
+  id: string;
+  title: string;
+  description: string;
+  urgency?: "low" | "medium" | "high";
+  audience?: "clinician" | "patient" | "both";
+  checklist?: boolean;
+};
+
 export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]> & {
   prediction?: PredictionAdvice & {
     riskScore?: number;
@@ -146,6 +174,7 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
     disclaimer?: string;
     isFallback?: boolean;
   };
+  recommendations?: Recommendation[];
 };
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
 export type AssessmentPreviewResponse = z.infer<typeof api.assessments.preview.responses[200]>;

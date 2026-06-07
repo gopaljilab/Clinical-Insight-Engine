@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/EmptyState";
 
 type Tab = "users" | "audit" | "stats";
 
@@ -90,6 +91,16 @@ function UsersTab() {
     );
   }
 
+  if (data?.data.length === 0) {
+    return (
+      <EmptyState
+        icon={Users}
+        title="No Users Found"
+        description="There are currently no users in the system."
+      />
+    );
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -151,6 +162,16 @@ function AuditLogsTab() {
       <div className="flex justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
+    );
+  }
+
+  if (data?.data.length === 0) {
+    return (
+      <EmptyState
+        icon={Shield}
+        title="No Audit Logs"
+        description="There are currently no security audit logs recorded."
+      />
     );
   }
 
