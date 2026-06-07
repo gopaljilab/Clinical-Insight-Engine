@@ -238,6 +238,17 @@ export type Recommendation = {
   checklist?: boolean;
 };
 
+export type AttentionPriority = {
+  factor: string;
+  priority: "high" | "moderate" | "monitor";
+  reason: string;
+  value?: number;
+};
+
+export type AttentionNavigator = {
+  priorities: AttentionPriority[];
+};
+
 export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]> & {
   prediction?: PredictionAdvice & {
     riskScore?: number;
@@ -250,6 +261,7 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
   recommendations?: Recommendation[];
   explanation?: PredictionExplanation;
   qualityAlerts?: QualityAlert[];
+  attentionNavigator?: AttentionNavigator;
 };
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
 export type AssessmentPreviewResponse = z.infer<typeof api.assessments.preview.responses[200]>;

@@ -10,6 +10,7 @@ import { MLService } from "../services/mlService";
 import { generateRecommendations } from "../services/recommendation-engine";
 import { generatePredictionExplanation } from "../services/prediction-explainer";
 import { generateQualityAlerts } from "../services/assessment-quality-checker";
+import { generateAttentionNavigator } from "../services/clinical-attention-navigator";
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,
@@ -143,8 +144,13 @@ assessmentsRouter.post(
         factors: prediction.factors,
       });
       const qualityAlerts = generateQualityAlerts({ ...input, factors: prediction.factors });
+      const attentionNavigator = generateAttentionNavigator({
+        ...assessment,
+        riskCategory: assessment.riskCategory,
+        factors: prediction.factors,
+      });
 
-      return res.status(201).json({ ...assessment, recommendations, explanation, qualityAlerts });
+      return res.status(201).json({ ...assessment, recommendations, explanation, qualityAlerts, attentionNavigator });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res
@@ -208,6 +214,11 @@ assessmentsRouter.get(
             factors: a.factors,
           }),
           qualityAlerts: generateQualityAlerts({ ...a, factors: a.factors }),
+          attentionNavigator: generateAttentionNavigator({
+            ...a,
+            riskCategory: a.riskCategory,
+            factors: a.factors,
+          }),
         })),
         nextCursor: result.nextCursor,
       };
@@ -355,7 +366,12 @@ assessmentsRouter.get(
         factors: assessment.factors,
       });
       const qualityAlerts = generateQualityAlerts({ ...assessment, factors: assessment.factors });
-      return res.json({ ...assessment, recommendations, explanation, qualityAlerts });
+      const attentionNavigator = generateAttentionNavigator({
+        ...assessment,
+        riskCategory: assessment.riskCategory,
+        factors: assessment.factors,
+      });
+      return res.json({ ...assessment, recommendations, explanation, qualityAlerts, attentionNavigator });
     } catch (err) {
       logger.error({ err }, "Assessment fetch error:");
       const { statusCode, message } = sanitizeDatabaseError(err);

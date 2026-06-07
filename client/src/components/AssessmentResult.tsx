@@ -14,6 +14,7 @@ import { Recommendations } from "./Recommendations";
 import { PredictionExplanation } from "./PredictionExplanation";
 import { DataQualityAlerts } from "./DataQualityAlerts";
 import { BiomarkerAlerts } from "./BiomarkerAlerts";
+import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -413,8 +414,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
               </div>
 
-              <div className="mt-4">
+              <div className="mt-4 space-y-4">
                 <DataQualityAlerts alerts={assessment.qualityAlerts} />
+                <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
