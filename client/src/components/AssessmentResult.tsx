@@ -124,7 +124,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
   const { data: assessmentsResponse } = useAssessments();
   const assessmentHistory = useMemo(
-    () => assessmentsResponse?.pages.flatMap((page) => page.data) ?? [],
+    () => assessmentsResponse?.data ?? [],
     [assessmentsResponse]
   );
   const improvementBadges = useMemo(
