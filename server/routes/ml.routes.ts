@@ -13,6 +13,7 @@ import { validateDTO } from "../middleware/validateDTO";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { fileURLToPath } from "url";
+import { mlLimiter } from "../middleware/rateLimit";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -25,6 +26,7 @@ mlRouter.post(
   "/bulk",
   requireAuth,
   requireVerified,
+  mlLimiter,
   validateDTO(z.object({ assessments: z.array(api.assessments.create.input) })),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;

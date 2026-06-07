@@ -20,33 +20,10 @@ import { validateDTO } from "../middleware/validateDTO";
 
 const assessmentsRouter = Router();
 
-const assessmentLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 5,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: {
-    error: "Too many assessment requests. Please try again later.",
-    retryAfter: 60,
-  },
-});
-
-const previewLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 10,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: {
-    error: "Too many preview requests. Please try again later.",
-    retryAfter: 60,
-  },
-});
-
 assessmentsRouter.post(
   "/preview",
   requireAuth,
   requireVerified,
-  previewLimiter,
   validateDTO(api.assessments.preview.input),
   async (req, res) => {
     try {
@@ -79,7 +56,6 @@ assessmentsRouter.post(
   "/",
   requireAuth,
   requireVerified,
-  assessmentLimiter,
   validateDTO(api.assessments.create.input),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
