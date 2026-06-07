@@ -183,6 +183,7 @@ export class AssessmentRepository {
           createdAt: (assessments as any).createdAt ?? (assessments as any).created_at,
           createdBy: (assessments as any).createdBy ?? (assessments as any).created_by,
           userId: (assessments as any).userId ?? (assessments as any).user_id,
+          ownerId: assessments.ownerId,
         })
         .from(assessments)
         .orderBy(desc(assessments.id))
@@ -227,6 +228,7 @@ export class AssessmentRepository {
         createdAt: (assessments as any).createdAt ?? (assessments as any).created_at,
         createdBy: (assessments as any).createdBy ?? (assessments as any).created_by,
         userId: (assessments as any).userId ?? (assessments as any).user_id,
+        ownerId: assessments.ownerId,
       })
       .from(assessments)
       .orderBy(orderByClause, desc(assessments.id))
