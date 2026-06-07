@@ -72,4 +72,64 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(true);
   });
+
+  it("rejects empty age string with 'required' error", () => {
+    const result = insertAssessmentSchema.safeParse({
+      ...validAssessment,
+      age: "",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe("Age is required");
+    }
+  });
+
+  it("rejects empty BMI string with 'required' error", () => {
+    const result = insertAssessmentSchema.safeParse({
+      ...validAssessment,
+      bmi: "",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe("BMI is required");
+    }
+  });
+
+  it("rejects empty HbA1c string with 'required' error", () => {
+    const result = insertAssessmentSchema.safeParse({
+      ...validAssessment,
+      hba1cLevel: "",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe("HbA1c level is required");
+    }
+  });
+
+  it("rejects empty blood glucose string with 'required' error", () => {
+    const result = insertAssessmentSchema.safeParse({
+      ...validAssessment,
+      bloodGlucoseLevel: "",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe("Blood glucose level is required");
+    }
+  });
+
+  it("still accepts numeric age 0 as out-of-range (not 'required')", () => {
+    const result = insertAssessmentSchema.safeParse({
+      ...validAssessment,
+      age: 0,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe("Age must be at least 1");
+    }
+  });
 });

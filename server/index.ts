@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -21,11 +22,40 @@ import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
 import { logger } from "./logger";
 import { requestIdMiddleware } from "./middleware/requestId";
+import {
+  verifyRedisConnection,
+  startAssessmentWorker,
+  closeQueue,
+} from "./queue";
+import { EmailConfigurationError, validateSmtpConfig } from "./email";
 
 
 const execFileAsync = promisify(execFile);
 const app = express();
 const httpServer = createServer(app);
+
+// CORS configuration - hardened to reject requests missing the Origin header
+const isProd = process.env.NODE_ENV === "production";
+const allowedOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(",") 
+  : [process.env.APP_URL, process.env.API_URL, "http://localhost:5000", "http://127.0.0.1:5000"].filter(Boolean) as string[];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Reject requests missing the Origin header to prevent unintended access
+    if (!origin) {
+      return callback(new Error("CORS: Origin header is required"), false);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"), false);
+    }
+  },
+  credentials: true,
+}));
+
 const REQUEST_BODY_LIMIT = "256kb";
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", true);
@@ -180,6 +210,27 @@ app.use((req, res, next) => {
     process.exit(1);
   }
 
+  try {
+    validateSmtpConfig();
+  } catch (error) {
+    if (error instanceof EmailConfigurationError) {
+      logger.error({ err: error }, error.message);
+    } else {
+      logger.error({ err: error }, "Unexpected email configuration error");
+    }
+
+    await closePool();
+    process.exit(1);
+  }
+
+  const queueReady = await verifyRedisConnection();
+  if (queueReady) {
+    startAssessmentWorker();
+    logger.info({ source: "redis" }, "Assessment queue ready.");
+  } else {
+    logger.warn({ source: "redis" }, "Redis unavailable — async assessment queue disabled.");
+  }
+
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
   // Register protected patient EMR/EHR integration endpoints
@@ -198,6 +249,11 @@ app.use((req, res, next) => {
 
     // Log the full error internally for debugging, but never send internals to clients
     logger.error({ err }, "Unhandled server error");
+
+    // Handle CORS errors specifically
+    if (err.message === "CORS: Origin header is required" || err.message === "Not allowed by CORS") {
+      return res.status(403).json({ message: err.message });
+    }
 
     // Sanitize database errors — prevents table names, SQL syntax, and pg error codes
     // from reaching the client response body
@@ -229,6 +285,12 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || "5000", 10);
   const host = process.env.HOST || "0.0.0.0";
 
+  httpServer.on("error", async (error) => {
+    logger.error({ err: error }, "Server startup failed");
+    await closePool();
+    process.exit(1);
+  });
+
   httpServer.listen(
     {
       port,
@@ -245,6 +307,8 @@ app.use((req, res, next) => {
 
     httpServer.close(async () => {
       logger.info({ source: "express" }, "HTTP server closed");
+      await closeQueue();
+      logger.info({ source: "express" }, "Assessment queue closed");
       await closePool();
       logger.info({ source: "express" }, "Database pool closed");
       process.exit(0);

@@ -1,5 +1,5 @@
 import { logger } from "../logger";
-import { assessmentQueue } from "../queue";
+import { getAssessmentQueue, isQueueAvailable } from "../queue";
 import { Router } from "express";
 import { z } from "zod";
 import { rateLimit } from "express-rate-limit";
@@ -12,7 +12,7 @@ import {
   analyzeSearchInput,
   logSecurityEvent,
 } from "../security/sqlProtection";
-import { searchQuerySchema } from "../validation/searchValidation";
+import { searchQuerySchema, assessmentsQuerySchema } from "../validation/searchValidation";
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
 import { validateDTO } from "../middleware/validateDTO";
@@ -50,7 +50,7 @@ assessmentsRouter.post(
   async (req, res) => {
     try {
       const input = req.body;
-      const { prediction } = await MLService.runAssessmentInference(input);
+      const { prediction, isFallback } = await MLService.runAssessmentInference(input);
 
       return res.json({
         riskScore: prediction.riskScore,
@@ -58,6 +58,7 @@ assessmentsRouter.post(
         factors: prediction.factors ?? [],
         confidenceInterval: prediction.confidenceInterval ?? null,
         modelConfidence: prediction.modelConfidence ?? null,
+        isFallback,
       });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
@@ -66,7 +67,7 @@ assessmentsRouter.post(
           .json({ message: err.errors[0]?.message ?? "Invalid input" });
       }
       if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
-        return res.status(408).json({ message: "Clinical assessment preview timed out." });
+        return res.status(503).json({ message: "Clinical assessment preview timed out." });
       }
       return res.status(500).json({ message: err.message || "Internal server error" });
     }
@@ -89,8 +90,8 @@ assessmentsRouter.post(
     let requestFingerprint: string | undefined;
     try {
       const input = req.body;
-      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
 
+      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
         return res.status(409).json({
           message: "An identical assessment request is already being processed.",
@@ -98,28 +99,22 @@ assessmentsRouter.post(
       }
       MLService.activeInferenceRequests.add(requestFingerprint);
 
-      const { prediction, isFallback } = await MLService.runAssessmentInference(input);
+      if (!isQueueAvailable()) {
+        return res.status(503).json({
+          message: "Assessment queue is temporarily unavailable.",
+        });
+      }
 
-      prediction.disclaimer =
-        "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions." +
-        (isFallback
-          ? " (Generated via fallback rule-based clinical support model due to system unavailability)"
-          : "");
-
-      const assessment = await storage.createAssessment({
-        ...input,
-        riskScore: Number(prediction.riskScore),
-        riskCategory: prediction.riskCategory,
-        factors: prediction.factors,
-        confidenceInterval: prediction.confidenceInterval ?? undefined,
-        modelConfidence:
-          prediction.modelConfidence == null
-            ? undefined
-            : Number(prediction.modelConfidence),
-        createdBy: userEmail || userId,
+      const job = await getAssessmentQueue().add("predict", {
+        input,
+        userId,
+        userEmail
       });
 
-      return res.status(201).json(assessment);
+      return res.status(202).json({
+        message: "Assessment request accepted and is being processed.",
+        jobId: job.id
+      });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res
@@ -140,7 +135,13 @@ assessmentsRouter.post(
 
 assessmentsRouter.get("/jobs/:id", requireAuth, requireVerified, async (req, res) => {
   try {
-    const job = await assessmentQueue.getJob(req.params.id as string);
+    if (!isQueueAvailable()) {
+      return res.status(503).json({
+        message: "Assessment queue is temporarily unavailable.",
+      });
+    }
+
+    const job = await getAssessmentQueue().getJob(req.params.id as string);
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
     }
@@ -165,16 +166,22 @@ assessmentsRouter.get(
     try {
       const userEmail = req.session.user?.email;
       
-      const limit = Math.min(
-        100,
-        Math.max(1, parseInt(req.query.limit as string) || 20)
-      );
-      const cursor = req.query.cursor ? parseInt(req.query.cursor as string, 10) : undefined;
-      
-      const result = await storage.getAssessments(limit, cursor, userEmail);
+      const parseResult = assessmentsQuerySchema.safeParse(req.query);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          message: parseResult.error.errors[0]?.message ?? "Invalid query parameters.",
+        });
+      }
+
+      const params = parseResult.data;
+      const result = await storage.getAssessments({
+        ...params,
+        createdBy: userEmail,
+      });
 
       res.json(result);
     } catch (err) {
+      logger.error({ err }, "Fetch assessments error:");
       return res.status(500).json({ message: "Failed to fetch assessments" });
     }
   }
@@ -292,6 +299,52 @@ assessmentsRouter.get(
       return res.json(assessment);
     } catch (err) {
       logger.error({ err }, "Assessment fetch error:");
+      const { statusCode, message } = sanitizeDatabaseError(err);
+      return res.status(statusCode).json({ message });
+    }
+  }
+);
+
+assessmentsRouter.delete(
+  "/:id",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string, 10);
+
+      if (isNaN(id) || id <= 0) {
+        return res.status(400).json({ message: "Invalid assessment ID." });
+      }
+
+      const user = req.session.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const assessment = await storage.getAssessmentById(id);
+
+      if (!assessment) {
+        return res.status(404).json({ message: "Assessment not found." });
+      }
+
+      if (!canAccessPatientRecord(user as any, assessment)) {
+        logAccessAttempt(
+          (user as any).id,
+          "Assessment",
+          id,
+          false,
+          "IDOR attempt: User not authorized to delete this patient record"
+        );
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      await storage.deleteAssessment(id);
+      
+      logAccessAttempt((user as any).id, "Assessment", id, true, "Assessment deleted successfully");
+      return res.status(204).send();
+    } catch (err) {
+      logger.error({ err }, "Assessment delete error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
     }

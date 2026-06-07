@@ -327,3 +327,72 @@ describe("sanitizeDatabaseError", () => {
     expect(message).not.toContain("syntax error");
   });
 });
+
+// ─── Patient Name Search Tests ─────────────────────────────────────────────
+
+describe("patient name search coverage", () => {
+  it("searchQuerySchema validates patient name search terms", () => {
+    const validNames = ["John", "Mary Johnson", "O'Brien", "Dr. Smith", "Anne-Marie"];
+    for (const name of validNames) {
+      const result = searchQuerySchema.safeParse({ q: name });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it("searchQuerySchema accepts valid gender filter", () => {
+    const result = searchQuerySchema.safeParse({ q: "Male" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.q).toBe("Male");
+  });
+
+  it("searchQuerySchema accepts valid smoking history filter", () => {
+    const result = searchQuerySchema.safeParse({ q: "never" });
+    expect(result.success).toBe(true);
+  });
+
+  it("searchQuerySchema accepts valid risk category filter", () => {
+    const result = searchQuerySchema.safeParse({ q: "LOW" });
+    expect(result.success).toBe(true);
+  });
+
+  it("searchQuerySchema accepts combined patient name and risk category", () => {
+    const result = searchQuerySchema.safeParse({ q: "John", riskCategory: "HIGH" });
+    expect(result.success).toBe(true);
+  });
+
+  it("searchQuerySchema accepts patient name with pagination", () => {
+    const result = searchQuerySchema.safeParse({ q: "Johnson", limit: "10" });
+    expect(result.success).toBe(true);
+  });
+
+  it("ilike patterns for patientName search are sanitized", () => {
+    // SQL injection attempts should be rejected even when targeting patientName
+    const injections = [
+      "' OR '1'='1",
+      "'; DROP TABLE assessments;--",
+      "' UNION SELECT * FROM assessments--",
+    ];
+    for (const payload of injections) {
+      const result = searchQuerySchema.safeParse({ q: payload });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it("detectSqlInjectionPattern flags injection through patientName field", () => {
+    const injections = [
+      "' OR '1'='1",
+      "' UNION SELECT NULL--",
+      "'; DROP TABLE assessments;--",
+    ];
+    for (const payload of injections) {
+      expect(detectSqlInjectionPattern(payload)).not.toBeNull();
+    }
+  });
+
+  it("safe patient names pass sqlProtection analysis", () => {
+    const safeNames = ["John", "Mary Johnson", "O'Brien", "Smith"];
+    for (const name of safeNames) {
+      expect(analyzeSearchInput(name).safe).toBe(true);
+    }
+  });
+});

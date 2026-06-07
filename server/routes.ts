@@ -30,7 +30,6 @@ import { searchQuerySchema } from "./validation/searchValidation";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
 import { logger } from "./logger";
-import { assessmentQueue } from "./queue";
 export const execFileAsync = promisify(execFile);
 
 function runPythonInference(
@@ -181,16 +180,6 @@ const assessmentLimiter = rateLimit({
   },
 });
 
-const previewLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 20,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: {
-    error: "Too many assessment preview requests. Please try again later.",
-    retryAfter: 60,
-  },
-});
 
 export function getPythonExecutable() {
   const candidates = process.platform === "win32"
@@ -420,8 +409,7 @@ export async function registerRoutes(
 
   // Mount domain-specific routers
   app.use("/api/auth", authRouter);
-  app.use("/api/assessments", assessmentsRouter);
-
+  app.use("/api/assessments", analyticsRouter);
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
   app.use("/api/assessments", analyticsRouter);
@@ -902,6 +890,8 @@ export async function registerRoutes(
       }
     }
   );
+  
+  app.use("/api/assessments", assessmentsRouter);
 
   // ─── Admin Routes ────────────────────────────────────────────────
 
