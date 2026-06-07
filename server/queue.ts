@@ -82,9 +82,9 @@ export async function verifyRedisConnection(): Promise<boolean> {
   }
 }
 
-export function getAssessmentQueue(): Queue {
+export function getAssessmentQueue(): Queue | null {
   if (!isQueueAvailable()) {
-    throw new Error("Assessment queue is not available");
+    return null;
   }
 
   if (!assessmentQueueInstance) {

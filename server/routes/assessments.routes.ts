@@ -1,5 +1,5 @@
 import { logger } from "../logger";
-import { getAssessmentQueue, isQueueAvailable } from "../queue";
+import { getAssessmentQueue } from "../queue";
 import { Router } from "express";
 import { z } from "zod";
 import { rateLimit } from "express-rate-limit";
@@ -7,6 +7,7 @@ import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { MLService } from "../services/mlService";
+import { generateRecommendations } from "../services/recommendation-engine";
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,
@@ -99,13 +100,14 @@ assessmentsRouter.post(
       }
       MLService.activeInferenceRequests.add(requestFingerprint);
 
-      if (!isQueueAvailable()) {
+      const queue = getAssessmentQueue();
+      if (!queue) {
         return res.status(503).json({
           message: "Assessment queue is temporarily unavailable.",
         });
       }
 
-      const job = await getAssessmentQueue().add("predict", {
+      const job = await queue.add("predict", {
         input,
         userId,
         userEmail
@@ -135,13 +137,14 @@ assessmentsRouter.post(
 
 assessmentsRouter.get("/jobs/:id", requireAuth, requireVerified, async (req, res) => {
   try {
-    if (!isQueueAvailable()) {
+    const queue = getAssessmentQueue();
+    if (!queue) {
       return res.status(503).json({
         message: "Assessment queue is temporarily unavailable.",
       });
     }
 
-    const job = await getAssessmentQueue().getJob(req.params.id as string);
+    const job = await queue.getJob(req.params.id as string);
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
     }
@@ -179,13 +182,33 @@ assessmentsRouter.get(
         createdBy: userEmail,
       });
 
-      res.json(result);
+      res.json(mapped);
     } catch (err) {
       logger.error({ err }, "Fetch assessments error:");
       return res.status(500).json({ message: "Failed to fetch assessments" });
     }
   }
 );
+
+// Biomarker alerts endpoint
+assessmentsRouter.get(
+  "/biomarker-alerts",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const userEmail = req.session.user?.email;
+      // Retrieve comprehensive history for the user to analyze trends
+      const all = await storage.getAssessments(1000, undefined, userEmail);
+      const alerts = (await import("../services/biomarker-trend-analyzer")).analyzeBiomarkerTrends({ assessments: all.data, lookback: 12 });
+      return res.json({ alerts });
+    } catch (err) {
+      logger.error({ err }, "Biomarker alert error:");
+      return res.status(500).json({ message: "Failed to compute biomarker alerts" });
+    }
+  }
+);
+
 
 assessmentsRouter.get(
   "/search",
@@ -262,6 +285,25 @@ assessmentsRouter.get(
 );
 
 assessmentsRouter.get(
+  "/autocomplete",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+      if (!q || q.length < 2) {
+        return res.json([]);
+      }
+      const userEmail = req.session.user?.email;
+      const names = await storage.autocompletePatientNames(q, userEmail, 10);
+      return res.json(names);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch autocomplete suggestions" });
+    }
+  }
+);
+
+assessmentsRouter.get(
   "/:id",
   requireAuth,
   requireVerified,
@@ -296,7 +338,8 @@ assessmentsRouter.get(
       }
 
       logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
-      return res.json(assessment);
+      const recommendations = generateRecommendations({ ...assessment, riskCategory: assessment.riskCategory });
+      return res.json({ ...assessment, recommendations });
     } catch (err) {
       logger.error({ err }, "Assessment fetch error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
