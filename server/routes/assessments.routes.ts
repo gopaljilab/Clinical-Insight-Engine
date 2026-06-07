@@ -20,33 +20,10 @@ import { validateDTO } from "../middleware/validateDTO";
 
 const assessmentsRouter = Router();
 
-export const assessmentLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 5,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: {
-    error: "Too many assessment requests. Please try again later.",
-    retryAfter: 60,
-  },
-});
-
-export const previewLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 10,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: {
-    error: "Too many preview requests. Please try again later.",
-    retryAfter: 60,
-  },
-});
-
 assessmentsRouter.post(
   "/preview",
   requireAuth,
   requireVerified,
-  previewLimiter,
   validateDTO(api.assessments.preview.input),
   async (req, res) => {
     try {
@@ -79,7 +56,6 @@ assessmentsRouter.post(
   "/",
   requireAuth,
   requireVerified,
-  assessmentLimiter,
   validateDTO(api.assessments.create.input),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
@@ -189,6 +165,26 @@ assessmentsRouter.get(
     }
   }
 );
+
+// Biomarker alerts endpoint
+assessmentsRouter.get(
+  "/biomarker-alerts",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const userEmail = req.session.user?.email;
+      // Retrieve comprehensive history for the user to analyze trends
+      const all = await storage.getAssessments(1000, undefined, userEmail);
+      const alerts = (await import("../services/biomarker-trend-analyzer")).analyzeBiomarkerTrends({ assessments: all.data, lookback: 12 });
+      return res.json({ alerts });
+    } catch (err) {
+      logger.error({ err }, "Biomarker alert error:");
+      return res.status(500).json({ message: "Failed to compute biomarker alerts" });
+    }
+  }
+);
+
 
 assessmentsRouter.get(
   "/search",
