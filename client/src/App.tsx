@@ -1,4 +1,5 @@
 import { Switch, Route } from "wouter";
+import ProgressTracking from "./pages/ProgressTracking";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,11 +10,12 @@ import History from "./pages/History";
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/history" component={History} />
-      <Route component={NotFound} />
-    </Switch>
+   <Switch>
+    <Route path="/" component={Dashboard} />
+    <Route path="/history" component={History} />
+    <Route path="/progress-tracking" component={ProgressTracking} />
+    <Route component={NotFound} />
+  </Switch>
   );
 }
 
