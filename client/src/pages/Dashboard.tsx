@@ -63,7 +63,29 @@ export default function Dashboard() {
             Enter patient details to run the preventive diabetes and cardiovascular risk model.
           </p>
         </div>
+    {isPending && (
+  <div className="mb-12">
+    <div className="bg-card rounded-2xl shadow-lg border border-border/60 p-8">
+      <div className="flex items-center gap-3 mb-6">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        <div>
+          <h2 className="font-bold text-lg">
+            Analyzing patient data...
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Generating risk prediction and clinical insights
+          </p>
+        </div>
+      </div>
 
+      <div className="space-y-4 animate-pulse">
+        <div className="h-8 bg-muted rounded w-1/3"></div>
+        <div className="h-32 bg-muted rounded"></div>
+        <div className="h-24 bg-muted rounded"></div>
+      </div>
+    </div>
+  </div>
+)}
         {result && (
           <div className="mb-12">
             <div className="flex items-center justify-between mb-4">
