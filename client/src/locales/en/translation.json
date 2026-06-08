@@ -1,0 +1,213 @@
+{
+  "app": {
+    "title": "Clinical Insight",
+    "subtitle": "Preventive Risk Tool"
+  },
+  "nav": {
+    "newAssessment": "New Assessment",
+    "patientHistory": "Patient History",
+    "providerAnalytics": "Provider Analytics",
+    "bulkImport": "Bulk Import CSV",
+    "signOut": "Sign Out",
+    "signingOut": "Signing out..."
+  },
+  "auth": {
+    "signOutAria": "Sign out of Clinical Insight workspace",
+    "securityNotice": "Local workspace secured with simulated 2FA",
+    "sessionExpiring": "Session Expiring Soon",
+    "sessionExpiringDesc": "You have been inactive. For your security, you will be logged out in 1 minute if inactivity continues.",
+    "connectionError": "Connection error",
+    "connectionErrorDesc": "Unable to verify your session. Please check your connection and try again.",
+    "retry": "Retry",
+    "dashboardAria": "Go to main dashboard"
+  },
+  "user": {
+    "defaultName": "Dr. Maya Patel",
+    "defaultEmail": "clinical@insight-engine.dev"
+  },
+  "landing": {
+    "heroTitle": "AI-Powered Diabetes Risk Assessment",
+    "heroSubtitle": "Empower clinicians and patients with real-time risk analysis, personalized insights, and actionable prevention plans.",
+    "heroCta": "Start Free Assessment",
+    "heroLearnMore": "Learn More",
+    "featuresTitle": "Why Clinical Insight?",
+    "featureRealTimeTitle": "Real-Time Risk Analysis",
+    "featureRealTimeDesc": "Get instant diabetes risk scores powered by clinical-grade machine learning models trained on diverse patient populations.",
+    "featurePersonalizedTitle": "Personalized Insights",
+    "featurePersonalizedDesc": "Each assessment delivers tailored advice for both clinicians and patients, with actionable recommendations and clear explanations.",
+    "featureSecureTitle": "Secure & Private",
+    "featureSecureDesc": "Your data stays secure with enterprise-grade encryption. Simulated 2FA and session management keep patient information protected.",
+    "workflowTitle": "How It Works",
+    "workflowStep1Title": "Enter Patient Data",
+    "workflowStep1Desc": "Fill in key health metrics like HbA1c, BMI, blood glucose, and lifestyle factors.",
+    "workflowStep2Title": "Get Instant Analysis",
+    "workflowStep2Desc": "Our ML model analyzes the data and provides a risk score with detailed factor breakdown.",
+    "workflowStep3Title": "Review & Take Action",
+    "workflowStep3Desc": "Access personalized clinician and patient advice, export reports, and track changes over time.",
+    "ctaTitle": "Ready to Transform Diabetes Care?",
+    "ctaSubtitle": "Join healthcare providers using Clinical Insight to deliver proactive, data-driven diabetes prevention.",
+    "ctaButton": "Get Started Free",
+    "faqTitle": "Frequently Asked Questions",
+    "faq1Q": "How accurate is the risk assessment?",
+    "faq1A": "Our model uses logistic regression trained on CDC diabetes data with high accuracy. Results should always be reviewed by a qualified healthcare professional for clinical decision-making.",
+    "faq2Q": "Is my patient data secure?",
+    "faq2A": "Yes. All data is encrypted in transit and at rest. We use simulated 2FA, session timeouts, and never share your data with third parties.",
+    "faq3Q": "Can I export assessment results?",
+    "faq3A": "Yes, you can export individual assessments as PDF reports and bulk data as CSV for further analysis in your preferred tools.",
+    "footerCopyright": "© 2026 Clinical Insight Engine. All rights reserved.",
+    "footerPrivacy": "Privacy Policy",
+    "footerTerms": "Terms of Service"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No",
+    "language": "Language"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "hi": "हिन्दी",
+    "switchTo": "Switch language"
+  },
+  "assessment": {
+    "title": "New Assessment",
+    "patientName": "Patient Name",
+    "age": "Age",
+    "gender": "Gender",
+    "male": "Male",
+    "female": "Female",
+    "other": "Other",
+    "bmi": "BMI",
+    "hba1c": "HbA1c Level",
+    "bloodGlucose": "Blood Glucose Level",
+    "hypertension": "Hypertension",
+    "heartDisease": "Heart Disease",
+    "smokingHistory": "Smoking History",
+    "current": "Current",
+    "former": "Former",
+    "never": "Never",
+    "smokingNever": "Never Smoked",
+    "yes": "Yes",
+    "no": "No",
+    "runAssessment": "Run Assessment",
+    "analyzing": "Analyzing...",
+    "result": "Assessment Result",
+    "riskScore": "Risk Score",
+    "riskCategory": "Risk Category",
+    "low": "Low",
+    "moderate": "Moderate",
+    "high": "High",
+    "clinicianView": "Clinician View",
+    "patientView": "Patient View",
+    "clinicianAdvice": "Clinician Advice",
+    "patientAdvice": "Patient Advice",
+    "factors": "Risk Factors",
+    "increasesRisk": "Increases risk",
+    "lowersRisk": "Lowers risk",
+    "confidenceInterval": "Confidence Interval",
+    "modelConfidence": "Model Confidence",
+    "exportPdf": "Export PDF",
+    "exportCsv": "Export CSV",
+    "disclaimer": "This assessment is for informational purposes only and does not replace professional medical advice."
+  },
+  "history": {
+    "title": "Patient History",
+    "searchPlaceholder": "Search by patient name...",
+    "filterRisk": "Filter by Risk",
+    "all": "All",
+    "exportSelected": "Export Selected",
+    "compare": "Compare",
+    "noResults": "No assessments found",
+    "noResultsDesc": "Try adjusting your search or filter criteria.",
+    "table": {
+      "patientName": "Patient",
+      "riskScore": "Risk Score",
+      "riskCategory": "Category",
+      "date": "Date",
+      "actions": "Actions"
+    }
+  },
+  "analytics": {
+    "title": "Provider Analytics",
+    "totalAssessments": "Total Assessments",
+    "averageRisk": "Average Risk",
+    "riskDistribution": "Risk Distribution",
+    "trends": "Trends"
+  },
+  "import": {
+    "title": "Bulk Import CSV",
+    "instructions": "Upload a CSV file with patient data to perform batch assessments.",
+    "dropZone": "Drop your CSV file here or click to browse",
+    "upload": "Upload",
+    "processing": "Processing...",
+    "results": "Import Results"
+  },
+  "admin": {
+    "title": "Admin Dashboard",
+    "users": "Users",
+    "settings": "Settings",
+    "logs": "Logs"
+  },
+  "notFound": {
+    "title": "404 - Page Not Found",
+    "message": "The page you are looking for does not exist.",
+    "goHome": "Go Home"
+  },
+  "advice": {
+    "low": {
+      "clinician": "Monitor annually. No immediate intervention required.",
+      "patient": "Keep up the good work! Continue your healthy lifestyle and routine checkups."
+    },
+    "moderate": {
+      "clinician": "Recommend lifestyle counseling. Repeat HbA1c in 6 months.",
+      "patient": "Consider increasing physical activity and managing your diet to lower your risk."
+    },
+    "high": {
+      "clinician": "High risk detected. Refer for diagnostic testing and consider intervention.",
+      "patient": "Please consult your doctor soon to discuss a detailed prevention plan."
+    },
+    "hba1c": {
+      "clinician": "Review glycemic control and consider initiating or adjusting therapy.",
+      "patient": "Focus on managing your blood sugar through diet and prescribed medications."
+    },
+    "glucose": {
+      "clinician": "Immediate follow-up on elevated glucose levels may be necessary.",
+      "patient": "Monitor your daily glucose readings closely and follow your meal plan."
+    },
+    "bmi": {
+      "clinician": "Discuss weight management strategies and nutritional counseling.",
+      "patient": "Work on achieving a healthier weight through balanced nutrition and regular exercise."
+    },
+    "hypertension": {
+      "clinician": "Optimize blood pressure management and monitor for complications.",
+      "patient": "Regularly check your blood pressure and reduce salt intake."
+    },
+    "smoking": {
+      "clinician": "Provide smoking cessation resources and support.",
+      "patient": "Quitting smoking is one of the most effective ways to reduce your diabetes risk."
+    },
+    "heartDisease": {
+      "clinician": "Coordinate care with cardiology and manage cardiovascular risk factors.",
+      "patient": "Manage your heart health as it is closely linked to diabetes risk."
+    },
+    "age": {
+      "clinician": "Consider age-related metabolic changes in the management plan.",
+      "patient": "As you get older, it's more important to stay active and monitor your health."
+    }
+  }
+}

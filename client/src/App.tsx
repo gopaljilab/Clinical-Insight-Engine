@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -18,6 +19,7 @@ import ResetPassword from "./pages/ResetPassword";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import "./i18n";
 
 function Router() {
   return (
@@ -63,7 +65,9 @@ function App() {
       <TooltipProvider>
         <Toaster />
         <ErrorBoundary>
-          <Router />
+          <Suspense fallback={null}>
+            <Router />
+          </Suspense>
         </ErrorBoundary>
       </TooltipProvider>
     </QueryClientProvider>

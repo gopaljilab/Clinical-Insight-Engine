@@ -1,11 +1,13 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
 import { queryClient } from "@/lib/queryClient";
 import { ApiClient } from "@/lib/apiClient";
 import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, UploadCloud, User } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import ThemeToggle from "../ThemeToggle";
+import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useToast } from "@/hooks/use-toast";
 
 function cn(...inputs: ClassValue[]) {
@@ -18,6 +20,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
   const [checking, setChecking] = useState(true);
@@ -50,8 +53,8 @@ export function AppLayout({ children }: AppLayoutProps) {
       
       warningTimeoutId = window.setTimeout(() => {
         toast({
-          title: "Session Expiring Soon",
-          description: "You have been inactive. For your security, you will be logged out in 1 minute if inactivity continues.",
+          title: t("auth.sessionExpiring"),
+          description: t("auth.sessionExpiringDesc"),
           variant: "destructive",
         });
       }, WARNING_TIMEOUT);
@@ -95,10 +98,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   };
 
   const navItems = [
-    { href: "/dashboard", label: "New Assessment", icon: Activity },
-    { href: "/history", label: "Patient History", icon: ClipboardList },
-    { href: "/analytics", label: "Provider Analytics", icon: PieChart },
-    { href: "/import", label: "Bulk Import CSV", icon: UploadCloud },
+    { href: "/dashboard", label: t("nav.newAssessment"), icon: Activity },
+    { href: "/history", label: t("nav.patientHistory"), icon: ClipboardList },
+    { href: "/analytics", label: t("nav.providerAnalytics"), icon: PieChart },
+    { href: "/import", label: t("nav.bulkImport"), icon: UploadCloud },
   ];
 
   if (checking) {
@@ -113,13 +116,13 @@ export function AppLayout({ children }: AppLayoutProps) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center p-8 rounded-2xl border border-slate-200 bg-white dark:bg-gray-900 dark:border-gray-800 shadow-sm max-w-md">
-          <p className="text-lg font-bold text-slate-800 dark:text-white">Connection error</p>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Unable to verify your session. Please check your connection and try again.</p>
+          <p className="text-lg font-bold text-slate-800 dark:text-white">{t("auth.connectionError")}</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{t("auth.connectionErrorDesc")}</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-4 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
           >
-            Retry
+            {t("auth.retry")}
           </button>
         </div>
       </div>
@@ -136,16 +139,17 @@ export function AppLayout({ children }: AppLayoutProps) {
               <Link
                 href="/dashboard"
                 className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/15 hover:opacity-95 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                aria-label="Go to main dashboard"
-                title="Go to main dashboard"
+                aria-label={t("auth.dashboardAria")}
+                title={t("auth.dashboardAria")}
               >
                 <HeartPulse className="w-6 h-6" />
                 <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900 bg-emerald-400" />
               </Link>
               <div className="flex-1 min-w-0">
-                <h1 className="text-lg font-black leading-tight text-[#1E293B] dark:text-gray-100 truncate">Clinical Insight</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Preventive Risk Tool</p>
+                <h1 className="text-lg font-black leading-tight text-[#1E293B] dark:text-gray-100 truncate">{t("app.title")}</h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{t("app.subtitle")}</p>
               </div>
+              <LanguageSwitcher variant="minimal" />
               <ThemeToggle />
             </div>
 
@@ -180,8 +184,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <User className="w-5 h-5 opacity-80" />
               </div>
               <div className="flex min-w-0 flex-col">
-                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight truncate">{user?.name || "Dr. Maya Patel"}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold truncate">{user?.email || "clinical@insight-engine.dev"}</span>
+                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight truncate">{user?.name || t("user.defaultName")}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold truncate">{user?.email || t("user.defaultEmail")}</span>
               </div>
             </div>
             <button
@@ -189,18 +193,18 @@ export function AppLayout({ children }: AppLayoutProps) {
               onClick={handleSignOut}
               disabled={isSigningOut}
               className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Sign out of Clinical Insight workspace"
-              title="Sign out"
+              aria-label={t("auth.signOutAria")}
+              title={t("nav.signOut")}
             >
               {isSigningOut ? (
                 <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
               ) : (
                 <LogOut className="w-4 h-4" aria-hidden="true" />
               )}
-              {isSigningOut ? "Signing out..." : "Sign Out"}
+              {isSigningOut ? t("nav.signingOut") : t("nav.signOut")}
             </button>
             <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 font-semibold">
-              Local workspace secured with simulated 2FA
+              {t("auth.securityNotice")}
             </p>
           </div>
         </div>

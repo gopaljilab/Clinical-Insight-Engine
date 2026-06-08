@@ -1,0 +1,213 @@
+{
+  "app": {
+    "title": "Clinical Insight",
+    "subtitle": "Outil de Prévention des Risques"
+  },
+  "nav": {
+    "newAssessment": "Nouvelle Évaluation",
+    "patientHistory": "Historique du Patient",
+    "providerAnalytics": "Analytiques",
+    "bulkImport": "Import CSV en Masse",
+    "signOut": "Déconnexion",
+    "signingOut": "Déconnexion en cours..."
+  },
+  "auth": {
+    "signOutAria": "Se déconnecter de Clinical Insight",
+    "securityNotice": "Espace de travail sécurisé avec 2FA simulée",
+    "sessionExpiring": "Session sur le point d'expirer",
+    "sessionExpiringDesc": "Vous êtes inactif. Pour votre sécurité, vous serez déconnecté dans 1 minute si l'inactivité persiste.",
+    "connectionError": "Erreur de connexion",
+    "connectionErrorDesc": "Impossible de vérifier votre session. Vérifiez votre connexion et réessayez.",
+    "retry": "Réessayer",
+    "dashboardAria": "Aller au tableau de bord"
+  },
+  "user": {
+    "defaultName": "Dr. Maya Patel",
+    "defaultEmail": "clinical@insight-engine.dev"
+  },
+  "landing": {
+    "heroTitle": "Évaluation du Risque de Diabète par IA",
+    "heroSubtitle": "Donnez aux cliniciens et aux patients les moyens d'agir avec une analyse des risques en temps réel, des informations personnalisées et des plans de prévention concrets.",
+    "heroCta": "Commencer l'Évaluation Gratuite",
+    "heroLearnMore": "En Savoir Plus",
+    "featuresTitle": "Pourquoi Clinical Insight ?",
+    "featureRealTimeTitle": "Analyse des Risques en Temps Réel",
+    "featureRealTimeDesc": "Obtenez des scores de risque de diabète instantanés grâce à des modèles de machine learning de qualité clinique entraînés sur des populations diverses.",
+    "featurePersonalizedTitle": "Informations Personnalisées",
+    "featurePersonalizedDesc": "Chaque évaluation fournit des conseils adaptés aux cliniciens et aux patients, avec des recommandations concrètes et des explications claires.",
+    "featureSecureTitle": "Sécurisé et Privé",
+    "featureSecureDesc": "Vos données restent sécurisées avec un chiffrement de niveau entreprise. La 2FA simulée et la gestion des sessions protègent les informations des patients.",
+    "workflowTitle": "Comment Ça Marche",
+    "workflowStep1Title": "Saisir les Données du Patient",
+    "workflowStep1Desc": "Remplissez les indicateurs de santé clés comme l'HbA1c, l'IMC, la glycémie et les facteurs liés au mode de vie.",
+    "workflowStep2Title": "Obtenez une Analyse Instantanée",
+    "workflowStep2Desc": "Notre modèle de ML analyse les données et fournit un score de risque avec une ventilation détaillée des facteurs.",
+    "workflowStep3Title": "Examinez et Agissez",
+    "workflowStep3Desc": "Accédez à des conseils personnalisés pour le clinicien et le patient, exportez des rapports et suivez l'évolution dans le temps.",
+    "ctaTitle": "Prêt à Transformer la Prise en Charge du Diabète ?",
+    "ctaSubtitle": "Rejoignez les professionnels de santé qui utilisent Clinical Insight pour offrir une prévention proactive du diabète basée sur les données.",
+    "ctaButton": "Commencer Gratuitement",
+    "faqTitle": "Questions Fréquentes",
+    "faq1Q": "Quelle est la précision de l'évaluation des risques ?",
+    "faq1A": "Notre modèle utilise une régression logistique entraînée sur les données du diabète des CDC avec une haute précision. Les résultats doivent toujours être examinés par un professionnel de santé qualifié.",
+    "faq2Q": "Mes données patients sont-elles sécurisées ?",
+    "faq2A": "Oui. Toutes les données sont chiffrées en transit et au repos. Nous utilisons une 2FA simulée, des délais d'expiration de session et ne partageons jamais vos données avec des tiers.",
+    "faq3Q": "Puis-je exporter les résultats d'évaluation ?",
+    "faq3A": "Oui, vous pouvez exporter des évaluations individuelles sous forme de rapports PDF et des données groupées en CSV pour une analyse plus approfondie.",
+    "footerCopyright": "© 2026 Clinical Insight Engine. Tous droits réservés.",
+    "footerPrivacy": "Politique de Confidentialité",
+    "footerTerms": "Conditions d'Utilisation"
+  },
+  "common": {
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "export": "Exporter",
+    "close": "Fermer",
+    "back": "Retour",
+    "next": "Suivant",
+    "submit": "Soumettre",
+    "confirm": "Confirmer",
+    "yes": "Oui",
+    "no": "Non",
+    "language": "Langue"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "hi": "हिन्दी",
+    "switchTo": "Changer de langue"
+  },
+  "assessment": {
+    "title": "Nouvelle Évaluation",
+    "patientName": "Nom du Patient",
+    "age": "Âge",
+    "gender": "Genre",
+    "male": "Masculin",
+    "female": "Féminin",
+    "other": "Autre",
+    "bmi": "IMC",
+    "hba1c": "Taux d'HbA1c",
+    "bloodGlucose": "Glycémie",
+    "hypertension": "Hypertension",
+    "heartDisease": "Cardiopathie",
+    "smokingHistory": "Tabagisme",
+    "current": "Actuel",
+    "former": "Ancien fumeur",
+    "never": "Jamais",
+    "smokingNever": "N'a jamais fumé",
+    "yes": "Oui",
+    "no": "Non",
+    "runAssessment": "Lancer l'Évaluation",
+    "analyzing": "Analyse en cours...",
+    "result": "Résultat de l'Évaluation",
+    "riskScore": "Score de Risque",
+    "riskCategory": "Catégorie de Risque",
+    "low": "Faible",
+    "moderate": "Modéré",
+    "high": "Élevé",
+    "clinicianView": "Vue Clinicien",
+    "patientView": "Vue Patient",
+    "clinicianAdvice": "Conseil au Clinicien",
+    "patientAdvice": "Conseil au Patient",
+    "factors": "Facteurs de Risque",
+    "increasesRisk": "Augmente le risque",
+    "lowersRisk": "Réduit le risque",
+    "confidenceInterval": "Intervalle de Confiance",
+    "modelConfidence": "Confiance du Modèle",
+    "exportPdf": "Exporter en PDF",
+    "exportCsv": "Exporter en CSV",
+    "disclaimer": "Cette évaluation est fournie à titre informatif uniquement et ne remplace pas un avis médical professionnel."
+  },
+  "history": {
+    "title": "Historique du Patient",
+    "searchPlaceholder": "Rechercher par nom du patient...",
+    "filterRisk": "Filtrer par Risque",
+    "all": "Tous",
+    "exportSelected": "Exporter la Sélection",
+    "compare": "Comparer",
+    "noResults": "Aucune évaluation trouvée",
+    "noResultsDesc": "Essayez d'ajuster vos critères de recherche ou de filtre.",
+    "table": {
+      "patientName": "Patient",
+      "riskScore": "Score",
+      "riskCategory": "Catégorie",
+      "date": "Date",
+      "actions": "Actions"
+    }
+  },
+  "analytics": {
+    "title": "Analytiques",
+    "totalAssessments": "Évaluations Totales",
+    "averageRisk": "Risque Moyen",
+    "riskDistribution": "Distribution des Risques",
+    "trends": "Tendances"
+  },
+  "import": {
+    "title": "Import CSV en Masse",
+    "instructions": "Téléchargez un fichier CSV avec les données des patients pour effectuer des évaluations par lots.",
+    "dropZone": "Déposez votre fichier CSV ici ou cliquez pour parcourir",
+    "upload": "Télécharger",
+    "processing": "Traitement en cours...",
+    "results": "Résultats d'Importation"
+  },
+  "admin": {
+    "title": "Tableau de Bord Admin",
+    "users": "Utilisateurs",
+    "settings": "Paramètres",
+    "logs": "Journaux"
+  },
+  "notFound": {
+    "title": "404 - Page Non Trouvée",
+    "message": "La page que vous recherchez n'existe pas.",
+    "goHome": "Accueil"
+  },
+  "advice": {
+    "low": {
+      "clinician": "Surveiller annuellement. Aucune intervention immédiate requise.",
+      "patient": "Continuez votre bon travail ! Maintenez votre mode de vie sain et vos bilans de routine."
+    },
+    "moderate": {
+      "clinician": "Recommander un conseil sur le mode de vie. Répéter l'HbA1c dans 6 mois.",
+      "patient": "Envisagez d'augmenter votre activité physique et de gérer votre alimentation pour réduire votre risque."
+    },
+    "high": {
+      "clinician": "Risque élevé détecté. Référer pour des tests diagnostiques et envisager une intervention.",
+      "patient": "Veuillez consulter votre médecin rapidement pour discuter d'un plan de prévention détaillé."
+    },
+    "hba1c": {
+      "clinician": "Réviser le contrôle glycémique et envisager d'initier ou d'ajuster le traitement.",
+      "patient": "Concentrez-vous sur la gestion de votre glycémie par l'alimentation et les médicaments prescrits."
+    },
+    "glucose": {
+      "clinician": "Un suivi immédiat des niveaux de glucose élevés peut être nécessaire.",
+      "patient": "Surveillez de près vos relevés quotidiens de glycémie et suivez votre plan alimentaire."
+    },
+    "bmi": {
+      "clinician": "Discuter des stratégies de gestion du poids et de conseil nutritionnel.",
+      "patient": "Travaillez à atteindre un poids plus sain grâce à une alimentation équilibrée et à l'exercice régulier."
+    },
+    "hypertension": {
+      "clinician": "Optimiser la gestion de la pression artérielle et surveiller les complications.",
+      "patient": "Vérifiez régulièrement votre tension artérielle et réduisez votre consommation de sel."
+    },
+    "smoking": {
+      "clinician": "Fournir des ressources et un soutien pour l'arrêt du tabac.",
+      "patient": "Arrêter de fumer est l'un des moyens les plus efficaces de réduire votre risque de diabète."
+    },
+    "heartDisease": {
+      "clinician": "Coordonner les soins avec la cardiologie et gérer les facteurs de risque cardiovasculaire.",
+      "patient": "Gérez votre santé cardiaque car elle est étroitement liée au risque de diabète."
+    },
+    "age": {
+      "clinician": "Prendre en compte les changements métaboliques liés à l'âge dans le plan de gestion.",
+      "patient": "En vieillissant, il est d'autant plus important de rester actif et de surveiller sa santé."
+    }
+  }
+}

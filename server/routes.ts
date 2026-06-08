@@ -58,7 +58,7 @@ async function seedDatabase() {
   }
 
   const existing = await storage.getAssessments();
-  if (existing.data.length !== 0) return;
+  if (existing.data && existing.data.length !== 0) return;
 
   logger.info("Seeding database with sample assessments...");
 
@@ -610,7 +610,7 @@ export async function registerRoutes(
         const assessments = await storage.getAssessments(1000, undefined, userEmail);
 
         const csv = assessmentsToCsv(
-          assessments.data as unknown as Record<string, unknown>[]
+          (assessments as any).data ?? assessments as unknown as Record<string, unknown>[]
         );
 
         res.header("Content-Type", "text/csv");
