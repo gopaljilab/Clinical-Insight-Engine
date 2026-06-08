@@ -113,7 +113,7 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: scriptSrcDirective,
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        styleSrc: ["'self'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:"],
         connectSrc: ["'self'", "ws://localhost:*", "ws://127.0.0.1:*"],
