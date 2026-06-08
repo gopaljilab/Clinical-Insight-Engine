@@ -544,7 +544,6 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
 def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     """Interprets a single patient's data, yielding clinician and patient views."""
     res = interpret_predictions_batch(model, scaler, features, [input_data], cov_beta)
-    if isinstance(res, dict) and "error" in res:
     if isinstance(res, dict):
         return res
     return res[0]

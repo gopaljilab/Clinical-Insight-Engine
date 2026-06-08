@@ -1,10 +1,10 @@
 import { useState, useRef } from "react";
 import Papa from "papaparse";
-import { UploadCloud, CheckCircle, AlertCircle, Loader2, FileText, Download, X } from "lucide-react";
+import { UploadCloud, CheckCircle, AlertCircle, Loader2, FileText, Download, X, XCircle, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useBulkImport } from "@/hooks/use-bulk-import";
+import { ApiClient } from "@/lib/apiClient";
 import { AppLayout } from "@/components/layout/AppLayout";
 import type { ImportPreviewRow } from "@/utils/csvImportPreview";
 
@@ -65,8 +65,7 @@ const SAMPLE_CSV_ROWS = [
 ];
 
 function downloadSampleCSV() {
-  const blob = new Blob([SAMPLE_CSV_ROWS.join("
-")], { type: "text/csv" });
+  const blob = new Blob([SAMPLE_CSV_ROWS.join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = "sample_patient_data.csv"; a.click();
@@ -171,7 +170,7 @@ export default function ImportData() {
       toast({ title: "Invalid file type", description: "Please upload a CSV or Excel (.xlsx, .xls) file.", variant: "destructive" });
       return;
     }
-    parseFile(file);
+    processFile(file);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -261,74 +260,6 @@ export default function ImportData() {
         </CardContent>
       </Card>
 
-      {preview && step !== "idle" && step !== "parsing" && (
-        <Card className="border-blue-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-blue-600" />
-              Import Preview {fileName ? `- ${fileName}` : ""}
-            </CardTitle>
-            <CardDescription>
-              Review valid and invalid rows before confirming the import.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid gap-3 sm:grid-cols-4">
-              <StatusCount label="Valid" value={preview.validRows.length} tone="border-emerald-200 bg-emerald-50 text-emerald-800" />
-              <StatusCount label="Invalid" value={preview.invalidRows.length} tone="border-red-200 bg-red-50 text-red-800" />
-              <StatusCount label="Duplicates" value={preview.duplicateRows.length} tone="border-amber-200 bg-amber-50 text-amber-800" />
-              <StatusCount label="Formula-like" value={preview.formulaRows.length} tone="border-slate-200 bg-slate-50 text-slate-800" />
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button
-                onClick={handleConfirm}
-                disabled={isProcessing || preview.validRows.length === 0}
-              >
-                {isProcessing && <Loader2 className="h-4 w-4 animate-spin" />}
-                Confirm Import {preview.validRows.length > 0 ? `(${preview.validRows.length})` : ""}
-              </Button>
-              <Button type="button" variant="outline" onClick={reset} disabled={isProcessing}>
-                Cancel
-              </Button>
-            </div>
-
-            <div className="overflow-x-auto rounded-lg border border-slate-200 max-h-80 overflow-y-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500 sticky top-0">
-                  <tr>
-                    <th className="px-4 py-3">Row</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Patient</th>
-                    <th className="px-4 py-3">Age / Gender</th>
-                    <th className="px-4 py-3">Issues</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {preview.rows.map((row) => (
-                    <tr key={row.rowNumber} className="border-t border-slate-100 align-top">
-                      <td className="px-4 py-3 font-medium">{row.rowNumber}</td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded px-2 py-1 text-xs font-bold ${row.status === "valid" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                          {row.status === "valid" ? "Valid" : "Invalid"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">{row.data?.patientName || String(row.raw.patientName || row.raw.name || "N/A")}</td>
-                      <td className="px-4 py-3">
-                        {row.data ? `${row.data.age} / ${row.data.gender}` : "N/A"}
-                      </td>
-                      <td className="max-w-md px-4 py-3 text-slate-700">
-                        <RowIssues row={row} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {results.length > 0 && (
         <Card className="border-slate-200">
           <CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-emerald-500" />Import Successful -- {results.length} records processed</CardTitle></CardHeader>
@@ -339,8 +270,8 @@ export default function ImportData() {
         </Card>
       )}
 
-      {step === "done" && results.length > 0 && (
-        <Button variant="outline" onClick={reset}>
+      {results.length > 0 && (
+        <Button variant="outline" onClick={clearFile}>
           Import Another File
         </Button>
       )}
