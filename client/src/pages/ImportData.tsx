@@ -4,7 +4,7 @@ import { UploadCloud, CheckCircle, AlertCircle, XCircle, Loader2, FileText, Down
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useBulkImport } from "@/hooks/use-bulk-import";
+import { ApiClient } from "@/lib/apiClient";
 import { AppLayout } from "@/components/layout/AppLayout";
 import type { ImportPreviewRow } from "@/utils/csvImportPreview";
 

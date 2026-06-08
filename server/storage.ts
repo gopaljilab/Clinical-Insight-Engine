@@ -1,10 +1,11 @@
-import { loginAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser } from "@shared/schema";
+import { loginAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser, type PatientUser, type InsertPatientUser } from "@shared/schema";
 import type { RiskCategory } from "./validation/searchValidation";
 
 import { UserRepository } from "./repositories/user.repository";
 import { AssessmentRepository } from "./repositories/assessment.repository";
 import { AuditRepository } from "./repositories/audit.repository";
 import { AnalyticsRepository } from "./repositories/analytics.repository";
+import { PatientUserRepository } from "./repositories/patient-user.repository";
 
 export interface IStorage {
   getAssessments(
@@ -53,6 +54,12 @@ export interface IStorage {
   getSystemStats(): Promise<{ totalUsers: number; totalAssessments: number; riskDistribution: { category: string; count: number }[]; }>;
   recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }): Promise<void>;
   getAnalyticsStats(createdBy?: string): Promise<any>;
+  createPatientUser(data: InsertPatientUser): Promise<PatientUser>;
+  getPatientUserByEmail(email: string): Promise<PatientUser | undefined>;
+  getPatientUserByPatientName(name: string): Promise<PatientUser | undefined>;
+  getPatientUserById(id: string): Promise<PatientUser | undefined>;
+  getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number): Promise<{ data: Assessment[]; total: number }>;
+  getPatientTrends(patientName: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
@@ -95,37 +102,37 @@ export class DatabaseStorage implements IStorage {
   async createUser(data: InsertUser) { 
     return this.userRepository.createUser(data); 
   }
-  
-  async getUserByEmail(email: string) { 
-    return this.userRepository.getUserByEmail(email); 
+
+  async getSystemStats() {
+    return this.analyticsRepository.getSystemStats();
   }
-  
-  async getUserById(id: string) { 
-    return this.userRepository.getUserById(id); 
+
+  async getAnalyticsStats(createdBy?: string) {
+    return this.analyticsRepository.getAnalyticsStats(createdBy);
   }
-  
-  async getAllUsers(page: number, limit: number) { 
-    return this.userRepository.getAllUsers(page, limit); 
+
+  async createPatientUser(data: InsertPatientUser) {
+    return this.patientUserRepository.create(data);
   }
-  
-  async updateUser(id: string, data: Partial<Pick<User, "isActive" | "role">>) { 
-    return this.userRepository.updateUser(id, data); 
+
+  async getPatientUserByEmail(email: string) {
+    return this.patientUserRepository.findByEmail(email);
   }
   
   async getSystemStats() { 
     return this.analyticsRepository.getSystemStats(); 
   }
-  
-  async recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }) { 
-    return this.auditRepository.recordLoginAudit(params); 
+
+  async getPatientUserById(id: string) {
+    return this.patientUserRepository.findById(id);
   }
   
   async getLoginAuditLogs(page: number, limit: number) { 
     return this.auditRepository.getLoginAuditLogs(page, limit); 
   }
-  
-  async getAnalyticsStats(createdBy?: string) { 
-    return this.analyticsRepository.getAnalyticsStats(createdBy); 
+
+  async getPatientTrends(patientName: string) {
+    return this.assessmentRepository.getPatientTrends(patientName);
   }
 }
 

@@ -17,6 +17,7 @@ import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
 import { getPythonExecutable } from "./services/mlService";
 import patientsRouter from "./routes/patients";
+import patientPortalRouter from "./routes/patient.routes";
 import { serveStatic } from "./static";
 import { sanitizeDatabaseError } from "./security/sqlProtection";
 import { createServer } from "http";
@@ -246,6 +247,7 @@ app.use((req, res, next) => {
   app.use("/api/auth", createAuthRouter());
   // Register protected patient EMR/EHR integration endpoints
   app.use("/api/patients", generalLimiter, patientsRouter);
+  app.use("/api/patient", patientPortalRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
   execFileAsync(getPythonExecutable(), ["analyze.py", "train"])

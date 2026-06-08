@@ -169,6 +169,21 @@ export const emailVerificationTokens = pgTable("email_verification_tokens", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const patientUsers = pgTable("patient_users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  patientName: text("patient_name").notNull().unique(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  phone: varchar("phone", { length: 20 }),
+  isActive: boolean("is_active").default(true),
+  emailVerified: boolean("email_verified").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type PatientUser = typeof patientUsers.$inferSelect;
+export type InsertPatientUser = typeof patientUsers.$inferInsert;
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,

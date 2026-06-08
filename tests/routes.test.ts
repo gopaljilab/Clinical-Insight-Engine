@@ -454,6 +454,70 @@ describe("Python inference", () => {
     expect(res.status).toBe(503);
     expect(res.body.message).toContain("timed out");
   });
+
+  it("bulk route returns 201 and falls back to rule-based model on python process failure", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      if (typeof opts === "function") {
+        cb = opts;
+        cb(new Error("Python execution failed"), null, "error");
+        return;
+      }
+      cb(new Error("Python execution failed"), null, "error");
+    });
+
+    const res = await request(app)
+      .post("/api/assessments/bulk")
+      .send({
+        assessments: [
+          validPayload,
+          { ...validPayload, patientName: "Jane Doe" }
+        ]
+      });
+
+    console.log("DEBUG RESPONSE:", res.status, res.text, res.body);
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("count", 2);
+    expect(res.body).toHaveProperty("assessments");
+    expect(Array.isArray(res.body.assessments)).toBe(true);
+    expect(res.body.assessments[0]).toHaveProperty("riskScore");
+    expect(res.body.assessments[1]).toHaveProperty("riskScore");
+  });
+
+  it("bulk route returns 201 and falls back to rule-based model on python process timeout", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      const err = new Error("Process timed out");
+      (err as any).killed = true;
+      if (typeof opts === "function") {
+        cb = opts;
+        cb(err, null, "");
+        return;
+      }
+      cb(err, null, "");
+    });
+
+    const res = await request(app)
+      .post("/api/assessments/bulk")
+      .send({
+        assessments: [
+          validPayload,
+          { ...validPayload, patientName: "Jane Doe" }
+        ]
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("count", 2);
+    expect(res.body).toHaveProperty("assessments");
+    expect(Array.isArray(res.body.assessments)).toBe(true);
+    expect(res.body.assessments[0]).toHaveProperty("riskScore");
+    expect(res.body.assessments[1]).toHaveProperty("riskScore");
+  });
 });
 
 describe("Response shape", () => {
