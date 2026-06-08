@@ -1,3 +1,4 @@
+.local/
 node_modules
 dist
 .DS_Store
@@ -5,8 +6,14 @@ server/public
 vite.config.ts.*
 *.tar.gz
 /venv/
+.venv/
+__pycache__/
+*.py[cod]
 *.log
 *.env
+.env
+.env.local
+.env.*.local
 .idea/
 *.sublime-project
 *.sublime-workspace
@@ -15,3 +22,5 @@ vite.config.ts.*
 *.swo
 *.bak
 *.tmp
+*.joblib
+*.pkl
