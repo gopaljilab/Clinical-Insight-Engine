@@ -1,6 +1,12 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, ClipboardList, HeartPulse } from "lucide-react";
+import {
+  Activity,
+  ClipboardList,
+  HeartPulse,
+  Moon,
+  Sun,
+} from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -14,13 +20,50 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
+  const [theme, setTheme] = useState<"light" | "dark">("light");
 
-  const navItems = [
-    { href: "/", label: "New Assessment", icon: Activity },
-    { href: "/history", label: "Patient History", icon: ClipboardList },
-  ];
+useEffect(() => {
+  const savedTheme = localStorage.getItem("theme");
 
-  return (
+  if (savedTheme === "dark" || savedTheme === "light") {
+    setTheme(savedTheme);
+
+    document.documentElement.classList.toggle(
+      "dark",
+      savedTheme === "dark"
+    );
+  } else {
+    const prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    ).matches;
+
+    setTheme(prefersDark ? "dark" : "light");
+
+    document.documentElement.classList.toggle(
+      "dark",
+      prefersDark
+    );
+  }
+}, []);
+
+const toggleTheme = () => {
+  const newTheme = theme === "dark" ? "light" : "dark";
+
+  setTheme(newTheme);
+  localStorage.setItem("theme", newTheme);
+
+  document.documentElement.classList.toggle(
+    "dark",
+    newTheme === "dark"
+  );
+};
+
+const navItems = [
+  { href: "/", label: "New Assessment", icon: Activity },
+  { href: "/history", label: "Patient History", icon: ClipboardList },
+  { href: "/progress-tracking", label: "Progress Tracking", icon: Activity },
+];
+   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside className="w-full md:w-64 lg:w-72 bg-card border-r border-border flex flex-col shrink-0 md:h-screen sticky top-0 z-10">
@@ -55,7 +98,24 @@ export function AppLayout({ children }: AppLayoutProps) {
             );
           })}
         </nav>
-
+      <div className="px-4 pb-4">
+  <button
+    onClick={toggleTheme}
+    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-border bg-card hover:bg-secondary transition-colors"
+  >
+    {theme === "dark" ? (
+      <>
+        <Sun className="w-4 h-4" />
+        Light Mode
+      </>
+    ) : (
+      <>
+        <Moon className="w-4 h-4" />
+        Dark Mode
+      </>
+    )}
+  </button>
+</div>
         <div className="p-6 border-t border-border/50">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground font-bold text-sm border border-border">
