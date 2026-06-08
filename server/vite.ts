@@ -1,12 +1,15 @@
 import { type Express } from "express";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
+import { fileURLToPath } from "url";
 import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
+import { logger } from "./logger";
 
 const viteLogger = createLogger();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function setupVite(server: Server, app: Express) {
   const serverOptions = {
@@ -21,8 +24,7 @@ export async function setupVite(server: Server, app: Express) {
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
-        viteLogger.error(msg, options);
-        process.exit(1);
+        logger.error({ viteError: msg }, "Vite server error");
       },
     },
     server: serverOptions,
@@ -36,7 +38,7 @@ export async function setupVite(server: Server, app: Express) {
 
     try {
       const clientTemplate = path.resolve(
-        import.meta.dirname,
+        __dirname,
         "..",
         "client",
         "index.html",
@@ -49,7 +51,11 @@ export async function setupVite(server: Server, app: Express) {
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
       const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+      const pageWithNonce = page.replace(
+        /<script /g,
+        `<script nonce="${res.locals.cspNonce}" `,
+      );
+      res.status(200).set({ "Content-Type": "text/html" }).end(pageWithNonce);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);
