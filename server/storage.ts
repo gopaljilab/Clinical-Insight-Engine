@@ -1,4 +1,4 @@
-import { loginAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser, type ModelVersion, type InsertModelVersion } from "@shared/schema";
+import { loginAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser, type ModelVersion, type InsertModelVersion, type InsertPatientUser } from "@shared/schema";
 import type { RiskCategory } from "./validation/searchValidation";
 
 import { UserRepository } from "./repositories/user.repository";
@@ -6,6 +6,7 @@ import { AssessmentRepository } from "./repositories/assessment.repository";
 import { AuditRepository } from "./repositories/audit.repository";
 import { AnalyticsRepository } from "./repositories/analytics.repository";
 import { ModelVersionRepository } from "./repositories/model-version.repository";
+import { PatientUserRepository } from "./repositories/patient-user.repository";
 
 export interface IStorage {
   getAssessments(
@@ -75,6 +76,7 @@ export class DatabaseStorage implements IStorage {
   private auditRepository = new AuditRepository();
   private analyticsRepository = new AnalyticsRepository();
   private modelVersionRepository = new ModelVersionRepository();
+  private patientUserRepository = new PatientUserRepository();
 
   getAssessments(limitOrParams?: number | Parameters<AssessmentRepository["getAssessments"]>[0], cursor?: number, createdBy?: string) { return this.assessmentRepository.getAssessments(limitOrParams, cursor, createdBy); }
   
@@ -104,6 +106,34 @@ export class DatabaseStorage implements IStorage {
 
   async getAnalyticsStats(createdBy?: string) {
     return this.analyticsRepository.getAnalyticsStats(createdBy);
+  }
+
+  async getAssessmentById(id: number) {
+    return this.assessmentRepository.getAssessmentById(id);
+  }
+
+  async createAssessment(assessment: any) {
+    return this.assessmentRepository.createAssessment(assessment);
+  }
+
+  async deleteAssessment(id: number) {
+    return this.assessmentRepository.deleteAssessment(id);
+  }
+
+  async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {
+    return this.assessmentRepository.autocompletePatientNames(query, createdBy, limit);
+  }
+
+  async createUser(data: InsertUser) {
+    return this.userRepository.createUser(data);
+  }
+
+  async getUserByEmail(email: string) {
+    return this.userRepository.getUserByEmail(email);
+  }
+
+  async getUserById(id: string) {
+    return this.userRepository.getUserById(id);
   }
 
   async createPatientUser(data: InsertPatientUser) {
