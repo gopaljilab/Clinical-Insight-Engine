@@ -137,6 +137,7 @@ async function seedDatabase() {
   logger.info("Seeding complete!");
 }
 
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
