@@ -115,6 +115,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           confidenceInterval: prediction.confidenceInterval,
           modelConfidence: String(prediction.modelConfidence)
         });
+        if (assessment.riskCategory === "HIGH") {
+        console.log(
+        `HIGH RISK ALERT: Assessment ${assessment.id} scored ${assessment.riskScore}%`
+        );
+    }
         
         // Return both the DB assessment record and the rich prediction data (with advice)
         res.status(201).json({ ...assessment, prediction });

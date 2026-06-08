@@ -125,6 +125,39 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               exit={{ opacity: 0, x: -10 }}
               className="space-y-8"
             >
+              {assessment.riskCategory === "HIGH" && (
+  <div className="rounded-xl border border-red-300 bg-red-50 p-5 shadow-sm">
+    <div className="flex items-start gap-3">
+      <AlertCircle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+
+      <div>
+        <h3 className="font-bold text-red-700 text-lg">
+          High Risk Patient Alert
+        </h3>
+
+        <p className="text-red-600 mt-1">
+          This patient has been classified as HIGH risk and may require
+          immediate clinical attention.
+        </p>
+
+        <div className="mt-4">
+          <p className="font-semibold text-red-700 mb-2">
+            Top Contributing Factors
+          </p>
+
+          <ul className="list-disc ml-5 text-sm text-red-600 space-y-1">
+            {factors
+              .filter((f: any) => f.impact === "positive")
+              .slice(0, 3)
+              .map((factor: any, index: number) => (
+                <li key={index}>{factor.name}</li>
+              ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
               {/* Clinician Top Metrics */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
