@@ -110,15 +110,15 @@ const strictAuthLimiter = rateLimit({
 });
 
 /**
- * General rate limiter for standard auth endpoints (e.g., login).
- * More lenient than strictAuthLimiter to avoid frustrating legitimate users.
+ * Strict rate limiter for standard auth endpoints (e.g., login).
+ * Prevents brute-force attacks and credential stuffing (Fixes #996).
  */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 15,
+  limit: 5,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  message: { error: "Too many login/registration attempts. Please try again in 15 minutes." },
+  message: { error: "Too many login attempts. Please try again in 15 minutes." },
 });
 
 const otpLimiter = rateLimit({
