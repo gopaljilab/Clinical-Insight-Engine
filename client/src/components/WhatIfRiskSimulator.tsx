@@ -132,7 +132,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
   };
 
   useEffect(() => {
-    const perturbations = [
+    const perturbations: Record<string, string | number | boolean>[] = [
       { bmi: 25 },
       { hba1cLevel: 5.7 },
       { hba1cLevel: 6.5 },
