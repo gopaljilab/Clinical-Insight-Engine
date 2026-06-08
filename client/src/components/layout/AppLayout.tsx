@@ -4,15 +4,10 @@ import { useTranslation } from "react-i18next";
 import { queryClient } from "@/lib/queryClient";
 import { ApiClient } from "@/lib/apiClient";
 import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, TrendingUp, UploadCloud, User } from "lucide-react";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
 import ThemeToggle from "../ThemeToggle";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useToast } from "@/hooks/use-toast";
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { cn } from "@/lib/utils";
 
 interface AppLayoutProps {
   children: ReactNode;
