@@ -1,5 +1,15 @@
 import React from "react";
-import type { AttentionNavigator } from "@shared/routes";
+
+type AttentionPriority = {
+  factor: string;
+  priority: "high" | "moderate" | "monitor";
+  reason: string;
+  value?: number;
+};
+
+type AttentionNavigator = {
+  priorities: AttentionPriority[];
+};
 
 const PRIORITY_STYLES: Record<"high" | "moderate" | "monitor", string> = {
   high: "bg-rose-100 text-rose-800 border-rose-200",
