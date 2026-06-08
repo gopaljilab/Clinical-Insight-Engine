@@ -12,6 +12,7 @@ import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, Trendi
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
 import { insertAssessmentSchema } from "@shared/schema";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = insertAssessmentSchema.pick({
   patientName: true,
@@ -63,6 +64,7 @@ export default function Dashboard() {
   const [previewPending, setPreviewPending] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const { mutate: createAssessment, isPending, error } = useCreateAssessment();
+  const { toast } = useToast();
 
   const { data: assessmentsData } = useAssessments({ limit: 50 });
   const assessments = assessmentsData?.data ?? [];
@@ -160,7 +162,11 @@ export default function Dashboard() {
         });
       }
     } catch (e) {
-      // ignore malformed draft
+      toast({
+        title: "Draft restore failed",
+        description: "Could not restore your previous draft. The data may be corrupted.",
+        variant: "destructive",
+      });
     }
   }, [setValue]);
 

@@ -656,7 +656,7 @@ describe("GET /api/patients (JWT protected)", () => {
 
     const res = await request(app).get("/api/patients");
     expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty("error", "Unauthorized");
+    expect(res.body).toHaveProperty("message", "Unauthorized");
   });
 
   it("returns 401 when Authorization header is malformed", async () => {
@@ -668,7 +668,7 @@ describe("GET /api/patients (JWT protected)", () => {
       .get("/api/patients")
       .set("Authorization", "Bearer invalidtoken");
     expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty("error", "Unauthorized");
+    expect(res.body).toHaveProperty("message", "Unauthorized");
   });
 
   it("returns 200 with patient data when valid JWT is provided", async () => {
