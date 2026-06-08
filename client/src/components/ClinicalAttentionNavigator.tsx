@@ -29,7 +29,7 @@ export function ClinicalAttentionNavigator({ navigator }: { navigator?: Attentio
         <h3 className="mt-2 text-xl font-bold text-foreground">Priority findings for clinician review</h3>
       </div>
       <div className="grid gap-4">
-        {navigator.priorities.map((item) => (
+        {navigator.priorities.map((item: AttentionPriority) => (
           <article
             key={item.factor}
             className="rounded-3xl border border-border/70 bg-muted/80 p-4 shadow-sm sm:flex sm:items-start sm:justify-between"
