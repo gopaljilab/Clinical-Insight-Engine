@@ -446,7 +446,6 @@ export async function runAssessmentInferenceBatch(inputs: unknown[]): Promise<{ 
     console.log("DEBUG: Caught error:", error);
     if (error.message?.includes("timed out")) {
       logger.error({ error: "ML batch prediction timed out", timeout: ML_TIMEOUT_MS });
-      throw new Error("Clinical assessment timed out.");
     }
     
     // Use fallback
