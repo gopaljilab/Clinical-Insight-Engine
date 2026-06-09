@@ -116,13 +116,12 @@ describe("Auth Router - Resend OTP integration tests", () => {
         expect(res.status).toBe(200);
         expect(res.body).toHaveProperty("success", true);
         expect(res.body).toHaveProperty("pendingEmail", "valid@clinic.com");
-        expect(res.body).toHaveProperty("devOtp"); // returns devOtp in dev mode
         expect(mockSendVerificationCode).toHaveBeenCalledTimes(1);
 
         // Verify pending OTP is updated
         const updated = pendingOtps.get("valid@clinic.com");
         expect(updated).toBeDefined();
-        expect(updated?.otp).toBe(res.body.devOtp);
+        expect(updated?.otp).toBeDefined();
       } finally {
         process.env.NODE_ENV = originalEnv;
       }
@@ -193,7 +192,6 @@ describe("Auth Router - Resend OTP integration tests", () => {
         expect(res.status).toBe(200);
         expect(res.body).toHaveProperty("success", true);
         expect(res.body).toHaveProperty("pendingEmail", "unverified@clinic.com");
-        expect(res.body).toHaveProperty("devOtp");
         expect(mockSendVerificationCode).toHaveBeenCalledTimes(1);
       } finally {
         process.env.NODE_ENV = originalEnv;

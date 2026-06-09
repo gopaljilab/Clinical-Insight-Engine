@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
 import session from "express-session";
-import { createAuthRouter } from "../server/auth";
+import { createAuthRouter, pendingOtps } from "../server/auth";
 
 // Mock the db module to return our mock user on query
 vi.mock("../server/db", async (importOriginal) => {
@@ -89,8 +89,8 @@ describe("OTP Brute-Force Lockout Integration", () => {
     expect(loginRes.body.success).toBe(true);
     expect(loginRes.body.pendingEmail).toBe("doc@example.com");
     
-    // In development/test mode, the devOtp is returned in the body
-    const correctOtp = loginRes.body.devOtp;
+    // Read the OTP from the in-memory store
+    const correctOtp = pendingOtps.get("doc@example.com")?.otp;
     expect(correctOtp).toBeDefined();
 
     // 2. First failed attempt: should return 401 with 2 attempts remaining
