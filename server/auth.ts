@@ -322,7 +322,7 @@ export function createAuthRouter(): Router {
           const [dbUser] = await db
             .select()
             .from(users)
-            .where(eq(users.email, email))
+            .where(and(eq(users.email, email), eq(users.isActive, true)))
             .limit(1);
 
           if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
@@ -524,6 +524,10 @@ export function createAuthRouter(): Router {
       if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
+      if (!user.isActive) {
+        return res.status(403).json({ message: "Account has been deactivated." });
+      }
+
 
       if (!user.emailVerified) {
         await db
