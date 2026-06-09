@@ -30,7 +30,7 @@ export function canAccessPatientRecord(
   }
 
   // 2. Providers have access if they created the record (assignment check)
-  if (record.createdBy && record.createdBy.toLowerCase() === user.email.toLowerCase()) {
+  if (record.createdBy && user.email && record.createdBy.toLowerCase() === user.email.toLowerCase()) {
     return true;
   }
 
