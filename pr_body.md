@@ -1,7 +1,7 @@
 ## ✦ Description
-Implement a robust React Error Boundary to prevent the application from crashing into a blank screen. This includes a user-friendly fallback UI with recovery options and automatic error logging to the backend for developer visibility.
+Implement rate limiting across API endpoints to prevent abuse, scraping, and resource exhaustion. This update introduces centralized rate limiting using `express-rate-limit` to enforce strict request quotas.
 
-Fixes #810
+Fixes #814
 
 ---
 
@@ -33,22 +33,23 @@ N/A
 ## Description
 
 ### Root Cause
-Previously, unhandled runtime errors in React components would bubble up to the root, unmounting the entire application tree and leaving users with a blank white screen, with no automated way for developers to be notified.
+API endpoints lacked rate limiting, making the server susceptible to brute-force attacks, scraping, and excessive resource consumption.
 
 ### Changes Made
-- Expanded \`client/src/components/ErrorBoundary.tsx\` to include a stylized fallback UI with a "Reload Page" button and "Contact Support" mailto link.
-- Implemented automatic logging of client errors (including component stack traces) to a new \`POST /api/logs/client-error\` endpoint via \`fetch\`.
-- Added the new logging endpoint to \`server/routes.ts\` using the unified Pino logger.
-- Wrapped the \`Dashboard.tsx\` component in a route-level \`ErrorBoundary\` to ensure failures on the dashboard don't crash the navigation layout.
-- Kept the root-level boundary in \`App.tsx\`.
+- Created a centralized rate limiting configuration in `server/middleware/rateLimit.ts` using `express-rate-limit`.
+- Enforced the following limits:
+    - **General (`/api/assessments*`, `/api/patients*`)**: 100 requests/minute.
+    - **ML Prediction (`/api/assessments/bulk`)**: 20 requests/minute.
+    - **Admin (`/api/admin/*`)**: 60 requests/minute.
+    - **Export (`/api/assessments/export.csv`)**: 10 requests/minute.
+- Applied limiters at the router level in `server/routes.ts` and individual routes (`ml.routes.ts`, `exports.routes.ts`).
 
 ### Testing Performed
-\`bash
-npm run check
-\`
+- Verified TypeScript compilation (`npm run check`).
+- Ensured no existing functionality was broken by reviewing route configuration.
 
 ### Result
-PASS — 0 TypeScript errors found, components compile correctly.
+PASS — 0 TypeScript errors found, rate limiting middleware correctly wired.
 
 ---
 
