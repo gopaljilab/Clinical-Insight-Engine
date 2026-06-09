@@ -60,9 +60,17 @@ const mlConcurrency = new SimpleSemaphore(maxConcurrency);
  */
 const activeInferenceRequests = new Set<string>();
 
+function canonicalStringify(obj: unknown): string {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return "[" + obj.map(canonicalStringify).join(",") + "]";
+  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  const pairs = keys.map(k => JSON.stringify(k) + ":" + canonicalStringify((obj as Record<string, unknown>)[k]));
+  return "{" + pairs.join(",") + "}";
+}
+
 export function generateRequestFingerprint(payload: unknown, userId: string): string {
   return createHash("sha256")
-    .update(`${userId}::${JSON.stringify(payload)}`)
+    .update(`${userId}::${canonicalStringify(payload)}`)
     .digest("hex");
 }
 
