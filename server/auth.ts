@@ -293,7 +293,7 @@ export function createAuthRouter(): Router {
         loginStatus: "registration",
       });
 
-      return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+      return res.status(201).json({ success: true, pendingEmail: email });
     } catch (err) {
       logger.error({ err }, "Registration error");
       return res.status(500).json({ message: "Registration failed due to a server error." });
@@ -358,7 +358,7 @@ export function createAuthRouter(): Router {
     // In production, send OTP via email. For development, return it in the response.
     logDevOtp(email, otp);
 
-    return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+    return res.json({ success: true, pendingEmail: email });
   });
 
   /**
@@ -396,7 +396,7 @@ export function createAuthRouter(): Router {
         }
         logDevOtp(email, otp);
 
-        return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+        return res.json({ success: true, pendingEmail: email });
       }
 
       const db = getDb();
@@ -438,7 +438,7 @@ export function createAuthRouter(): Router {
       }
       logDevOtp(email, otp);
 
-      return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+      return res.json({ success: true, pendingEmail: email });
     } catch (err) {
       logger.error({ err }, "OTP resend error");
       return res.status(500).json({ message: "Failed to resend verification code." });
