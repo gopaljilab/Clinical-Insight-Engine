@@ -225,26 +225,8 @@ import {
 } from "./middleware/rateLimit";
 import { validateDTO } from "./middleware/validateDTO";
 import { z } from "zod";
-import { MLService, generateRequestFingerprint } from "./services/mlService";
-import { getAssessmentQueue, getPythonExecutable } from "./queue";
-import { execFile } from "child_process";
-import path from "path";
-import { fileURLToPath } from "url";
-import os from "os";
-import { randomUUID } from "crypto";
-import { writeFile, unlink } from "fs/promises";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
-function execFileAsync(file: string, args: string[], options: any): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    execFile(file, args, options, (err, stdout, stderr) => {
-      if (err) reject(err);
-      else resolve({ stdout: stdout as unknown as string, stderr: stderr as unknown as string });
-    });
-  });
-}
+import { generateRequestFingerprint } from "./services/mlService";
+import { getAssessmentQueue } from "./queue";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -482,7 +464,6 @@ export async function registerRoutes(
       }
 
       const inputSchema = z.array(api.assessments.create.input);
-      let tempFilePath: string | null = null;
       let requestFingerprint: string | null = null;
 
       try {
@@ -494,21 +475,10 @@ export async function registerRoutes(
         }
         MLService.activeInferenceRequests.add(requestFingerprint);
 
-        tempFilePath = path.join(os.tmpdir(), `bulk_${randomUUID()}.json`);
-        await writeFile(tempFilePath, JSON.stringify(input));
-
         let predictions: any[];
         try {
-          const { stdout } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFilePath],
-            { timeout: 60000, maxBuffer: 50 * 1024 * 1024 }
-          );
-
-          predictions = JSON.parse(stdout.trim());
-          if (!Array.isArray(predictions)) {
-            throw new Error("Expected array of predictions");
-          }
+          const result = await MLService.runAssessmentInferenceBatch(input);
+          predictions = result.predictions;
         } catch (error: any) {
           return res.status(500).json({ message: "Bulk ML processing failed or timed out." });
         }
@@ -536,9 +506,6 @@ export async function registerRoutes(
         logger.error({ err }, "Bulk create error:");
         return res.status(500).json({ message: "Failed to generate bulk assessments." });
       } finally {
-        if (tempFilePath) {
-          try { await unlink(tempFilePath); } catch {}
-        }
         if (requestFingerprint) {
           MLService.activeInferenceRequests.delete(requestFingerprint);
         }

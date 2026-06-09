@@ -1,24 +1,12 @@
 import { Router } from "express";
 import { logger } from "../logger";
 import { z } from "zod";
-import os from "os";
-import path from "path";
-import { randomUUID } from "crypto";
-import { writeFile, unlink } from "fs/promises";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService, getPythonExecutable, calculateClinicalFallback } from "../services/mlService";
+import { MLService } from "../services/mlService";
 import { validateDTO } from "../middleware/validateDTO";
-import { execFile } from "child_process";
-import { promisify } from "util";
-import { fileURLToPath } from "url";
 import { mlLimiter } from "../middleware/rateLimit";
-
-const execFileAsync = promisify(execFile);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
 
 const mlRouter = Router();
 
@@ -47,17 +35,10 @@ mlRouter.post(
 
       let predictions: any[];
       try {
-        const { prediction } = await MLService.runAssessmentInference(input);
-        predictions = prediction as any;
-        if (!Array.isArray(predictions)) {
-          throw new Error("Expected array of predictions");
-        }
+        const result = await MLService.runAssessmentInferenceBatch(input);
+        predictions = result.predictions;
       } catch (error: any) {
-        logger.warn(
-          "Python prediction bulk failed or timed out, running clinical rule-based fallback:",
-          error
-        );
-        predictions = calculateClinicalFallback(input);
+        return res.status(500).json({ message: "Bulk ML processing failed or timed out." });
       }
 
       const createdAssessments = await Promise.all(

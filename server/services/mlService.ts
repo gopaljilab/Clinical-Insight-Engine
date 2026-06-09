@@ -79,7 +79,9 @@ export function getPythonExecutable() {
           path.resolve("venv", "bin", "python"),
         ];
 
-  return candidates.find((candidate) => existsSync(candidate)) ?? "python3";
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (found) return found;
+  return process.platform === "win32" ? "python" : "python3";
 }
 
 export interface PredictionResult {
@@ -239,7 +241,7 @@ export function calculateClinicalFallback(input: unknown): any {
 }
 
 interface PendingRequest {
-  resolve: (value: PredictionResult) => void;
+  resolve: (value: any) => void;
   reject: (reason: any) => void;
   timeoutId: NodeJS.Timeout;
 }
@@ -370,6 +372,36 @@ class PythonDaemonManager {
     });
   }
 
+  public async predictBatch(inputs: unknown[]): Promise<PredictionResult[]> {
+    this.init();
+
+    if (!this.process || !this.process.stdin) {
+      throw new Error("Python daemon is not running.");
+    }
+
+    const requestId = randomUUID();
+
+    return new Promise<PredictionResult[]>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        if (this.pendingRequests.has(requestId)) {
+          this.pendingRequests.delete(requestId);
+          reject(new Error("Clinical assessment timed out."));
+        }
+      }, ML_TIMEOUT_MS);
+
+      this.pendingRequests.set(requestId, { resolve, reject, timeoutId });
+
+      const payload = JSON.stringify({ requestId, input: inputs });
+      this.process!.stdin!.write(payload + "\n", (err) => {
+        if (err) {
+          clearTimeout(timeoutId);
+          this.pendingRequests.delete(requestId);
+          reject(err);
+        }
+      });
+    });
+  }
+
   public shutdown() {
     this.cleanup();
     this.pendingRequests.clear();
@@ -403,8 +435,31 @@ export async function runAssessmentInference(input: unknown): Promise<{ predicti
   }
 }
 
+export async function runAssessmentInferenceBatch(inputs: unknown[]): Promise<{ predictions: PredictionResult[], isFallback: boolean }> {
+  const release = await mlConcurrency.acquire();
+  try {
+    console.log("DEBUG: Calling pythonDaemon.predictBatch with:", inputs);
+    const predictions = await pythonDaemon.predictBatch(inputs);
+    console.log("DEBUG: pythonDaemon.predictBatch returned:", predictions);
+    return { predictions, isFallback: false };
+  } catch (error: any) {
+    console.log("DEBUG: Caught error:", error);
+    if (error.message?.includes("timed out")) {
+      logger.error({ error: "ML batch prediction timed out", timeout: ML_TIMEOUT_MS });
+      throw new Error("Clinical assessment timed out.");
+    }
+    
+    // Use fallback
+    const predictions = inputs.map(input => calculateClinicalFallback(input));
+    return { predictions, isFallback: true };
+  } finally {
+    release();
+  }
+}
+
 export const MLService = {
   activeInferenceRequests,
   generateRequestFingerprint,
   runAssessmentInference,
+  runAssessmentInferenceBatch,
 };
