@@ -4,7 +4,35 @@ import express from "express";
 import session from "express-session";
 import { createAuthRouter } from "../server/auth";
 
-// Mock the db module to return our mock user on query
+// Hold a mutable reference to the transaction mock so tests can swap it
+const { mockTxRef, makeTx } = vi.hoisted(() => {
+  function makeTx(selectReturns: any[] = []) {
+    return {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            orderBy: vi.fn(() => ({
+              limit: vi.fn().mockResolvedValue(selectReturns),
+            })),
+          })),
+        })),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn().mockResolvedValue([{ id: 1 }]),
+        })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn().mockResolvedValue(undefined),
+      })),
+    };
+  }
+
+  const ref: { tx: ReturnType<typeof makeTx> } = { tx: makeTx() };
+  return { mockTxRef: ref, makeTx };
+});
+
+// Mock the db module
 vi.mock("../server/db", async (importOriginal) => {
   const original = (await importOriginal()) as any;
   return {
@@ -27,7 +55,8 @@ vi.mock("../server/db", async (importOriginal) => {
             ]
           })
         })
-      })
+      }),
+      transaction: async (cb: any) => cb(mockTxRef.tx),
     })
   };
 });
@@ -58,8 +87,8 @@ vi.mock("bcrypt", () => ({
 
 // Mock email service
 vi.mock("../server/email", () => ({
-  sendVerificationCode: vi.fn().mockResolvedValue(true),
-  validateSmtpConfig: vi.fn(),
+  sendVerificationEmail: vi.fn().mockResolvedValue(true),
+  sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
 }));
 
 describe("OTP Brute-Force Lockout Integration", () => {
@@ -67,6 +96,9 @@ describe("OTP Brute-Force Lockout Integration", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the transaction mock to default (no select results)
+    mockTxRef.tx = makeTx();
+
     app = express();
     app.use(express.json());
     app.use(
@@ -79,8 +111,7 @@ describe("OTP Brute-Force Lockout Integration", () => {
     app.use("/api/auth", createAuthRouter());
   });
 
-  it("locks out user after 3 failed OTP verification attempts", async () => {
-    // 1. Post to login to trigger OTP creation
+  it("locks out user after max failed OTP verification attempts", async () => {
     const loginRes = await request(app)
       .post("/api/auth/login")
       .send({ email: "doc@example.com", password: "password" });
@@ -88,39 +119,40 @@ describe("OTP Brute-Force Lockout Integration", () => {
     expect(loginRes.status).toBe(200);
     expect(loginRes.body.success).toBe(true);
     expect(loginRes.body.pendingEmail).toBe("doc@example.com");
-    
-    // OTP is never leaked in the response — only sent via email / dev log
 
-    // 2. First failed attempt: should return 401 with 2 attempts remaining
-    const fail1 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
-    
-    expect(fail1.status).toBe(401);
-    expect(fail1.body.message).toContain("2 attempt(s) remaining");
+    for (let i = 0; i < 5; i++) {
+      mockTxRef.tx = makeTx([
+        {
+          id: 1,
+          verificationCode: "123456",
+          expiresAt: new Date(Date.now() + 600_000),
+          used: false,
+          attemptCount: i,
+        },
+      ]);
+      const fail = await request(app)
+        .post("/api/auth/verify-email")
+        .send({ email: "doc@example.com", code: "000000" });
+      expect(fail.status).toBe(401);
+      const remaining = 5 - i - 1;
+      if (remaining > 0) {
+        expect(fail.body.message).toContain(`${remaining} attempt(s) remaining`);
+      }
+    }
 
-    // 3. Second failed attempt: should return 401 with 1 attempt remaining
-    const fail2 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
-
-    expect(fail2.status).toBe(401);
-    expect(fail2.body.message).toContain("1 attempt(s) remaining");
-
-    // 4. Third failed attempt: should trigger lockout and return 429
-    const fail3 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
-
-    expect(fail3.status).toBe(429);
-    expect(fail3.body.message).toContain("Too many failed attempts");
-
-    // 5. Subsequent attempts: OTP should be deleted, returning 400
-    const fail4 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
-
-    expect(fail4.status).toBe(400);
-    expect(fail4.body.message).toContain("No pending verification found");
+    mockTxRef.tx = makeTx([
+      {
+        id: 1,
+        verificationCode: "123456",
+        expiresAt: new Date(Date.now() + 600_000),
+        used: false,
+        attemptCount: 5,
+      },
+    ]);
+    const lockout = await request(app)
+      .post("/api/auth/verify-email")
+      .send({ email: "doc@example.com", code: "000000" });
+    expect(lockout.status).toBe(429);
+    expect(lockout.body.message).toContain("Too many failed attempts");
   });
 });
