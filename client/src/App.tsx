@@ -13,6 +13,7 @@ import Analytics from "./pages/Analytics";
 import ImportData from "./pages/ImportData";
 import AdminDashboard from "./pages/AdminDashboard";
 import ModelMonitoring from "./pages/ModelMonitoring";
+import ProgressTracking from "./pages/ProgressTracking";
 
 import LoginPage from "./pages/LoginPage";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -54,6 +55,11 @@ function Router() {
       <Route path="/admin/model-monitoring">
         <ProtectedRoute requireAdmin>
           <ModelMonitoring />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/progress">
+        <ProtectedRoute>
+          <ProgressTracking />
         </ProtectedRoute>
       </Route>
       <Route path="/login" component={LoginPage} />

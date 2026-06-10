@@ -8,6 +8,7 @@
     "patientHistory": "Patient History",
     "providerAnalytics": "Provider Analytics",
     "bulkImport": "Bulk Import CSV",
+    "progressTracking": "Progress Tracking",
     "signOut": "Sign Out",
     "signingOut": "Signing out..."
   },

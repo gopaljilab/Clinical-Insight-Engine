@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "@/lib/queryClient";
 import { ApiClient } from "@/lib/apiClient";
-import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, UploadCloud, User } from "lucide-react";
+import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, TrendingUp, UploadCloud, User } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import ThemeToggle from "../ThemeToggle";
@@ -102,6 +102,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { href: "/history", label: t("nav.patientHistory"), icon: ClipboardList },
     { href: "/analytics", label: t("nav.providerAnalytics"), icon: PieChart },
     { href: "/import", label: t("nav.bulkImport"), icon: UploadCloud },
+    { href: "/progress", label: t("nav.progressTracking"), icon: TrendingUp },
   ];
 
   if (checking) {

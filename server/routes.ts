@@ -8,7 +8,7 @@ import type { Server } from "http";
 
 import assessmentsRouter from "./routes/assessments.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
-import { requireAuth, requireAdmin } from "./auth";
+import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { logger } from "./logger";
 import {
   generalLimiter,
@@ -610,6 +610,29 @@ export async function registerRoutes(
       } catch (err) {
         logger.error({ err }, "Analytics fetch error:");
         return res.status(500).json({ message: "Failed to fetch analytics" });
+      }
+    }
+  );
+
+  /**
+   * GET /api/assessments/patient/:patientName/trends
+   *
+   * Returns all historical assessments for a given patient, ordered by date.
+   * Used by the Progress Tracking dashboard to plot biomarker trends.
+   */
+  app.get(
+    "/api/assessments/patient/:patientName/trends",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
+        const userEmail = req.session.user?.email;
+        const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+        return res.json(result);
+      } catch (err) {
+        logger.error({ err }, "Patient trends fetch error:");
+        return res.status(500).json({ message: "Failed to fetch patient trends." });
       }
     }
   );

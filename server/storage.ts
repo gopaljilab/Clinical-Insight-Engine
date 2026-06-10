@@ -84,63 +84,105 @@ export class DatabaseStorage implements IStorage {
   private userRepository = new UserRepository();
   private auditRepository = new AuditRepository();
   private analyticsRepository = new AnalyticsRepository();
+  private modelVersionRepository = new ModelVersionRepository();
+  private patientUserRepository = new PatientUserRepository();
 
   getAssessments(limitOrParams?: number | Parameters<AssessmentRepository["getAssessments"]>[0], cursor?: number, createdBy?: string) { return this.assessmentRepository.getAssessments(limitOrParams, cursor, createdBy); }
-  
-  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: RiskCategory, limit?: number, cursor?: number) { 
-    return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor); 
+
+  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: RiskCategory, limit?: number, cursor?: number) {
+    return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor);
   }
-  
-  async getAssessmentById(id: number) { 
-    return this.assessmentRepository.getAssessmentById(id); 
+
+  async getAssessmentById(id: number) {
+    return this.assessmentRepository.getAssessmentById(id);
   }
-  
-  async createAssessment(assessment: AssessmentCreateInput) { 
-    return this.assessmentRepository.createAssessment(assessment); 
+
+  async createAssessment(assessment: AssessmentCreateInput) {
+    return this.assessmentRepository.createAssessment(assessment);
   }
-  
-  async deleteAssessment(id: number) { 
-    return this.assessmentRepository.deleteAssessment(id); 
+
+  async deleteAssessment(id: number) {
+    return this.assessmentRepository.deleteAssessment(id);
   }
-  
-  async autocompletePatientNames(query: string, createdBy?: string, limit?: number) { 
-    return this.assessmentRepository.autocompletePatientNames(query, createdBy, limit); 
+
+  async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {
+    return this.assessmentRepository.autocompletePatientNames(query, createdBy, limit);
   }
-  
-  async createUser(data: InsertUser) { 
-    return this.userRepository.createUser(data); 
+
+  async createUser(data: InsertUser) {
+    return this.userRepository.createUser(data);
+  }
+
+  async getUserByEmail(email: string) {
+    return this.userRepository.getUserByEmail(email);
+  }
+
+  async getUserById(id: string) {
+    return this.userRepository.getUserById(id);
+  }
+
+  async getAllUsers(page: number, limit: number) {
+    return this.userRepository.getAllUsers(page, limit);
+  }
+
+  async updateUser(id: string, data: Partial<Pick<User, "isActive" | "role">>) {
+    return this.userRepository.updateUser(id, data);
+  }
+
+  async recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }) {
+    return this.auditRepository.recordLoginAudit(params);
+  }
+
+  async getLoginAuditLogs(page: number, limit: number) {
+    return this.auditRepository.getLoginAuditLogs(page, limit);
+  }
+
+  async getSystemStats() {
+    return this.analyticsRepository.getSystemStats();
+  }
+
+  async getAnalyticsStats(createdBy?: string) {
+    return this.analyticsRepository.getAnalyticsStats(createdBy);
+  }
+
+  async getModelVersions(): Promise<ModelVersion[]> {
+    return this.modelVersionRepository.findAll();
+  }
+
+  async getLatestModelVersion(): Promise<ModelVersion | undefined> {
+    return this.modelVersionRepository.findLatest();
   }
 
   async createModelVersion(data: InsertModelVersion): Promise<ModelVersion> {
-    return this.modelVersionRepo.create(data);
+    return this.modelVersionRepository.create(data);
   }
 
-  async getModelDatasetStats(): Promise<{ classBalance: Record<string, number>; featureStats: Record<string, { mean: number; std: number }>; totalSamples: number } | null> {
-    return this.modelVersionRepo.getDatasetStats();
+  async getModelDatasetStats() {
+    return this.modelVersionRepository.getDatasetStats();
   }
 
   async getPatientUserByEmail(email: string): Promise<PatientUser | undefined> {
-    return this.patientUserRepo.findByEmail(email);
+    return this.patientUserRepository.findByEmail(email);
   }
 
   async getPatientUserByPatientName(patientName: string): Promise<PatientUser | undefined> {
-    return this.patientUserRepo.findByPatientName(patientName);
+    return this.patientUserRepository.findByPatientName(patientName);
   }
-  
-  async getSystemStats() { 
-    return this.analyticsRepository.getSystemStats(); 
+
+  async getPatientUserById(id: string): Promise<PatientUser | undefined> {
+    return this.patientUserRepository.findById(id);
   }
 
   async createPatientUser(data: InsertPatientUser): Promise<PatientUser> {
-    return this.patientUserRepo.create(data);
-  }
-  
-  async getLoginAuditLogs(page: number, limit: number) { 
-    return this.auditRepository.getLoginAuditLogs(page, limit); 
+    return this.patientUserRepository.create(data);
   }
 
-  async getPatientTrends(patientName: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]> {
-    return this.assessmentRepo.getPatientTrends(patientName);
+  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number) {
+    return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset);
+  }
+
+  async getPatientTrends(patientName: string) {
+    return this.assessmentRepository.getPatientTrends(patientName);
   }
 }
 

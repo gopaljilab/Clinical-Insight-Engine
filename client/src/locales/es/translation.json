@@ -8,6 +8,7 @@
     "patientHistory": "Historial del Paciente",
     "providerAnalytics": "Analíticas",
     "bulkImport": "Importar CSV Masivo",
+    "progressTracking": "Seguimiento de Progreso",
     "signOut": "Cerrar Sesión",
     "signingOut": "Cerrando sesión..."
   },
