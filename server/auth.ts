@@ -107,6 +107,13 @@ function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
 
+export const pendingOtps = new Map<string, { otp: string; expiresAt: number }>();
+
+export function getOtpRateLimitKey(req: { body: { email?: string }; ip: string }): string {
+  const email = req.body?.email?.trim().toLowerCase();
+  return email ? `otp:${email}` : `otp:${req.ip}`;
+}
+
 function logDevOtp(email: string, otp: string) {
   if (process.env.NODE_ENV !== "production") {
     logger.info(`[DEV] OTP for ${email}: ${otp}`);

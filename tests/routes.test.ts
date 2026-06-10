@@ -475,8 +475,6 @@ describe("Python inference", () => {
         ]
       });
 
-    console.log("DEBUG RESPONSE:", res.status, res.text, res.body);
-
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty("count", 2);
     expect(res.body).toHaveProperty("assessments");
