@@ -27,6 +27,7 @@ export const assessments = pgTable("assessments", {
   confidenceInterval: jsonb("confidence_interval").$type<string | null>(),
   modelConfidence: doublePrecision("model_confidence"),
   
+  ownerId: uuid("owner_id").references(() => users.id),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   userId: text("user_id"),
@@ -49,7 +50,8 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   age: z.preprocess(
     (v) => {
       if (v === "" || v === undefined || v === null) return undefined;
-      const n = Number(v);
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
       return Number.isNaN(n) ? v : n;
     },
     z
@@ -67,7 +69,8 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   bmi: z.preprocess(
     (v) => {
       if (v === "" || v === undefined || v === null) return undefined;
-      const n = Number(v);
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
       return Number.isNaN(n) ? v : n;
     },
     z
@@ -78,7 +81,8 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   hba1cLevel: z.preprocess(
     (v) => {
       if (v === "" || v === undefined || v === null) return undefined;
-      const n = Number(v);
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
       return Number.isNaN(n) ? v : n;
     },
     z
@@ -89,7 +93,8 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   bloodGlucoseLevel: z.preprocess(
     (v) => {
       if (v === "" || v === undefined || v === null) return undefined;
-      const n = Number(v);
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
       return Number.isNaN(n) ? v : n;
     },
     z
@@ -163,6 +168,43 @@ export const emailVerificationTokens = pgTable("email_verification_tokens", {
   attemptCount: integer("attempt_count").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const modelVersions = pgTable("model_versions", {
+  id: serial("id").primaryKey(),
+  version: integer("version").notNull(),
+  accuracy: doublePrecision("accuracy"),
+  precision: doublePrecision("precision"),
+  recall: doublePrecision("recall"),
+  f1Score: doublePrecision("f1_score"),
+  aucRoc: doublePrecision("auc_roc"),
+  datasetHash: text("dataset_hash"),
+  numSamples: integer("num_samples"),
+  numFeatures: integer("num_features"),
+  classBalance: jsonb("class_balance"),
+  featureDistributions: jsonb("feature_distributions"),
+  trainingDurationMs: integer("training_duration_ms"),
+  status: text("status").default("completed"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const patientUsers = pgTable("patient_users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  patientName: text("patient_name").notNull().unique(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  phone: varchar("phone", { length: 20 }),
+  isActive: boolean("is_active").default(true),
+  emailVerified: boolean("email_verified").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type PatientUser = typeof patientUsers.$inferSelect;
+export type InsertPatientUser = typeof patientUsers.$inferInsert;
+
+export type ModelVersion = typeof modelVersions.$inferSelect;
+export type InsertModelVersion = typeof modelVersions.$inferInsert;
 
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,

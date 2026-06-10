@@ -1,10 +1,12 @@
 import crypto from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import express, { type Request, Response, NextFunction } from "express";
+import express from "express";
+import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import rateLimit from "express-rate-limit";
 import {
   DatabaseStartupError,
   verifyDatabaseConnection,
@@ -15,10 +17,11 @@ import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
 import { getPythonExecutable } from "./services/mlService";
 import patientsRouter from "./routes/patients";
+import patientPortalRouter from "./routes/patient.routes";
 import { serveStatic } from "./static";
-import { sanitizeDatabaseError } from "./security/sqlProtection";
 import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
+import { globalErrorHandler } from "./middleware/errorHandler";
 import { logger } from "./logger";
 import { requestIdMiddleware } from "./middleware/requestId";
 import {
@@ -27,12 +30,35 @@ import {
   closeQueue,
 } from "./queue";
 import { EmailConfigurationError, validateSmtpConfig } from "./email";
-
+import { generalLimiter } from "./middleware/rateLimit";
 
 const execFileAsync = promisify(execFile);
 const app = express();
 const httpServer = createServer(app);
-const REQUEST_BODY_LIMIT = "256kb";
+
+// CORS configuration - hardened to reject requests missing the Origin header
+const allowedOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(",") 
+  : [process.env.APP_URL, process.env.API_URL, "http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:3000", "http://127.0.0.1:3000"].filter(Boolean) as string[];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    // This is required for the browser to load the initial HTML document
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"), false);
+    }
+  },
+  credentials: true,
+}));
+
+const REQUEST_BODY_LIMIT = "10kb";
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", true);
 }
@@ -207,10 +233,21 @@ app.use((req, res, next) => {
     logger.warn({ source: "redis" }, "Redis unavailable — async assessment queue disabled.");
   }
 
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests from this IP, please try again later." }
+  });
+  
+  app.use("/api", apiLimiter);
+
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
   // Register protected patient EMR/EHR integration endpoints
-  app.use("/api/patients", patientsRouter);
+  app.use("/api/patients", generalLimiter, patientsRouter);
+  app.use("/api/patient", patientPortalRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
   execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
@@ -218,25 +255,10 @@ app.use((req, res, next) => {
     .catch((err: any) => logger.warn({ source: "ml" }, `ML warmup warning: ${err.message}`));
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    if (res.headersSent) {
-      return next(err);
-    }
-
-    // Log the full error internally for debugging, but never send internals to clients
-    logger.error({ err }, "Unhandled server error");
-
-    // Sanitize database errors — prevents table names, SQL syntax, and pg error codes
-    // from reaching the client response body
-    const { statusCode, message } = sanitizeDatabaseError(err);
-
-    // For non-DB errors (e.g. express body-parser), fall back to err.status
-    const finalStatus = (err?.code && typeof err.code === "string" && err.code.length === 5)
-      ? statusCode                            // PostgreSQL error code (5-char alphanumeric)
-      : (err?.status ?? err?.statusCode ?? statusCode);
-
-    return res.status(finalStatus).json({ message });
-  });
+  // Global error handler — must be the LAST middleware.
+  // Handles CORS errors, database errors, unhandled exceptions, and returns
+  // a consistent { message, requestId } shape for all error responses.
+  app.use(globalErrorHandler);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

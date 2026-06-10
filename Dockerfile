@@ -36,19 +36,25 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
+# Set up non-root user permissions
+RUN chown -R node:node /app
+
+# Switch to unprivileged user
+USER node
+
 # Copy Python virtual environment from python-builder
-COPY --from=python-builder /app/.venv /app/.venv
+COPY --chown=node:node --from=python-builder /app/.venv /app/.venv
 
 # Install production Node.js dependencies
-COPY package*.json ./
+COPY --chown=node:node package*.json ./
 RUN npm ci --omit=dev
 
 # Copy built application
-COPY --from=builder /app/dist ./dist
+COPY --chown=node:node --from=builder /app/dist ./dist
 
 # Copy ML inference script and data assets
-COPY analyze.py ./
-COPY attached_assets ./attached_assets
+COPY --chown=node:node analyze.py ./
+COPY --chown=node:node attached_assets ./attached_assets
 
 EXPOSE 5000
 CMD ["node", "dist/index.cjs"]

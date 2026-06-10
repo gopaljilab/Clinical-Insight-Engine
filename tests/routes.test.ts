@@ -199,6 +199,18 @@ describe("Auth gating", () => {
     expect(res.body).toHaveProperty("message");
   });
 
+  it("returns 401 for POST /api/assessments/simulate without session", async () => {
+    const app = createUnauthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app)
+      .post("/api/assessments/simulate")
+      .send(validPayload);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty("message");
+  });
+
   it("returns 401 for GET /api/assessments without session", async () => {
     const app = createUnauthenticatedApp();
     await registerRoutes(createServer(), app);
@@ -286,8 +298,8 @@ describe("Rate limiting", () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    const requests = Array.from({ length: 6 }, () =>
-      request(app).post("/api/assessments").send(validPayload)
+    const requests = Array.from({ length: 6 }, (_, i) =>
+      request(app).post("/api/assessments").send({ ...validPayload, age: 10 + i })
     );
 
     const results = await Promise.all(requests);
@@ -299,6 +311,22 @@ describe("Rate limiting", () => {
 });
 
 describe("Python inference", () => {
+  it("returns 200 with simulated risk, risk category, and factor contributions", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app)
+      .post("/api/assessments/simulate")
+      .send(validPayload);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("simulatedRisk", 12.3);
+    expect(res.body).toHaveProperty("riskCategory", "LOW");
+    expect(res.body).toHaveProperty("confidence", 0.877);
+    expect(res.body).toHaveProperty("factorContributions");
+    expect(Array.isArray(res.body.factorContributions)).toBe(true);
+  });
+
   it("returns 202 with jobId on success", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
@@ -349,7 +377,7 @@ describe("Python inference", () => {
 
     const res = await request(app)
       .post("/api/assessments")
-      .send(validPayload);
+      .send({ ...validPayload, age: 46 });
 
     expect(res.status).toBe(202);
     expect(res.body).toHaveProperty("message");
@@ -424,6 +452,70 @@ describe("Python inference", () => {
     expect(res.status).toBe(503);
     expect(res.body.message).toContain("timed out");
   });
+
+  it("bulk route returns 201 and falls back to rule-based model on python process failure", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      if (typeof opts === "function") {
+        cb = opts;
+        cb(new Error("Python execution failed"), null, "error");
+        return;
+      }
+      cb(new Error("Python execution failed"), null, "error");
+    });
+
+    const res = await request(app)
+      .post("/api/assessments/bulk")
+      .send({
+        assessments: [
+          validPayload,
+          { ...validPayload, patientName: "Jane Doe" }
+        ]
+      });
+
+    console.log("DEBUG RESPONSE:", res.status, res.text, res.body);
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("count", 2);
+    expect(res.body).toHaveProperty("assessments");
+    expect(Array.isArray(res.body.assessments)).toBe(true);
+    expect(res.body.assessments[0]).toHaveProperty("riskScore");
+    expect(res.body.assessments[1]).toHaveProperty("riskScore");
+  });
+
+  it("bulk route returns 201 and falls back to rule-based model on python process timeout", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      const err = new Error("Process timed out");
+      (err as any).killed = true;
+      if (typeof opts === "function") {
+        cb = opts;
+        cb(err, null, "");
+        return;
+      }
+      cb(err, null, "");
+    });
+
+    const res = await request(app)
+      .post("/api/assessments/bulk")
+      .send({
+        assessments: [
+          validPayload,
+          { ...validPayload, patientName: "Jane Doe" }
+        ]
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("count", 2);
+    expect(res.body).toHaveProperty("assessments");
+    expect(Array.isArray(res.body.assessments)).toBe(true);
+    expect(res.body.assessments[0]).toHaveProperty("riskScore");
+    expect(res.body.assessments[1]).toHaveProperty("riskScore");
+  });
 });
 
 describe("Response shape", () => {
@@ -466,6 +558,89 @@ describe("Response shape", () => {
   });
 });
 
+describe("CSV export", () => {
+  it("passes validated filters and the authenticated user scope to storage", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+    mockGetAssessments.mockClear();
+
+    mockGetAssessments.mockResolvedValue({
+      data: [
+        {
+          patientName: "Jane Doe",
+          gender: "Female",
+          riskCategory: "HIGH",
+          smokingHistory: "former",
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 100,
+      totalPages: 1,
+      nextCursor: null,
+    });
+
+    const res = await request(app).get(
+      "/api/assessments/export.csv?searchTerm=Jane&riskCategory=HIGH&gender=Female&startDate=2026-01-01&endDate=2026-01-31&page=2&limit=100&sortBy=patientName&order=asc"
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/csv");
+    expect(res.text).toContain("patientName,gender,riskCategory,smokingHistory");
+    expect(res.text).toContain("Jane Doe,Female,HIGH,former");
+    expect(mockGetAssessments).toHaveBeenCalledWith({
+      searchTerm: "Jane",
+      riskCategory: "HIGH",
+      gender: "Female",
+      startDate: "2026-01-01",
+      endDate: "2026-01-31",
+      page: 2,
+      limit: 100,
+      sortBy: "patientName",
+      order: "asc",
+      createdBy: "test@example.com",
+    });
+  });
+
+  it("returns an empty CSV for valid filters with no matching results", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+    mockGetAssessments.mockClear();
+
+    mockGetAssessments.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 1000,
+      totalPages: 0,
+      nextCursor: null,
+    });
+
+    const res = await request(app).get("/api/assessments/export.csv?riskCategory=LOW");
+
+    expect(res.status).toBe(200);
+    expect(res.text).toBe("");
+    expect(mockGetAssessments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        riskCategory: "LOW",
+        createdBy: "test@example.com",
+      })
+    );
+  });
+
+  it("rejects invalid export filters before querying storage", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+    mockGetAssessments.mockClear();
+
+    const res = await request(app).get("/api/assessments/export.csv?riskCategory=CRITICAL");
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Invalid risk category");
+    expect(mockGetAssessments).not.toHaveBeenCalled();
+  });
+});
+
 describe("GET /api/patients (JWT protected)", () => {
   it("returns 401 when Authorization header is missing", async () => {
     const app = createAuthenticatedApp();
@@ -474,7 +649,7 @@ describe("GET /api/patients (JWT protected)", () => {
 
     const res = await request(app).get("/api/patients");
     expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty("error", "Unauthorized");
+    expect(res.body).toHaveProperty("message", "Unauthorized");
   });
 
   it("returns 401 when Authorization header is malformed", async () => {
@@ -486,7 +661,7 @@ describe("GET /api/patients (JWT protected)", () => {
       .get("/api/patients")
       .set("Authorization", "Bearer invalidtoken");
     expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty("error", "Unauthorized");
+    expect(res.body).toHaveProperty("message", "Unauthorized");
   });
 
   it("returns 200 with patient data when valid JWT is provided", async () => {

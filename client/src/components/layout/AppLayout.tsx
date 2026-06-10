@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import { ApiClient } from "@/lib/apiClient";
-import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, UploadCloud } from "lucide-react";
+import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, UploadCloud, User } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import ThemeToggle from "../ThemeToggle";
@@ -158,12 +158,15 @@ export function AppLayout({ children }: AppLayoutProps) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold",
+                      "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold relative",
                       isActive
                         ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 shadow-md shadow-blue-500/10 dark:shadow-blue-400/10"
                         : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-gray-800 hover:text-[#1E293B] dark:hover:text-gray-200"
                     )}
                   >
+                    {isActive && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 rounded-r-full bg-blue-600 dark:bg-blue-500" />
+                    )}
                     <Icon className="w-5 h-5" />
                     {item.label}
                   </Link>
@@ -173,11 +176,11 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
           <div className="m-4 border-t border-slate-100 dark:border-gray-800 pt-4 space-y-3">
             <div className="flex items-center gap-3 rounded-2xl bg-slate-50 dark:bg-gray-800 p-3">
-              <div className="w-10 h-10 rounded-2xl bg-white dark:bg-gray-700 flex items-center justify-center text-blue-700 dark:text-blue-400 font-black text-sm border border-slate-100 dark:border-gray-600 shadow-sm">
-                {user?.name?.charAt(0) || "Dr"}
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 flex items-center justify-center text-blue-800 dark:text-blue-300 font-black text-sm border-2 border-white dark:border-gray-700 shadow-md ring-2 ring-blue-50 dark:ring-blue-900/50">
+                <User className="w-5 h-5 opacity-80" />
               </div>
               <div className="flex min-w-0 flex-col">
-                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight truncate">{user?.name || "Clinician"}</span>
+                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight truncate">{user?.name || "Dr. Maya Patel"}</span>
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold truncate">{user?.email || "clinical@insight-engine.dev"}</span>
               </div>
             </div>

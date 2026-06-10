@@ -221,6 +221,7 @@ function LoginForm({
   onPasswordChange,
   onSubmit,
   onSwitch,
+  onForgotPassword,
   isLoading,
   error,
 }: {
@@ -230,6 +231,7 @@ function LoginForm({
   onPasswordChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onSwitch: () => void;
+  onForgotPassword?: () => void;
   isLoading?: boolean;
   error?: string | null;
 }) {
@@ -266,7 +268,7 @@ function LoginForm({
           <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]" />
           Remember Me
         </label>
-        <button type="button" className="text-left font-bold text-[#2563EB] transition-all duration-200 hover:text-blue-700">
+        <button type="button" onClick={onForgotPassword} className="text-left font-bold text-[#2563EB] transition-all duration-200 hover:text-blue-700">
           Forgot Password
         </button>
       </div>
@@ -559,11 +561,13 @@ function OtpForm({ onVerify, email, devOtp, mode }: { onVerify: () => void; emai
 export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalProps) {
   const [, setLocation] = useLocation();
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  const [step, setStep] = useState<"form" | "otp">("form");
+  const [step, setStep] = useState<"form" | "otp" | "forgot">("form");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [pendingEmail, setPendingEmail] = useState("");
   const [devOtp, setDevOtp] = useState<string | undefined>(undefined);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -574,6 +578,8 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
     setMode(initialMode);
     setStep("form");
     setPendingEmail("");
+    setForgotEmail("");
+    setForgotSent(false);
     setError(null);
     setIsLoading(false);
 
@@ -693,6 +699,20 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
     setLocation("/dashboard");
   };
 
+  const handleForgotPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setIsLoading(true);
+    try {
+      await ApiClient.post("/api/auth/forgot-password", { email: forgotEmail });
+      setForgotSent(true);
+    } catch (err: any) {
+      setError(err.message || "Failed to send reset email. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div ref={modalRef} className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/50 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="auth-title">
       <motion.div
@@ -714,7 +734,78 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
           </button>
 
           <div className="w-full max-w-md">
-            {step === "form" ? (
+            {step === "forgot" ? (
+              <motion.div key="forgot" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
+                <div className="text-center">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-[#2563EB]">
+                    <LockKeyhole className="h-8 w-8" aria-hidden="true" />
+                  </div>
+                  <h2 className="mt-6 text-3xl font-black tracking-tight text-[#1E293B]">Forgot Password</h2>
+                  <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
+                    {forgotSent
+                      ? "If an account exists with that email, a reset link has been sent. Check your inbox and follow the instructions."
+                      : "Enter your email address and we'll send you a link to reset your password."}
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+                    {error}
+                  </div>
+                )}
+
+                {forgotSent ? (
+                  <div className="mt-8 rounded-2xl border border-green-200 bg-green-50 p-6 text-center">
+                    <CheckCircle2 className="mx-auto h-12 w-12 text-green-600" aria-hidden="true" />
+                    <p className="mt-3 text-base font-bold text-green-800">Reset link sent</p>
+                    <p className="mt-2 text-sm text-green-700">
+                      Please check your email for the password reset link. It expires in 1 hour.
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleForgotPassword} className="mt-8 space-y-5">
+                    <TextInput
+                      icon={Mail}
+                      label="Email Address"
+                      name="forgotEmail"
+                      type="email"
+                      placeholder="clinician@clinic.com"
+                      autoComplete="email"
+                      value={forgotEmail}
+                      onChange={(event) => setForgotEmail(event.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isLoading || !forgotEmail}
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-5 py-4 text-base font-black text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/25 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:scale-100"
+                    >
+                      {isLoading ? (
+                        <>
+                          <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          Send Reset Link
+                          <Mail className="h-5 w-5" aria-hidden="true" />
+                        </>
+                      )}
+                    </button>
+                  </form>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => { setStep("form"); setForgotSent(false); setError(null); }}
+                  className="mt-6 w-full text-center text-sm font-bold text-slate-500 transition-all duration-200 hover:text-[#2563EB]"
+                >
+                  Back to sign in
+                </button>
+              </motion.div>
+            ) : step === "form" ? (
               <motion.div key={mode} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
                 <div className="mb-8">
                   <p className="text-sm font-black uppercase tracking-[0.18em] text-[#2563EB]">
@@ -738,6 +829,7 @@ export function AuthFlowModal({ initialMode, isOpen, onClose }: AuthFlowModalPro
                     onPasswordChange={setLoginPassword}
                     onSubmit={handleSubmit}
                     onSwitch={() => setMode("register")}
+                    onForgotPassword={() => { setStep("forgot"); setForgotEmail(loginEmail); }}
                     isLoading={isLoading}
                     error={error}
                   />

@@ -13,6 +13,14 @@ describe("csvSanitizer", () => {
     );
     expect(sanitizeCsvCell("  +SUM(A1:A2)")).toBe("'  +SUM(A1:A2)");
   });
+
+  it("does not prefix valid numbers or numeric strings", () => {
+    expect(sanitizeCsvCell(-12.5)).toBe("-12.5");
+    expect(sanitizeCsvCell("-12.5")).toBe("-12.5");
+    expect(sanitizeCsvCell(123)).toBe("123");
+    expect(sanitizeCsvCell("123")).toBe("123");
+    expect(sanitizeCsvCell("+123")).toBe("+123");
+  });
 });
 
 describe("assessmentsToCsv", () => {
@@ -26,7 +34,22 @@ describe("assessmentsToCsv", () => {
     ]);
 
     expect(csv).toBe(
-      'patientName,riskCategory,notes\\n"Jane, Doe",\'=HIGH,"Needs ""follow-up"""'
+      'patientName,riskCategory,notes\n"Jane, Doe",\'=HIGH,"Needs ""follow-up"""'
+    );
+  });
+
+  it("serializes objects and arrays as JSON stringified values", () => {
+    const csv = assessmentsToCsv([
+      {
+        patientName: "Jane, Doe",
+        factors: [
+          { name: "Age", impact: "negative", description: "Age over 65" },
+        ],
+      },
+    ]);
+
+    expect(csv).toBe(
+      'patientName,factors\n"Jane, Doe","[{""name"":""Age"",""impact"":""negative"",""description"":""Age over 65""}]"'
     );
   });
 });
