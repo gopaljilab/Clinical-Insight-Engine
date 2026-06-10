@@ -610,7 +610,7 @@ export async function registerRoutes(
         const assessments = await storage.getAssessments(1000, undefined, userEmail);
 
         const csv = assessmentsToCsv(
-          assessments.data as unknown as Record<string, unknown>[]
+          assessments as unknown as Record<string, unknown>[]
         );
 
         res.header("Content-Type", "text/csv");

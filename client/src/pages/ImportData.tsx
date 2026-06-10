@@ -1,12 +1,11 @@
 import { useState, useRef } from "react";
 import Papa from "papaparse";
-import { UploadCloud, CheckCircle, AlertCircle, Loader2, FileText, Download, X, XCircle, ShieldCheck } from "lucide-react";
+import { UploadCloud, CheckCircle, AlertCircle, Loader2, FileText, Download, X } from "lucide-react";
+import { ApiClient } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ApiClient } from "@/lib/apiClient";
 import { AppLayout } from "@/components/layout/AppLayout";
-import type { ImportPreviewRow } from "@/utils/csvImportPreview";
 
 const ACCEPTED_TYPES = ".csv,.xlsx,.xls";
 
@@ -25,33 +24,6 @@ const RISK_COLORS: Record<string, string> = {
   LOW: "bg-emerald-100 text-emerald-700",
 };
 
-function StatusCount({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return (
-    <div className={`rounded-lg border px-3 py-2 ${tone}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide">{label}</p>
-      <p className="text-2xl font-black">{value}</p>
-    </div>
-  );
-}
-
-function RowIssues({ row }: { row: ImportPreviewRow }) {
-  const issues = [...row.errors, ...row.warnings];
-  if (issues.length === 0) return <span className="text-slate-500">Ready to import</span>;
-  return (
-    <ul className="space-y-1">
-      {issues.map((issue) => (
-        <li key={issue} className="flex items-start gap-2">
-          {row.errors.includes(issue) ? (
-            <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-          ) : (
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-          )}
-          <span>{issue}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 const REQUIRED_HEADERS = [
   "patientName","gender","age","hypertension",
