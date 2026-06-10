@@ -534,7 +534,7 @@ out
         .limit(1);
 
       if (!user) {
-        return res.status(404).json({ message: "No account found with this email." });
+        return res.json({ success: true, message: "If an account exists, a reset link has been sent." });
       }
 
       const token = randomBytes(32).toString("hex");
