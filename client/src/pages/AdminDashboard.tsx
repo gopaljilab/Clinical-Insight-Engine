@@ -61,9 +61,10 @@ function StatusBadge({ active, verified }: { active: boolean; verified: boolean 
   return <Badge variant="secondary">Unverified</Badge>;
 }
 
-function UsersTab() {
+function UsersTab({ active }: { active: boolean }) {
   const { data, isLoading, refetch } = useQuery<{ data: User[]; total: number }>({
     queryKey: ["/api/admin/users"],
+    enabled: active,
     queryFn: async () => {
       const res = await fetch("/api/admin/users", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch users");
@@ -166,9 +167,10 @@ function UsersTab() {
   );
 }
 
-function AuditLogsTab() {
+function AuditLogsTab({ active }: { active: boolean }) {
   const { data, isLoading } = useQuery<{ data: AuditLog[]; total: number }>({
     queryKey: ["/api/admin/audit-logs"],
+    enabled: active,
     queryFn: async () => {
       const res = await fetch("/api/admin/audit-logs", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch audit logs");
@@ -235,9 +237,10 @@ function AuditLogsTab() {
   );
 }
 
-function StatsTab() {
+function StatsTab({ active }: { active: boolean }) {
   const { data, isLoading } = useQuery<SystemStats>({
     queryKey: ["/api/admin/stats"],
+    enabled: active,
     queryFn: async () => {
       const res = await fetch("/api/admin/stats", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch stats");
@@ -320,9 +323,9 @@ export default function AdminDashboard() {
 
         <Card>
           <CardContent className="pt-6">
-            {tab === "users" && <UsersTab />}
-            {tab === "audit" && <AuditLogsTab />}
-            {tab === "stats" && <StatsTab />}
+            {tab === "users" && <UsersTab active />}
+            {tab === "audit" && <AuditLogsTab active />}
+            {tab === "stats" && <StatsTab active />}
           </CardContent>
         </Card>
       </div>
