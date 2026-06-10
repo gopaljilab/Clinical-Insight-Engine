@@ -4,7 +4,7 @@ import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
 import type { Express } from "express";
 import type { Server } from "http";
-import authRouter from "./routes/auth.routes";
+
 import assessmentsRouter from "./routes/assessments.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
@@ -42,7 +42,76 @@ async function seedDatabase() {
     logger.warn("[DEV] Using default admin credentials. Set ADMIN_EMAIL and ADMIN_PASSWORD env vars for production.");
   }
 
-  const existingAdmin = await storage.getUserByEmail(email);
+  return pythonPredictionSchema.parse(parsed);
+}
+
+function canonicalStringify(obj: unknown): string {
+  if (obj === null || typeof obj !== "object") {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return "[" + obj.map(canonicalStringify).join(",") + "]";
+  }
+  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  const pairs = keys.map((k) => JSON.stringify(k) + ":" + canonicalStringify((obj as Record<string, unknown>)[k]));
+  return "{" + pairs.join(",") + "}";
+}
+
+function generateRequestFingerprint(payload: unknown, userId: string): string {
+  const uid = userId || "anonymous";
+  return createHash("sha256")
+    .update(`${uid}::${canonicalStringify(payload)}`)
+    .digest("hex");
+}
+
+// ESM-compatible path resolution for analyze.py
+// Resolve relative to this source file, not process.cwd()
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
+
+/**
+ * Rate limiter for the ML assessment endpoint.
+ * Limits to 5 requests per minute per IP to prevent DoS attacks.
+ */
+const assessmentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  limit: 5, // 5 requests per IP per window
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many assessment requests. Please try again later.",
+    retryAfter: 60, // seconds
+  },
+});
+
+const previewLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many assessment preview requests. Please try again later.",
+    retryAfter: 60,
+  },
+});
+
+export function getPythonExecutable() {
+  const candidates = process.platform === "win32"
+    ? [
+        path.resolve(".venv", "Scripts", "python.exe"),
+        path.resolve("venv", "Scripts", "python.exe")
+      ]
+    : [
+        path.resolve(".venv", "bin", "python"),
+        path.resolve("venv", "bin", "python")
+      ];
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? "python3";
+}
+
+async function seedDatabase() {
+  const existingAdmin = await storage.getUserByEmail("admin@clinical-insight-engine.dev");
   if (!existingAdmin) {
     const adminPasswordHash = bcrypt.hashSync(password, 10);
     await storage.createUser({
@@ -142,6 +211,7 @@ interface PredictionResult {
 
 function calculateClinicalFallback(input: any): PredictionResult {
   let points = 0;
+
   const factors: Array<{ name: string; impact: "positive" | "negative"; description: string }> = [];
 
   const age = Number(input.age) || 0;
@@ -327,6 +397,10 @@ export async function registerRoutes(
       logger.error({ err }, "Admin user update error:");
       res.status(500).json({ message: "Failed to update user." });
     }
+  );
+
+  return httpServer;
+}
   });
 
   app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
@@ -336,6 +410,90 @@ export async function registerRoutes(
     } catch (err) {
       logger.error({ err }, "Admin stats fetch error:");
       res.status(500).json({ message: "Failed to fetch system stats." });
+    }
+  });
+
+  // ─── Model Monitoring Routes ──────────────────────────────────────
+
+  app.get("/api/admin/model/versions", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const versions = await storage.getModelVersions();
+      res.json(versions);
+    } catch (err) {
+      logger.error({ err }, "Admin model versions fetch error:");
+      res.status(500).json({ message: "Failed to fetch model versions." });
+    }
+  });
+
+  app.get("/api/admin/model/versions/latest", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const latest = await storage.getLatestModelVersion();
+      res.json(latest ?? null);
+    } catch (err) {
+      logger.error({ err }, "Admin latest model version fetch error:");
+      res.status(500).json({ message: "Failed to fetch latest model version." });
+    }
+  });
+
+  app.get("/api/admin/model/dataset-stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = await storage.getModelDatasetStats();
+      res.json(stats ?? { classBalance: {}, featureStats: {}, totalSamples: 0 });
+    } catch (err) {
+      logger.error({ err }, "Admin dataset stats fetch error:");
+      res.status(500).json({ message: "Failed to fetch dataset stats." });
+    }
+  });
+
+  app.post("/api/admin/model/retrain", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        getPythonExecutable(),
+        [analyzePyPath, "train_and_evaluate"],
+        { timeout: 120000, env: { ...process.env, PYTHONIOENCODING: "utf-8" } }
+      );
+
+      if (stderr) {
+        logger.warn({ stderr }, "Model retrain stderr:");
+      }
+
+      const lines = stdout.trim().split("\n").filter(Boolean);
+      const jsonLine = lines.find((l: string) => l.startsWith("{"));
+      if (!jsonLine) {
+        logger.error({ stdout, stderr }, "Model retrain no JSON output");
+        return res.status(500).json({ message: "Retrain produced no valid output." });
+      }
+
+      const metrics = JSON.parse(jsonLine);
+
+      if (metrics.error) {
+        return res.status(500).json({ message: metrics.error });
+      }
+
+      const previousVersion = await storage.getLatestModelVersion();
+      const nextVersion = (previousVersion?.version ?? 0) + 1;
+
+      const record = await storage.createModelVersion({
+        version: nextVersion,
+        accuracy: metrics.accuracy,
+        precision: metrics.precision,
+        recall: metrics.recall,
+        f1Score: metrics.f1_score,
+        aucRoc: metrics.auc_roc,
+        datasetHash: metrics.dataset_hash,
+        numSamples: metrics.num_samples,
+        numFeatures: metrics.num_features,
+        classBalance: metrics.class_balance,
+        featureDistributions: metrics.feature_distributions,
+        trainingDurationMs: metrics.training_duration_ms,
+        status: "completed",
+      });
+
+      logger.info(`Model retrained: version ${nextVersion}, accuracy ${metrics.accuracy}`);
+      res.json(record);
+    } catch (err: any) {
+      logger.error({ err }, "Admin model retrain error:");
+      res.status(500).json({ message: err.stderr || "Model retraining failed." });
     }
   });
 
