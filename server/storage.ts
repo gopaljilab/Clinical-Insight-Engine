@@ -84,6 +84,87 @@ export class DatabaseStorage implements IStorage {
   private userRepository = new UserRepository();
   private auditRepository = new AuditRepository();
   private analyticsRepository = new AnalyticsRepository();
+  private modelVersionRepository = new ModelVersionRepository();
+  private patientUserRepository = new PatientUserRepository();
+
+  // Alias properties for backwards compatibility
+  private get assessmentRepo() { return this.assessmentRepository; }
+  private get userRepo() { return this.userRepository; }
+  private get auditRepo() { return this.auditRepository; }
+  private get analyticsRepo() { return this.analyticsRepository; }
+  private get modelVersionRepo() { return this.modelVersionRepository; }
+  private get patientUserRepo() { return this.patientUserRepository; }
+
+  async getAssessments(
+    limitOrParams?: number | {
+      limit?: number;
+      page?: number;
+      cursor?: number;
+      createdBy?: string;
+      sortBy?: string;
+      order?: "asc" | "desc";
+      searchTerm?: string;
+      riskCategory?: string;
+      gender?: string;
+      minAge?: number;
+      maxAge?: number;
+      startDate?: string;
+      endDate?: string;
+    },
+    cursor?: number,
+    createdBy?: string
+  ): Promise<{
+    data: Assessment[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    nextCursor: number | null;
+  }> {
+    return this.assessmentRepo.getAssessments(limitOrParams, cursor, createdBy);
+  }
+
+  async searchAssessments(
+    searchTerm: string,
+    createdBy?: string,
+    riskCategory?: RiskCategory,
+    limit?: number,
+    cursor?: number
+  ): Promise<{ data: Assessment[]; nextCursor: number | null }> {
+    return this.assessmentRepo.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor);
+  }
+
+  async getAssessmentById(id: number): Promise<Assessment | undefined> {
+    return this.assessmentRepo.getAssessmentById(id);
+  }
+
+  async createAssessment(assessment: any): Promise<Assessment> {
+    return this.assessmentRepo.createAssessment(assessment);
+  }
+
+  async deleteAssessment(id: number): Promise<void> {
+    return this.assessmentRepo.deleteAssessment(id);
+  }
+
+  async autocompletePatientNames(query: string, createdBy?: string, limit?: number): Promise<string[]> {
+    return this.assessmentRepo.autocompletePatientNames(query, createdBy, limit);
+  }
+
+  async createUser(data: InsertUser): Promise<User> {
+    return this.userRepo.createUser(data);
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return this.userRepo.getUserByEmail(email);
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    return this.userRepo.getUserById(id);
+  }
+
+  async getAllUsers(page: number, limit: number): Promise<{ data: User[]; total: number }> {
+    return this.userRepo.getAllUsers(page, limit);
+  }
 
   async updateUser(id: string, data: Partial<Pick<User, "isActive" | "role">>): Promise<User> {
     return this.userRepo.updateUser(id, data);
