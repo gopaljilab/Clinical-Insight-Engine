@@ -188,47 +188,47 @@ export default function MyHealth() {
     const sa = selectedAssessment;
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-        <div className="mx-auto max-w-4xl p-6">
-          <Button variant="ghost" onClick={() => setSelectedAssessment(null)} className="mb-4">
-            <ChevronLeft className="mr-2 h-4 w-4" /> Back to my health
+        <div className="mx-auto max-w-4xl px-4 py-4 sm:p-6">
+          <Button variant="ghost" onClick={() => setSelectedAssessment(null)} className="mb-4 min-h-[44px] min-w-[44px]">
+            <ChevronLeft className="mr-2 h-5 w-5" /> Back to my health
           </Button>
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-2xl">Assessment #{sa.id}</CardTitle>
-                <Button variant="outline" size="sm" onClick={() => handleDownloadPdf(sa)}>
-                  <Download className="mr-2 h-4 w-4" /> PDF
+            <CardHeader className="px-4 sm:px-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <CardTitle className="text-xl sm:text-2xl">Assessment #{sa.id}</CardTitle>
+                <Button variant="outline" size="sm" onClick={() => handleDownloadPdf(sa)} className="min-h-[44px] self-start sm:self-auto">
+                  <Download className="mr-2 h-5 w-5" /> PDF
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                <div className="rounded-lg bg-gray-50 p-3">
+            <CardContent className="px-4 sm:px-6 space-y-6">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
                   <p className="text-xs text-gray-500">Date</p>
-                  <p className="font-medium">{formatDate(sa.createdAt)}</p>
+                  <p className="font-medium text-sm sm:text-base">{formatDate(sa.createdAt)}</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3">
+                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
                   <p className="text-xs text-gray-500">Risk Score</p>
-                  <p className="font-medium">{sa.riskScore.toFixed(1)}%</p>
+                  <p className="font-medium text-sm sm:text-base">{sa.riskScore.toFixed(1)}%</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3">
+                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
                   <p className="text-xs text-gray-500">Category</p>
-                  <Badge className={riskColor(sa.riskCategory)}>{sa.riskCategory}</Badge>
+                  <Badge className={riskColor(sa.riskCategory) + " text-xs sm:text-sm"}>{sa.riskCategory}</Badge>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3">
+                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
                   <p className="text-xs text-gray-500">Age/Gender</p>
-                  <p className="font-medium">{sa.age} / {sa.gender}</p>
+                  <p className="font-medium text-sm sm:text-base">{sa.age} / {sa.gender}</p>
                 </div>
               </div>
 
-              <div className="rounded-lg border bg-green-50 p-4">
-                <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-green-800">
-                  <Heart className="h-4 w-4" /> Your Health Advice
+              <div className="rounded-lg border bg-green-50 p-4 sm:p-5">
+                <h3 className="mb-2 flex items-center gap-2 text-sm sm:text-base font-semibold text-green-800">
+                  <Heart className="h-5 w-5" /> Your Health Advice
                 </h3>
-                <ul className="space-y-1">
+                <ul className="space-y-1.5">
                   {getPatientAdvice(sa).map((a, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-green-700">
-                      <span className="mt-1 block h-1.5 w-1.5 rounded-full bg-green-500" />
+                    <li key={i} className="flex items-start gap-2 text-sm sm:text-base text-green-700">
+                      <span className="mt-1.5 block h-2 w-2 rounded-full bg-green-500 shrink-0" />
                       {a}
                     </li>
                   ))}
@@ -236,36 +236,36 @@ export default function MyHealth() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-semibold text-gray-700">Key Factors</h3>
+                <h3 className="mb-3 text-sm sm:text-base font-semibold text-gray-700">Key Factors</h3>
                 <div className="space-y-2">
                   {sa.factors.map((f, i) => (
-                    <div key={i} className="flex items-start gap-3 rounded-lg border p-3">
+                    <div key={i} className="flex items-start gap-3 rounded-lg border p-3 sm:p-4">
                       {f.impact === "positive" ? (
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
                       ) : (
-                        <Activity className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                        <Activity className="mt-0.5 h-5 w-5 shrink-0 text-green-500" />
                       )}
                       <div>
-                        <p className="text-sm font-medium">{f.name}</p>
-                        <p className="text-xs text-gray-500">{f.description}</p>
+                        <p className="text-sm sm:text-base font-medium">{f.name}</p>
+                        <p className="text-xs sm:text-sm text-gray-500">{f.description}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                <div className="rounded-lg bg-gray-50 p-3">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
+                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
                   <p className="text-xs text-gray-500">BMI</p>
-                  <p className="font-medium">{sa.bmi}</p>
+                  <p className="font-medium text-sm sm:text-base">{sa.bmi}</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3">
+                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
                   <p className="text-xs text-gray-500">HbA1c</p>
-                  <p className="font-medium">{sa.hba1cLevel}%</p>
+                  <p className="font-medium text-sm sm:text-base">{sa.hba1cLevel}%</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3">
+                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
                   <p className="text-xs text-gray-500">Blood Glucose</p>
-                  <p className="font-medium">{sa.bloodGlucoseLevel} mg/dL</p>
+                  <p className="font-medium text-sm sm:text-base">{sa.bloodGlucoseLevel} mg/dL</p>
                 </div>
               </div>
             </CardContent>
@@ -278,65 +278,69 @@ export default function MyHealth() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
       <header className="border-b bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between p-4">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">My Health Portal</h1>
-            {user && <p className="text-sm text-gray-500">Welcome, {user.patientName}</p>}
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:p-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">My Health Portal</h1>
+            {user && <p className="text-xs sm:text-sm text-gray-500 truncate">Welcome, {user.patientName}</p>}
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            <LogOut className="mr-2 h-4 w-4" /> Sign Out
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="min-h-[44px] shrink-0 ml-2">
+            <LogOut className="mr-2 h-5 w-5" /> <span className="hidden sm:inline">Sign Out</span><span className="sm:hidden">Sign Out</span>
           </Button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl p-6">
+      <main className="mx-auto max-w-6xl px-4 py-4 sm:p-6">
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
         )}
 
-        <Tabs defaultValue="assessments" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="assessments"><FileText className="mr-2 h-4 w-4" /> My Assessments</TabsTrigger>
-            <TabsTrigger value="trends"><Activity className="mr-2 h-4 w-4" /> Risk Trends</TabsTrigger>
-          </TabsList>
+        <Tabs defaultValue="assessments" className="space-y-4 sm:space-y-6">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="assessments" className="min-h-[44px] flex-1 sm:flex-none"><FileText className="mr-2 h-5 w-5" /> My Assessments</TabsTrigger>
+              <TabsTrigger value="trends" className="min-h-[44px] flex-1 sm:flex-none"><Activity className="mr-2 h-5 w-5" /> Risk Trends</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="assessments">
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Assessment History</CardTitle>
+              <CardHeader className="px-4 sm:px-6">
+                <CardTitle className="text-base sm:text-lg">Assessment History</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-0 sm:px-6">
                 {assessments.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-gray-500">No assessments found.</p>
+                  <p className="py-8 text-center text-sm text-gray-500 px-4">No assessments found.</p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Risk Score</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Age</TableHead>
-                        <TableHead className="text-right">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {assessments.map((a) => (
-                        <TableRow key={a.id} className="cursor-pointer hover:bg-gray-50" onClick={() => setSelectedAssessment(a)}>
-                          <TableCell className="text-sm">{formatDate(a.createdAt)}</TableCell>
-                          <TableCell className="font-medium">{a.riskScore.toFixed(1)}%</TableCell>
-                          <TableCell>
-                            <Badge className={riskColor(a.riskCategory)}>{a.riskCategory}</Badge>
-                          </TableCell>
-                          <TableCell>{a.age}</TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadPdf(a); }}>
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="sticky left-0 bg-background z-10">Date</TableHead>
+                          <TableHead>Risk Score</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Age</TableHead>
+                          <TableHead className="text-right">Action</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {assessments.map((a) => (
+                          <TableRow key={a.id} className="cursor-pointer hover:bg-gray-50" onClick={() => setSelectedAssessment(a)}>
+                            <TableCell className="text-sm sticky left-0 bg-white z-10">{formatDate(a.createdAt)}</TableCell>
+                            <TableCell className="font-medium">{a.riskScore.toFixed(1)}%</TableCell>
+                            <TableCell>
+                              <Badge className={riskColor(a.riskCategory)}>{a.riskCategory}</Badge>
+                            </TableCell>
+                            <TableCell>{a.age}</TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadPdf(a); }} className="min-h-[44px] min-w-[44px]">
+                                <Download className="h-5 w-5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -344,21 +348,21 @@ export default function MyHealth() {
 
           <TabsContent value="trends">
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Risk Score Trends</CardTitle>
+              <CardHeader className="px-4 sm:px-6">
+                <CardTitle className="text-base sm:text-lg">Risk Score Trends</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 {trends.length < 2 ? (
                   <p className="py-8 text-center text-sm text-gray-500">
                     {trends.length === 1 ? "One assessment recorded. More data needed for a trend chart." : "No trend data available yet."}
                   </p>
                 ) : (
-                  <div className="h-80">
+                  <div className="h-60 sm:h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={trends.map((t) => ({ ...t, date: formatDate(t.date) }))}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
+                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
                         <Tooltip />
                         <Legend />
                         <Line type="monotone" dataKey="riskScore" stroke="#2563eb" strokeWidth={2} dot={{ r: 4 }} name="Risk Score (%)" />
