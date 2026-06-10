@@ -1,12 +1,11 @@
 import { Queue, Worker, Job } from "bullmq";
 import { storage } from "./storage";
 import IORedis from "ioredis";
-import { execFile } from "child_process";
-import { promisify } from "util";
+import { spawn, execFile } from "child_process";
 import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
-import { writeFile, unlink } from "fs/promises";
+import { writeFile, unlink, readdir, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { sendCriticalRiskAlert } from "./email";
@@ -29,8 +28,6 @@ export function getPythonExecutable() {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
-
-const execFileAsync = promisify(execFile);
 
 let redisConnectionInstance: IORedis | null = null;
 let assessmentQueueInstance: Queue | null = null;
@@ -105,92 +102,82 @@ export function startAssessmentWorker(): void {
     "assessmentQueue",
     async (job: Job) => {
       const { input, userId, userEmail } = job.data;
-      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
 
-      try {
-        await writeFile(tempFile, JSON.stringify(input));
-        const stdout = await new Promise<string>((resolve, reject) => {
-          const child = execFile(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            {
-              timeout: 60000,
-              killSignal: "SIGTERM",
-            },
-            (error, stdout, stderr) => {
-              if (error) {
-                reject(error);
-              } else {
-                resolve(stdout);
-              }
-            }
-          );
-
-          const fallbackTimer = setTimeout(() => {
-            try {
-              child.kill("SIGKILL");
-            } catch (e) {
-              // ignore
-            }
-            reject(new Error("Clinical assessment timed out (forced kill)."));
-          }, 65000);
-
-          child.on("close", () => clearTimeout(fallbackTimer));
+      const stdout = await new Promise<string>((resolve, reject) => {
+        const python = getPythonExecutable();
+        const child = spawn(python, [analyzePyPath, "predict_file"], {
+          timeout: 60000,
+          killSignal: "SIGTERM",
+          stdio: ["pipe", "pipe", "pipe"],
         });
 
-        const prediction = JSON.parse(stdout.trim());
-        if (prediction.error) {
-          throw new Error(prediction.error);
-        }
+        let stdoutData = "";
+        let stderrData = "";
 
-        prediction.disclaimer =
-            "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions.";
+        child.stdout.on("data", (data: Buffer) => { stdoutData += data.toString(); });
+        child.stderr.on("data", (data: Buffer) => { stderrData += data.toString(); });
 
-        const assessment = await storage.createAssessment({
-          ...input,
-          riskScore: Number(prediction.riskScore),
-          riskCategory: prediction.riskCategory,
-          factors: prediction.factors,
-          confidenceInterval: prediction.confidenceInterval ?? null,
-          modelConfidence:
-            prediction.modelConfidence == null
-              ? undefined
-              : Number(prediction.modelConfidence),
-          createdBy: userEmail || userId,
-          userId: userId
-        });
+        child.on("error", (err) => { reject(err); });
 
-        if (prediction.riskCategory === "HIGH" && userEmail) {
-          const alertSent = await sendCriticalRiskAlert(
-            userEmail,
-            input.patientName ?? "Unknown Patient",
-            Number(prediction.riskScore),
-            assessment.id,
-          );
-          if (!alertSent) {
-            logger.error(
-              { assessmentId: assessment.id, userEmail },
-              "Critical risk alert email failed to send",
-            );
+        const fallbackTimer = setTimeout(() => {
+          try { child.kill("SIGKILL"); } catch { }
+          reject(new Error("Clinical assessment timed out (forced kill)."));
+        }, 65000);
+
+        child.on("close", (code) => {
+          clearTimeout(fallbackTimer);
+          if (code === 0) {
+            resolve(stdoutData.trim());
+          } else {
+            reject(new Error(stderrData.trim() || `Process exited with code ${code}`));
           }
-        }
+        });
 
-        return {
-          ...assessment,
-          prediction
-        };
-      } catch (err: any) {
-        if (err.killed || err.signal === "SIGTERM") {
-          throw new Error("Clinical assessment generation timed out.");
-        }
-        throw err;
-      } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {
-          // ignore
+        child.stdin.write(JSON.stringify(input));
+        child.stdin.end();
+      });
+
+      const prediction = JSON.parse(stdout);
+      if (prediction.error) {
+        throw new Error(prediction.error);
+      }
+
+      prediction.disclaimer =
+          "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions.";
+
+      const assessment = await storage.createAssessment({
+        ...input,
+        riskScore: Number(prediction.riskScore),
+        riskCategory: prediction.riskCategory,
+        factors: prediction.factors,
+        confidenceInterval: prediction.confidenceInterval ?? null,
+        modelConfidence:
+          prediction.modelConfidence == null
+            ? undefined
+            : Number(prediction.modelConfidence),
+        createdBy: userEmail || userId,
+        userId: userId
+      });
+
+      if (prediction.riskCategory === "HIGH" && userEmail) {
+        const alertSent = await sendCriticalRiskAlert(
+          userEmail,
+          input.patientName ?? "Unknown Patient",
+          Number(prediction.riskScore),
+          assessment.id,
+        );
+        if (!alertSent) {
+          logger.error(
+            { assessmentId: assessment.id, userEmail },
+            "Critical risk alert email failed to send",
+          );
         }
       }
+
+      return {
+        ...assessment,
+        prediction
+      };
     },
     {
       connection: getRedisConnection() as any,
@@ -201,6 +188,55 @@ export function startAssessmentWorker(): void {
   assessmentWorkerInstance.on("failed", (job: Job | undefined, err: Error) => {
     logger.error({ jobId: job?.id, err }, "Assessment queue job failed");
   });
+}
+
+const ML_TEMP_DIR = process.env.ML_TEMP_DIR || path.join(os.tmpdir(), "clinical-insight-ml");
+const ML_TEMP_CLEANUP_AGE_MINUTES = parseInt(process.env.ML_TEMP_CLEANUP_AGE_MINUTES || "15", 10);
+
+export async function cleanupOrphanedTempFiles(): Promise<number> {
+  try {
+    const dir = ML_TEMP_DIR;
+    if (!existsSync(dir)) return 0;
+    const files = await readdir(dir);
+    const now = Date.now();
+    const maxAge = ML_TEMP_CLEANUP_AGE_MINUTES * 60 * 1000;
+    let cleaned = 0;
+    for (const file of files) {
+      try {
+        const filePath = path.join(dir, file);
+        const stat = await import("fs/promises").then(fs => fs.stat(filePath));
+        if (now - stat.mtimeMs > maxAge) {
+          await unlink(filePath);
+          cleaned++;
+        }
+      } catch {
+      }
+    }
+    if (cleaned > 0) {
+      logger.info({ cleaned, dir }, "Cleaned up orphaned ML temp files");
+    }
+    return cleaned;
+  } catch (err) {
+    logger.error({ err }, "Failed to cleanup orphaned ML temp files");
+    return 0;
+  }
+}
+
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startTempFileCleanup(): void {
+  if (cleanupInterval) return;
+  cleanupInterval = setInterval(() => {
+    cleanupOrphanedTempFiles().catch(() => {});
+  }, ML_TEMP_CLEANUP_AGE_MINUTES * 60 * 1000);
+  cleanupInterval.unref();
+}
+
+export function stopTempFileCleanup(): void {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
 }
 
 export async function closeQueue(): Promise<void> {
@@ -232,4 +268,5 @@ export async function closeQueue(): Promise<void> {
   }
 
   queueAvailable = false;
+  stopTempFileCleanup();
 }
