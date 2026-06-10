@@ -15,12 +15,27 @@ import {
   adminLimiter,
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
-import { MLService } from "./services/mlService";
+import { MLService, generateRequestFingerprint, calculateClinicalFallback } from "./services/mlService";
 import { getAssessmentQueue, getPythonExecutable } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
+import os from "os";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
+import { z } from "zod";
+import { api } from "@shared/routes";
+import { validateDTO } from "./middleware/validateDTO";
+import { assessmentsToCsv } from "./utils/csvExport";
+import { searchQuerySchema } from "./validation/searchValidation";
+import {
+  sanitizeDatabaseError,
+  analyzeSearchInput,
+  logSecurityEvent,
+} from "./security/sqlProtection";
+import { canAccessPatientRecord } from "./services/authz/patient-access";
+import { logAccessAttempt } from "./security/access-audit";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
