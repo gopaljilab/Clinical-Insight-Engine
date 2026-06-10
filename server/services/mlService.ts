@@ -1,74 +1,16 @@
 import { createHash, randomUUID } from "crypto";
-import { execFile, spawn } from "child_process";
-import { existsSync, constants } from "fs";
-import { writeFile, unlink, mkdir, open, chmod } from "fs/promises";
+import { execFile } from "child_process";
+import { existsSync } from "fs";
+import { writeFile, unlink } from "fs/promises";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { logger } from "../logger";
 
+// ESM-compatible path resolution for analyze.py
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
-
-const ML_TEMP_DIR = process.env.ML_TEMP_DIR || path.join(os.tmpdir(), "clinical-insight-ml");
-
-async function ensureSecureTempDir(): Promise<string> {
-  try {
-    await mkdir(ML_TEMP_DIR, { recursive: true, mode: 0o700 });
-  } catch {
-  }
-  return ML_TEMP_DIR;
-}
-
-export async function writeSecureTempFile(data: string): Promise<string> {
-  const dir = await ensureSecureTempDir();
-  const filePath = path.join(dir, `${randomUUID()}.json`);
-  const fd = await open(filePath, "wx", 0o600);
-  try {
-    await fd.writeFile(data, "utf-8");
-  } finally {
-    await fd.close();
-  }
-  return filePath;
-}
-
-function runMlWithStdin(input: unknown): Promise<string> {
-  const python = getPythonExecutable();
-  return new Promise<string>((resolve, reject) => {
-    const child = spawn(python, [analyzePyPath, "predict_file"], {
-      timeout: ML_TIMEOUT_MS,
-      killSignal: "SIGTERM",
-      stdio: ["pipe", "pipe", "pipe"],
-      maxBuffer: 10 * 1024 * 1024,
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (data: Buffer) => { stdout += data.toString(); });
-    child.stderr.on("data", (data: Buffer) => { stderr += data.toString(); });
-
-    child.on("error", (err) => { reject(err); });
-
-    const fallbackTimer = setTimeout(() => {
-      try { child.kill("SIGKILL"); } catch { }
-      reject(new Error("Clinical assessment timed out (forced kill)."));
-    }, ML_TIMEOUT_MS + 5000);
-
-    child.on("close", (code) => {
-      clearTimeout(fallbackTimer);
-      if (code === 0) {
-        resolve(stdout.trim());
-      } else {
-        reject(new Error(stderr.trim() || `Process exited with code ${code}`));
-      }
-    });
-
-    child.stdin.write(JSON.stringify(input));
-    child.stdin.end();
-  });
-}
 
 export class SimpleSemaphore {
   private activeCount = 0;
@@ -297,38 +239,40 @@ export function calculateClinicalFallback(input: unknown): any {
 
 export async function runAssessmentInference(input: unknown): Promise<{ prediction: PredictionResult, isFallback: boolean }> {
   const release = await mlConcurrency.acquire();
-  let tempFilePath: string | null = null;
+  const tempFilePath = path.join(os.tmpdir(), `${randomUUID()}.json`);
 
   try {
-    let stdout: string;
-    try {
-      stdout = await runMlWithStdin(input);
-    } catch (stdinErr: any) {
-      if (stdinErr.message?.includes("timed out") || stdinErr.killed) {
-        throw stdinErr;
-      }
-      tempFilePath = await writeSecureTempFile(JSON.stringify(input));
-      stdout = await new Promise<string>((resolve, reject) => {
-        const child = execFile(
-          getPythonExecutable(),
-          [analyzePyPath, "predict_file", tempFilePath],
-          {
-            timeout: ML_TIMEOUT_MS,
-            killSignal: "SIGTERM",
-            maxBuffer: 10 * 1024 * 1024,
-          },
-          (error, stdout, stderr) => {
-            if (error) reject(error);
-            else resolve(stdout);
+    await writeFile(tempFilePath, JSON.stringify(input));
+
+    const stdout = await new Promise<string>((resolve, reject) => {
+      const child = execFile(
+        getPythonExecutable(),
+        [analyzePyPath, "predict_file", tempFilePath],
+        {
+          timeout: ML_TIMEOUT_MS,
+          killSignal: "SIGTERM",
+          maxBuffer: 10 * 1024 * 1024,
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(stdout);
           }
-        );
-        const fallbackTimer = setTimeout(() => {
-          try { child.kill("SIGKILL"); } catch { }
-          reject(new Error("Clinical assessment timed out (forced kill)."));
-        }, ML_TIMEOUT_MS + 5000);
-        child.on("close", () => clearTimeout(fallbackTimer));
-      });
-    }
+        }
+      );
+
+      const fallbackTimer = setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch (e) {
+          // ignore
+        }
+        reject(new Error("Clinical assessment timed out (forced kill)."));
+      }, ML_TIMEOUT_MS + 5000);
+
+      child.on("close", () => clearTimeout(fallbackTimer));
+    });
 
     const prediction = JSON.parse(stdout.trim());
     if (prediction?.error) {
@@ -342,11 +286,14 @@ export async function runAssessmentInference(input: unknown): Promise<{ predicti
       throw new Error("Clinical assessment timed out.");
     }
     
+    // Use fallback
     return { prediction: calculateClinicalFallback(input), isFallback: true };
   } finally {
     release();
-    if (tempFilePath) {
-      try { await unlink(tempFilePath); } catch { }
+    try {
+      await unlink(tempFilePath);
+    } catch {
+      // ignore
     }
   }
 }
