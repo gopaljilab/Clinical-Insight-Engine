@@ -281,6 +281,17 @@ export type PredictionExplanation = {
   strongestNegative: ExplanationContributor[];
 };
 
+export type AttentionPriority = {
+  factor: string;
+  priority: "high" | "moderate" | "monitor";
+  reason: string;
+  value?: number;
+};
+
+export type AttentionNavigator = {
+  priorities: AttentionPriority[];
+};
+
 export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]> & {
   prediction?: PredictionAdvice & {
     riskScore?: number;

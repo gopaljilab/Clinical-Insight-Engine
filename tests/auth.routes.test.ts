@@ -98,7 +98,7 @@ describe("Auth Router - Resend OTP integration tests", () => {
       expect(pendingOtps.has("expired@clinic.com")).toBe(false);
     });
 
-    it("updates pending OTP and returns devOtp in dev environment on success", async () => {
+    it("updates pending OTP on success and does not leak OTP in response", async () => {
       // Set valid pending OTP
       pendingOtps.set("valid@clinic.com", {
         otp: "111111",
@@ -116,13 +116,13 @@ describe("Auth Router - Resend OTP integration tests", () => {
         expect(res.status).toBe(200);
         expect(res.body).toHaveProperty("success", true);
         expect(res.body).toHaveProperty("pendingEmail", "valid@clinic.com");
-        expect(res.body).toHaveProperty("devOtp"); // returns devOtp in dev mode
+        expect(res.body).not.toHaveProperty("devOtp"); // OTP must never leak in response
         expect(mockSendVerificationCode).toHaveBeenCalledTimes(1);
 
         // Verify pending OTP is updated
         const updated = pendingOtps.get("valid@clinic.com");
         expect(updated).toBeDefined();
-        expect(updated?.otp).toBe(res.body.devOtp);
+        expect(updated?.otp).not.toBe("111111");
       } finally {
         process.env.NODE_ENV = originalEnv;
       }
@@ -193,7 +193,7 @@ describe("Auth Router - Resend OTP integration tests", () => {
         expect(res.status).toBe(200);
         expect(res.body).toHaveProperty("success", true);
         expect(res.body).toHaveProperty("pendingEmail", "unverified@clinic.com");
-        expect(res.body).toHaveProperty("devOtp");
+        expect(res.body).not.toHaveProperty("devOtp"); // OTP must never leak in response
         expect(mockSendVerificationCode).toHaveBeenCalledTimes(1);
       } finally {
         process.env.NODE_ENV = originalEnv;
