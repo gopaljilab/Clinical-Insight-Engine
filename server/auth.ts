@@ -212,6 +212,87 @@ async function establishAuthenticatedSession(
  * in-memory store during initial registration). All users must complete OTP
  * verification to establish an authenticated session.
  */
+/**
+ * Normalised identity returned by getAuthenticatedUser().
+ */
+export interface AuthenticatedUser {
+  userId: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  authMethod: "session" | "jwt";
+}
+
+/**
+ * Unified identity resolver that accepts either a session cookie or a
+ * JWT bearer token and returns a normalised AuthenticatedUser after
+ * checking the account's isActive flag in the database.
+ */
+export async function getAuthenticatedUser(
+  req: Request,
+): Promise<AuthenticatedUser | null> {
+  if (req.session?.user) {
+    const sessionUser = req.session.user;
+    const dbUser = await storage.getUserById(sessionUser.id);
+    if (!dbUser || dbUser.isActive === false) {
+      return null;
+    }
+    return {
+      userId: dbUser.id,
+      email: dbUser.email,
+      role: dbUser.role ?? "provider",
+      isActive: dbUser.isActive ?? true,
+      authMethod: "session",
+    };
+  }
+
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const parts = authHeader.split(" ");
+    if (parts.length === 2 && parts[0].toLowerCase() === "bearer") {
+      const token = parts[1];
+      if (token && token.includes(".")) {
+        const { verifyToken } = await import("./services/auth/tokenValidator");
+        const result = verifyToken(token);
+        if (result.valid) {
+          const email = result.payload.email;
+          if (email) {
+            const dbUser = await storage.getUserByEmail(email);
+            if (dbUser && dbUser.isActive !== false) {
+              return {
+                userId: dbUser.id,
+                email: dbUser.email,
+                role: dbUser.role ?? "provider",
+                isActive: dbUser.isActive ?? true,
+                authMethod: "jwt",
+              };
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Unified middleware that enforces authentication via session OR JWT,
+ * normalises identity, and checks account active status.
+ */
+export async function requireAnyAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    const authUser = await getAuthenticatedUser(req);
+    if (!authUser) {
+      return res.status(401).json({ message: "Authentication required." });
+    }
+    (req as any).authenticatedUser = authUser;
+    next();
+  } catch {
+    return res.status(500).json({ message: "Authentication check failed." });
+  }
+}
+
 export function createAuthRouter(): Router {
   const router = Router();
 
