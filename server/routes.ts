@@ -28,8 +28,11 @@ import os from "os";
 import { randomUUID } from "crypto";
 import { writeFile, unlink } from "fs/promises";
 import { z } from "zod";
-import { assessmentExportQuerySchema } from "./validation/searchValidation";
+import { assessmentExportQuerySchema, searchQuerySchema } from "./validation/searchValidation";
 import { assessmentsToCsv } from "./utils/csvExport";
+import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
+import { canAccessPatientRecord } from "./services/authz/patient-access";
+import { logAccessAttempt } from "./security/access-audit";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
