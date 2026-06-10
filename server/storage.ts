@@ -1,10 +1,15 @@
-import { loginAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser } from "@shared/schema";
+import { loginAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser, type ModelVersion, type InsertModelVersion, type InsertPatientUser, type PatientUser } from "@shared/schema";
+import { assessments, users } from "@shared/schema";
+import { getDb } from "./db";
+import { eq, desc, and, or, ilike } from "drizzle-orm";
 import type { RiskCategory } from "./validation/searchValidation";
 
 import { UserRepository } from "./repositories/user.repository";
 import { AssessmentRepository } from "./repositories/assessment.repository";
 import { AuditRepository } from "./repositories/audit.repository";
 import { AnalyticsRepository } from "./repositories/analytics.repository";
+import { ModelVersionRepository } from "./repositories/model-version.repository";
+import { PatientUserRepository } from "./repositories/patient-user.repository";
 
 export interface IStorage {
   getAssessments(
@@ -33,15 +38,6 @@ export interface IStorage {
     totalPages: number;
     nextCursor: number | null;
   }>;
-  /**
-   * Searches assessments by patient name, risk category, and other fields.
-   * Uses Drizzle ORM ilike()/eq() — user input is NEVER interpolated into SQL strings.
-   *
-   * FIX for Issue #744: now searches patientName via ilike() so queries for a
-   * specific patient name will correctly return only that patient's records.
-   * Results are always scoped to `createdBy` (the requesting user's email) to
-   * prevent cross-patient data leakage at the database layer.
-   */
   searchAssessments(
     searchTerm: string,
     createdBy?: string,
@@ -52,6 +48,7 @@ export interface IStorage {
   getAssessmentById(id: number): Promise<Assessment | undefined>;
   createAssessment(assessment: any): Promise<Assessment>;
   deleteAssessment(id: number): Promise<void>;
+  autocompletePatientNames(query: string, createdBy?: string, limit?: number): Promise<string[]>;
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
@@ -61,6 +58,16 @@ export interface IStorage {
   getSystemStats(): Promise<{ totalUsers: number; totalAssessments: number; riskDistribution: { category: string; count: number }[]; }>;
   recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }): Promise<void>;
   getAnalyticsStats(createdBy?: string): Promise<any>;
+  getModelVersions(): Promise<ModelVersion[]>;
+  getLatestModelVersion(): Promise<ModelVersion | undefined>;
+  createModelVersion(data: InsertModelVersion): Promise<ModelVersion>;
+  getModelDatasetStats(): Promise<{ classBalance: Record<string, number>; featureStats: Record<string, { mean: number; std: number }>; totalSamples: number } | null>;
+  getPatientUserByEmail(email: string): Promise<PatientUser | undefined>;
+  getPatientUserByPatientName(patientName: string): Promise<PatientUser | undefined>;
+  getPatientUserById(id: string): Promise<PatientUser | undefined>;
+  createPatientUser(data: InsertPatientUser): Promise<PatientUser>;
+  getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number): Promise<{ data: Assessment[]; total: number }>;
+  getPatientTrends(patientName: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
@@ -73,64 +80,109 @@ export type AssessmentCreateInput = InsertAssessment & {
 };
 
 export class DatabaseStorage implements IStorage {
-
   private assessmentRepository = new AssessmentRepository();
   private userRepository = new UserRepository();
   private auditRepository = new AuditRepository();
   private analyticsRepository = new AnalyticsRepository();
+  private modelVersionRepository = new ModelVersionRepository();
+  private patientUserRepository = new PatientUserRepository();
 
   getAssessments(limitOrParams?: number | Parameters<AssessmentRepository["getAssessments"]>[0], cursor?: number, createdBy?: string) { return this.assessmentRepository.getAssessments(limitOrParams, cursor, createdBy); }
-  
-  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: RiskCategory, limit?: number, cursor?: number) { 
-    return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor); 
+
+  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: RiskCategory, limit?: number, cursor?: number) {
+    return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor);
   }
-  
-  async getAssessmentById(id: number) { 
-    return this.assessmentRepository.getAssessmentById(id); 
+
+  async getAssessmentById(id: number) {
+    return this.assessmentRepository.getAssessmentById(id);
   }
-  
-  async createAssessment(assessment: any) { 
-    return this.assessmentRepository.createAssessment(assessment); 
+
+  async createAssessment(assessment: AssessmentCreateInput) {
+    return this.assessmentRepository.createAssessment(assessment);
   }
-  
+
   async deleteAssessment(id: number) {
     return this.assessmentRepository.deleteAssessment(id);
   }
-  
-  async createUser(data: InsertUser) { 
-    return this.userRepository.createUser(data); 
-  }
-  
-  async getUserByEmail(email: string) { 
-    return this.userRepository.getUserByEmail(email); 
-  }
-  
-  async getUserById(id: string) { 
-    return this.userRepository.getUserById(id); 
-  }
-  
-  async getAllUsers(page: number, limit: number) { 
-    return this.userRepository.getAllUsers(page, limit); 
-  }
-  
-  async updateUser(id: string, data: Partial<Pick<User, "isActive" | "role">>) { 
-    return this.userRepository.updateUser(id, data); 
+
+  async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {
+    return this.assessmentRepository.autocompletePatientNames(query, createdBy, limit);
   }
 
-  async getLoginAuditLogs(page: number, limit: number) { 
-    return this.auditRepository.getLoginAuditLogs(page, limit); 
-  }
-  
-  async recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }) { 
-    return this.auditRepository.recordLoginAudit(params); 
+  async createUser(data: InsertUser) {
+    return this.userRepository.createUser(data);
   }
 
-  async getSystemStats() { 
-    return this.analyticsRepository.getSystemStats(); 
+  async getUserByEmail(email: string) {
+    return this.userRepository.getUserByEmail(email);
   }
-  
-  async getAnalyticsStats(createdBy?: string) { 
-    return this.analyticsRepository.getAnalyticsStats(createdBy); 
+
+  async getUserById(id: string) {
+    return this.userRepository.getUserById(id);
+  }
+
+  async getAllUsers(page: number, limit: number) {
+    return this.userRepository.getAllUsers(page, limit);
+  }
+
+  async updateUser(id: string, data: Partial<Pick<User, "isActive" | "role">>) {
+    return this.userRepository.updateUser(id, data);
+  }
+
+  async recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }) {
+    return this.auditRepository.recordLoginAudit(params);
+  }
+
+  async getLoginAuditLogs(page: number, limit: number) {
+    return this.auditRepository.getLoginAuditLogs(page, limit);
+  }
+
+  async getSystemStats() {
+    return this.analyticsRepository.getSystemStats();
+  }
+
+  async getAnalyticsStats(createdBy?: string) {
+    return this.analyticsRepository.getAnalyticsStats(createdBy);
+  }
+
+  async getModelVersions(): Promise<ModelVersion[]> {
+    return this.modelVersionRepository.findAll();
+  }
+
+  async getLatestModelVersion(): Promise<ModelVersion | undefined> {
+    return this.modelVersionRepository.findLatest();
+  }
+
+  async createModelVersion(data: InsertModelVersion): Promise<ModelVersion> {
+    return this.modelVersionRepository.create(data);
+  }
+
+  async getModelDatasetStats() {
+    return this.modelVersionRepository.getDatasetStats();
+  }
+
+  async getPatientUserByEmail(email: string): Promise<PatientUser | undefined> {
+    return this.patientUserRepository.findByEmail(email);
+  }
+
+  async getPatientUserByPatientName(patientName: string): Promise<PatientUser | undefined> {
+    return this.patientUserRepository.findByPatientName(patientName);
+  }
+
+  async getPatientUserById(id: string): Promise<PatientUser | undefined> {
+    return this.patientUserRepository.findById(id);
+  }
+
+  async createPatientUser(data: InsertPatientUser): Promise<PatientUser> {
+    return this.patientUserRepository.create(data);
+  }
+
+  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number) {
+    return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset);
+  }
+
+  async getPatientTrends(patientName: string) {
+    return this.assessmentRepository.getPatientTrends(patientName);
   }
 }
 

@@ -37,7 +37,6 @@ export const HealthBadges: FC<HealthBadgesProps> = ({
   description,
 }) => {
   return (
-    <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
     <div className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-sm">
       <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -76,6 +75,7 @@ export const HealthBadges: FC<HealthBadgesProps> = ({
               </div>
             </div>
           ))}
+        </div>
         </div>
       ) : (
         <TooltipProvider delayDuration={200}>

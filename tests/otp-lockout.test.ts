@@ -89,9 +89,7 @@ describe("OTP Brute-Force Lockout Integration", () => {
     expect(loginRes.body.success).toBe(true);
     expect(loginRes.body.pendingEmail).toBe("doc@example.com");
     
-    // In development/test mode, the devOtp is returned in the body
-    const correctOtp = loginRes.body.devOtp;
-    expect(correctOtp).toBeDefined();
+    // OTP is never leaked in the response — only sent via email / dev log
 
     // 2. First failed attempt: should return 401 with 2 attempts remaining
     const fail1 = await request(app)

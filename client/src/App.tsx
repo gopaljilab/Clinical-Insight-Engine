@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -11,6 +12,8 @@ import History from "./pages/History";
 import Analytics from "./pages/Analytics";
 import ImportData from "./pages/ImportData";
 import AdminDashboard from "./pages/AdminDashboard";
+import ModelMonitoring from "./pages/ModelMonitoring";
+import ProgressTracking from "./pages/ProgressTracking";
 
 import LoginPage from "./pages/LoginPage";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -18,6 +21,7 @@ import ResetPassword from "./pages/ResetPassword";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import "./i18n";
 
 function Router() {
   return (
@@ -48,6 +52,16 @@ function Router() {
           <AdminDashboard />
         </ProtectedRoute>
       </Route>
+      <Route path="/admin/model-monitoring">
+        <ProtectedRoute requireAdmin>
+          <ModelMonitoring />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/progress">
+        <ProtectedRoute>
+          <ProgressTracking />
+        </ProtectedRoute>
+      </Route>
       <Route path="/login" component={LoginPage} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
@@ -63,7 +77,9 @@ function App() {
       <TooltipProvider>
         <Toaster />
         <ErrorBoundary>
-          <Router />
+          <Suspense fallback={null}>
+            <Router />
+          </Suspense>
         </ErrorBoundary>
       </TooltipProvider>
     </QueryClientProvider>

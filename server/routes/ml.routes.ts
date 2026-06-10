@@ -6,11 +6,12 @@ import { randomUUID } from "crypto";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService, getPythonExecutable } from "../services/mlService";
+import { MLService, getPythonExecutable, calculateClinicalFallback } from "../services/mlService";
 import { validateDTO } from "../middleware/validateDTO";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { logAccessAttempt } from "../security/access-audit";
+import { mlLimiter } from "../middleware/rateLimit";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,6 +60,7 @@ mlRouter.post(
   "/bulk",
   requireAuth,
   requireVerified,
+  mlLimiter,
   validateDTO(z.object({ assessments: z.array(api.assessments.create.input) })),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
@@ -89,8 +91,12 @@ mlRouter.post(
         if (!Array.isArray(predictions)) {
           throw new Error("Expected array of predictions");
         }
-      } catch {
-        return res.status(500).json({ message: "Bulk ML processing failed or timed out." });
+      } catch (error: any) {
+        logger.warn(
+          "Python prediction bulk failed or timed out, running clinical rule-based fallback:",
+          error
+        );
+        predictions = calculateClinicalFallback(input);
       }
 
       const createdAssessments = await Promise.all(
