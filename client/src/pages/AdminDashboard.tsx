@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/EmptyState";
+import { useToast } from "@/hooks/use-toast";
 
 type Tab = "users" | "audit" | "stats";
 
@@ -60,7 +62,7 @@ function StatusBadge({ active, verified }: { active: boolean; verified: boolean 
 }
 
 function UsersTab() {
-  const { data, isLoading } = useQuery<{ data: User[]; total: number }>({
+  const { data, isLoading, refetch } = useQuery<{ data: User[]; total: number }>({
     queryKey: ["/api/admin/users"],
     queryFn: async () => {
       const res = await fetch("/api/admin/users", { credentials: "include" });
@@ -68,17 +70,35 @@ function UsersTab() {
       return res.json();
     },
   });
+  const { toast } = useToast();
 
   const handleToggleActive = async (userId: string, currentActive: boolean) => {
     try {
-      await fetch(`/api/admin/users/${userId}`, {
+      const res = await fetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ isActive: !currentActive }),
       });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast({
+          title: "Update failed",
+          description: body?.message || `Server returned ${res.status}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({ title: "User updated", description: "User status changed successfully." });
+      refetch();
     } catch (err) {
-      console.error("Failed to update user:", err);
+      toast({
+        title: "Network error",
+        description: err instanceof Error ? err.message : "Failed to reach server",
+        variant: "destructive",
+      });
     }
   };
 
@@ -87,6 +107,16 @@ function UsersTab() {
       <div className="flex justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
+    );
+  }
+
+  if (data?.data.length === 0) {
+    return (
+      <EmptyState
+        icon={Users}
+        title="No Users Found"
+        description="There are currently no users in the system."
+      />
     );
   }
 
@@ -151,6 +181,16 @@ function AuditLogsTab() {
       <div className="flex justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
+    );
+  }
+
+  if (data?.data.length === 0) {
+    return (
+      <EmptyState
+        icon={Shield}
+        title="No Audit Logs"
+        description="There are currently no security audit logs recorded."
+      />
     );
   }
 

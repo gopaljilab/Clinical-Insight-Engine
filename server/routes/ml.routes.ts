@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logger } from "../logger";
 import { z } from "zod";
 import os from "os";
 import path from "path";
@@ -7,11 +8,12 @@ import { writeFile, unlink } from "fs/promises";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService, getPythonExecutable } from "../services/mlService";
+import { MLService, getPythonExecutable, calculateClinicalFallback } from "../services/mlService";
 import { validateDTO } from "../middleware/validateDTO";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { fileURLToPath } from "url";
+import { mlLimiter } from "../middleware/rateLimit";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -24,6 +26,7 @@ mlRouter.post(
   "/bulk",
   requireAuth,
   requireVerified,
+  mlLimiter,
   validateDTO(z.object({ assessments: z.array(api.assessments.create.input) })),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
@@ -31,7 +34,6 @@ mlRouter.post(
       return res.status(401).json({ message: "Authentication required." });
     }
 
-    let tempFilePath: string | null = null;
     let requestFingerprint: string | null = null;
 
     try {
@@ -43,23 +45,19 @@ mlRouter.post(
       }
       MLService.activeInferenceRequests.add(requestFingerprint);
 
-      tempFilePath = path.join(os.tmpdir(), `bulk_${randomUUID()}.json`);
-      await writeFile(tempFilePath, JSON.stringify(input));
-
       let predictions: any[];
       try {
-        const { stdout } = await execFileAsync(
-          getPythonExecutable(),
-          [analyzePyPath, "predict_file", tempFilePath],
-          { timeout: 60000, maxBuffer: 50 * 1024 * 1024 }
-        );
-
-        predictions = JSON.parse(stdout.trim());
+        const { prediction } = await MLService.runAssessmentInference(input);
+        predictions = prediction as any;
         if (!Array.isArray(predictions)) {
           throw new Error("Expected array of predictions");
         }
       } catch (error: any) {
-        return res.status(500).json({ message: "Bulk ML processing failed or timed out." });
+        logger.warn(
+          "Python prediction bulk failed or timed out, running clinical rule-based fallback:",
+          error
+        );
+        predictions = calculateClinicalFallback(input);
       }
 
       const createdAssessments = await Promise.all(
@@ -82,12 +80,9 @@ mlRouter.post(
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid bulk input data format. Ensure all rows meet schema requirements." });
       }
-      console.error("Bulk create error:", err);
+      logger.error({ err }, "Bulk create error");
       return res.status(500).json({ message: "Failed to generate bulk assessments." });
     } finally {
-      if (tempFilePath) {
-        try { await unlink(tempFilePath); } catch {}
-      }
       if (requestFingerprint) {
         MLService.activeInferenceRequests.delete(requestFingerprint);
       }

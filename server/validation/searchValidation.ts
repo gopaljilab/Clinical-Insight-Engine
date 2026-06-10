@@ -115,3 +115,120 @@ export const searchQuerySchema = z.object({
 });
 
 export type SearchQueryParams = z.infer<typeof searchQuerySchema>;
+
+export const assessmentsQuerySchema = z.object({
+  cursor: z.coerce
+    .number()
+    .int("Cursor must be an integer")
+    .optional(),
+
+  page: z.coerce
+    .number()
+    .int("Page must be an integer")
+    .min(1, "Page must be at least 1")
+    .default(1),
+
+  limit: z.coerce
+    .number()
+    .int("Limit must be an integer")
+    .min(1, "Limit must be at least 1")
+    .max(100, "Limit must not exceed 100")
+    .default(50),
+
+  sortBy: z
+    .enum(["createdAt", "date", "riskScore", "risk", "age", "bmi", "patientName", "gender"])
+    .optional()
+    .default("createdAt"),
+
+  order: z
+    .enum(["asc", "desc"])
+    .optional()
+    .default("desc"),
+
+  searchTerm: z
+    .string()
+    .max(MAX_SEARCH_LENGTH, `Search query must not exceed ${MAX_SEARCH_LENGTH} characters`)
+    .optional()
+    .transform((val) => (val === undefined ? "" : val.trim()))
+    .refine(
+      (val) => val === "" || ALLOWED_SEARCH_CHARS_PATTERN.test(val),
+      {
+        message:
+          "Search query contains invalid characters. Only letters, numbers, spaces, hyphens, apostrophes, and periods are allowed.",
+      }
+    )
+    .refine(
+      (val) => {
+        if (val === "") return true;
+        return detectSqlInjectionPattern(val) === null;
+      },
+      {
+        message: "Search query contains a disallowed pattern.",
+      }
+    ),
+
+  riskCategory: z
+    .string()
+    .optional()
+    .transform((val) => val ? val.trim().toUpperCase() : undefined)
+    .refine((val) => !val || ["LOW", "MODERATE", "HIGH", "ALL"].includes(val), {
+      message: "Invalid risk category",
+    }),
+
+  gender: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      const normalized = val.trim().toLowerCase();
+      if (normalized === "male") return "Male";
+      if (normalized === "female") return "Female";
+      if (normalized === "other") return "Other";
+      if (normalized === "all") return "All";
+      return val;
+    })
+    .refine((val) => !val || ["Male", "Female", "Other", "All"].includes(val), {
+      message: "Invalid gender value",
+    }),
+
+  minAge: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(120)
+    .optional(),
+
+  maxAge: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(120)
+    .optional(),
+
+  startDate: z
+    .string()
+    .optional()
+    .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
+      message: "Invalid start date format",
+    }),
+
+  endDate: z
+    .string()
+    .optional()
+    .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
+      message: "Invalid end date format",
+    }),
+});
+
+export type AssessmentsQueryParams = z.infer<typeof assessmentsQuerySchema>;
+
+export const assessmentExportQuerySchema = assessmentsQuerySchema.extend({
+  limit: z.coerce
+    .number()
+    .int("Limit must be an integer")
+    .min(1, "Limit must be at least 1")
+    .max(1000, "Limit must not exceed 1000")
+    .default(1000),
+});
+
+export type AssessmentExportQueryParams = z.infer<typeof assessmentExportQuerySchema>;

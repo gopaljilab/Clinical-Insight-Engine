@@ -4,138 +4,42 @@ import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
 import type { Express } from "express";
 import type { Server } from "http";
-import authRouter from "./routes/auth.routes";
+
 import assessmentsRouter from "./routes/assessments.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { api } from "@shared/routes";
-import { z } from "zod";
-import { existsSync } from "fs";
-import { writeFile, unlink } from "fs/promises";
-import { randomUUID, createHash } from "crypto";
-import { execFile } from "child_process";
-import { promisify } from "util";
 import bcrypt from "bcrypt";
-import os from "os";
-import path from "path";
-import { fileURLToPath } from "url";
-import { rateLimit } from "express-rate-limit";
+import { logger } from "./logger";
+import { assessmentsToCsv } from "./utils/csvExport";
+import { searchQuerySchema } from "./validation/searchValidation";
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,
   logSecurityEvent,
 } from "./security/sqlProtection";
-import { assessmentsToCsv } from "./utils/csvExport";
-import { searchQuerySchema } from "./validation/searchValidation";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
-import { issueToken } from "./services/auth/tokenValidator";
-import { logger } from "./logger";
-import { assessmentQueue } from "./queue";
-export const execFileAsync = promisify(execFile);
 
-function runPythonInference(
-  executable: string,
-  args: string[],
-  inputData: any,
-  timeoutMs: number = 30000
-): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const child = execFile(
-      executable,
-      args,
-      { timeout: timeoutMs },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve({ stdout, stderr });
-        }
-      }
-    );
 
-    if (child.stdin) {
-      child.stdin.on("error", (err) => {
-        logger.error({ err }, "Stdin write error");
-      });
-      child.stdin.write(JSON.stringify(inputData));
-      child.stdin.end();
+async function seedDatabase() {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (process.env.NODE_ENV === "production") {
+    if (!adminEmail) {
+      throw new Error("ADMIN_EMAIL environment variable is required in production.");
     }
-  });
-}
-
-export class SimpleSemaphore {
-  private activeCount = 0;
-  private queue: (() => void)[] = [];
-
-  constructor(private maxConcurrency: number) {}
-
-  async acquire(): Promise<void> {
-    if (this.activeCount < this.maxConcurrency) {
-      this.activeCount++;
-      return;
-    }
-    return new Promise<void>((resolve) => {
-      this.queue.push(resolve);
-    });
-  }
-
-  release(): void {
-    if (this.queue.length > 0) {
-      const next = this.queue.shift();
-      if (next) next();
-    } else {
-      this.activeCount--;
+    if (!adminPassword) {
+      throw new Error("ADMIN_PASSWORD environment variable is required in production.");
     }
   }
 
-  async run<T>(fn: () => Promise<T>): Promise<T> {
-    await this.acquire();
-    try {
-      return await fn();
-    } finally {
-      this.release();
-    }
-  }
-}
+  const email = adminEmail || "admin@clinical-insight-engine.dev";
+  const password = adminPassword || "admin123";
 
-const inferenceConcurrencyLimiter = new SimpleSemaphore(4);
-
-/**
- * Tracks currently running inference requests to prevent
- * duplicate concurrent ML execution for identical payloads.
- */
-const activeInferenceRequests = new Set<string>();
-
-
-const predictionFactorSchema = z.object({
-  name: z.string(),
-  impact: z.enum(["positive", "negative"]),
-  description: z.string(),
-});
-
-const pythonPredictionSchema = z.union([
-  z.object({
-    error: z.string().min(1),
-  }),
-  z.object({
-    riskScore: z.coerce.number().min(0).max(100),
-    riskCategory: z.enum(["LOW", "MODERATE", "HIGH"]),
-    factors: z.array(predictionFactorSchema).default([]),
-    confidenceInterval: z.string().nullable().optional(),
-    modelConfidence: z.coerce.number().min(0).max(1).nullable().optional(),
-  }),
-]);
-
-type PythonPrediction = z.infer<typeof pythonPredictionSchema>;
-
-function parsePythonPrediction(stdout: string): PythonPrediction {
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(stdout.trim());
-  } catch {
-    throw new Error("Python prediction output was not valid JSON.");
+  if (!adminEmail || !adminPassword) {
+    logger.warn("[DEV] Using default admin credentials. Set ADMIN_EMAIL and ADMIN_PASSWORD env vars for production.");
   }
 
   return pythonPredictionSchema.parse(parsed);
@@ -209,17 +113,17 @@ export function getPythonExecutable() {
 async function seedDatabase() {
   const existingAdmin = await storage.getUserByEmail("admin@clinical-insight-engine.dev");
   if (!existingAdmin) {
-    const adminPasswordHash = bcrypt.hashSync("admin123", 10);
+    const adminPasswordHash = bcrypt.hashSync(password, 10);
     await storage.createUser({
       fullName: "System Admin",
-      email: "admin@clinical-insight-engine.dev",
+      email,
       medicalLicenseNumber: "ADMIN-000001",
       passwordHash: adminPasswordHash,
       role: "ADMIN",
       isActive: true,
       emailVerified: true,
     });
-    logger.info("Seeded admin user: admin@clinical-insight-engine.dev / admin123");
+    logger.info("Admin user seeded successfully.");
   }
 
   const existing = await storage.getAssessments();
@@ -370,7 +274,7 @@ function calculateClinicalFallback(input: any): PredictionResult {
     riskScore,
     riskCategory,
     factors: factors.length > 0 ? factors : [{ name: "Stable Profile", impact: "negative", description: "No major clinical risk drivers detected." }],
-    clinicianAdvice: riskCategory === "HIGH" 
+    clinicianAdvice: riskCategory === "HIGH"
       ? ["High risk. Refer for diagnostic oral glucose tolerance testing (OGTT)."]
       : riskCategory === "MODERATE"
       ? ["Moderate risk. Suggest nutritional counseling and review in 6 months."]
@@ -383,21 +287,57 @@ function calculateClinicalFallback(input: any): PredictionResult {
   };
 }
 
-export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
-  type SessionUser = { id?: string; email?: string; name?: string };
+import { rateLimit } from "express-rate-limit";
+import {
+  generalLimiter,
+  adminLimiter,
+} from "./middleware/rateLimit";
+import { validateDTO } from "./middleware/validateDTO";
+import { z } from "zod";
+import { MLService, generateRequestFingerprint } from "./services/mlService";
+import { getAssessmentQueue, getPythonExecutable } from "./queue";
+import { execFile } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+import os from "os";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
 
-  if (process.env.NODE_ENV !== "production") {
-    seedDatabase().catch(console.error);
-  }
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
+function execFileAsync(file: string, args: string[], options: any): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, options, (err, stdout, stderr) => {
+      if (err) reject(err);
+      else resolve({ stdout: stdout as unknown as string, stderr: stderr as unknown as string });
+    });
+  });
+}
 
-  // ── Auth token ──────────────────────────────────────────────────────────────
-  app.get("/api/auth/token", requireAuth, requireVerified, (req, res) => {
-    const user = req.session.user as any;
-    if (!user?.id || !user?.email) {
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const previewLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 10,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Too many preview requests. Please try again later.", retryAfter: 60 },
+  });
+
+  const assessmentLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 5,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: {
+      error: "Too many assessment requests. Please try again later.",
+      retryAfter: 60,
+    },
+  });
+
   // Seed database on startup — development only to prevent fake data in production
   if (process.env.NODE_ENV !== "production") {
     seedDatabase().catch((err) => logger.error({ err }, "Database seeding failed"));
@@ -434,6 +374,7 @@ export async function registerRoutes(
     requireAuth,
     requireVerified,
     previewLimiter,
+    validateDTO(api.assessments.preview.input),
     async (req, res) => {
       const input = api.assessments.preview.input.parse(req.body);
       const tempFile = path.join(
@@ -462,7 +403,7 @@ export async function registerRoutes(
           }
         } catch (error: any) {
           if (error.killed || error.signal === "SIGTERM") {
-            return res.status(408).json({
+            return res.status(503).json({
               message: "Clinical assessment preview timed out."
             });
           }
@@ -498,6 +439,69 @@ export async function registerRoutes(
 
   // ── Create assessment ───────────────────────────────────────────────────────
   app.post(
+    api.assessments.simulate.path,
+    requireAuth,
+    requireVerified,
+    previewLimiter,
+    validateDTO(api.assessments.simulate.input),
+    async (req, res) => {
+      const input = api.assessments.simulate.input.parse(req.body);
+      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
+
+      try {
+        await writeFile(tempFile, JSON.stringify(input));
+
+        let prediction: any;
+        try {
+          const { stdout } = await execFileAsync(
+            getPythonExecutable(),
+            [analyzePyPath, "predict_file", tempFile],
+            { timeout: 30000 }
+          );
+
+          prediction = JSON.parse(stdout.trim());
+          if (prediction.error) {
+            return res.status(400).json({ message: prediction.error });
+          }
+        } catch (error: any) {
+          if (error.killed || error.signal === "SIGTERM") {
+            return res.status(408).json({ message: "Clinical assessment simulation timed out." });
+          }
+
+          logger.warn(
+            "Python prediction simulation failed, falling back to clinical rule-based model:",
+            error
+          );
+          prediction = calculateClinicalFallback(input);
+        }
+
+        logger.info(
+          `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+        );
+
+        return res.json({
+          simulatedRisk: prediction.riskScore,
+          riskCategory: prediction.riskCategory,
+          confidence: prediction.modelConfidence ?? null,
+          factorContributions: prediction.factors ?? [],
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: err.errors[0].message });
+        }
+        logger.error({ err }, "Error creating assessment simulation");
+        return res.status(500).json({ message: "Internal server error" });
+      } finally {
+        try {
+          await unlink(tempFile);
+        } catch (e) {
+          logger.warn({ e, tempFile }, "Failed to clean up temp file (simulate):");
+        }
+      }
+    }
+  );
+
+  app.post(
     api.assessments.create.path,
     requireAuth,
     requireVerified,
@@ -510,6 +514,8 @@ export async function registerRoutes(
         });
       }
 
+      let requestFingerprint: string | undefined;
+      let didAdd = false;
       try {
         const input = api.assessments.create.input.parse(req.body);
         requestFingerprint = generateRequestFingerprint(input, userId);
@@ -596,6 +602,10 @@ export async function registerRoutes(
         return res
           .status(500)
           .json({ message: "Failed to queue clinical assessment." });
+      } finally {
+        if (didAdd) {
+          MLService.activeInferenceRequests.delete(requestFingerprint!);
+        }
       }
     }
   );
@@ -614,7 +624,11 @@ export async function registerRoutes(
         res.setHeader("Content-Disposition", "attachment; filename=assessments.csv");
         return res.send(csv);
         const jobId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        const job = await assessmentQueue.getJob(jobId as string);
+        const queue = getAssessmentQueue();
+        if (!queue) {
+          return res.status(503).json({ message: "Assessment queue is temporarily unavailable." });
+        }
+        const job = await queue.getJob(jobId as string);
         if (!job) {
           return res.status(404).json({ message: "Job not found" });
         }
@@ -734,10 +748,10 @@ export async function registerRoutes(
         const input = inputSchema.parse(req.body.assessments);
         
         requestFingerprint = generateRequestFingerprint(input, userId);
-        if (activeInferenceRequests.has(requestFingerprint)) {
+        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
           return res.status(409).json({ message: "Bulk request already processing." });
         }
-        activeInferenceRequests.add(requestFingerprint);
+        MLService.activeInferenceRequests.add(requestFingerprint);
 
         tempFilePath = path.join(os.tmpdir(), `bulk_${randomUUID()}.json`);
         await writeFile(tempFilePath, JSON.stringify(input));
@@ -785,7 +799,7 @@ export async function registerRoutes(
           try { await unlink(tempFilePath); } catch {}
         }
         if (requestFingerprint) {
-          activeInferenceRequests.delete(requestFingerprint);
+          MLService.activeInferenceRequests.delete(requestFingerprint);
         }
       }
     }
@@ -821,7 +835,7 @@ export async function registerRoutes(
         const assessments = await storage.getAssessments(1000, undefined, userEmail);
 
         const csv = assessmentsToCsv(
-          assessments.data as unknown as Record<string, unknown>[]
+          assessments as unknown as Record<string, unknown>[]
         );
 
         res.header("Content-Type", "text/csv");
@@ -1012,8 +1026,13 @@ export async function registerRoutes(
       }
     }
   );
+  
+  app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   // ─── Admin Routes ────────────────────────────────────────────────
+  
+  // Apply admin rate limiter to all admin routes
+  app.use("/api/admin", adminLimiter);
 
   app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -1065,6 +1084,112 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Model Monitoring Routes ──────────────────────────────────────
+
+  app.get("/api/admin/model/versions", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const versions = await storage.getModelVersions();
+      res.json(versions);
+    } catch (err) {
+      logger.error({ err }, "Admin model versions fetch error:");
+      res.status(500).json({ message: "Failed to fetch model versions." });
+    }
+  });
+
+  app.get("/api/admin/model/versions/latest", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const latest = await storage.getLatestModelVersion();
+      res.json(latest ?? null);
+    } catch (err) {
+      logger.error({ err }, "Admin latest model version fetch error:");
+      res.status(500).json({ message: "Failed to fetch latest model version." });
+    }
+  });
+
+  app.get("/api/admin/model/dataset-stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = await storage.getModelDatasetStats();
+      res.json(stats ?? { classBalance: {}, featureStats: {}, totalSamples: 0 });
+    } catch (err) {
+      logger.error({ err }, "Admin dataset stats fetch error:");
+      res.status(500).json({ message: "Failed to fetch dataset stats." });
+    }
+  });
+
+  app.post("/api/admin/model/retrain", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        getPythonExecutable(),
+        [analyzePyPath, "train_and_evaluate"],
+        { timeout: 120000, env: { ...process.env, PYTHONIOENCODING: "utf-8" } }
+      );
+
+      if (stderr) {
+        logger.warn({ stderr }, "Model retrain stderr:");
+      }
+
+      const lines = stdout.trim().split("\n").filter(Boolean);
+      const jsonLine = lines.find((l: string) => l.startsWith("{"));
+      if (!jsonLine) {
+        logger.error({ stdout, stderr }, "Model retrain no JSON output");
+        return res.status(500).json({ message: "Retrain produced no valid output." });
+      }
+
+      const metrics = JSON.parse(jsonLine);
+
+      if (metrics.error) {
+        return res.status(500).json({ message: metrics.error });
+      }
+
+      const previousVersion = await storage.getLatestModelVersion();
+      const nextVersion = (previousVersion?.version ?? 0) + 1;
+
+      const record = await storage.createModelVersion({
+        version: nextVersion,
+        accuracy: metrics.accuracy,
+        precision: metrics.precision,
+        recall: metrics.recall,
+        f1Score: metrics.f1_score,
+        aucRoc: metrics.auc_roc,
+        datasetHash: metrics.dataset_hash,
+        numSamples: metrics.num_samples,
+        numFeatures: metrics.num_features,
+        classBalance: metrics.class_balance,
+        featureDistributions: metrics.feature_distributions,
+        trainingDurationMs: metrics.training_duration_ms,
+        status: "completed",
+      });
+
+      logger.info(`Model retrained: version ${nextVersion}, accuracy ${metrics.accuracy}`);
+      res.json(record);
+    } catch (err: any) {
+      logger.error({ err }, "Admin model retrain error:");
+      res.status(500).json({ message: err.stderr || "Model retraining failed." });
+    }
+  });
+
   app.use("/api/upload", uploadRouter);
+
+  // Endpoint to capture and log client-side React errors
+  app.post("/api/logs/client-error", (req, res) => {
+    try {
+      const { message, stack, componentStack, url, timestamp } = req.body;
+      logger.error(
+        {
+          source: "client",
+          url,
+          componentStack,
+          timestamp,
+          stack,
+        },
+        `[Client Error] ${message}`
+      );
+      res.status(200).json({ success: true });
+    } catch (err) {
+      logger.error({ err }, "Failed to parse client error log");
+      res.status(500).json({ success: false });
+    }
+  });
+
   return httpServer;
 }
