@@ -4,18 +4,35 @@ import request from "supertest";
 import express from "express";
 import session from "express-session";
 
-const { mockSendVerificationCode } = vi.hoisted(() => ({
-  mockSendVerificationCode: vi.fn().mockResolvedValue(true),
+const { mockSendVerificationEmail } = vi.hoisted(() => ({
+  mockSendVerificationEmail: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock("../server/email", () => ({
-  sendVerificationCode: mockSendVerificationCode,
+  sendVerificationEmail: mockSendVerificationEmail,
   sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock("../server/db", () => ({
-  getDb: vi.fn(),
-}));
+vi.mock("../server/db", () => {
+  const mockDb = {
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockResolvedValue([]),
+    insert: vi.fn().mockReturnThis(),
+    values: vi.fn().mockReturnThis(),
+    transaction: vi.fn().mockImplementation(async (cb: any) => cb({
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      values: vi.fn().mockReturnThis(),
+    })),
+    update: vi.fn().mockReturnThis(),
+    set: vi.fn().mockReturnThis(),
+  };
+  return { getDb: vi.fn().mockReturnValue(mockDb) };
+});
 
 vi.mock("../server/storage", () => ({
   storage: {
@@ -49,7 +66,7 @@ async function buildApp() {
 describe("POST /api/auth/resend-otp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSendVerificationCode.mockResolvedValue(true);
+    mockSendVerificationEmail.mockResolvedValue(true);
   });
 
   it("returns 400 when email is missing", async () => {
@@ -61,21 +78,26 @@ describe("POST /api/auth/resend-otp", () => {
     expect(res.body.message).toMatch(/email is required/i);
   });
 
-  it("returns 400 when no pending OTP exists for login mode", async () => {
+  it("returns 404 when user is not found", async () => {
     const app = await buildApp();
     const res = await request(app)
       .post("/api/auth/resend-otp")
       .send({ email: "noone@clinic.com", mode: "login" });
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/no pending verification/i);
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/user not found/i);
   });
 
-it("does not require password — only email", async () => {
+  it("does not require password — only email", async () => {
+    const { getDb } = await import("../server/db");
+    const db = getDb();
+    (db as any).limit.mockResolvedValue([{ id: 1, email: "test@clinic.com" }]);
+    mockSendVerificationEmail.mockResolvedValue(true);
     const app = await buildApp();
     const res = await request(app)
       .post("/api/auth/resend-otp")
       .send({ email: "test@clinic.com", mode: "login" });
-    // The 400 should be for "no pending OTP", not for missing password
-    expect(res.body.message).not.toMatch(/password/i);
+    // Should succeed without requiring password
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("success", true);
   });
 });

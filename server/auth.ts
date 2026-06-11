@@ -113,6 +113,18 @@ function logDevOtp(email: string, otp: string) {
   }
 }
 
+/**
+ * Generates a rate-limit key for OTP requests.
+ * Keys by normalized email when available, falls back to client IP.
+ */
+export function getOtpRateLimitKey(req: { body: { email?: string }; ip: string }): string {
+  const email = req.body?.email?.toString().trim().toLowerCase();
+  if (email) {
+    return `otp:${email}`;
+  }
+  return `otp:ip:${req.ip}`;
+}
+
 function regenerateSession(req: Request): Promise<void> {
   return new Promise((resolve, reject) => {
     req.session.regenerate((err) => {
@@ -407,7 +419,7 @@ export function createAuthRouter(): Router {
           return { success: false as const, status: 400, message: "No valid verification code found. Please request a new code." };
         }
 
-        const maxAttempts = 5;
+        const maxAttempts = 3;
         if ((token.attemptCount ?? 0) >= maxAttempts) {
           await tx
             .update(emailVerificationTokens)
@@ -418,19 +430,34 @@ export function createAuthRouter(): Router {
         }
 
         if (token.verificationCode !== code) {
+          const newAttemptCount = (token.attemptCount ?? 0) + 1;
+
+          if (newAttemptCount >= maxAttempts) {
+            await tx
+              .update(emailVerificationTokens)
+              .set({ used: true })
+              .where(eq(emailVerificationTokens.id, token.id));
+
+            return {
+              success: false as const,
+              status: 429,
+              message: "Too many failed attempts. Please request a new verification code.",
+            };
+          }
+
           await tx
             .update(emailVerificationTokens)
-            .set({ attemptCount: (token.attemptCount ?? 0) + 1 })
+            .set({ attemptCount: newAttemptCount })
             .where(and(
               eq(emailVerificationTokens.id, token.id),
               eq(emailVerificationTokens.used, false),
             ));
 
-          const remaining = maxAttempts - (token.attemptCount ?? 0) - 1;
+          const remaining = maxAttempts - newAttemptCount;
           return {
             success: false as const,
             status: 401,
-            message: `Invalid code. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : "Please request a new code."}`,
+            message: `Invalid code. ${remaining} attempt(s) remaining.`,
           };
         }
 

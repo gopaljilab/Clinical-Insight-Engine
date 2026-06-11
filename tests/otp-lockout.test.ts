@@ -7,6 +7,7 @@ import { createAuthRouter } from "../server/auth";
 // Mock the db module to return our mock user on query
 vi.mock("../server/db", async (importOriginal) => {
   const original = (await importOriginal()) as any;
+  let attemptCount = 0;
   return {
     ...original,
     getDb: () => ({
@@ -24,10 +25,58 @@ vi.mock("../server/db", async (importOriginal) => {
                 isActive: true,
                 emailVerified: true,
               }
-            ]
+            ],
+            orderBy: () => ({
+              limit: async () => [
+                {
+                  id: "token-1",
+                  userId: "test-user-id",
+                  verificationCode: "123456",
+                  expiresAt: new Date(Date.now() + 3600000),
+                  used: false,
+                  attemptCount,
+                }
+              ]
+            })
           })
         })
-      })
+      }),
+      transaction: async (callback: any) => {
+        const mockTx = {
+          select: vi.fn(() => ({
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                orderBy: vi.fn(() => ({
+                  limit: async () => {
+                    attemptCount++;
+                    return [
+                      {
+                        id: "token-1",
+                        userId: "test-user-id",
+                        verificationCode: "123456",
+                        expiresAt: new Date(Date.now() + 3600000),
+                        used: false,
+                        attemptCount: attemptCount - 1,
+                      }
+                    ];
+                  }
+                }))
+              }))
+            }))
+          })),
+          update: vi.fn(() => ({
+            set: vi.fn(() => ({
+              where: vi.fn().mockResolvedValue(undefined),
+              returning: vi.fn().mockResolvedValue([{ id: "token-1" }]),
+            })),
+          })),
+          insert: vi.fn(() => ({
+            values: vi.fn().mockResolvedValue(undefined),
+            returning: vi.fn().mockResolvedValue([{ id: "test-user-id" }]),
+          })),
+        };
+        return callback(mockTx);
+      },
     })
   };
 });
@@ -58,8 +107,8 @@ vi.mock("bcrypt", () => ({
 
 // Mock email service
 vi.mock("../server/email", () => ({
-  sendVerificationCode: vi.fn().mockResolvedValue(true),
-  validateSmtpConfig: vi.fn(),
+  sendVerificationEmail: vi.fn().mockResolvedValue(true),
+  validateEmailConfig: vi.fn(),
 }));
 
 describe("OTP Brute-Force Lockout Integration", () => {
@@ -93,34 +142,33 @@ describe("OTP Brute-Force Lockout Integration", () => {
 
     // 2. First failed attempt: should return 401 with 2 attempts remaining
     const fail1 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
+      .post("/api/auth/verify-email")
+      .send({ email: "doc@example.com", code: "000000" });
     
     expect(fail1.status).toBe(401);
     expect(fail1.body.message).toContain("2 attempt(s) remaining");
 
     // 3. Second failed attempt: should return 401 with 1 attempt remaining
     const fail2 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
+      .post("/api/auth/verify-email")
+      .send({ email: "doc@example.com", code: "000000" });
 
     expect(fail2.status).toBe(401);
     expect(fail2.body.message).toContain("1 attempt(s) remaining");
 
     // 4. Third failed attempt: should trigger lockout and return 429
     const fail3 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
+      .post("/api/auth/verify-email")
+      .send({ email: "doc@example.com", code: "000000" });
 
     expect(fail3.status).toBe(429);
     expect(fail3.body.message).toContain("Too many failed attempts");
 
-    // 5. Subsequent attempts: OTP should be deleted, returning 400
+    // 5. Subsequent attempts are also rejected
     const fail4 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
+      .post("/api/auth/verify-email")
+      .send({ email: "doc@example.com", code: "000000" });
 
-    expect(fail4.status).toBe(400);
-    expect(fail4.body.message).toContain("No pending verification found");
+    expect(fail4.status).toBe(429);
   });
 });

@@ -15,12 +15,23 @@ import {
   adminLimiter,
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
-import { MLService } from "./services/mlService";
+import { MLService, generateRequestFingerprint, calculateClinicalFallback } from "./services/mlService";
 import { getAssessmentQueue, getPythonExecutable } from "./queue";
 import { execFile } from "child_process";
+import { api } from "@shared/routes";
+import { assessmentsToCsv } from "./utils/csvExport";
+import { searchQuerySchema } from "./validation/searchValidation";
+import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
+import { canAccessPatientRecord } from "./services/authz/patient-access";
+import { logAccessAttempt } from "./security/access-audit";
 import path from "path";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
+import { validateDTO } from "./middleware/validateDTO";
+import { z } from "zod";
+import os from "os";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -167,10 +178,13 @@ export async function registerRoutes(
 
   // Mount domain-specific routers
   app.use("/api/auth", authRouter);
-  app.use("/api/assessments", assessmentsRouter);
-  app.use("/api/assessments", mlRouter);
+  // exportsRouter must be mounted BEFORE assessmentsRouter so that
+  // /api/assessments/export.csv is handled by the exports route and not
+  // caught by assessmentsRouter's /:id wildcard.
   app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", analyticsRouter);
+  app.use("/api/assessments", assessmentsRouter);
   app.post(
     api.assessments.preview.path,
     requireAuth,

@@ -143,64 +143,6 @@ assessmentsRouter.post(
   }
 );
 
-assessmentsRouter.post(
-  "/",
-  requireAuth,
-  requireVerified,
-  validateDTO(api.assessments.create.input),
-  async (req, res) => {
-    const userId = (req.session.user as any)?.id;
-    const userEmail = req.session.user?.email;
-    if (!userId) {
-      return res.status(401).json({ message: "Authentication required." });
-    }
-
-    let requestFingerprint: string | undefined;
-    try {
-      const input = req.body;
-
-      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
-      if (MLService.activeInferenceRequests.has(requestFingerprint)) {
-        return res.status(409).json({
-          message: "An identical assessment request is already being processed.",
-        });
-      }
-      MLService.activeInferenceRequests.add(requestFingerprint);
-
-      const queue = getAssessmentQueue();
-      if (!queue) {
-        return res.status(503).json({
-          message: "Assessment queue is temporarily unavailable.",
-        });
-      }
-
-      const job = await queue.add("predict", {
-        input,
-        userId,
-        userEmail
-      });
-
-      return res.status(202).json({
-        message: "Assessment request accepted and is being processed.",
-        jobId: job.id
-      });
-    } catch (err: any) {
-      if (err instanceof z.ZodError) {
-        return res
-          .status(400)
-          .json({ message: err.errors[0]?.message ?? "Invalid input data" });
-      }
-      logger.error({ err }, "Assessment creation error:");
-      return res
-        .status(500)
-        .json({ message: "Failed to queue clinical assessment." });
-    } finally {
-      if (requestFingerprint) {
-        MLService.activeInferenceRequests.delete(requestFingerprint);
-      }
-    }
-  }
-);
 
 assessmentsRouter.get("/jobs/:id", requireAuth, requireVerified, async (req, res) => {
   try {
