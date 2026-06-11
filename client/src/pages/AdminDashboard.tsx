@@ -69,6 +69,9 @@ function UsersTab() {
       if (!res.ok) throw new Error("Failed to fetch users");
       return res.json();
     },
+    // Cache for 2 minutes — prevents redundant refetches when switching
+    // back to a previously visited tab within the same session.
+    staleTime: 2 * 60 * 1000,
   });
   const { toast } = useToast();
 
@@ -174,6 +177,7 @@ function AuditLogsTab() {
       if (!res.ok) throw new Error("Failed to fetch audit logs");
       return res.json();
     },
+    staleTime: 2 * 60 * 1000,
   });
 
   if (isLoading) {
@@ -243,6 +247,7 @@ function StatsTab() {
       if (!res.ok) throw new Error("Failed to fetch stats");
       return res.json();
     },
+    staleTime: 2 * 60 * 1000,
   });
 
   if (isLoading) {
