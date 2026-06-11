@@ -1,12 +1,15 @@
 /**
- * Email service for the Clinical Insight Engine.
+ * Email service for the Clinical Insight Engine using Resend.
  *
- * Development: prints OTP to the server console.
- * Production: sends via SMTP (SendGrid, AWS SES, Mailgun, or Gmail SMTP).
+ * Development: prints OTP to the server console and uses mock sending.
+ * Production: sends via Resend API.
  */
 
-const FROM_ADDRESS = process.env.EMAIL_FROM || "noreply@clinicalinsight.dev";
+import { Resend } from 'resend';
 import { logger } from "./logger";
+
+const FROM_ADDRESS = process.env.EMAIL_FROM || "noreply@clinicalinsight.dev";
+const resend = new Resend(process.env.RESEND_API_KEY || "re_mock_123");
 
 interface EmailOptions {
   to: string;
@@ -22,47 +25,16 @@ export class EmailConfigurationError extends Error {
   }
 }
 
-export function validateSmtpConfig(): void {
+export function validateEmailConfig(): void {
   if (process.env.NODE_ENV !== "production") {
     return;
   }
 
-  const missing = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"].filter(
-    (key) => !process.env[key],
-  );
-
-  if (missing.length > 0) {
+  if (!process.env.RESEND_API_KEY) {
     throw new EmailConfigurationError(
-      `Missing required SMTP environment variables in production: ${missing.join(", ")}`,
+      `Missing required RESEND_API_KEY environment variable in production.`
     );
   }
-}
-
-function isSmtpConfigured(): boolean {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT);
-}
-
-/**
- * Module-level SMTP transport singleton.
- * Created once on first use so every sendEmail call reuses the same
- * connection pool instead of opening a new TCP connection each time.
- */
-let _transporter: import("nodemailer").Transporter | null = null;
-
-async function getTransporter(): Promise<import("nodemailer").Transporter> {
-  if (!_transporter) {
-    const { createTransport } = await import("nodemailer") as typeof import("nodemailer");
-    _transporter = createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT!, 10),
-      secure: process.env.SMTP_SECURE === "true",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  }
-  return _transporter;
 }
 
 /**
@@ -73,29 +45,27 @@ function logDevOtp(email: string, code: string): void {
 }
 
 /**
- * Sends an email using the configured SMTP transport.
+ * Sends an email using the Resend API.
  * Returns true when delivery succeeds (or in dev mock mode), false on failure.
  */
 async function sendEmail(options: EmailOptions): Promise<boolean> {
   const isProduction = process.env.NODE_ENV === "production";
 
-  if (!isSmtpConfigured()) {
-    if (isProduction) {
-      logger.error(
-        { to: options.to, subject: options.subject },
-        "Email not sent — SMTP is not configured",
-      );
-      return false;
-    }
+  if (!process.env.RESEND_API_KEY && isProduction) {
+    logger.error(
+      { to: options.to, subject: options.subject },
+      "Email not sent — RESEND_API_KEY is not configured"
+    );
+    return false;
+  }
 
-    logger.info({ email: options }, "DEV MOCK EMAIL (not sent)");
-    return true;
+  if (!isProduction) {
+    logger.info({ email: options }, "DEV MOCK EMAIL (not sent via API)");
+    return true; // Mock success in dev
   }
 
   try {
-    const transporter = await getTransporter();
-
-    await transporter.sendMail({
+    const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: options.to,
       subject: options.subject,
@@ -103,11 +73,19 @@ async function sendEmail(options: EmailOptions): Promise<boolean> {
       html: options.html,
     });
 
+    if (error) {
+      logger.error(
+        { err: error, to: options.to, subject: options.subject },
+        "Failed to send email via Resend"
+      );
+      return false;
+    }
+
     return true;
   } catch (err) {
     logger.error(
       { err, to: options.to, subject: options.subject },
-      "Failed to send email",
+      "Exception while sending email via Resend"
     );
     return false;
   }
@@ -117,7 +95,7 @@ async function sendEmail(options: EmailOptions): Promise<boolean> {
  * Sends a 6-digit verification code to the given email address.
  * In development, also logs the code prominently to the console.
  */
-export async function sendVerificationCode(
+export async function sendVerificationEmail(
   email: string,
   code: string,
 ): Promise<boolean> {

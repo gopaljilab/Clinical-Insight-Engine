@@ -37,4 +37,19 @@ describe("assessmentsToCsv", () => {
       'patientName,riskCategory,notes\n"Jane, Doe",\'=HIGH,"Needs ""follow-up"""'
     );
   });
+
+  it("serializes objects and arrays as JSON stringified values", () => {
+    const csv = assessmentsToCsv([
+      {
+        patientName: "Jane, Doe",
+        factors: [
+          { name: "Age", impact: "negative", description: "Age over 65" },
+        ],
+      },
+    ]);
+
+    expect(csv).toBe(
+      'patientName,factors\n"Jane, Doe","[{""name"":""Age"",""impact"":""negative"",""description"":""Age over 65""}]"'
+    );
+  });
 });

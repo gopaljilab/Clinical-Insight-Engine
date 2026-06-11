@@ -98,7 +98,10 @@ export interface PredictionResult {
   disclaimer?: string;
 }
 
-export function calculateClinicalFallback(input: unknown): PredictionResult {
+export function calculateClinicalFallback(input: unknown): any {
+  if (Array.isArray(input)) {
+    return input.map((item) => calculateClinicalFallback(item));
+  }
   const anyInput = input as any;
   let points = 0;
 

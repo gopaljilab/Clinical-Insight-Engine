@@ -1,5 +1,5 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type AssessmentInput, type AssessmentResponse, type AssessmentSimulationResponse, type AssessmentsListResponse } from "@shared/routes";
+import { api, type AssessmentInput, type AssessmentResponse, type AssessmentSimulationResponse, type AssessmentWhatIfResponse, type AssessmentWhatIfBatchResponse, type AssessmentsListResponse } from "@shared/routes";
 import { useToast } from "./use-toast";
 
 // Parse with logging to catch silent Zod JSON translation errors
@@ -279,6 +279,61 @@ export function useSimulateAssessment() {
         api.assessments.simulate.responses[200],
         responseData,
         "assessments.simulate"
+      );
+    },
+  });
+}
+
+export function useWhatIfAssessment() {
+  return useMutation({
+    mutationFn: async (data: AssessmentInput) => {
+      const validated = api.assessments.whatIf.input.parse(data);
+      const res = await fetch(api.assessments.whatIf.path, {
+        method: api.assessments.whatIf.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to run what-if analysis");
+      }
+
+      const responseData = await res.json();
+      return parseWithLogging<AssessmentWhatIfResponse>(
+        api.assessments.whatIf.responses[200],
+        responseData,
+        "assessments.whatIf"
+      );
+    },
+  });
+}
+
+export function useWhatIfBatch() {
+  return useMutation({
+    mutationFn: async (data: {
+      original: AssessmentInput;
+      perturbations: Record<string, string | number | boolean>[];
+    }) => {
+      const validated = api.assessments.whatIfBatch.input.parse(data);
+      const res = await fetch(api.assessments.whatIfBatch.path, {
+        method: api.assessments.whatIfBatch.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to run batch what-if analysis");
+      }
+
+      const responseData = await res.json();
+      return parseWithLogging<AssessmentWhatIfBatchResponse>(
+        api.assessments.whatIfBatch.responses[200],
+        responseData,
+        "assessments.whatIfBatch"
       );
     },
   });
