@@ -2,7 +2,7 @@ import { logger } from "../logger";
 import { getAssessmentQueue } from "../queue";
 import { Router } from "express";
 import { z } from "zod";
-import { rateLimit } from "express-rate-limit";
+import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
@@ -43,6 +43,7 @@ assessmentsRouter.post(
   "/preview",
   requireAuth,
   requireVerified,
+  previewLimiter,
   validateDTO(api.assessments.preview.input),
   async (req, res) => {
     try {
@@ -75,7 +76,8 @@ assessmentsRouter.post(
   "/what-if",
   requireAuth,
   requireVerified,
-  validateDTO(api.assessments.whatIf.input),
+  previewLimiter,
+  validateDTO(api.assessments.simulate.input),
   async (req, res) => {
     try {
       const input = req.body;
@@ -147,6 +149,7 @@ assessmentsRouter.post(
   "/",
   requireAuth,
   requireVerified,
+  assessmentLimiter,
   validateDTO(api.assessments.create.input),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;

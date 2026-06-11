@@ -70,6 +70,18 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    delete: {
+      method: "DELETE" as const,
+      path: "/api/assessments/:id" as const,
+      responses: {
+        204: z.undefined(),
+        400: errorSchemas.validation,
+        401: errorSchemas.internal,
+        403: errorSchemas.internal,
+        404: errorSchemas.notFound,
+        500: errorSchemas.internal,
+      },
+    },
     preview: {
       method: "POST" as const,
       path: "/api/assessments/preview" as const,

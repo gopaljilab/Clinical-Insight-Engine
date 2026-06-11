@@ -84,6 +84,7 @@ vi.mock("../server/storage", () => {
     createAssessment: mockCreateAssessment,
     searchAssessments: vi.fn().mockResolvedValue([]),
     getAssessmentById: vi.fn().mockResolvedValue(undefined),
+    deleteAssessment: vi.fn().mockResolvedValue(undefined),
     getUserByEmail: vi.fn().mockResolvedValue({ id: "admin-id" }),
     createUser: vi.fn().mockResolvedValue({ id: "admin-id" }),
   };
@@ -641,6 +642,53 @@ describe("CSV export", () => {
   });
 });
 
+describe("DELETE /api/assessments/:id", () => {
+  it("returns 401 when unauthenticated", async () => {
+    const app = createUnauthenticatedApp();
+    await registerRoutes(createServer(), app);
+    const res = await request(app).delete("/api/assessments/1");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 when assessment is not found", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+    const mockStorage = (await import("../server/storage")).storage as any;
+    mockStorage.getAssessmentById.mockResolvedValueOnce(undefined);
+    const res = await request(app).delete("/api/assessments/1");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 403 when user is not authorized to delete the record", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+    const mockStorage = (await import("../server/storage")).storage as any;
+    mockStorage.getAssessmentById.mockResolvedValueOnce({
+      id: 1,
+      patientName: "Jane Doe",
+      createdBy: "other-user@example.com", // Different user
+      ownerId: "other-user-id"
+    });
+    const res = await request(app).delete("/api/assessments/1");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 204 when assessment is deleted successfully", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+    const mockStorage = (await import("../server/storage")).storage as any;
+    mockStorage.getAssessmentById.mockResolvedValueOnce({
+      id: 1,
+      patientName: "John Doe",
+      createdBy: "test@example.com", // Same as req.session.user.email
+      ownerId: "test-user-id" // Same as req.session.user.id
+    });
+    const res = await request(app).delete("/api/assessments/1");
+    expect(res.status).toBe(204);
+    expect(mockStorage.deleteAssessment).toHaveBeenCalledWith(1);
+  });
+});
+
 describe("GET /api/patients (JWT protected)", () => {
   it("returns 401 when Authorization header is missing", async () => {
     const app = createAuthenticatedApp();
@@ -745,7 +793,7 @@ describe("Route uniqueness (no duplicate registrations)", () => {
     app.use(express.json());
     app.use(session({ secret: "test", resave: false, saveUninitialized: false }));
     app.use((req, _res, next) => {
-      req.session.user = { id: "test", email: "test@test.com", name: "Test" };
+      req.session.user = { id: "test", email: "test@test.com", name: "Test", emailVerified: true };
       next();
     });
     await registerRoutes(createServer(), app);
@@ -767,7 +815,7 @@ describe("Route uniqueness (no duplicate registrations)", () => {
     app.use(express.json());
     app.use(session({ secret: "test", resave: false, saveUninitialized: false }));
     app.use((req, _res, next) => {
-      req.session.user = { id: "test", email: "test@test.com", name: "Test" };
+      req.session.user = { id: "test", email: "test@test.com", name: "Test", emailVerified: true };
       next();
     });
     await registerRoutes(createServer(), app);

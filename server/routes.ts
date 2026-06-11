@@ -21,6 +21,18 @@ import { execFile } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
+import { api } from "@shared/routes";
+import { z } from "zod";
+import os from "os";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
+import { validateDTO } from "./middleware/validateDTO";
+import { calculateClinicalFallback, generateRequestFingerprint } from "./services/mlService";
+import { assessmentsToCsv } from "./utils/csvExport";
+import { searchQuerySchema } from "./validation/searchValidation";
+import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
+import { canAccessPatientRecord } from "./services/authz/patient-access";
+import { logAccessAttempt } from "./security/access-audit";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -167,10 +179,10 @@ export async function registerRoutes(
 
   // Mount domain-specific routers
   app.use("/api/auth", authRouter);
-  app.use("/api/assessments", assessmentsRouter);
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
   app.use("/api/assessments", analyticsRouter);
+  app.use("/api/assessments", assessmentsRouter);
   app.post(
     api.assessments.preview.path,
     requireAuth,
