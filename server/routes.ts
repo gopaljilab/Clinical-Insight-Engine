@@ -15,9 +15,15 @@ import {
   adminLimiter,
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
-import { MLService } from "./services/mlService";
+import { MLService, generateRequestFingerprint } from "./services/mlService";
 import { getAssessmentQueue, getPythonExecutable } from "./queue";
 import { safeExecFile } from "./utils/exec";
+import { api } from "@shared/routes";
+import { assessmentsToCsv } from "./utils/csvExport";
+import { searchQuerySchema } from "./validation/searchValidation";
+import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
+import { canAccessPatientRecord } from "./services/authz/patient-access";
+import { logAccessAttempt } from "./security/access-audit";
 import path from "path";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
