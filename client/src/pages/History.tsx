@@ -1,4 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
+import type { Assessment, AssessmentFactor } from "@shared/schema";
 import { useAssessments, usePatientAssessments, useClearPatientCache, useDeleteAssessment } from "@/hooks/use-assessments";
 import {
   format,
@@ -410,7 +411,7 @@ export default function History() {
       .replace(/'/g, "&#039;");
   }
 
-  function exportAsPdf(assessment: any) {
+  function exportAsPdf(assessment: Assessment) {
     if (!assessment) return;
 
     const patientName = escapeHtml(assessment.patientName || "Unknown Patient");
@@ -433,7 +434,7 @@ export default function History() {
       assessment.factors || []
     )
       .slice(0, 5)
-      .map((f: any) => `<li>${escapeHtml(f.name || "Unknown")} — ${escapeHtml(f.description || "")} (${escapeHtml(f.impact || "N/A")})</li>`)
+      .map((f: AssessmentFactor) => `<li>${escapeHtml(f.name || "Unknown")} — ${escapeHtml(f.description || "")} (${escapeHtml(f.impact || "N/A")})</li>`)
       .join("")}</ul></div></div></body></html>`;
 
     const w = window.open("", "_blank", "noopener,noreferrer");
