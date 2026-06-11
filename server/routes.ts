@@ -19,6 +19,13 @@ import {
 import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
 import { getPythonExecutable } from "./queue";
 import { execFile } from "child_process";
+import { rateLimit } from "express-rate-limit";
+import { getAssessmentQueue } from "./queue";
+import { safeExecFile } from "./utils/exec";
+import { searchQuerySchema } from "./validation/searchValidation";
+import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
+import { canAccessPatientRecord } from "./services/authz/patient-access";
+import { logAccessAttempt } from "./security/access-audit";
 import path from "path";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
