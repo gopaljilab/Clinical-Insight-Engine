@@ -118,6 +118,13 @@ function logDevOtp(email: string, otp: string) {
   }
 }
 
+export function getOtpRateLimitKey(req: { body: { email?: string }; ip: string }): string {
+  const email = req.body?.email?.toString().trim().toLowerCase();
+  if (email) {
+    return `otp:${email}`;
+  }
+  return `otp:ip:${req.ip}`;
+}
 
 function regenerateSession(req: Request): Promise<void> {
 
@@ -361,6 +368,7 @@ export function createAuthRouter(): Router {
       return res.json({ success: true, pendingEmail: email });
     } catch (err) {
       logger.error({ err }, "Login error");
+      console.log("LOGIN ERROR DETAILS:", err);
       return res.status(500).json({ message: "Login failed due to a server error." });
     }
   });
@@ -559,7 +567,79 @@ export function createAuthRouter(): Router {
         return res.status(404).json({ message: "User not found." });
       }
 
-      const outcome = await authRepository.verifyDbTokenAndSetVerified(user, code);
+      type VerifyOutcome =
+        | { success: true }
+        | { success: false; status: number; message: string };
+
+      const outcome: VerifyOutcome = await db.transaction(async (tx) => {
+        console.log("VERIFY TRANSACTION START");
+        const [token] = await tx
+          .select()
+          .from(emailVerificationTokens)
+          .where(
+            and(
+              eq(emailVerificationTokens.userId, user.id),
+              eq(emailVerificationTokens.used, false),
+              gte(emailVerificationTokens.expiresAt, new Date()),
+            ),
+          )
+          .orderBy(emailVerificationTokens.createdAt)
+          .limit(1);
+
+        console.log("VERIFY TOKEN:", token);
+        if (!token) {
+          return { success: false as const, status: 400, message: "No valid verification code found. Please request a new code." };
+        }
+
+        const maxAttempts = 5;
+        if ((token.attemptCount ?? 0) >= maxAttempts) {
+          await tx
+            .update(emailVerificationTokens)
+            .set({ used: true })
+            .where(eq(emailVerificationTokens.id, token.id));
+
+          return { success: false as const, status: 429, message: "Too many failed attempts. Please request a new verification code." };
+        }
+
+        if (token.verificationCode !== code) {
+          await tx
+            .update(emailVerificationTokens)
+            .set({ attemptCount: (token.attemptCount ?? 0) + 1 })
+            .where(and(
+              eq(emailVerificationTokens.id, token.id),
+              eq(emailVerificationTokens.used, false),
+            ));
+
+          const remaining = maxAttempts - (token.attemptCount ?? 0) - 1;
+          return {
+            success: false as const,
+            status: 401,
+            message: `Invalid code. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : "Please request a new code."}`,
+          };
+        }
+
+        const [claimed] = await tx
+          .update(emailVerificationTokens)
+          .set({ used: true })
+          .where(and(
+            eq(emailVerificationTokens.id, token.id),
+            eq(emailVerificationTokens.used, false),
+          ))
+          .returning();
+
+        if (!claimed) {
+          return { success: false as const, status: 409, message: "This code has already been used." };
+        }
+
+        if (!user.emailVerified) {
+          await tx
+            .update(users)
+            .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
+            .where(eq(users.id, user.id));
+        }
+
+        return { success: true as const };
+      });
 
       if (!outcome.success) {
         return res.status(outcome.status).json({ message: outcome.message });
@@ -584,7 +664,8 @@ export function createAuthRouter(): Router {
 
       return res.json({ success: true, message: "Email verified successfully.", user: { id: user.id, email: user.email, name: user.fullName } });
     } catch (err) {
-      logger.error({ err }, "Email verification error");
+      logger.error({ err }, "OTP verification error");
+      console.log("VERIFY ERROR DETAILS:", err);
       return res.status(500).json({ message: "Verification failed due to a server error." });
     }
   });

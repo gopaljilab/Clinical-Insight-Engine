@@ -363,19 +363,23 @@ describe("Schema validation", () => {
 });
 
 describe("Rate limiting", () => {
-  it("returns 429 after exceeding the rate limit for POST /api/assessments", async () => {
+  beforeEach(() => {
+    rateLimitCounters.clear();
+  });
+
+  it("returns 429 after 6 rapid requests to POST /api/assessments", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    const results = [];
+    let lastRes: any;
     for (let i = 0; i < 6; i++) {
-      const res = await request(app)
+      lastRes = await request(app)
         .post("/api/assessments")
         .send({ ...validPayload, age: 10 + i });
-      results.push(res);
     }
 
-    expect(results[results.length - 1].status).toBe(429);
+    expect(lastRes.status).toBe(429);
+    expect(lastRes.body).toHaveProperty("error");
   });
 });
 

@@ -175,6 +175,8 @@ export async function registerRoutes(
   // Mount auth router
   app.use("/api/auth", authRouter);
   app.use("/api/ingest", fhirRouter);
+  app.use("/api/assessments", mlRouter);
+  app.use("/api/assessments", analyticsRouter);
   app.post(
     api.assessments.preview.path,
     requireAuth,
@@ -286,7 +288,6 @@ export async function registerRoutes(
       });
     }
   });
-
 
   /**
    * GET /api/assessments/search
@@ -501,6 +502,7 @@ export async function registerRoutes(
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
   app.use("/api/assessments", analyticsRouter);
+  app.use("/api/assessments", generalLimiter, exportsRouter);
   app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   // ─── Admin Routes ────────────────────────────────────────────────
