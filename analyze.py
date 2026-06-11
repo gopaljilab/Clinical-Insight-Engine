@@ -9,6 +9,8 @@ import pandas as pd
 from app.ml.prediction_cache import get_cache
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import pickle
 
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
@@ -258,6 +260,132 @@ def save_pretrained_model():
         _release_lock()
 
 
+def train_and_evaluate():
+    """Train on a hold-out split, compute metrics, then retrain on full data.
+
+    Outputs a JSON line with evaluation metrics and dataset statistics,
+    then saves the full-data model to disk.
+
+    Returns a dict of metrics and dataset stats (also printed to stdout).
+    """
+    if not os.path.exists(DATA_FILE):
+        print(json.dumps({"error": "Dataset not found"}))
+        return None
+
+    try:
+        df = read_csv_safely(DATA_FILE)
+    except SafeCSVError as e:
+        print(json.dumps({"error": f"Error loading dataset: {e}"}))
+        return None
+
+    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
+    for col in clinical_cols:
+        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50}
+        invalid_mask = (df[col] < thresholds[col]) | (df[col].isna())
+        if invalid_mask.any():
+            df.loc[invalid_mask, col] = df[col].median()
+
+    df = df[df['gender'] != 'Other']
+    df['gender_Male'] = (df['gender'] == 'Male').astype(int)
+
+    smoking_dummies = pd.get_dummies(df['smoking_history'], prefix='smoke', drop_first=True)
+    df = pd.concat([df, smoking_dummies], axis=1)
+
+    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'gender_Male'] + list(smoking_dummies.columns)
+
+    X = df[features].values
+    y = df['diabetes'].values
+
+    start_time = time.time()
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    model = LogisticRegression(class_weight='balanced')
+    model.fit(X_train_scaled, y_train)
+
+    y_pred = model.predict(X_test_scaled)
+    y_proba = model.predict_proba(X_test_scaled)[:, 1]
+
+    accuracy = float(accuracy_score(y_test, y_pred))
+    precision = float(precision_score(y_test, y_pred, zero_division=0))
+    recall = float(recall_score(y_test, y_pred, zero_division=0))
+    f1 = float(f1_score(y_test, y_pred, zero_division=0))
+    try:
+        auc = float(roc_auc_score(y_test, y_proba))
+    except Exception:
+        auc = None
+
+    class_balance = df['diabetes'].value_counts().to_dict()
+    class_balance = {str(k): int(v) for k, v in class_balance.items()}
+
+    feature_stats = {}
+    for col in features:
+        if col in df.columns:
+            feature_stats[col] = {
+                "mean": float(df[col].mean()),
+                "std": float(df[col].std())
+            }
+
+    num_samples = int(len(df))
+    num_features = int(len(features))
+
+    dataset_hash = _compute_dataset_hash(DATA_FILE)
+    try:
+        mtime = os.path.getmtime(DATA_FILE)
+        size = os.path.getsize(DATA_FILE)
+    except OSError:
+        mtime, size = None, None
+
+    result = {
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1,
+        "auc_roc": auc,
+        "dataset_hash": dataset_hash,
+        "num_samples": num_samples,
+        "num_features": num_features,
+        "class_balance": class_balance,
+        "feature_distributions": feature_stats,
+        "dataset_mtime": mtime,
+        "dataset_size": size,
+    }
+
+    # Retrain on full data and save
+    scaler_full = StandardScaler()
+    X_scaled_full = scaler_full.fit_transform(X)
+    model_full = LogisticRegression(class_weight='balanced')
+    model_full.fit(X_scaled_full, y)
+
+    X_design = np.hstack([np.ones((X_scaled_full.shape[0], 1)), X_scaled_full])
+    p = model_full.predict_proba(X_scaled_full)[:, 1]
+    classes = np.unique(y)
+    class_weights_arr = len(y) / (len(classes) * np.bincount(y))
+    sample_weights = class_weights_arr[y]
+    D = sample_weights * p * (1 - p)
+    I_mat = np.dot(X_design.T * D, X_design)
+    C_val = getattr(model_full, 'C', 1.0)
+    I_reg = np.eye(X_design.shape[1])
+    I_reg[0, 0] = 0.0
+    I_mat += (1.0 / C_val) * I_reg
+    cov_beta = np.linalg.inv(I_mat)
+
+    training_duration_ms = int((time.time() - start_time) * 1000)
+    result["training_duration_ms"] = training_duration_ms
+
+    _atomic_write(MODEL_FILE, (model_full, scaler_full, features, dataset_hash, cov_beta, mtime, size))
+    print(f"Model saved to {MODEL_FILE}", file=sys.stderr)
+
+    print(json.dumps(result))
+    return result
+
+
 def get_model():
     """Load pre-trained model, scaler, and features from disk with dataset change detection."""
     try:
@@ -274,7 +402,7 @@ def get_model():
             current_hash = _compute_dataset_hash(DATA_FILE)
         return current_hash
 
-    from app.ml.security import verify_signature
+    from app.ml.security import verify_signature, safe_pickle_load
 
     if os.path.exists(MODEL_FILE):
         try:
@@ -284,7 +412,7 @@ def get_model():
                     "Refusing to load untrusted model file to prevent Remote Code Execution."
                 )
             with open(MODEL_FILE, 'rb') as f:
-                model_data = pickle.load(f)
+                model_data = safe_pickle_load(f)
             if isinstance(model_data, tuple) and len(model_data) >= 3:
                 model, scaler, features = model_data[:3]
                 cached_hash = model_data[3] if len(model_data) >= 4 else None
@@ -323,7 +451,7 @@ def get_model():
                         "Refusing to load untrusted model file to prevent Remote Code Execution."
                     )
                 with open(MODEL_FILE, 'rb') as f:
-                    model_data = pickle.load(f)
+                    model_data = safe_pickle_load(f)
                 if isinstance(model_data, tuple) and len(model_data) >= 3:
                     cached_hash = model_data[3] if len(model_data) >= 4 else None
                     cov_beta = model_data[4] if len(model_data) >= 5 else None
@@ -546,12 +674,82 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     res = interpret_predictions_batch(model, scaler, features, [input_data], cov_beta)
     if isinstance(res, dict):
         return res
-    return res[0]
+    if isinstance(res, list) and len(res) > 0:
+        return res[0]
+    return res
+
+def counterfactual_analysis(model, scaler, features, input_data, cov_beta=None):
+    """
+    Performs what-if counterfactual analysis.
+    input_data: dict with 'original' (full assessment) and 'perturbations' (list of overrides).
+    Returns original prediction + ranked perturbation results.
+    """
+    original = input_data["original"]
+    perturbations = input_data.get("perturbations", [])
+
+    # Build all variants: original + each perturbation applied on top of original
+    variants = [original]
+    labels = ["original"]
+    for p in perturbations:
+        variant = dict(original)
+        for key, value in p.items():
+            if key in original:
+                variant[key] = value
+        variants.append(variant)
+        desc = "; ".join(f"{k}:{original.get(k, '?')}->{p[k]}" for k in p)
+        labels.append(desc)
+
+    results = interpret_predictions_batch(model, scaler, features, variants, cov_beta)
+    if isinstance(results, dict) and "error" in results:
+        return results
+
+    original_result = results[0]
+    perturbation_results = []
+    for i in range(1, len(results)):
+        r = results[i]
+        risk_reduction = round(original_result["riskScore"] - r["riskScore"], 1)
+        perturbation_results.append({
+            "delta": labels[i],
+            "riskScore": r["riskScore"],
+            "riskCategory": r["riskCategory"],
+            "factors": r.get("factors", []),
+            "riskReduction": risk_reduction,
+            "confidenceInterval": r.get("confidenceInterval"),
+            "modelConfidence": r.get("modelConfidence"),
+        })
+
+    perturbation_results.sort(key=lambda x: x["riskReduction"], reverse=True)
+
+    return {
+        "original": original_result,
+        "perturbations": perturbation_results,
+        "ranked": perturbation_results,
+    }
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "predict_file":
         if len(sys.argv) > 2:
-            with open(sys.argv[2], 'r') as f:
+            # SECURITY: Resolve the input path and validate it is within an
+            # allowed directory to prevent path traversal attacks.
+            # The Node backend always writes temp files to the OS temp directory;
+            # we also allow the script directory and CWD for test/CLI usage.
+            raw_input_path = sys.argv[2]
+            resolved_input = os.path.realpath(raw_input_path)
+            _allowed_dirs = {
+                os.path.realpath(SCRIPT_DIR),
+                os.path.realpath(tempfile.gettempdir()),
+                os.path.realpath(os.getcwd()),
+            }
+            if not any(
+                resolved_input == d or resolved_input.startswith(d + os.sep)
+                for d in _allowed_dirs
+            ):
+                print(
+                    "Error: Access denied. File path resolves outside allowed directories.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            with open(resolved_input, 'r') as f:
                 data = json.load(f)
         else:
             data = json.load(sys.stdin)
@@ -562,6 +760,15 @@ if __name__ == "__main__":
         else:
             result = interpret_prediction(model, scaler, features, data, cov_beta)
             print(json.dumps(result))
+    elif len(sys.argv) > 1 and sys.argv[1] == "counterfactual":
+        if len(sys.argv) > 2:
+            with open(sys.argv[2], 'r') as f:
+                data = json.load(f)
+        else:
+            data = json.load(sys.stdin)
+        model, scaler, features, cov_beta = get_model()
+        result = counterfactual_analysis(model, scaler, features, data, cov_beta)
+        print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")

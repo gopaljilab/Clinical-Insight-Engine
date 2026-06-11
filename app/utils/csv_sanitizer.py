@@ -33,8 +33,8 @@ def sanitize_csv_value(value: Any) -> str:
     s = str(value).strip()
 
     if s and s[0] in DANGEROUS_PREFIXES:
-        # Prepend tab to neutralize the formula
-        return "	" + s
+        # Prepend single quote to neutralize the formula (OWASP recommended)
+        return "'" + s
 
     return s
 

@@ -1,6 +1,45 @@
 import hmac
 import hashlib
 import os
+import pickle
+
+
+class SafeUnpickler(pickle.Unpickler):
+    """Restricted unpickler that guards against arbitrary code execution (CWE-502).
+
+    Only allows deserialization of classes from known-safe modules
+    (numpy, scipy, sklearn) and Python builtins. Any attempt to unpickle
+    classes from arbitrary modules (e.g. ``os``, ``subprocess``, ``builtins.exec``)
+    is blocked, preventing malicious pickle payloads from executing code.
+
+    Used as defense-in-depth alongside HMAC signature verification.
+    """
+
+    ALLOWED_MODULES: set[str] = {
+        "builtins",
+    }
+
+    ALLOWED_MODULE_PREFIXES: list[str] = [
+        "sklearn.",
+        "numpy.",
+        "scipy.",
+    ]
+
+    def find_class(self, module: str, name: str) -> type:
+        if module in self.ALLOWED_MODULES:
+            return super().find_class(module, name)
+        if any(module.startswith(prefix) for prefix in self.ALLOWED_MODULE_PREFIXES):
+            return super().find_class(module, name)
+        raise pickle.UnpicklingError(
+            f"Refused to unpickle '{name}' from forbidden module '{module}'. "
+            "Potential RCE attempt (CWE-502)."
+        )
+
+
+def safe_pickle_load(file) -> object:
+    """Load a pickle stream using SafeUnpickler to prevent arbitrary code execution."""
+    return SafeUnpickler(file).load()
+
 
 def get_signing_secret() -> bytes:
     # Use SESSION_SECRET, fallback to a stable dev secret if not set
