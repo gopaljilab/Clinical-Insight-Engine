@@ -436,18 +436,27 @@ export default function History() {
       .map((f: any) => `<li>${escapeHtml(f.name || "Unknown")} — ${escapeHtml(f.description || "")} (${escapeHtml(f.impact || "N/A")})</li>`)
       .join("")}</ul></div></div></body></html>`;
 
-    const w = window.open("", "_blank", "noopener,noreferrer");
-    if (!w) {
-      alert("Please allow popups to enable PDF export.");
-      return;
+    // Use Blob URL + anchor download instead of window.open + document.write:
+    // - avoids deprecated document.write()
+    // - works when popups are blocked (default in most modern browsers)
+    // - no window.alert() needed — errors shown as in-app toast
+    try {
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `assessment-${assessment.id ?? "export"}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({
+        title: "Export failed",
+        description: "Could not generate the PDF export. Please try again.",
+        variant: "destructive",
+      });
     }
-
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => {
-      w.print();
-    }, 250);
   }
 
   // Pagination (Server-Side)
