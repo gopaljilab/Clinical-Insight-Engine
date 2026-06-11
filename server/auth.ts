@@ -534,7 +534,9 @@ out
         .limit(1);
 
       if (!user) {
-        return res.status(404).json({ message: "No account found with this email." });
+        // Always return 200 regardless of whether the email exists — returning
+        // 404 leaks user account existence and enables email enumeration attacks.
+        return res.status(200).json({ success: true, message: "If an account exists with this email, a reset link has been sent." });
       }
 
       const token = randomBytes(32).toString("hex");
