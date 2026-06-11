@@ -104,10 +104,12 @@ export function startAssessmentWorker(): void {
   assessmentWorkerInstance = new Worker(
     "assessmentQueue",
     async (job: Job) => {
-      const { input, userId, userEmail } = job.data;
+      const { input, userId, userEmail, requestId } = job.data;
       const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
+      const startedAt = Date.now();
 
       try {
+        logger.info({ jobId: job.id, requestId }, "Assessment queue job started");
         await writeFile(tempFile, JSON.stringify(input));
         const stdout = await new Promise<string>((resolve, reject) => {
           const child = execFile(
@@ -143,6 +145,16 @@ export function startAssessmentWorker(): void {
           throw new Error(prediction.error);
         }
 
+        logger.info(
+          {
+            jobId: job.id,
+            requestId,
+            durationMs: Date.now() - startedAt,
+            riskCategory: prediction.riskCategory,
+          },
+          "Assessment queue ML prediction completed",
+        );
+
         prediction.disclaimer =
             "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions.";
 
@@ -177,9 +189,19 @@ export function startAssessmentWorker(): void {
 
         return {
           ...assessment,
-          prediction
+          prediction,
+          requestId,
         };
       } catch (err: any) {
+        logger.error(
+          {
+            jobId: job.id,
+            requestId,
+            durationMs: Date.now() - startedAt,
+            err,
+          },
+          "Assessment queue job failed during ML processing",
+        );
         if (err.killed || err.signal === "SIGTERM") {
           throw new Error("Clinical assessment generation timed out.");
         }
@@ -199,7 +221,7 @@ export function startAssessmentWorker(): void {
   );
 
   assessmentWorkerInstance.on("failed", (job: Job | undefined, err: Error) => {
-    logger.error({ jobId: job?.id, err }, "Assessment queue job failed");
+    logger.error({ jobId: job?.id, requestId: job?.data?.requestId, err }, "Assessment queue job failed");
   });
 }
 

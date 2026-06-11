@@ -158,6 +158,7 @@ assessmentsRouter.post(
     let requestFingerprint: string | undefined;
     try {
       const input = req.body;
+      const requestId = (req as any).id as string | undefined;
 
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
@@ -177,12 +178,14 @@ assessmentsRouter.post(
       const job = await queue.add("predict", {
         input,
         userId,
-        userEmail
+        userEmail,
+        requestId,
       });
 
       return res.status(202).json({
         message: "Assessment request accepted and is being processed.",
-        jobId: job.id
+        jobId: job.id,
+        requestId,
       });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
