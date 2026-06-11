@@ -299,11 +299,13 @@ describe("Rate limiting", () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    const requests = Array.from({ length: 6 }, (_, i) =>
-      request(app).post("/api/assessments").send({ ...validPayload, age: 10 + i })
-    );
-
-    const results = await Promise.all(requests);
+    const results = [];
+    for (let i = 0; i < 6; i++) {
+      const res = await request(app)
+        .post("/api/assessments")
+        .send({ ...validPayload, age: 10 + i });
+      results.push(res);
+    }
 
     const lastStatus = results[results.length - 1].status;
     expect(lastStatus).toBe(429);

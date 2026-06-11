@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
@@ -9,12 +8,16 @@ const { mockSendVerificationCode } = vi.hoisted(() => ({
 }));
 
 vi.mock("../server/email", () => ({
-  sendVerificationCode: mockSendVerificationCode,
+  sendVerificationEmail: mockSendVerificationCode,
   sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
 }));
 
+const mockDb = {
+  select: vi.fn(),
+};
+
 vi.mock("../server/db", () => ({
-  getDb: vi.fn(),
+  getDb: () => mockDb,
 }));
 
 vi.mock("../server/storage", () => ({
@@ -61,21 +64,33 @@ describe("POST /api/auth/resend-otp", () => {
     expect(res.body.message).toMatch(/email is required/i);
   });
 
-  it("returns 400 when no pending OTP exists for login mode", async () => {
+  it("returns 404 when user is not found in database", async () => {
+    // Mock db select to return empty array (user not found)
+    const mockLimit = vi.fn().mockResolvedValue([]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockDb.select.mockImplementation(() => ({ from: mockFrom }));
+
     const app = await buildApp();
     const res = await request(app)
       .post("/api/auth/resend-otp")
-      .send({ email: "noone@clinic.com", mode: "login" });
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/no pending verification/i);
+      .send({ email: "noone@clinic.com" });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/user not found/i);
   });
 
-it("does not require password — only email", async () => {
+  it("does not require password — only email", async () => {
+    // Mock db select to return empty array (user not found)
+    const mockLimit = vi.fn().mockResolvedValue([]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockDb.select.mockImplementation(() => ({ from: mockFrom }));
+
     const app = await buildApp();
     const res = await request(app)
       .post("/api/auth/resend-otp")
-      .send({ email: "test@clinic.com", mode: "login" });
-    // The 400 should be for "no pending OTP", not for missing password
+      .send({ email: "test@clinic.com" });
+    // The 404 should be for "user not found", not for missing password
     expect(res.body.message).not.toMatch(/password/i);
   });
 });
