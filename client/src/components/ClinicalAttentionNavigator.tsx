@@ -10,13 +10,24 @@ export interface AttentionNavigator {
   priorities: AttentionNavigatorItem[];
 }
 
-const PRIORITY_STYLES: Record<"high" | "moderate" | "monitor", string> = {
+interface PriorityItem {
+  factor: string;
+  priority: PriorityLevel;
+  reason: string;
+  value?: number;
+}
+
+interface NavigatorProps {
+  priorities: PriorityItem[];
+}
+
+const PRIORITY_STYLES: Record<PriorityLevel, string> = {
   high: "bg-rose-100 text-rose-800 border-rose-200",
   moderate: "bg-amber-100 text-amber-900 border-amber-200",
   monitor: "bg-emerald-100 text-emerald-900 border-emerald-200",
 };
 
-export function ClinicalAttentionNavigator({ navigator }: { navigator?: AttentionNavigator }) {
+export function ClinicalAttentionNavigator({ navigator }: { navigator?: NavigatorProps }) {
   if (!navigator || !navigator.priorities || navigator.priorities.length === 0) {
     return null;
   }
@@ -28,7 +39,7 @@ export function ClinicalAttentionNavigator({ navigator }: { navigator?: Attentio
         <h3 className="mt-2 text-xl font-bold text-foreground">Priority findings for clinician review</h3>
       </div>
       <div className="grid gap-4">
-        {navigator.priorities.map((item) => (
+        {navigator.priorities.map((item: PriorityItem) => (
           <article
             key={item.factor}
             className="rounded-3xl border border-border/70 bg-muted/80 p-4 shadow-sm sm:flex sm:items-start sm:justify-between"
@@ -51,5 +62,3 @@ export function ClinicalAttentionNavigator({ navigator }: { navigator?: Attentio
     </section>
   );
 }
-
-export default ClinicalAttentionNavigator;

@@ -124,7 +124,7 @@ describe("JWT Middleware (requireJwtAuth)", () => {
 
     expect(wasCalled()).toBe(false);
     expect(res.statusCode).toBe(401);
-    expect(res.body).toEqual({ error: "Unauthorized" });
+    expect(res.body).toEqual({ message: "Unauthorized" });
   });
 
   it("Malformed Authorization header returns 401", () => {
@@ -161,6 +161,6 @@ describe("JWT Middleware (requireJwtAuth)", () => {
     expect(wasCalled()).toBe(false);
     expect(res.statusCode).toBe(401);
     // Ensure we don't leak internals like "jwt malformed"
-    expect(res.body).toEqual({ error: "Unauthorized" });
+    expect(res.body).toEqual({ message: "Unauthorized" });
   });
 });

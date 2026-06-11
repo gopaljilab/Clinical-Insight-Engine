@@ -202,9 +202,9 @@ def test_atomic_write_creates_valid_model(tmp_path):
     _atomic_write(model_file, data)
     assert os.path.exists(model_file)
 
-    import pickle
+    from app.ml.security import safe_pickle_load
     with open(model_file, 'rb') as f:
-        loaded = pickle.load(f)
+        loaded = safe_pickle_load(f)
     assert loaded[3] == "dummyhash"
 
 
@@ -311,8 +311,9 @@ def test_get_model_metadata_caching(tmp_path, monkeypatch):
     assert os.path.exists(test_model_file + ".sig")
     
     # Load model_data to verify it has 7 elements
+    from app.ml.security import safe_pickle_load
     with open(test_model_file, 'rb') as f:
-        model_data = pickle.load(f)
+        model_data = safe_pickle_load(f)
     assert len(model_data) == 7
     assert model_data[5] is not None  # mtime
     assert model_data[6] is not None  # size
@@ -344,8 +345,9 @@ def test_get_model_metadata_caching(tmp_path, monkeypatch):
     assert hash_called, "Cryptographic hash was not computed after metadata changed!"
     
     # The second call should have also updated the model file with the new mtime
+    from app.ml.security import safe_pickle_load
     with open(test_model_file, 'rb') as f:
-        model_data_updated = pickle.load(f)
+        model_data_updated = safe_pickle_load(f)
     new_mtime = os.path.getmtime(test_data_file)
     assert model_data_updated[5] == new_mtime
 
@@ -382,8 +384,9 @@ def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
     res = analyze.get_model()
     assert res[0] is not None
     
+    from app.ml.security import safe_pickle_load
     with open(test_model_file, 'rb') as f:
-        migrated_data = pickle.load(f)
+        migrated_data = safe_pickle_load(f)
     assert len(migrated_data) == 7
     assert migrated_data[3] == dataset_hash
     assert migrated_data[5] == os.path.getmtime(test_data_file)

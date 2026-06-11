@@ -1,7 +1,7 @@
 ## ✦ Description
-Implement rate limiting across API endpoints to prevent abuse, scraping, and resource exhaustion. This update introduces centralized rate limiting using `express-rate-limit` to enforce strict request quotas.
+Add a destructive confirmation dialog when deleting a patient assessment from the History page to prevent accidental data loss. This adds a layer of friction for permanent actions while maintaining a smooth user experience through optimistic updates and loading states.
 
-Fixes #814
+Fixes #812
 
 ---
 
@@ -33,23 +33,23 @@ N/A
 ## Description
 
 ### Root Cause
-API endpoints lacked rate limiting, making the server susceptible to brute-force attacks, scraping, and excessive resource consumption.
+Deleting an assessment was previously an immediate action without confirmation, which could lead to accidental and irreversible data loss of patient records.
 
 ### Changes Made
-- Created a centralized rate limiting configuration in `server/middleware/rateLimit.ts` using `express-rate-limit`.
-- Enforced the following limits:
-    - **General (`/api/assessments*`, `/api/patients*`)**: 100 requests/minute.
-    - **ML Prediction (`/api/assessments/bulk`)**: 20 requests/minute.
-    - **Admin (`/api/admin/*`)**: 60 requests/minute.
-    - **Export (`/api/assessments/export.csv`)**: 10 requests/minute.
-- Applied limiters at the router level in `server/routes.ts` and individual routes (`ml.routes.ts`, `exports.routes.ts`).
+- Created a reusable \`ConfirmDeleteDialog\` component in \`client/src/components/ConfirmDeleteDialog.tsx\` using shadcn/ui Alert Dialog primitives.
+- Integrated the \`ConfirmDeleteDialog\` into the actions column of the History page table.
+- Created a \`useDeleteAssessment\` hook in \`client/src/hooks/use-assessments.ts\` using React Query to handle the API call, success/error toast notifications, and cache invalidation.
+- Implemented the \`DELETE /api/assessments/:id\` endpoint in \`server/routes/assessments.routes.ts\`.
+- Added \`deleteAssessment\` to the \`storage\` layer (\`server/storage.ts\` and \`server/repositories/assessment.repository.ts\`).
+- Included security checks (IDOR protection) in the delete endpoint to ensure a user can only delete assessments they created.
 
 ### Testing Performed
-- Verified TypeScript compilation (`npm run check`).
-- Ensured no existing functionality was broken by reviewing route configuration.
+\`bash
+npm run check
+\`
 
 ### Result
-PASS — 0 TypeScript errors found, rate limiting middleware correctly wired.
+PASS — 0 TypeScript errors found, components compile correctly.
 
 ---
 

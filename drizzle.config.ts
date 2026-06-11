@@ -18,6 +18,7 @@ export default defineConfig({
     "user_terms_acceptance",
     "login_audit_logs",
     "password_reset_tokens",
-    "email_verification_tokens"
+    "email_verification_tokens",
+    "model_versions"
   ],
 });

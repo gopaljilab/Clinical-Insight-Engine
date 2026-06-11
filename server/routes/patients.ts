@@ -14,7 +14,7 @@ router.get("/", async (req, res, next) => {
     const userEmail = req.jwtUser?.email;
     
     if (!userEmail) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
     // Return the user's assessments as their "patients" dataset

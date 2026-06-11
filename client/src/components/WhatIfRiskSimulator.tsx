@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
-import { CheckCircle2, Loader2, TrendingDown, TrendingUp } from "lucide-react";
-import { type AssessmentResponse, type AssessmentSimulationResponse } from "@shared/routes";
-import { useSimulateAssessment } from "@/hooks/use-assessments";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, BarChart3, CheckCircle2, Loader2, TrendingDown, TrendingUp } from "lucide-react";
+import { type AssessmentResponse, type AssessmentWhatIfResponse, type AssessmentWhatIfBatchResponse } from "@shared/routes";
+import { useWhatIfAssessment, useWhatIfBatch } from "@/hooks/use-assessments";
 import { useToast } from "@/hooks/use-toast";
 
 const smokingStatusOptions = [
@@ -38,11 +38,13 @@ const getDeltaStyles = (delta: number) => {
 
 interface WhatIfRiskSimulatorProps {
   assessment: AssessmentResponse;
+  onComparisonFactors?: (factors: { name: string; impact: string; description: string }[] | null) => void;
 }
 
-export function WhatIfRiskSimulator({ assessment }: WhatIfRiskSimulatorProps) {
+export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfRiskSimulatorProps) {
   const { toast } = useToast();
-  const simulateMutation = useSimulateAssessment();
+  const whatIfMutation = useWhatIfAssessment();
+  const whatIfBatchMutation = useWhatIfBatch();
 
   const [values, setValues] = useState({
     bmi: assessment.bmi ?? 0,
@@ -51,7 +53,11 @@ export function WhatIfRiskSimulator({ assessment }: WhatIfRiskSimulatorProps) {
     smokingHistory: assessment.smokingHistory ?? "No Info",
   });
 
-  const [simulationResult, setSimulationResult] = useState<AssessmentSimulationResponse | null>(null);
+  const [simulationResult, setSimulationResult] = useState<AssessmentWhatIfResponse | null>(null);
+  const [batchResult, setBatchResult] = useState<AssessmentWhatIfBatchResponse | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const currentRisk = Number(assessment.riskScore ?? 0);
   const simulatedRisk = simulationResult?.simulatedRisk ?? 0;
@@ -59,9 +65,8 @@ export function WhatIfRiskSimulator({ assessment }: WhatIfRiskSimulatorProps) {
 
   const differenceLabel = useMemo(() => {
     if (!simulationResult) {
-      return "Run a simulation to compare risks.";
+      return "Adjust values above to see the impact.";
     }
-
     if (riskDifference < 0) {
       return `Risk Reduction: ${Math.abs(riskDifference).toFixed(1)}%`;
     }
@@ -71,27 +76,48 @@ export function WhatIfRiskSimulator({ assessment }: WhatIfRiskSimulatorProps) {
     return "Risk unchanged.";
   }, [riskDifference, simulationResult]);
 
+  const buildInput = (overrides: Partial<typeof values>) => ({
+    patientName: assessment.patientName,
+    gender: assessment.gender as "Male" | "Female",
+    age: assessment.age,
+    hypertension: assessment.hypertension,
+    heartDisease: assessment.heartDisease,
+    smokingHistory: (overrides.smokingHistory ?? values.smokingHistory) as "current" | "never" | "No Info" | "former",
+    bmi: Number(overrides.bmi ?? values.bmi),
+    hba1cLevel: Number(overrides.hba1cLevel ?? values.hba1cLevel),
+    bloodGlucoseLevel: Number(overrides.bloodGlucoseLevel ?? values.bloodGlucoseLevel),
+  });
+
+  const runSimulation = async (currentValues: typeof values) => {
+    try {
+      const response = await whatIfMutation.mutateAsync(buildInput(currentValues));
+      setSimulationResult(response);
+      if (onComparisonFactors) {
+        onComparisonFactors(response.factors ?? null);
+      }
+    } catch {
+      // silent — individual field changes may fail gracefully
+    }
+  };
+
   const handleFieldChange = (field: keyof typeof values, value: string) => {
-    setValues((prev) => ({
-      ...prev,
+    const newValues = {
+      ...values,
       [field]: field === "smokingHistory" ? value : Number(value),
-    }));
+    };
+    setValues(newValues);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => runSimulation(newValues), 600);
   };
 
   const handleRunSimulation = async () => {
     try {
-      const response = await simulateMutation.mutateAsync({
-        patientName: assessment.patientName,
-        gender: assessment.gender as "Male" | "Female",
-        age: assessment.age,
-        hypertension: assessment.hypertension,
-        heartDisease: assessment.heartDisease,
-        smokingHistory: values.smokingHistory as "current" | "never" | "No Info" | "former",
-        bmi: values.bmi,
-        hba1cLevel: values.hba1cLevel,
-        bloodGlucoseLevel: values.bloodGlucoseLevel,
-      });
+      const response = await whatIfMutation.mutateAsync(buildInput(values));
       setSimulationResult(response);
+      if (onComparisonFactors) {
+        onComparisonFactors(response.factors ?? null);
+      }
       toast({
         title: "Simulation complete",
         description: "Your what-if risk preview is ready.",
@@ -105,6 +131,40 @@ export function WhatIfRiskSimulator({ assessment }: WhatIfRiskSimulatorProps) {
     }
   };
 
+  useEffect(() => {
+    const perturbations: Record<string, string | number | boolean>[] = [
+      { bmi: 25 },
+      { hba1cLevel: 5.7 },
+      { hba1cLevel: 6.5 },
+      { bloodGlucoseLevel: 100 },
+      { bloodGlucoseLevel: 140 },
+      { smokingHistory: "never" },
+      { bmi: 22, hba1cLevel: 5.5 },
+    ];
+
+    whatIfBatchMutation.mutate(
+      { original: buildInput(values), perturbations },
+      {
+        onSuccess: (data) => setBatchResult(data),
+        onError: () => {},
+      }
+    );
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const toggleComparison = () => {
+    const next = !showComparison;
+    setShowComparison(next);
+    if (onComparisonFactors) {
+      onComparisonFactors(next ? (simulationResult?.factors ?? null) : null);
+    }
+  };
+
   return (
     <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -114,22 +174,37 @@ export function WhatIfRiskSimulator({ assessment }: WhatIfRiskSimulatorProps) {
           </p>
           <h3 className="mt-2 text-xl font-bold text-foreground">Explore the impact of lifestyle changes</h3>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Adjust key health inputs and see how the risk estimate changes, without saving a new assessment.
+            Adjust key health inputs and see how the risk estimate changes in real time.
           </p>
         </div>
-        <button
-          type="button"
-          disabled={simulateMutation.isPending}
-          onClick={handleRunSimulation}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {simulateMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <TrendingUp className="h-4 w-4" />
-          )}
-          Run Simulation
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={toggleComparison}
+            disabled={!simulationResult}
+            className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+              showComparison
+                ? "bg-primary text-white border-primary"
+                : "bg-card text-foreground border-border hover:bg-secondary/50"
+            }`}
+          >
+            <BarChart3 className="h-4 w-4" />
+            {showComparison ? "Showing What-If" : "Compare Charts"}
+          </button>
+          <button
+            type="button"
+            disabled={whatIfMutation.isPending}
+            onClick={handleRunSimulation}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {whatIfMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <TrendingUp className="h-4 w-4" />
+            )}
+            Run Simulation
+          </button>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_1fr]">
@@ -230,19 +305,35 @@ export function WhatIfRiskSimulator({ assessment }: WhatIfRiskSimulatorProps) {
         </div>
       </div>
 
-      {simulationResult?.factorContributions?.length ? (
+      {batchResult?.ranked && batchResult.ranked.length > 0 ? (
         <div className="mt-6 rounded-3xl border border-border bg-secondary/80 p-5">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-4">
             <CheckCircle2 className="h-4 w-4 text-green-600" />
-            Factor contributions
+            Biggest Impact Changes
           </div>
           <div className="grid gap-3">
-            {simulationResult.factorContributions.map((factor) => (
-              <div key={factor.name} className="rounded-2xl border border-border/70 bg-card p-4 text-sm">
-                <p className="font-semibold text-foreground">{factor.name}</p>
-                <p className="mt-1 text-muted-foreground">{factor.description}</p>
-              </div>
-            ))}
+            {batchResult.ranked.slice(0, 5).map((item, i) => {
+              const isReduction = item.riskReduction > 0;
+              return (
+                <div key={item.delta} className="flex items-center justify-between rounded-2xl border border-border/70 bg-card p-4 text-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      {i + 1}
+                    </span>
+                    <div>
+                      <p className="font-semibold text-foreground">{item.delta}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        New risk: {item.riskScore.toFixed(1)}% ({item.riskCategory})
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`flex items-center gap-1 font-bold ${isReduction ? "text-green-600" : "text-red-500"}`}>
+                    {isReduction ? <ArrowDown className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
+                    {Math.abs(item.riskReduction).toFixed(1)}%
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : null}
