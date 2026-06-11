@@ -65,6 +65,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [view, setView] = useState<"patient" | "clinician">("patient");
   const [isPresenting, setIsPresenting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string }[] | null>(null);
 
   const generatePDF = async () => {
     setIsGeneratingPDF(true);
@@ -155,6 +156,18 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     plainReason: f.plainReason,
     strength: f.strength,
   }));
+
+  const whatIfChartData = useMemo(() => {
+    if (!whatIfFactors) return null;
+    const maxStrength = Math.max(whatIfFactors.length, 1);
+    return whatIfFactors.map((f, i) => ({
+      name: f.name,
+      value: f.impact === 'positive' ? Math.round(((maxStrength - i) / maxStrength) * 100) : -Math.round(((maxStrength - i) / maxStrength) * 100),
+      impact: f.impact,
+      description: f.description,
+      isWhatIf: true,
+    }));
+  }, [whatIfFactors]);
 
   const riskScore = Number(assessment.riskScore).toFixed(1);
   const positiveFactors = factors.filter((f: any) => f.impact === "positive");
@@ -355,7 +368,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <Recommendations recommendations={assessment.recommendations} audience="patient" />
 
-              <WhatIfRiskSimulator assessment={assessment} />
+              <WhatIfRiskSimulator assessment={assessment} onComparisonFactors={setWhatIfFactors} />
 
               <ExplainabilityPanel
                 factors={factorBreakdown}
@@ -475,12 +488,19 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               {/* Clinician Chart */}
               <div className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm overflow-hidden">
-                <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-primary" /> Factor Coefficient Impact
-                </h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary" /> Factor Coefficient Impact
+                  </h3>
+                  {whatIfChartData && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 text-xs font-semibold">
+                      What-If Comparison Active
+                    </span>
+                  )}
+                </div>
                 <div className="h-56 sm:h-64 w-full overflow-x-auto">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <BarChart data={whatIfChartData ?? chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                       <ReferenceLine x={0} stroke="hsl(var(--border))" />
                       <XAxis type="number" hide />
                       <YAxis dataKey="name" type="category" width={130} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
@@ -490,11 +510,11 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                             const data = payload[0].payload;
                             return (
                               <div className="bg-popover text-popover-foreground border border-border p-3 rounded-lg shadow-xl text-sm max-w-xs">
-                                <p className="font-bold mb-1">{data.name}</p>
+                                <p className="font-bold mb-1">{data.name}{data.isWhatIf ? ' (What-If)' : ''}</p>
                                 <p className="text-muted-foreground">{data.description}</p>
-                                <p className="text-muted-foreground mt-2">{data.plainReason}</p>
+                                {!data.isWhatIf && <p className="text-muted-foreground mt-2">{data.plainReason}</p>}
                                 <p className={`mt-2 font-semibold ${data.impact === 'positive' ? 'text-red-500' : 'text-green-500'}`}>
-                                  Impact: {data.impact === 'positive' ? 'Increases Risk' : 'Decreases Risk'} ({data.strength}% relative strength)
+                                  Impact: {data.impact === 'positive' ? 'Increases Risk' : 'Decreases Risk'}
                                 </p>
                               </div>
                             );
@@ -503,7 +523,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                         }}
                       />
                       <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                        {chartData.map((entry: any, index: number) => (
+                        {(whatIfChartData ?? chartData).map((entry: any, index: number) => (
                           <Cell key={`cell-${index}`} fill={entry.impact === 'positive' ? '#ef4444' : '#22c55e'} />
                         ))}
                       </Bar>

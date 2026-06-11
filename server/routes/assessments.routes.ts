@@ -6,7 +6,8 @@ import { rateLimit } from "express-rate-limit";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService } from "../services/mlService";
+import { MLService, calculateClinicalFallback } from "../services/mlService";
+import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { generateRecommendations } from "../services/recommendation-engine";
 import {
   sanitizeDatabaseError,
@@ -17,6 +18,25 @@ import { searchQuerySchema, assessmentsQuerySchema } from "../validation/searchV
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
 import { validateDTO } from "../middleware/validateDTO";
+import { writeFile, unlink } from "fs/promises";
+import { existsSync } from "fs";
+import { randomUUID } from "crypto";
+import { execFile } from "child_process";
+import { fileURLToPath } from "url";
+import path from "path";
+import os from "os";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
+
+function getPythonExecutable() {
+  const candidates =
+    process.platform === "win32"
+      ? [ path.resolve(".venv", "Scripts", "python.exe"), path.resolve("venv", "Scripts", "python.exe") ]
+      : [ path.resolve(".venv", "bin", "python"), path.resolve("venv", "bin", "python") ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? "python3";
+}
 
 const assessmentsRouter = Router();
 
@@ -24,6 +44,7 @@ assessmentsRouter.post(
   "/preview",
   requireAuth,
   requireVerified,
+  previewLimiter,
   validateDTO(api.assessments.preview.input),
   async (req, res) => {
     try {
@@ -53,9 +74,83 @@ assessmentsRouter.post(
 );
 
 assessmentsRouter.post(
+  "/what-if",
+  requireAuth,
+  requireVerified,
+  previewLimiter,
+  validateDTO(api.assessments.whatIf.input),
+  async (req, res) => {
+    try {
+      const input = req.body;
+      const { prediction, isFallback } = await MLService.runAssessmentInference(input);
+      return res.json({
+        simulatedRisk: prediction.riskScore,
+        riskCategory: prediction.riskCategory as "LOW" | "MODERATE" | "HIGH",
+        factors: prediction.factors ?? [],
+        confidenceInterval: prediction.confidenceInterval ?? null,
+        modelConfidence: prediction.modelConfidence ?? null,
+        isFallback,
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      }
+      if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
+        return res.status(503).json({ message: "What-if assessment timed out." });
+      }
+      return res.status(500).json({ message: err.message || "Internal server error" });
+    }
+  }
+);
+
+assessmentsRouter.post(
+  "/what-if/batch",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
+    try {
+      const parsed = api.assessments.whatIfBatch.input.parse(req.body);
+      const { original, perturbations } = parsed;
+
+      const payload = { original, perturbations };
+      await writeFile(tempFile, JSON.stringify(payload));
+
+      const stdout = await new Promise<string>((resolve, reject) => {
+        const child = execFile(
+          getPythonExecutable(),
+          [analyzePyPath, "counterfactual", tempFile],
+          { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
+          (error, stdout, stderr) => {
+            if (error) reject(error);
+            else resolve(stdout);
+          }
+        );
+      });
+
+      const result = JSON.parse(stdout.trim());
+      if (result?.error) {
+        return res.status(400).json({ message: result.error });
+      }
+
+      return res.json(result);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      }
+      logger.error({ err }, "What-if batch analysis failed");
+      return res.status(500).json({ message: "What-if batch analysis failed. Please try again." });
+    } finally {
+      try { await unlink(tempFile); } catch {}
+    }
+  }
+);
+
+assessmentsRouter.post(
   "/",
   requireAuth,
   requireVerified,
+  assessmentLimiter,
   validateDTO(api.assessments.create.input),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
@@ -107,6 +202,68 @@ assessmentsRouter.post(
       if (requestFingerprint) {
         MLService.activeInferenceRequests.delete(requestFingerprint);
       }
+    }
+  }
+);
+
+assessmentsRouter.post(
+  "/simulate",
+  requireAuth,
+  requireVerified,
+  previewLimiter,
+  validateDTO(api.assessments.simulate.input),
+  async (req, res) => {
+    try {
+      const input = req.body;
+      let prediction: any;
+
+      try {
+        const result = await MLService.runAssessmentInference(input);
+        prediction = result.prediction;
+      } catch (error: any) {
+        if (error.message?.includes("timed out")) {
+          return res.status(408).json({ message: "Clinical assessment simulation timed out." });
+        }
+
+        logger.warn(
+          "Python prediction simulation failed, falling back to clinical rule-based model:",
+          error
+        );
+        prediction = calculateClinicalFallback(input);
+      }
+
+      logger.info(
+        `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+      );
+
+      return res.json({
+        simulatedRisk: prediction.riskScore,
+        riskCategory: prediction.riskCategory,
+        confidence: prediction.modelConfidence ?? null,
+        factorContributions: prediction.factors ?? [],
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      }
+      logger.error({ err }, "Error creating assessment simulation");
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+assessmentsRouter.get(
+  "/patient/:patientName/trends",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
+      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+      return res.json(result);
+    } catch (err) {
+      logger.error({ err }, "Patient trends fetch error:");
+      return res.status(500).json({ message: "Failed to fetch patient trends." });
     }
   }
 );

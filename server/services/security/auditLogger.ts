@@ -55,8 +55,9 @@ export function logAuditEvent(message: string, details: AuditLogDetails, error?:
     }
   }
 
-  // Use stringify to prevent multi-line interleaving in central loggers
-  logger.info({ auditLog: logPayload }, "Audit Log");
+  // Use stringify to prevent multi-line interleaving in central loggers.
+  // Security events logged at warn level so they're visible in production monitoring/alerting.
+  logger.warn({ auditLog: logPayload }, "Security Audit Event");
 }
 
 /**
