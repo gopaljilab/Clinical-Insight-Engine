@@ -1,10 +1,14 @@
-import { loginAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser, type PatientUser, type InsertPatientUser } from "@shared/schema";
+import { loginAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser, type ModelVersion, type InsertModelVersion, type InsertPatientUser, type PatientUser } from "@shared/schema";
+import { assessments, users } from "@shared/schema";
+import { getDb } from "./db";
+import { eq, desc, and, or, ilike } from "drizzle-orm";
 import type { RiskCategory } from "./validation/searchValidation";
 
 import { UserRepository } from "./repositories/user.repository";
 import { AssessmentRepository } from "./repositories/assessment.repository";
 import { AuditRepository } from "./repositories/audit.repository";
 import { AnalyticsRepository } from "./repositories/analytics.repository";
+import { ModelVersionRepository } from "./repositories/model-version.repository";
 import { PatientUserRepository } from "./repositories/patient-user.repository";
 
 export interface IStorage {
@@ -54,10 +58,14 @@ export interface IStorage {
   getSystemStats(): Promise<{ totalUsers: number; totalAssessments: number; riskDistribution: { category: string; count: number }[]; }>;
   recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }): Promise<void>;
   getAnalyticsStats(createdBy?: string): Promise<any>;
-  createPatientUser(data: InsertPatientUser): Promise<PatientUser>;
+  getModelVersions(): Promise<ModelVersion[]>;
+  getLatestModelVersion(): Promise<ModelVersion | undefined>;
+  createModelVersion(data: InsertModelVersion): Promise<ModelVersion>;
+  getModelDatasetStats(): Promise<{ classBalance: Record<string, number>; featureStats: Record<string, { mean: number; std: number }>; totalSamples: number } | null>;
   getPatientUserByEmail(email: string): Promise<PatientUser | undefined>;
-  getPatientUserByPatientName(name: string): Promise<PatientUser | undefined>;
+  getPatientUserByPatientName(patientName: string): Promise<PatientUser | undefined>;
   getPatientUserById(id: string): Promise<PatientUser | undefined>;
+  createPatientUser(data: InsertPatientUser): Promise<PatientUser>;
   getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number): Promise<{ data: Assessment[]; total: number }>;
   getPatientTrends(patientName: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]>;
 }
@@ -76,6 +84,7 @@ export class DatabaseStorage implements IStorage {
   private userRepository = new UserRepository();
   private auditRepository = new AuditRepository();
   private analyticsRepository = new AnalyticsRepository();
+  private modelVersionRepository = new ModelVersionRepository();
   private patientUserRepository = new PatientUserRepository();
 
   getAssessments(limitOrParams?: number | Parameters<AssessmentRepository["getAssessments"]>[0], cursor?: number, createdBy?: string) { return this.assessmentRepository.getAssessments(limitOrParams, cursor, createdBy); }
@@ -88,7 +97,7 @@ export class DatabaseStorage implements IStorage {
     return this.assessmentRepository.getAssessmentById(id);
   }
 
-  async createAssessment(assessment: any) {
+  async createAssessment(assessment: AssessmentCreateInput) {
     return this.assessmentRepository.createAssessment(assessment);
   }
 
@@ -120,12 +129,12 @@ export class DatabaseStorage implements IStorage {
     return this.userRepository.updateUser(id, data);
   }
 
-  async getLoginAuditLogs(page: number, limit: number) {
-    return this.auditRepository.getLoginAuditLogs(page, limit);
-  }
-
   async recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }) {
     return this.auditRepository.recordLoginAudit(params);
+  }
+
+  async getLoginAuditLogs(page: number, limit: number) {
+    return this.auditRepository.getLoginAuditLogs(page, limit);
   }
 
   async getSystemStats() {
@@ -136,23 +145,39 @@ export class DatabaseStorage implements IStorage {
     return this.analyticsRepository.getAnalyticsStats(createdBy);
   }
 
-  async createPatientUser(data: InsertPatientUser) {
-    return this.patientUserRepository.create(data);
+  async getModelVersions(): Promise<ModelVersion[]> {
+    return this.modelVersionRepository.findAll();
   }
 
-  async getPatientUserByEmail(email: string) {
+  async getLatestModelVersion(): Promise<ModelVersion | undefined> {
+    return this.modelVersionRepository.findLatest();
+  }
+
+  async createModelVersion(data: InsertModelVersion): Promise<ModelVersion> {
+    return this.modelVersionRepository.create(data);
+  }
+
+  async getModelDatasetStats() {
+    return this.modelVersionRepository.getDatasetStats();
+  }
+
+  async getPatientUserByEmail(email: string): Promise<PatientUser | undefined> {
     return this.patientUserRepository.findByEmail(email);
   }
 
-  async getPatientUserByPatientName(name: string) {
-    return this.patientUserRepository.findByPatientName(name);
+  async getPatientUserByPatientName(patientName: string): Promise<PatientUser | undefined> {
+    return this.patientUserRepository.findByPatientName(patientName);
   }
 
-  async getPatientUserById(id: string) {
+  async getPatientUserById(id: string): Promise<PatientUser | undefined> {
     return this.patientUserRepository.findById(id);
   }
 
-  async getAssessmentsByPatientName(patientName: string, limit: number = 20, offset: number = 0) {
+  async createPatientUser(data: InsertPatientUser): Promise<PatientUser> {
+    return this.patientUserRepository.create(data);
+  }
+
+  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number) {
     return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset);
   }
 

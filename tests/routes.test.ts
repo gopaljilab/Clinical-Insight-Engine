@@ -163,9 +163,7 @@ beforeEach(() => {
   );
   mockGetAssessments.mockResolvedValue({
     data: [],
-    total: 0,
-    page: 1,
-    totalPages: 0,
+    nextCursor: null,
   });
   mockExecFile.mockImplementation((cmd, args, opts, cb) => {
     if (typeof opts === "function") {
@@ -564,20 +562,15 @@ describe("Response shape", () => {
           userId: null,
         },
       ],
-      total: 1,
-      page: 1,
-      totalPages: 1,
+      nextCursor: null,
     });
 
     const res = await request(app).get("/api/assessments");
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("data");
-    expect(res.body).toHaveProperty("total");
-    expect(res.body).toHaveProperty("page");
-    expect(res.body).toHaveProperty("totalPages");
+    expect(res.body).toHaveProperty("nextCursor");
     expect(Array.isArray(res.body.data)).toBe(true);
-    expect(typeof res.body.total).toBe("number");
   });
 });
 
@@ -672,7 +665,7 @@ describe("GET /api/patients (JWT protected)", () => {
 
     const res = await request(app).get("/api/patients");
     expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty("error", "Unauthorized");
+    expect(res.body).toHaveProperty("message", "Unauthorized");
   });
 
   it("returns 401 when Authorization header is malformed", async () => {
@@ -684,7 +677,7 @@ describe("GET /api/patients (JWT protected)", () => {
       .get("/api/patients")
       .set("Authorization", "Bearer invalidtoken");
     expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty("error", "Unauthorized");
+    expect(res.body).toHaveProperty("message", "Unauthorized");
   });
 
   it("returns 200 with patient data when valid JWT is provided", async () => {

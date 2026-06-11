@@ -19,6 +19,6 @@ export default defineConfig({
     "login_audit_logs",
     "password_reset_tokens",
     "email_verification_tokens",
-    "patient_users"
+    "model_versions"
   ],
 });
