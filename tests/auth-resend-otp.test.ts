@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
@@ -13,31 +12,20 @@ vi.mock("../server/email", () => ({
   sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock("../server/db", () => {
-  const mockDb = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([]),
-    insert: vi.fn().mockReturnThis(),
-    values: vi.fn().mockReturnThis(),
-    transaction: vi.fn().mockImplementation(async (cb: any) => cb({
-      update: vi.fn().mockReturnThis(),
-      set: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockReturnThis(),
-      values: vi.fn().mockReturnThis(),
-    })),
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-  };
-  return { getDb: vi.fn().mockReturnValue(mockDb) };
-});
+const mockDb = {
+  select: vi.fn(),
+  insert: vi.fn(),
+  update: vi.fn(),
+  transaction: vi.fn(),
+};
+
+vi.mock("../server/db", () => ({
+  getDb: () => mockDb,
+}));
 
 vi.mock("../server/storage", () => ({
   storage: {
-    getUserByEmail: vi.fn(),
-    createUser: vi.fn(),
+    recordLoginAudit: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -78,26 +66,48 @@ describe("POST /api/auth/resend-otp", () => {
     expect(res.body.message).toMatch(/email is required/i);
   });
 
-  it("returns 404 when user is not found", async () => {
+  it("returns 404 when user is not found in database", async () => {
+    const mockLimit = vi.fn().mockResolvedValue([]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockDb.select.mockImplementation(() => ({ from: mockFrom }));
+
     const app = await buildApp();
     const res = await request(app)
       .post("/api/auth/resend-otp")
-      .send({ email: "noone@clinic.com", mode: "login" });
+      .send({ email: "noone@clinic.com" });
     expect(res.status).toBe(404);
     expect(res.body.message).toMatch(/user not found/i);
   });
 
-  it("does not require password — only email", async () => {
-    const { getDb } = await import("../server/db");
-    const db = getDb();
-    (db as any).limit.mockResolvedValue([{ id: 1, email: "test@clinic.com" }]);
-    mockSendVerificationEmail.mockResolvedValue(true);
+  it("regenerates OTP and returns 200 on success", async () => {
+    const mockLimit = vi.fn().mockResolvedValue([{ id: "user-123", email: "test@clinic.com" }]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockDb.select.mockImplementation(() => ({ from: mockFrom }));
+
+    mockDb.transaction.mockImplementation(async (callback) => {
+      const mockTx = {
+        update: vi.fn(() => ({
+          set: vi.fn(() => ({
+            where: vi.fn().mockResolvedValue(undefined),
+          })),
+        })),
+        insert: vi.fn(() => ({
+          values: vi.fn().mockResolvedValue(undefined),
+        })),
+      };
+      return callback(mockTx);
+    });
+
     const app = await buildApp();
     const res = await request(app)
       .post("/api/auth/resend-otp")
-      .send({ email: "test@clinic.com", mode: "login" });
-    // Should succeed without requiring password
+      .send({ email: "test@clinic.com" });
+
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("success", true);
+    expect(res.body.success).toBe(true);
+    expect(res.body.pendingEmail).toBe("test@clinic.com");
+    expect(mockSendVerificationEmail).toHaveBeenCalledTimes(1);
   });
 });

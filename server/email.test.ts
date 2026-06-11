@@ -1,10 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-const { mockInfo, mockWarn, mockError, mockResendSend } = vi.hoisted(() => ({
+const { mockInfo, mockWarn, mockError, mockSend } = vi.hoisted(() => ({
   mockInfo: vi.fn(),
   mockWarn: vi.fn(),
   mockError: vi.fn(),
-  mockResendSend: vi.fn(),
+  mockSend: vi.fn(),
 }));
 
 vi.mock("./logger", () => ({
@@ -15,13 +15,17 @@ vi.mock("./logger", () => ({
   },
 }));
 
-vi.mock("resend", () => ({
-  Resend: vi.fn().mockImplementation(() => ({
-    emails: {
-      send: mockResendSend,
-    },
-  })),
-}));
+vi.mock("resend", () => {
+  return {
+    Resend: vi.fn().mockImplementation(() => {
+      return {
+        emails: {
+          send: mockSend,
+        },
+      };
+    }),
+  };
+});
 
 import {
   sendVerificationEmail,
@@ -35,7 +39,7 @@ describe("sendVerificationEmail", () => {
     mockInfo.mockClear();
     mockWarn.mockClear();
     mockError.mockClear();
-    mockResendSend.mockReset();
+    mockSend.mockReset();
     delete process.env.RESEND_API_KEY;
   });
 
@@ -47,7 +51,7 @@ describe("sendVerificationEmail", () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     process.env.RESEND_API_KEY = "re_test_key";
-    mockResendSend.mockResolvedValue({ data: { id: "email-id" }, error: null });
+    mockSend.mockResolvedValueOnce({ data: { id: "test-id" }, error: null });
     try {
       const sent = await sendVerificationEmail("test@example.com", "123456");
       expect(sent).toBe(true);
@@ -72,31 +76,33 @@ describe("sendVerificationEmail", () => {
     }
   });
 
-  it("returns true in production when email send succeeds", async () => {
+  it("returns false in production when Resend send fails", async () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     process.env.RESEND_API_KEY = "re_test_key";
-    mockResendSend.mockResolvedValue({ data: { id: "email-id" }, error: null });
-    try {
-      const sent = await sendVerificationEmail("test@example.com", "123456");
-      expect(sent).toBe(true);
-    } finally {
-      process.env.NODE_ENV = originalEnv;
-      delete process.env.RESEND_API_KEY;
-    }
-  });
+    mockSend.mockResolvedValueOnce({ data: null, error: { message: "API error" } });
 
-  it("returns false in production when email send fails", async () => {
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
-    process.env.RESEND_API_KEY = "re_test_key";
-    mockResendSend.mockResolvedValue({ data: null, error: new Error("Resend API error") });
     try {
       const sent = await sendVerificationEmail("test@example.com", "123456");
       expect(sent).toBe(false);
+      expect(mockSend).toHaveBeenCalledOnce();
     } finally {
       process.env.NODE_ENV = originalEnv;
-      delete process.env.RESEND_API_KEY;
+    }
+  });
+
+  it("returns true in production when Resend send succeeds", async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    process.env.RESEND_API_KEY = "re_test_key";
+    mockSend.mockResolvedValueOnce({ data: { id: "test-id" }, error: null });
+
+    try {
+      const sent = await sendVerificationEmail("test@example.com", "123456");
+      expect(sent).toBe(true);
+      expect(mockSend).toHaveBeenCalledOnce();
+    } finally {
+      process.env.NODE_ENV = originalEnv;
     }
   });
 });
@@ -106,7 +112,7 @@ describe("sendCriticalRiskAlert", () => {
     mockInfo.mockClear();
     mockWarn.mockClear();
     mockError.mockClear();
-    mockResendSend.mockReset();
+    mockSend.mockReset();
     delete process.env.RESEND_API_KEY;
   });
 
@@ -135,7 +141,7 @@ describe("sendCriticalRiskAlert", () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     process.env.RESEND_API_KEY = "re_test_key";
-    mockResendSend.mockResolvedValue({ data: { id: "email-id" }, error: null });
+    mockSend.mockResolvedValueOnce({ data: { id: "test-id" }, error: null });
     try {
       const sent = await sendCriticalRiskAlert("doc@example.com", "Jane Doe", 85.5, 123);
       expect(sent).toBe(true);
@@ -161,12 +167,12 @@ describe("validateEmailConfig", () => {
     expect(() => validateEmailConfig()).not.toThrow();
   });
 
-  it("throws EmailConfigurationError when production RESEND_API_KEY is missing", () => {
+  it("throws EmailConfigurationError when production Resend key is missing", () => {
     process.env.NODE_ENV = "production";
     expect(() => validateEmailConfig()).toThrow(EmailConfigurationError);
   });
 
-  it("does not throw in production when RESEND_API_KEY is set", () => {
+  it("does not throw in production when Resend key is set", () => {
     process.env.NODE_ENV = "production";
     process.env.RESEND_API_KEY = "re_test_key";
     expect(() => validateEmailConfig()).not.toThrow();

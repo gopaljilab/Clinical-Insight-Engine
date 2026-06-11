@@ -684,3 +684,12 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
   return res.status(403).json({ message: "Admin access required." });
 }
+
+export function getOtpRateLimitKey(req: any): string {
+  const email = req.body?.email;
+  if (email && typeof email === "string" && email.trim()) {
+    return `otp:${email.trim().toLowerCase()}`;
+  }
+  return `otp:ip:${req.ip || "unknown"}`;
+}
+

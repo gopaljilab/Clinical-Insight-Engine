@@ -6,7 +6,8 @@ import { rateLimit } from "express-rate-limit";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService } from "../services/mlService";
+import { MLService, calculateClinicalFallback } from "../services/mlService";
+import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { generateRecommendations } from "../services/recommendation-engine";
 import {
   sanitizeDatabaseError,
@@ -43,6 +44,7 @@ assessmentsRouter.post(
   "/preview",
   requireAuth,
   requireVerified,
+  previewLimiter,
   validateDTO(api.assessments.preview.input),
   async (req, res) => {
     try {
@@ -75,6 +77,7 @@ assessmentsRouter.post(
   "/what-if",
   requireAuth,
   requireVerified,
+  previewLimiter,
   validateDTO(api.assessments.whatIf.input),
   async (req, res) => {
     try {
@@ -143,6 +146,127 @@ assessmentsRouter.post(
   }
 );
 
+assessmentsRouter.post(
+  "/",
+  requireAuth,
+  requireVerified,
+  assessmentLimiter,
+  validateDTO(api.assessments.create.input),
+  async (req, res) => {
+    const userId = (req.session.user as any)?.id;
+    const userEmail = req.session.user?.email;
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required." });
+    }
+
+    let requestFingerprint: string | undefined;
+    try {
+      const input = req.body;
+
+      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
+      if (MLService.activeInferenceRequests.has(requestFingerprint)) {
+        return res.status(409).json({
+          message: "An identical assessment request is already being processed.",
+        });
+      }
+      MLService.activeInferenceRequests.add(requestFingerprint);
+
+      const queue = getAssessmentQueue();
+      if (!queue) {
+        return res.status(503).json({
+          message: "Assessment queue is temporarily unavailable.",
+        });
+      }
+
+      const job = await queue.add("predict", {
+        input,
+        userId,
+        userEmail
+      });
+
+      return res.status(202).json({
+        message: "Assessment request accepted and is being processed.",
+        jobId: job.id
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ message: err.errors[0]?.message ?? "Invalid input data" });
+      }
+      logger.error({ err }, "Assessment creation error:");
+      return res
+        .status(500)
+        .json({ message: "Failed to queue clinical assessment." });
+    } finally {
+      if (requestFingerprint) {
+        MLService.activeInferenceRequests.delete(requestFingerprint);
+      }
+    }
+  }
+);
+
+assessmentsRouter.post(
+  "/simulate",
+  requireAuth,
+  requireVerified,
+  previewLimiter,
+  validateDTO(api.assessments.simulate.input),
+  async (req, res) => {
+    try {
+      const input = req.body;
+      let prediction: any;
+
+      try {
+        const result = await MLService.runAssessmentInference(input);
+        prediction = result.prediction;
+      } catch (error: any) {
+        if (error.message?.includes("timed out")) {
+          return res.status(408).json({ message: "Clinical assessment simulation timed out." });
+        }
+
+        logger.warn(
+          "Python prediction simulation failed, falling back to clinical rule-based model:",
+          error
+        );
+        prediction = calculateClinicalFallback(input);
+      }
+
+      logger.info(
+        `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+      );
+
+      return res.json({
+        simulatedRisk: prediction.riskScore,
+        riskCategory: prediction.riskCategory,
+        confidence: prediction.modelConfidence ?? null,
+        factorContributions: prediction.factors ?? [],
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      }
+      logger.error({ err }, "Error creating assessment simulation");
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+assessmentsRouter.get(
+  "/patient/:patientName/trends",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
+      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+      return res.json(result);
+    } catch (err) {
+      logger.error({ err }, "Patient trends fetch error:");
+      return res.status(500).json({ message: "Failed to fetch patient trends." });
+    }
+  }
+);
 
 assessmentsRouter.get("/jobs/:id", requireAuth, requireVerified, async (req, res) => {
   try {

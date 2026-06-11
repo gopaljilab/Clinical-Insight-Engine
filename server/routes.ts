@@ -7,6 +7,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 
 import assessmentsRouter from "./routes/assessments.routes";
+import { MLService, generateRequestFingerprint, calculateClinicalFallback, getPythonExecutable } from "./services/mlService";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { logger } from "./logger";
@@ -140,6 +141,7 @@ async function seedDatabase() {
   logger.info("Seeding complete!");
 }
 
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -181,6 +183,7 @@ export async function registerRoutes(
   // exportsRouter must be mounted BEFORE assessmentsRouter so that
   // /api/assessments/export.csv is handled by the exports route and not
   // caught by assessmentsRouter's /:id wildcard.
+  app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", analyticsRouter);
