@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import jsPDF from "jspdf";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -144,11 +145,6 @@ export default function MyHealth() {
   }
 
   function handleDownloadPdf(assessment: Assessment) {
-    const { jsPDF } = window as any;
-    if (!jsPDF) {
-      setError("PDF library not loaded.");
-      return;
-    }
     const doc = new jsPDF();
     doc.setFontSize(18);
     doc.text("Patient Health Summary", 14, 22);
