@@ -13,6 +13,8 @@ import { validateDTO } from "../middleware/validateDTO";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { fileURLToPath } from "url";
+import { getDb } from "../db";
+import { assessments } from "@shared/schema";
 import { mlLimiter } from "../middleware/rateLimit";
 
 const execFileAsync = promisify(execFile);
@@ -35,10 +37,14 @@ mlRouter.post(
     }
 
     let requestFingerprint: string | null = null;
+    const batchId = randomUUID();
 
     try {
       const input = req.body.assessments;
-      
+      if (!Array.isArray(input) || input.length === 0) {
+        return res.status(400).json({ message: "Assessments array is required and must not be empty." });
+      }
+
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
         return res.status(409).json({ message: "Bulk request already processing." });
@@ -60,27 +66,41 @@ mlRouter.post(
         predictions = calculateClinicalFallback(input);
       }
 
-      const createdAssessments = await Promise.all(
-        input.map((assessment: any, index: number) => {
-          const prediction = predictions[index];
-          return storage.createAssessment({
-            ...assessment,
-            riskScore: Number(prediction.riskScore),
-            riskCategory: prediction.riskCategory,
-            factors: prediction.factors,
-            confidenceInterval: prediction.confidenceInterval ?? null,
-            modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
-            createdBy: userId,
-          });
-        })
-      );
+      if (predictions.length !== input.length) {
+        return res.status(500).json({
+          message: "Prediction count mismatch: ML service returned a different number of results than expected."
+        });
+      }
 
-      return res.status(201).json({ count: createdAssessments.length, assessments: createdAssessments });
+      const db = getDb();
+      const createdAssessments = await db.transaction(async (tx) => {
+        const results = [];
+        for (let index = 0; index < input.length; index++) {
+          const assessment = input[index];
+          const prediction = predictions[index];
+          const [created] = await tx
+            .insert(assessments)
+            .values({
+              ...assessment,
+              riskScore: Number(prediction.riskScore),
+              riskCategory: prediction.riskCategory,
+              factors: prediction.factors,
+              confidenceInterval: prediction.confidenceInterval ?? null,
+              modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
+              createdBy: userId,
+            })
+            .returning();
+          results.push(created);
+        }
+        return results;
+      });
+
+      return res.status(201).json({ count: createdAssessments.length, batchId, assessments: createdAssessments });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid bulk input data format. Ensure all rows meet schema requirements." });
+        return res.status(400).json({ message: "Invalid bulk input data format." });
       }
-      logger.error({ err }, "Bulk create error");
+      logger.error({ err, batchId }, "Bulk create error");
       return res.status(500).json({ message: "Failed to generate bulk assessments." });
     } finally {
       if (requestFingerprint) {

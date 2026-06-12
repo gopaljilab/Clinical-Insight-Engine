@@ -1,0 +1,40 @@
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m7[m[36m:[mconst [1;31mPagination[m = ({ className, ...props }: React.ComponentProps<"nav">) => (
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m10[m[36m:[m    aria-label="[1;31mpagination[m"
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m15[m[36m:[m[1;31mPagination[m.displayName = "[1;31mPagination[m"
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m17[m[36m:[mconst [1;31mPagination[mContent = React.forwardRef<
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m27[m[36m:[m[1;31mPagination[mContent.displayName = "[1;31mPagination[mContent"
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m29[m[36m:[mconst [1;31mPagination[mItem = React.forwardRef<
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m35[m[36m:[m[1;31mPagination[mItem.displayName = "[1;31mPagination[mItem"
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m37[m[36m:[mtype [1;31mPagination[mLinkProps = {
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m42[m[36m:[mconst [1;31mPagination[mLink = ({
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m47[m[36m:[m}: [1;31mPagination[mLinkProps) => (
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m60[m[36m:[m[1;31mPagination[mLink.displayName = "[1;31mPagination[mLink"
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m62[m[36m:[mconst [1;31mPagination[mPrevious = ({
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m65[m[36m:[m}: React.ComponentProps<typeof [1;31mPagination[mLink>) => (
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m66[m[36m:[m  <[1;31mPagination[mLink
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m74[m[36m:[m  </[1;31mPagination[mLink>
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m76[m[36m:[m[1;31mPagination[mPrevious.displayName = "[1;31mPagination[mPrevious"
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m78[m[36m:[mconst [1;31mPagination[mNext = ({
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m81[m[36m:[m}: React.ComponentProps<typeof [1;31mPagination[mLink>) => (
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m82[m[36m:[m  <[1;31mPagination[mLink
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m90[m[36m:[m  </[1;31mPagination[mLink>
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m92[m[36m:[m[1;31mPagination[mNext.displayName = "[1;31mPagination[mNext"
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m94[m[36m:[mconst [1;31mPagination[mEllipsis = ({
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m107[m[36m:[m[1;31mPagination[mEllipsis.displayName = "[1;31mPagination[mEllipsis"
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m110[m[36m:[m  [1;31mPagination[m,
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m111[m[36m:[m  [1;31mPagination[mContent,
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m112[m[36m:[m  [1;31mPagination[mEllipsis,
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m113[m[36m:[m  [1;31mPagination[mItem,
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m114[m[36m:[m  [1;31mPagination[mLink,
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m115[m[36m:[m  [1;31mPagination[mNext,
+[35mclient/src/components/ui/pagination.tsx[m[36m:[m[32m116[m[36m:[m  [1;31mPagination[mPrevious,
+[35mclient/src/pages/History.tsx[m[36m:[m[32m453[m[36m:[m  // [1;31mPagination[m (Server-Side)
+[35mclient/src/pages/History.tsx[m[36m:[m[32m909[m[36m:[m            {/* [1;31mPagination[m Footer Elements */}
+[35mserver/repositories/assessment.repository.ts[m[36m:[m[32m161[m[36m:[m    // Handle cursor [1;31mpagination[m fallback if cursor is explicitly passed
+[35mserver/storage.ts[m[36m:[m[32m156[m[36m:[m   * @param offset       [1;31mPagination[m offset (default 0)
+[35mserver/utils/seed.ts[m[36m:[m[32m7[m[36m:[m  // existing.data is used in the codebase if cursor [1;31mpagination[m returned data wrapper, or just checking length.
+[35mserver/utils/seed.ts[m[36m:[m[32m8[m[36m:[m  // Wait, in my cursor [1;31mpagination[m logic it might return an array or an object. Let's just check length of what we get.
+[35mserver/validation/searchValidation.ts[m[36m:[m[32m69[m[36m:[m * - `page`         [1;31mPagination[m page, ≥1 (default 1)
+[35mtests/searchValidation.test.ts[m[36m:[m[32m24[m[36m:[m * │ Valid [1;31mpagination[m params             │ Passes validation                │
+[35mtests/searchValidation.test.ts[m[36m:[m[32m258[m[36m:[mdescribe("searchQuerySchema — [1;31mpagination[m params", () => {
+[35mtests/searchValidation.test.ts[m[36m:[m[32m363[m[36m:[m  it("searchQuerySchema accepts patient name with [1;31mpagination[m", () => {

@@ -43,9 +43,12 @@ interface RegisteredUser {
   licenseNumber: string;
 }
 
-// removed duplicated functions
-
-
+export function getOtpRateLimitKey({ body, ip }: { body: { email?: string }; ip: string }): string {
+  if (body.email) {
+    return `otp:${body.email.toLowerCase().trim()}`;
+  }
+  return `otp:${ip}`;
+}
 
 /**
  * Strict rate limiter for sensitive endpoints (e.g., registration).
@@ -60,15 +63,15 @@ const strictAuthLimiter = rateLimit({
 });
 
 /**
- * General rate limiter for standard auth endpoints (e.g., login).
- * More lenient than strictAuthLimiter to avoid frustrating legitimate users.
+ * Strict rate limiter for standard auth endpoints (e.g., login).
+ * Prevents brute-force attacks and credential stuffing (Fixes #996).
  */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 15,
+  limit: 5,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  message: { error: "Too many login/registration attempts. Please try again in 15 minutes." },
+  message: { error: "Too many login attempts. Please try again in 15 minutes." },
 });
 
 
@@ -113,6 +116,18 @@ function logDevOtp(email: string, otp: string) {
   }
 }
 
+/**
+ * Generates a rate-limit key for OTP requests.
+ * Keys by normalized email when available, falls back to client IP.
+ */
+export function getOtpRateLimitKey(req: { body: { email?: string }; ip: string }): string {
+  const email = req.body?.email?.toString().trim().toLowerCase();
+  if (email) {
+    return `otp:${email}`;
+  }
+  return `otp:ip:${req.ip}`;
+}
+
 function regenerateSession(req: Request): Promise<void> {
   return new Promise((resolve, reject) => {
     req.session.regenerate((err) => {
@@ -155,6 +170,87 @@ async function establishAuthenticatedSession(
  * in-memory store during initial registration). All users must complete OTP
  * verification to establish an authenticated session.
  */
+/**
+ * Normalised identity returned by getAuthenticatedUser().
+ */
+export interface AuthenticatedUser {
+  userId: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  authMethod: "session" | "jwt";
+}
+
+/**
+ * Unified identity resolver that accepts either a session cookie or a
+ * JWT bearer token and returns a normalised AuthenticatedUser after
+ * checking the account's isActive flag in the database.
+ */
+export async function getAuthenticatedUser(
+  req: Request,
+): Promise<AuthenticatedUser | null> {
+  if (req.session?.user) {
+    const sessionUser = req.session.user;
+    const dbUser = await storage.getUserById(sessionUser.id);
+    if (!dbUser || dbUser.isActive === false) {
+      return null;
+    }
+    return {
+      userId: dbUser.id,
+      email: dbUser.email,
+      role: dbUser.role ?? "provider",
+      isActive: dbUser.isActive ?? true,
+      authMethod: "session",
+    };
+  }
+
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const parts = authHeader.split(" ");
+    if (parts.length === 2 && parts[0].toLowerCase() === "bearer") {
+      const token = parts[1];
+      if (token && token.includes(".")) {
+        const { verifyToken } = await import("./services/auth/tokenValidator");
+        const result = verifyToken(token);
+        if (result.valid) {
+          const email = result.payload.email;
+          if (email) {
+            const dbUser = await storage.getUserByEmail(email);
+            if (dbUser && dbUser.isActive !== false) {
+              return {
+                userId: dbUser.id,
+                email: dbUser.email,
+                role: dbUser.role ?? "provider",
+                isActive: dbUser.isActive ?? true,
+                authMethod: "jwt",
+              };
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Unified middleware that enforces authentication via session OR JWT,
+ * normalises identity, and checks account active status.
+ */
+export async function requireAnyAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    const authUser = await getAuthenticatedUser(req);
+    if (!authUser) {
+      return res.status(401).json({ message: "Authentication required." });
+    }
+    (req as any).authenticatedUser = authUser;
+    next();
+  } catch {
+    return res.status(500).json({ message: "Authentication check failed." });
+  }
+}
+
 export function createAuthRouter(): Router {
   const router = Router();
 
@@ -248,13 +344,27 @@ export function createAuthRouter(): Router {
         .where(eq(users.email, email))
         .limit(1);
 
-      if (!dbUser || !verifyPassword(password, dbUser.passwordHash)) {
-        await storage.recordLoginAudit({
-          ipAddress: req.ip,
-          userAgent: req.headers["user-agent"],
-          loginStatus: "login_failed",
-        });
-        return res.status(401).json({ message: "Invalid email or password." });
+      // Also check DB
+      if (!userName) {
+        try {
+          const db = getDb();
+          const [dbUser] = await db
+            .select()
+            .from(users)
+            .where(and(eq(users.email, email), eq(users.isActive, true)))
+            .limit(1);
+
+          if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
+            userName = dbUser.fullName;
+          }
+        } catch (_err) {
+          // DB not available — fall back to in-memory only
+          logger.warn("DB unavailable for login, using in-memory only.");
+          const registeredUser = registeredUsers.get(email);
+          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+            userName = registeredUser.fullName;
+          }
+        }
       }
 
       const otp = generateOtp();
@@ -313,6 +423,28 @@ export function createAuthRouter(): Router {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     try {
+      if (mode === "login") {
+        const pending = pendingOtps.get(email);
+
+        if (!pending) {
+          return res.status(400).json({ message: "No pending verification found for this email. Please sign in again." });
+        }
+
+        if (Date.now() > pending.expiresAt) {
+          pendingOtps.delete(email);
+          return res.status(400).json({ message: "OTP has expired. Please sign in again." });
+        }
+
+        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime(), attempts: 0 });
+        const emailSent = await sendVerificationCode(email, otp);
+        if (!emailSent) {
+          return res.status(503).json({ message: "Failed to send verification email. Please try again." });
+        }
+        logDevOtp(email, otp);
+
+        return res.json({ success: true, pendingEmail: email });
+      }
+
       const db = getDb();
       const [user] = await db
         .select()
@@ -357,6 +489,122 @@ export function createAuthRouter(): Router {
       return res.status(500).json({ message: "Failed to resend verification code." });
     }
   });
+
+  /**
+   * POST /api/auth/verify-otp
+   * Verifies the OTP sent after login/register and establishes a session.
+   */
+  router.post("/verify-otp", otpLimiter, validateDTO(verifyOtpDTOSchema), async (req: Request, res: Response) => {
+    const { email, otp } = req.body;
+
+    const pending = pendingOtps.get(email);
+
+    if (!pending) {
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_failed",
+      });
+      return res.status(400).json({ message: "No pending verification found for this email." });
+    }
+
+    if (Date.now() > pending.expiresAt) {
+      pendingOtps.delete(email);
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_expired",
+      });
+      return res.status(400).json({ message: "OTP has expired. Please sign in again." });
+    }
+
+    if (pending.otp !== otp) {
+      pending.attempts = (pending.attempts ?? 0) + 1;
+
+      if (pending.attempts >= 3) {
+        pendingOtps.delete(email);
+        await storage.recordLoginAudit({
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+          loginStatus: "otp_failed_lockout",
+        });
+        return res.status(429).json({
+          message: "Too many failed attempts. Please sign in again.",
+        });
+      }
+
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_failed",
+      });
+      const remaining = 3 - pending.attempts;
+      return res.status(401).json({
+        message: `Invalid OTP. ${remaining} attempt(s) remaining.`,
+      });
+    }
+
+    pendingOtps.delete(email);
+
+    const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
+
+    let id: string;
+    let name: string;
+    let role: string;
+
+    let emailVerified = false;
+
+    if (email === devEmail) {
+      name = "Dr. Smith";
+      id = "dev";
+      role = "DOCTOR";
+      emailVerified = true;
+    } else {
+      const db = getDb();
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
+      if (!user.isActive) {
+        return res.status(403).json({ message: "Account has been deactivated." });
+      }
+
+
+      if (!user.emailVerified) {
+        await db
+          .update(users)
+          .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
+          .where(eq(users.id, user.id));
+      }
+
+      id = user.id;
+      name = user.fullName;
+      role = user.role ?? "DOCTOR";
+      emailVerified = true;
+    }
+
+    try {
+      await establishAuthenticatedSession(req, { id, email, name, role, emailVerified });
+    } catch (error) {
+      logger.error({ err: error }, "Session regeneration failed");
+      return res.status(500).json({ message: "Failed to establish session." });
+    }
+
+    await storage.recordLoginAudit({
+      userId: id,
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      loginStatus: "login_success",
+    });
+
+    return res.json({ success: true, user: { id, email, name } });
+  });
+
+  // ─── Email Verification (DB-backed) ────────────────────────────────────
 
   /**
    * POST /api/auth/verify-email
@@ -407,7 +655,7 @@ export function createAuthRouter(): Router {
           return { success: false as const, status: 400, message: "No valid verification code found. Please request a new code." };
         }
 
-        const maxAttempts = 5;
+        const maxAttempts = 3;
         if ((token.attemptCount ?? 0) >= maxAttempts) {
           await tx
             .update(emailVerificationTokens)
@@ -418,19 +666,34 @@ export function createAuthRouter(): Router {
         }
 
         if (token.verificationCode !== code) {
+          const newAttemptCount = (token.attemptCount ?? 0) + 1;
+
+          if (newAttemptCount >= maxAttempts) {
+            await tx
+              .update(emailVerificationTokens)
+              .set({ used: true })
+              .where(eq(emailVerificationTokens.id, token.id));
+
+            return {
+              success: false as const,
+              status: 429,
+              message: "Too many failed attempts. Please request a new verification code.",
+            };
+          }
+
           await tx
             .update(emailVerificationTokens)
-            .set({ attemptCount: (token.attemptCount ?? 0) + 1 })
+            .set({ attemptCount: newAttemptCount })
             .where(and(
               eq(emailVerificationTokens.id, token.id),
               eq(emailVerificationTokens.used, false),
             ));
 
-          const remaining = maxAttempts - (token.attemptCount ?? 0) - 1;
+          const remaining = maxAttempts - newAttemptCount;
           return {
             success: false as const,
             status: 401,
-            message: `Invalid code. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : "Please request a new code."}`,
+            message: `Invalid code. ${remaining} attempt(s) remaining.`,
           };
         }
 
@@ -534,7 +797,9 @@ out
         .limit(1);
 
       if (!user) {
-        return res.status(404).json({ message: "No account found with this email." });
+        // Always return 200 regardless of whether the email exists — returning
+        // 404 leaks user account existence and enables email enumeration attacks.
+        return res.status(200).json({ success: true, message: "If an account exists with this email, a reset link has been sent." });
       }
 
       const token = randomBytes(32).toString("hex");
@@ -657,3 +922,12 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
   return res.status(403).json({ message: "Admin access required." });
 }
+
+export function getOtpRateLimitKey(req: any): string {
+  const email = req.body?.email;
+  if (email && typeof email === "string" && email.trim()) {
+    return `otp:${email.trim().toLowerCase()}`;
+  }
+  return `otp:ip:${req.ip || "unknown"}`;
+}
+

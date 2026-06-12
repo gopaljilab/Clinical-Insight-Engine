@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { ApiClient } from "@/lib/apiClient";
+import { AuthLayout } from "@/components/auth/AuthLayout";
+import { AuthCard } from "@/components/auth/AuthCard";
+import { FormField } from "@/components/auth/FormField";
+import { AuthButton } from "@/components/auth/AuthButton";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -41,62 +45,56 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-teal-50 flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-800">Forgot Password</h1>
-          <p className="text-gray-500 text-sm mt-1">Enter your email to receive a reset link</p>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          {success && (
-            <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-700">
-              {success}
+    <AuthLayout>
+      <AuthCard title="Reset Password">
+        {success ? (
+          <div className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
             </div>
-          )}
-          {error && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
-              {error}
-            </div>
-          )}
-          <form onSubmit={handleSubmit} noValidate>
-            <div className="mb-5">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setError(""); }}
-                placeholder="you@example.com"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:bg-white transition-all duration-200"
-              />
-            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400">{success}</p>
             <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-md"
+              onClick={() => setLocation("/login")}
+              className="mt-6 text-sm font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400"
             >
-              {isLoading ? "Sending..." : "Send Reset Link"}
+              Return to sign in
             </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <p className="mb-6 text-sm text-slate-600 dark:text-slate-400">
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+            {error && (
+              <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                {error}
+              </div>
+            )}
+            <FormField
+              label="Email Address"
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(""); }}
+              placeholder="clinician@clinic.com"
+              required
+            />
+            <AuthButton type="submit" isLoading={isLoading} loadingText="Sending...">
+              Send Reset Link
+            </AuthButton>
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => setLocation("/login")}
+                className="text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              >
+                Back to sign in
+              </button>
+            </div>
           </form>
-
-          <button
-            type="button"
-            onClick={() => setLocation("/login")}
-            className="w-full mt-4 text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium text-center transition-colors"
-          >
-            Back to sign in
-          </button>
-        </div>
-
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Clinical Insight Engine © {new Date().getFullYear()}
-        </p>
-      </div>
-    </div>
+        )}
+      </AuthCard>
+    </AuthLayout>
   );
 }
