@@ -2,13 +2,11 @@ import { logger } from "../logger";
 import { getAssessmentQueue } from "../queue";
 import { Router } from "express";
 import { z } from "zod";
-import { rateLimit } from "express-rate-limit";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService, calculateClinicalFallback } from "../services/mlService";
-import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { MLService, isPythonAvailable, calculateClinicalFallback } from "../services/mlService";
+import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 
 import { generateRecommendations } from "../services/recommendation-engine";
 import {
@@ -41,28 +39,6 @@ function getPythonExecutable() {
 }
 
 const assessmentsRouter = Router();
-
-export const assessmentLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 5,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: {
-    error: "Too many assessment requests. Please try again later.",
-    retryAfter: 60,
-  },
-});
-
-export const previewLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 10,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: {
-    error: "Too many preview requests. Please try again later.",
-    retryAfter: 60,
-  },
-});
 
 assessmentsRouter.post(
   "/preview",
