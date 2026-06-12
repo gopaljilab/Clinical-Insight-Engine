@@ -4,6 +4,16 @@ import { type AssessmentResponse, type AssessmentWhatIfResponse, type Assessment
 import { useWhatIfAssessment, useWhatIfBatch } from "@/hooks/use-assessments";
 import { useToast } from "@/hooks/use-toast";
 
+const BATCH_PERTURBATIONS: Record<string, string | number | boolean>[] = [
+  { bmi: 25 },
+  { hba1cLevel: 5.7 },
+  { hba1cLevel: 6.5 },
+  { bloodGlucoseLevel: 100 },
+  { bloodGlucoseLevel: 140 },
+  { smokingHistory: "never" },
+  { bmi: 22, hba1cLevel: 5.5 },
+];
+
 const smokingStatusOptions = [
   { label: "Never", value: "never" },
   { label: "Former", value: "former" },
@@ -90,11 +100,16 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
 
   const runSimulation = async (currentValues: typeof values) => {
     try {
-      const response = await whatIfMutation.mutateAsync(buildInput(currentValues));
+      const input = buildInput(currentValues);
+      const response = await whatIfMutation.mutateAsync(input);
       setSimulationResult(response);
       if (onComparisonFactors) {
         onComparisonFactors(response.factors ?? null);
       }
+      whatIfBatchMutation.mutate(
+        { original: input, perturbations: BATCH_PERTURBATIONS },
+        { onSuccess: (data) => setBatchResult(data), onError: () => {} }
+      );
     } catch {
       // silent — individual field changes may fail gracefully
     }
@@ -142,29 +157,18 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
   };
 
   useEffect(() => {
-    const perturbations: Record<string, string | number | boolean>[] = [
-      { bmi: 25 },
-      { hba1cLevel: 5.7 },
-      { hba1cLevel: 6.5 },
-      { bloodGlucoseLevel: 100 },
-      { bloodGlucoseLevel: 140 },
-      { smokingHistory: "never" },
-      { bmi: 22, hba1cLevel: 5.5 },
-    ];
-
+    // Run the initial batch scenario comparison on mount using the
+    // assessment's current values. Subsequent runs are triggered inside
+    // runSimulation so the comparison stays in sync with slider changes.
     whatIfBatchMutation.mutate(
-      { original: buildInput(values), perturbations },
-      {
-        onSuccess: (data) => setBatchResult(data),
-        onError: () => {},
-      }
+      { original: buildInput(values), perturbations: BATCH_PERTURBATIONS },
+      { onSuccess: (data) => setBatchResult(data), onError: () => {} }
     );
-  }, []);
 
-  useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleComparison = () => {
