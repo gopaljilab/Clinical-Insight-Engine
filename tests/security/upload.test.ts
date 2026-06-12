@@ -54,7 +54,7 @@ describe("File Upload Hardening", () => {
       });
     
     expect(response.status).toBe(200);
-    expect(response.body.message).toBe("File uploaded successfully");
+    expect(response.body.message).toBe("Lab results imported successfully");
   });
 
   it("rejects files that are too large", async () => {

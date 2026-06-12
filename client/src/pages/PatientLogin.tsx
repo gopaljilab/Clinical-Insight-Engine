@@ -122,13 +122,13 @@ export default function PatientLogin() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md shadow-lg">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-950 p-4">
+      <Card className="w-full max-w-md shadow-lg dark:shadow-gray-950/50">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-            <Stethoscope className="h-6 w-6 text-blue-600" />
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
+            <Stethoscope className="h-6 w-6 text-blue-600 dark:text-blue-400" />
           </div>
-          <CardTitle className="text-xl">Patient Portal</CardTitle>
+          <CardTitle className="text-xl dark:text-gray-100">Patient Portal</CardTitle>
           <CardDescription>Access your health assessments and recommendations</CardDescription>
         </CardHeader>
         <CardContent>
@@ -139,7 +139,7 @@ export default function PatientLogin() {
             </TabsList>
 
             {error && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+              <div className="mt-4 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/50 p-3 text-sm text-red-700 dark:text-red-400">{error}</div>
             )}
 
             <TabsContent value="login">

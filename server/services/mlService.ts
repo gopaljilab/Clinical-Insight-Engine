@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from "crypto";
-import { execFile } from "child_process";
+import { execFile, spawn, ChildProcess } from "child_process";
 import { existsSync } from "fs";
 import { writeFile, unlink } from "fs/promises";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { logger } from "../logger";
+import readline from "readline";
 
 // ESM-compatible path resolution for analyze.py
 const __filename = fileURLToPath(import.meta.url);
@@ -60,9 +61,17 @@ const mlConcurrency = new SimpleSemaphore(maxConcurrency);
  */
 const activeInferenceRequests = new Set<string>();
 
+function canonicalStringify(obj: unknown): string {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return "[" + obj.map(canonicalStringify).join(",") + "]";
+  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  const pairs = keys.map(k => JSON.stringify(k) + ":" + canonicalStringify((obj as Record<string, unknown>)[k]));
+  return "{" + pairs.join(",") + "}";
+}
+
 export function generateRequestFingerprint(payload: unknown, userId: string): string {
   return createHash("sha256")
-    .update(`${userId}::${JSON.stringify(payload)}`)
+    .update(`${userId}::${canonicalStringify(payload)}`)
     .digest("hex");
 }
 
@@ -78,8 +87,26 @@ export function getPythonExecutable() {
           path.resolve("venv", "bin", "python"),
         ];
 
-  return candidates.find((candidate) => existsSync(candidate)) ?? "python3";
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (found) return found;
+  return process.platform === "win32" ? "python" : "python3";
 }
+
+export let isPythonAvailable = true;
+
+export function checkPythonAvailability() {
+  execFile(getPythonExecutable(), ["--version"], { timeout: 2000 }, (error) => {
+    if (error) {
+      logger.warn("Python executable not found or unresponsive. Falling back to clinical rule-based model globally.");
+      isPythonAvailable = false;
+    } else {
+      isPythonAvailable = true;
+    }
+  });
+}
+
+// Start the check immediately
+checkPythonAvailability();
 
 export interface PredictionResult {
   riskScore: number;
@@ -237,51 +264,197 @@ export function calculateClinicalFallback(input: unknown): any {
   };
 }
 
+interface PendingRequest {
+  resolve: (value: any) => void;
+  reject: (reason: any) => void;
+  timeoutId: NodeJS.Timeout;
+}
 export async function runAssessmentInference(input: unknown): Promise<{ prediction: PredictionResult, isFallback: boolean }> {
+  if (!isPythonAvailable) {
+    return { prediction: calculateClinicalFallback(input), isFallback: true };
+  }
+
   const release = await mlConcurrency.acquire();
   const tempFilePath = path.join(os.tmpdir(), `${randomUUID()}.json`);
 
-  try {
-    await writeFile(tempFilePath, JSON.stringify(input));
+class PythonDaemonManager {
+  private process: ChildProcess | null = null;
+  private rl: readline.Interface | null = null;
+  private pendingRequests = new Map<string, PendingRequest>();
+  private isRestarting = false;
 
-    const stdout = await new Promise<string>((resolve, reject) => {
-      const child = execFile(
-        getPythonExecutable(),
-        [analyzePyPath, "predict_file", tempFilePath],
-        {
-          timeout: ML_TIMEOUT_MS,
-          killSignal: "SIGTERM",
-          maxBuffer: 10 * 1024 * 1024,
-        },
-        (error, stdout, stderr) => {
-          if (error) {
-            reject(error);
-          } else {
-            resolve(stdout);
-          }
-        }
-      );
+  private init() {
+    if (this.process) return;
 
-      const fallbackTimer = setTimeout(() => {
-        try {
-          child.kill("SIGKILL");
-        } catch (e) {
-          // ignore
-        }
-        reject(new Error("Clinical assessment timed out (forced kill)."));
-      }, ML_TIMEOUT_MS + 5000);
+    logger.info("Starting persistent Python ML daemon...");
+    const pythonExe = getPythonExecutable();
 
-      child.on("close", () => clearTimeout(fallbackTimer));
+    this.process = spawn(pythonExe, [analyzePyPath, "daemon"], {
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
-    const prediction = JSON.parse(stdout.trim());
-    if (prediction?.error) {
-      throw new Error(prediction.error);
+    this.rl = readline.createInterface({
+      input: this.process.stdout!,
+      terminal: false,
+    });
+
+    this.rl.on("line", (line) => {
+      try {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        const response = JSON.parse(trimmed);
+        const { requestId, prediction, error } = response;
+        if (!requestId) return;
+
+        const pending = this.pendingRequests.get(requestId);
+        if (pending) {
+          clearTimeout(pending.timeoutId);
+          this.pendingRequests.delete(requestId);
+          if (error) {
+            pending.reject(new Error(error));
+          } else {
+            pending.resolve(prediction);
+          }
+        }
+      } catch (err) {
+        logger.error({ err, line }, "Error parsing daemon stdout line");
+      }
+    });
+
+    this.process.stderr!.on("data", (data) => {
+      logger.error(`Python daemon stderr: ${data.toString()}`);
+    });
+
+    const exitHandler = (code: number | null) => {
+      logger.warn(`Python daemon exited with code ${code}`);
+      this.cleanup();
+      this.handleCrash();
+    };
+
+    const errorHandler = (err: Error) => {
+      logger.error({ err }, "Python daemon process error");
+      this.cleanup();
+      this.handleCrash();
+    };
+
+    this.process.on("close", exitHandler);
+    this.process.on("error", errorHandler);
+  }
+
+  private cleanup() {
+    if (this.rl) {
+      this.rl.close();
+      this.rl = null;
     }
-    
+    if (this.process) {
+      try {
+        this.process.kill();
+      } catch (e) {}
+      this.process = null;
+    }
+  }
+
+  private handleCrash() {
+    if (this.isRestarting) return;
+    this.isRestarting = true;
+
+    // Reject all pending requests with a crash error
+    const activeRequests = Array.from(this.pendingRequests.entries());
+    this.pendingRequests.clear();
+    for (const [_, pending] of activeRequests) {
+      clearTimeout(pending.timeoutId);
+      pending.reject(new Error("Python daemon crashed."));
+    }
+
+    // Try to restart after a delay
+    setTimeout(() => {
+      this.isRestarting = false;
+      this.init();
+    }, 1000);
+  }
+
+  public async predict(input: unknown): Promise<PredictionResult> {
+    this.init();
+
+    if (!this.process || !this.process.stdin) {
+      throw new Error("Python daemon is not running.");
+    }
+
+    const requestId = randomUUID();
+
+    return new Promise<PredictionResult>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        if (this.pendingRequests.has(requestId)) {
+          this.pendingRequests.delete(requestId);
+          reject(new Error("Clinical assessment timed out."));
+        }
+      }, ML_TIMEOUT_MS);
+
+      this.pendingRequests.set(requestId, { resolve, reject, timeoutId });
+
+      const payload = JSON.stringify({ requestId, input });
+      this.process!.stdin!.write(payload + "\n", (err) => {
+        if (err) {
+          clearTimeout(timeoutId);
+          this.pendingRequests.delete(requestId);
+          reject(err);
+        }
+      });
+    });
+  }
+
+  public async predictBatch(inputs: unknown[]): Promise<PredictionResult[]> {
+    this.init();
+
+    if (!this.process || !this.process.stdin) {
+      throw new Error("Python daemon is not running.");
+    }
+
+    const requestId = randomUUID();
+
+    return new Promise<PredictionResult[]>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        if (this.pendingRequests.has(requestId)) {
+          this.pendingRequests.delete(requestId);
+          reject(new Error("Clinical assessment timed out."));
+        }
+      }, ML_TIMEOUT_MS);
+
+      this.pendingRequests.set(requestId, { resolve, reject, timeoutId });
+
+      const payload = JSON.stringify({ requestId, input: inputs });
+      this.process!.stdin!.write(payload + "\n", (err) => {
+        if (err) {
+          clearTimeout(timeoutId);
+          this.pendingRequests.delete(requestId);
+          reject(err);
+        }
+      });
+    });
+  }
+
+  public shutdown() {
+    this.cleanup();
+    this.pendingRequests.clear();
+  }
+}
+
+export const pythonDaemon = new PythonDaemonManager();
+
+process.on("exit", () => {
+  pythonDaemon.shutdown();
+});
+
+export async function runAssessmentInference(input: unknown): Promise<{ prediction: PredictionResult, isFallback: boolean }> {
+  const release = await mlConcurrency.acquire();
+  try {
+    console.log("DEBUG: Calling pythonDaemon.predict with:", input);
+    const prediction = await pythonDaemon.predict(input);
+    console.log("DEBUG: pythonDaemon.predict returned:", prediction);
     return { prediction, isFallback: false };
   } catch (error: any) {
-    if (error?.killed || error?.signal === "SIGTERM" || error.message?.includes("timed out")) {
+    console.log("DEBUG: Caught error:", error);
+    if (error.message?.includes("timed out")) {
       logger.error({ error: "ML prediction timed out", timeout: ML_TIMEOUT_MS });
       throw new Error("Clinical assessment timed out.");
     }
@@ -290,11 +463,27 @@ export async function runAssessmentInference(input: unknown): Promise<{ predicti
     return { prediction: calculateClinicalFallback(input), isFallback: true };
   } finally {
     release();
-    try {
-      await unlink(tempFilePath);
-    } catch {
-      // ignore
+  }
+}
+
+export async function runAssessmentInferenceBatch(inputs: unknown[]): Promise<{ predictions: PredictionResult[], isFallback: boolean }> {
+  const release = await mlConcurrency.acquire();
+  try {
+    console.log("DEBUG: Calling pythonDaemon.predictBatch with:", inputs);
+    const predictions = await pythonDaemon.predictBatch(inputs);
+    console.log("DEBUG: pythonDaemon.predictBatch returned:", predictions);
+    return { predictions, isFallback: false };
+  } catch (error: any) {
+    console.log("DEBUG: Caught error:", error);
+    if (error.message?.includes("timed out")) {
+      logger.error({ error: "ML batch prediction timed out", timeout: ML_TIMEOUT_MS });
     }
+    
+    // Use fallback
+    const predictions = inputs.map(input => calculateClinicalFallback(input));
+    return { predictions, isFallback: true };
+  } finally {
+    release();
   }
 }
 
@@ -302,4 +491,5 @@ export const MLService = {
   activeInferenceRequests,
   generateRequestFingerprint,
   runAssessmentInference,
+  runAssessmentInferenceBatch,
 };

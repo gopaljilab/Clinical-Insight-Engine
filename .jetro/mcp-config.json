@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "jetro": {
+      "command": "C:\\Users\\Arun Kumar Mahato\\.jetro\\runtime\\node-win32-x64.exe",
+      "args": [
+        "C:\\Users\\Arun Kumar Mahato\\.jetro\\mcp-server\\index.js"
+      ],
+      "env": {
+        "JET_WORKSPACE": "d:\\Clinical-Insight-Engine-Bivek",
+        "JET_API_URL": "https://api.jetro.ai",
+        "PATH": "C:\\Users\\Arun Kumar Mahato\\.jetro\\runtime;C:\\Python313\\Scripts\\;C:\\Python313\\;C:\\Program Files\\Python312\\Scripts\\;C:\\Program Files\\Python312\\;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\;C:\\WINDOWS\\System32\\OpenSSH\\;C:\\Program Files\\MongoDB\\Server\\8.0\\bin;C:\\ProgramData\\chocolatey\\bin;C:\\Program Files\\nodejs\\;C:\\Program Files\\dotnet\\;C:\\Program Files\\Cloudflare\\Cloudflare WARP\\;D:\\Git\\cmd;C:\\Program Files\\Docker\\Docker\\resources\\bin;C:\\Users\\Arun Kumar Mahato\\AppData\\Local\\pnpm;C:\\Program Files\\MySQL\\MySQL Shell 8.0\\bin\\;C:\\Users\\Arun Kumar Mahato\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\Arun Kumar Mahato\\AppData\\Local\\Programs\\Microsoft VS Code\\bin;C:\\MinGW\\bin;C:\\Users\\Arun Kumar Mahato\\AppData\\Local\\Programs\\Ollama;C:\\Users\\Arun Kumar Mahato\\AppData\\Roaming\\npm;C:\\Users\\Arun Kumar Mahato\\AppData\\Local\\Programs\\mongosh\\;C:\\Users\\Arun Kumar Mahato\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Fastfetch-cli.Fastfetch_Microsoft.Winget.Source_8wekyb3d8bbwe;D:\\Antigravity\\bin;C:\\Users\\Arun Kumar Mahato\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin"
+      }
+    }
+  }
+}

@@ -39,17 +39,17 @@ type SystemStats = {
 
 const tabClass = (active: boolean) =>
   `px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-    active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+    active ? "bg-blue-600 text-white" : "bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-gray-700"
   }`;
 
 function RiskBadge({ category }: { category: string }) {
   const colorMap: Record<string, string> = {
-    LOW: "bg-green-100 text-green-700 border-green-200",
-    MODERATE: "bg-amber-100 text-amber-700 border-amber-200",
-    HIGH: "bg-red-100 text-red-700 border-red-200",
+    LOW: "bg-green-100 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-400 dark:border-green-900",
+    MODERATE: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900",
+    HIGH: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900",
   };
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${colorMap[category] || "bg-slate-100 text-slate-600"}`}>
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${colorMap[category] || "bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-slate-400"}`}>
       {category}
     </span>
   );
@@ -57,7 +57,7 @@ function RiskBadge({ category }: { category: string }) {
 
 function StatusBadge({ active, verified }: { active: boolean; verified: boolean }) {
   if (!active) return <Badge variant="destructive">Inactive</Badge>;
-  if (verified) return <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">Active</Badge>;
+  if (verified) return <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-400 dark:border-green-900">Active</Badge>;
   return <Badge variant="secondary">Unverified</Badge>;
 }
 
@@ -124,7 +124,7 @@ function UsersTab() {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 text-left text-slate-500">
+          <tr className="border-b border-slate-200 dark:border-gray-700 text-left text-slate-500 dark:text-slate-400">
             <th className="pb-3 font-medium">Name</th>
             <th className="pb-3 font-medium">Email</th>
             <th className="pb-3 font-medium">License</th>
@@ -135,10 +135,10 @@ function UsersTab() {
         </thead>
         <tbody>
           {data?.data.map((user) => (
-            <tr key={user.id} className="border-b border-slate-100">
-              <td className="py-3 pr-4">{user.fullName}</td>
-              <td className="py-3 pr-4 text-slate-500">{user.email}</td>
-              <td className="py-3 pr-4 text-slate-500">{user.medicalLicenseNumber}</td>
+            <tr key={user.id} className="border-b border-slate-100 dark:border-gray-800">
+              <td className="py-3 pr-4 dark:text-gray-200">{user.fullName}</td>
+              <td className="py-3 pr-4 text-slate-500 dark:text-slate-400">{user.email}</td>
+              <td className="py-3 pr-4 text-slate-500 dark:text-slate-400">{user.medicalLicenseNumber}</td>
               <td className="py-3 pr-4">
                 <Badge variant={user.role === "ADMIN" ? "default" : "secondary"}>
                   {user.role}
@@ -158,7 +158,7 @@ function UsersTab() {
         </tbody>
       </table>
       {data && (
-        <p className="mt-4 text-sm text-slate-500">
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
           Showing {data.data.length} of {data.total} users
         </p>
       )}
@@ -198,7 +198,7 @@ function AuditLogsTab() {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 text-left text-slate-500">
+          <tr className="border-b border-slate-200 dark:border-gray-700 text-left text-slate-500 dark:text-slate-400">
             <th className="pb-3 font-medium">Timestamp</th>
             <th className="pb-3 font-medium">User ID</th>
             <th className="pb-3 font-medium">IP Address</th>
@@ -208,18 +208,18 @@ function AuditLogsTab() {
         </thead>
         <tbody>
           {data?.data.map((log) => (
-            <tr key={log.id} className="border-b border-slate-100">
-              <td className="py-3 pr-4 text-slate-500">
+            <tr key={log.id} className="border-b border-slate-100 dark:border-gray-800">
+              <td className="py-3 pr-4 text-slate-500 dark:text-slate-400">
                 {log.createdAt ? new Date(log.createdAt).toLocaleString() : "-"}
               </td>
-              <td className="py-3 pr-4 text-slate-500">{log.userId ? log.userId.slice(0, 8) + "..." : "-"}</td>
-              <td className="py-3 pr-4">{log.ipAddress || "-"}</td>
+              <td className="py-3 pr-4 text-slate-500 dark:text-slate-400">{log.userId ? log.userId.slice(0, 8) + "..." : "-"}</td>
+              <td className="py-3 pr-4 dark:text-gray-300">{log.ipAddress || "-"}</td>
               <td className="py-3 pr-4">
                 <Badge variant={log.loginStatus === "success" ? "default" : "destructive"}>
                   {log.loginStatus || "-"}
                 </Badge>
               </td>
-              <td className="py-3 max-w-[200px] truncate text-slate-500" title={log.userAgent || ""}>
+              <td className="py-3 max-w-[200px] truncate text-slate-500 dark:text-slate-400" title={log.userAgent || ""}>
                 {log.userAgent || "-"}
               </td>
             </tr>
@@ -227,7 +227,7 @@ function AuditLogsTab() {
         </tbody>
       </table>
       {data && (
-        <p className="mt-4 text-sm text-slate-500">
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
           Showing {data.data.length} of {data.total} log entries
         </p>
       )}
@@ -258,7 +258,7 @@ function StatsTab() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Total Users</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Users</CardTitle>
             <Users className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
@@ -267,7 +267,7 @@ function StatsTab() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Total Assessments</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Assessments</CardTitle>
             <FileText className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
@@ -276,7 +276,7 @@ function StatsTab() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Risk Categories</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Risk Categories</CardTitle>
             <Activity className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
@@ -303,7 +303,7 @@ export default function AdminDashboard() {
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6 flex items-center gap-3">
           <Shield className="h-7 w-7 text-blue-600" />
-          <h1 className="text-2xl font-bold text-slate-800">Admin Dashboard</h1>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-gray-100">Admin Dashboard</h1>
         </div>
 
         <div className="mb-6 flex gap-2">
