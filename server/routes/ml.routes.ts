@@ -53,17 +53,14 @@ mlRouter.post(
 
       let predictions: any[];
       try {
-        const { prediction } = await MLService.runAssessmentInference(input);
-        predictions = prediction as any;
-        if (!Array.isArray(predictions)) {
-          throw new Error("Expected array of predictions");
-        }
+        const { predictions: batchPredictions } = await MLService.runAssessmentInferenceBatch(input);
+        predictions = batchPredictions;
       } catch (error: any) {
         logger.warn(
-          "Python prediction bulk failed or timed out, running clinical rule-based fallback:",
-          error
+          { err: error },
+          "ML batch prediction failed or timed out, using clinical rule-based fallback"
         );
-        predictions = calculateClinicalFallback(input);
+        predictions = (input as unknown[]).map((item) => calculateClinicalFallback(item));
       }
 
       if (predictions.length !== input.length) {
