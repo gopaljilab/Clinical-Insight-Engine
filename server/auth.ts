@@ -43,9 +43,12 @@ interface RegisteredUser {
   licenseNumber: string;
 }
 
-// removed duplicated functions
-
-
+export function getOtpRateLimitKey({ body, ip }: { body: { email?: string }; ip: string }): string {
+  if (body.email) {
+    return `otp:${body.email.toLowerCase().trim()}`;
+  }
+  return `otp:${ip}`;
+}
 
 /**
  * Strict rate limiter for sensitive endpoints (e.g., registration).
