@@ -13,6 +13,7 @@ export function LanguageSwitcher({ variant = "default" }: { variant?: "default" 
 
   const handleChange = (code: string) => {
     i18n.changeLanguage(code);
+    localStorage.setItem("clinical-insight-language", code);
   };
 
   if (variant === "minimal") {
