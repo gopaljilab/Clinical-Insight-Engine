@@ -179,8 +179,12 @@ export function startAssessmentWorker(): void {
           },
           "Assessment queue job failed during ML processing",
         );
-        if (err.killed || err.signal === "SIGTERM") {
-        if (err.message === "Clinical assessment timed out." || err.message?.includes("timed out")) {
+        if (
+          err.killed ||
+          err.signal === "SIGTERM" ||
+          err.message === "Clinical assessment timed out." ||
+          err.message?.includes("timed out")
+        ) {
           throw new Error("Clinical assessment generation timed out.");
         }
         throw err;

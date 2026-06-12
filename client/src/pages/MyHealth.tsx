@@ -323,39 +323,22 @@ export default function MyHealth() {
                     </TableHeader>
                     <TableBody>
                       {assessments.map((a) => (
-                        <TableRow key={a.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50" onClick={() => setSelectedAssessment(a)}>
-                          <TableCell className="text-sm">{formatDate(a.createdAt)}</TableCell>
+                        <TableRow key={a.id} className="cursor-pointer hover:bg-gray-50" onClick={() => setSelectedAssessment(a)}>
+                          <TableCell className="text-sm sticky left-0 bg-white z-10">{formatDate(a.createdAt)}</TableCell>
                           <TableCell className="font-medium">{a.riskScore.toFixed(1)}%</TableCell>
                           <TableCell>
                             <Badge className={riskColor(a.riskCategory)}>{a.riskCategory}</Badge>
                           </TableCell>
                           <TableCell>{a.age}</TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadPdf(a); }}>
-                              <Download className="h-4 w-4" />
+                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadPdf(a); }} className="min-h-[44px] min-w-[44px]">
+                              <Download className="h-5 w-5" />
                             </Button>
                           </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {assessments.map((a) => (
-                          <TableRow key={a.id} className="cursor-pointer hover:bg-gray-50" onClick={() => setSelectedAssessment(a)}>
-                            <TableCell className="text-sm sticky left-0 bg-white z-10">{formatDate(a.createdAt)}</TableCell>
-                            <TableCell className="font-medium">{a.riskScore.toFixed(1)}%</TableCell>
-                            <TableCell>
-                              <Badge className={riskColor(a.riskCategory)}>{a.riskCategory}</Badge>
-                            </TableCell>
-                            <TableCell>{a.age}</TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadPdf(a); }} className="min-h-[44px] min-w-[44px]">
-                                <Download className="h-5 w-5" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                      ))}
+                    </TableBody>
+                  </Table>
                 )}
               </CardContent>
             </Card>

@@ -246,11 +246,7 @@ app.use((req, res, next) => {
   app.use("/api/patient", patientPortalRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
-<<<<<<< HEAD
-  execFileAsync(getPythonExecutable(), ["analyze.py", "train"], { timeout: 10000 })
-=======
   safeExecML(getPythonExecutable(), ["analyze.py", "train"])
->>>>>>> 63d29afa01cbf3b34bd8d95bbba2bfd44c2338a2
     .then(() => logger.info({ source: "ml" }, "ML model ready."))
     .catch((err: any) => logger.warn({ source: "ml" }, `ML warmup warning: ${err.message}`));
   await registerRoutes(httpServer, app);
