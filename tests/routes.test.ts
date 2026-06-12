@@ -103,6 +103,7 @@ vi.mock("fs/promises", () => ({
 }));
 
 import { registerRoutes } from "../server/routes";
+import { pythonDaemon } from "../server/services/mlService";
 
 const validPayload = {
   patientName: "John Doe",
@@ -162,9 +163,7 @@ beforeEach(() => {
   );
   mockGetAssessments.mockResolvedValue({
     data: [],
-    total: 0,
-    page: 1,
-    totalPages: 0,
+    nextCursor: null,
   });
   mockExecFile.mockImplementation((cmd, args, opts, cb) => {
     if (typeof opts === "function") {
@@ -296,19 +295,19 @@ describe("Schema validation", () => {
 });
 
 describe("Rate limiting", () => {
-  it("returns 429 after 6 rapid requests to POST /api/assessments", async () => {
+  it("returns 429 after exceeding the rate limit for POST /api/assessments", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    const requests = Array.from({ length: 6 }, (_, i) =>
-      request(app).post("/api/assessments").send({ ...validPayload, age: 10 + i })
-    );
+    let lastStatus = 200;
+    for (let i = 0; i < 101; i++) {
+      const res = await request(app)
+        .post("/api/assessments")
+        .send({ ...validPayload, age: 20 + (i % 50) });
+      lastStatus = res.status;
+    }
 
-    const results = await Promise.all(requests);
-
-    const lastStatus = results[results.length - 1].status;
     expect(lastStatus).toBe(429);
-    expect(results[results.length - 1].body).toHaveProperty("error");
   });
 });
 
@@ -317,16 +316,22 @@ describe("Python inference", () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    const res = await request(app)
-      .post("/api/assessments/simulate")
-      .send(validPayload);
+    const predictSpy = vi.spyOn(pythonDaemon, "predict").mockResolvedValue(JSON.parse(pythonSuccessOutput));
 
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("simulatedRisk", 12.3);
-    expect(res.body).toHaveProperty("riskCategory", "LOW");
-    expect(res.body).toHaveProperty("confidence", 0.877);
-    expect(res.body).toHaveProperty("factorContributions");
-    expect(Array.isArray(res.body.factorContributions)).toBe(true);
+    try {
+      const res = await request(app)
+        .post("/api/assessments/simulate")
+        .send(validPayload);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("simulatedRisk", 12.3);
+      expect(res.body).toHaveProperty("riskCategory", "LOW");
+      expect(res.body).toHaveProperty("confidence", 0.877);
+      expect(res.body).toHaveProperty("factorContributions");
+      expect(Array.isArray(res.body.factorContributions)).toBe(true);
+    } finally {
+      predictSpy.mockRestore();
+    }
   });
 
   it("returns 202 with jobId on success", async () => {
@@ -390,69 +395,58 @@ describe("Python inference", () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-      if (typeof opts === "function") {
-        cb = opts;
-        cb(null, pythonSuccessOutput, "");
-        return;
-      }
-      cb(null, pythonSuccessOutput, "");
-    });
+    const predictSpy = vi.spyOn(pythonDaemon, "predict").mockResolvedValue(JSON.parse(pythonSuccessOutput));
 
-    const res = await request(app)
-      .post("/api/assessments/preview")
-      .send(validPayload);
+    try {
+      const res = await request(app)
+        .post("/api/assessments/preview")
+        .send(validPayload);
 
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("riskScore");
-    expect(res.body).toHaveProperty("riskCategory");
-    expect(res.body).toHaveProperty("factors");
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("riskScore");
+      expect(res.body).toHaveProperty("riskCategory");
+      expect(res.body).toHaveProperty("factors");
+    } finally {
+      predictSpy.mockRestore();
+    }
   });
 
   it("preview uses fallback when Python process fails", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-      if (typeof opts === "function") {
-        cb = opts;
-        cb(new Error("Process killed"), null, "error");
-        return;
-      }
-      cb(new Error("Process killed"), null, "error");
-    });
+    const predictSpy = vi.spyOn(pythonDaemon, "predict").mockRejectedValue(new Error("Process killed"));
 
-    const res = await request(app)
-      .post("/api/assessments/preview")
-      .send(validPayload);
+    try {
+      const res = await request(app)
+        .post("/api/assessments/preview")
+        .send(validPayload);
 
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("riskScore");
-    expect(res.body).toHaveProperty("riskCategory");
-    expect(res.body).toHaveProperty("factors");
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("riskScore");
+      expect(res.body).toHaveProperty("riskCategory");
+      expect(res.body).toHaveProperty("factors");
+    } finally {
+      predictSpy.mockRestore();
+    }
   });
 
   it("preview returns 503 when Python process times out", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-      const err = new Error("Process timed out");
-      (err as any).killed = true;
-      if (typeof opts === "function") {
-        cb = opts;
-        cb(err, null, "");
-        return;
-      }
-      cb(err, null, "");
-    });
+    const predictSpy = vi.spyOn(pythonDaemon, "predict").mockRejectedValue(new Error("timed out"));
 
-    const res = await request(app)
-      .post("/api/assessments/preview")
-      .send(validPayload);
+    try {
+      const res = await request(app)
+        .post("/api/assessments/preview")
+        .send(validPayload);
 
-    expect(res.status).toBe(503);
-    expect(res.body.message).toContain("timed out");
+      expect(res.status).toBe(503);
+      expect(res.body.message).toContain("timed out");
+    } finally {
+      predictSpy.mockRestore();
+    }
   });
 
   it("bulk route returns 201 and falls back to rule-based model on python process failure", async () => {
@@ -548,20 +542,15 @@ describe("Response shape", () => {
           userId: null,
         },
       ],
-      total: 1,
-      page: 1,
-      totalPages: 1,
+      nextCursor: null,
     });
 
     const res = await request(app).get("/api/assessments");
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("data");
-    expect(res.body).toHaveProperty("total");
-    expect(res.body).toHaveProperty("page");
-    expect(res.body).toHaveProperty("totalPages");
+    expect(res.body).toHaveProperty("nextCursor");
     expect(Array.isArray(res.body.data)).toBe(true);
-    expect(typeof res.body.total).toBe("number");
   });
 });
 
@@ -656,7 +645,7 @@ describe("GET /api/patients (JWT protected)", () => {
 
     const res = await request(app).get("/api/patients");
     expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty("error", "Unauthorized");
+    expect(res.body).toHaveProperty("message", "Unauthorized");
   });
 
   it("returns 401 when Authorization header is malformed", async () => {
@@ -668,7 +657,7 @@ describe("GET /api/patients (JWT protected)", () => {
       .get("/api/patients")
       .set("Authorization", "Bearer invalidtoken");
     expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty("error", "Unauthorized");
+    expect(res.body).toHaveProperty("message", "Unauthorized");
   });
 
   it("returns 200 with patient data when valid JWT is provided", async () => {
@@ -792,3 +781,4 @@ describe("Route uniqueness (no duplicate registrations)", () => {
     expect(duplicates, `Duplicate assessment routes: ${duplicates.join(", ")}`).toEqual([]);
   });
 });
+

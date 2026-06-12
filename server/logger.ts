@@ -3,8 +3,21 @@ import { AsyncLocalStorage } from "async_hooks";
 
 export const requestContext = new AsyncLocalStorage<string>();
 
+const PHI_FIELDS = [
+  "patientName", "patient_name",
+  "diagnosis", "symptoms",
+  "vitals", "lab_results",
+  "ssn", "dob", "phone", "email",
+  "password", "passwordHash", "password_hash",
+  "token", "secret",
+];
+
 const baseLogger = pino({
   level: process.env.LOG_LEVEL || "info",
+  redact: {
+    paths: PHI_FIELDS.map(f => `["${f}"]`),
+    censor: "[REDACTED]",
+  },
   formatters: {
     level: (label: string) => {
       return { level: label };

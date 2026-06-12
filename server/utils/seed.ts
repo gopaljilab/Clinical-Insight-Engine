@@ -4,10 +4,8 @@ import { storage, type AssessmentCreateInput } from "../storage";
 export async function seedDatabase() {
   const existing = await storage.getAssessments(1); // just need to check if any exist
   
-  // existing.data is used in the codebase if cursor pagination returned data wrapper, or just checking length.
-  // Wait, in my cursor pagination logic it might return an array or an object. Let's just check length of what we get.
-  if (Array.isArray(existing) && existing.length > 0) return;
-  if (!Array.isArray(existing) && existing.data && existing.data.length > 0) return;
+  const existingData = (existing as any)?.data || (Array.isArray(existing) ? existing : []);
+  if (existingData.length > 0) return;
 
   logger.info("Seeding database with sample assessments...");
 

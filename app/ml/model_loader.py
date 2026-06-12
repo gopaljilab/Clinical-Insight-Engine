@@ -59,9 +59,9 @@ def load_model(model_path: str = DEFAULT_MODEL_PATH):
             model = joblib.load(abs_path)
         except Exception:
             try:
-                import pickle
+                from app.ml.security import safe_pickle_load
                 with open(abs_path, "rb") as f:
-                    model = pickle.load(f)
+                    model = safe_pickle_load(f)
             except Exception as e:
                 raise RuntimeError(f"Failed to load model: {e}") from e
 

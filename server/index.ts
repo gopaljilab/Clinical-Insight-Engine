@@ -1,6 +1,5 @@
 import crypto from "crypto";
-import { execFile } from "child_process";
-import { promisify } from "util";
+import { safeExecML } from "./utils/exec";
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -19,9 +18,9 @@ import { getPythonExecutable } from "./services/mlService";
 import patientsRouter from "./routes/patients";
 import patientPortalRouter from "./routes/patient.routes";
 import { serveStatic } from "./static";
-import { sanitizeDatabaseError } from "./security/sqlProtection";
 import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
+import { globalErrorHandler } from "./middleware/errorHandler";
 import { logger } from "./logger";
 import { requestIdMiddleware } from "./middleware/requestId";
 import {
@@ -29,10 +28,10 @@ import {
   startAssessmentWorker,
   closeQueue,
 } from "./queue";
-import { EmailConfigurationError, validateSmtpConfig } from "./email";
+import { EmailConfigurationError, validateEmailConfig } from "./email";
 import { generalLimiter } from "./middleware/rateLimit";
 
-const execFileAsync = promisify(execFile);
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -136,10 +135,7 @@ const scriptSrcDirective: Array<string | ((req: any, res: any) => string)> = [
   (_req: any, res: any) => `'nonce-${res.locals.cspNonce}'`,
 ];
 
-// Vite HMR requires eval in development mode
-if (process.env.NODE_ENV !== "production") {
-  scriptSrcDirective.push("'unsafe-eval'");
-}
+
 
 app.use(
   helmet({
@@ -147,7 +143,7 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: scriptSrcDirective,
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        styleSrc: ["'self'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:"],
         connectSrc: ["'self'", "ws://localhost:*", "ws://127.0.0.1:*"],
@@ -213,7 +209,7 @@ app.use((req, res, next) => {
   }
 
   try {
-    validateSmtpConfig();
+    validateEmailConfig();
   } catch (error) {
     if (error instanceof EmailConfigurationError) {
       logger.error({ err: error }, error.message);
@@ -250,35 +246,19 @@ app.use((req, res, next) => {
   app.use("/api/patient", patientPortalRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
-  execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
+<<<<<<< HEAD
+  execFileAsync(getPythonExecutable(), ["analyze.py", "train"], { timeout: 10000 })
+=======
+  safeExecML(getPythonExecutable(), ["analyze.py", "train"])
+>>>>>>> 63d29afa01cbf3b34bd8d95bbba2bfd44c2338a2
     .then(() => logger.info({ source: "ml" }, "ML model ready."))
     .catch((err: any) => logger.warn({ source: "ml" }, `ML warmup warning: ${err.message}`));
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    if (res.headersSent) {
-      return next(err);
-    }
-
-    // Log the full error internally for debugging, but never send internals to clients
-    logger.error({ err }, "Unhandled server error");
-
-    // Handle CORS errors specifically
-    if (err.message === "CORS: Origin header is required" || err.message === "Not allowed by CORS") {
-      return res.status(403).json({ message: err.message });
-    }
-
-    // Sanitize database errors — prevents table names, SQL syntax, and pg error codes
-    // from reaching the client response body
-    const { statusCode, message } = sanitizeDatabaseError(err);
-
-    // For non-DB errors (e.g. express body-parser), fall back to err.status
-    const finalStatus = (err?.code && typeof err.code === "string" && err.code.length === 5)
-      ? statusCode                            // PostgreSQL error code (5-char alphanumeric)
-      : (err?.status ?? err?.statusCode ?? statusCode);
-
-    return res.status(finalStatus).json({ message });
-  });
+  // Global error handler — must be the LAST middleware.
+  // Handles CORS errors, database errors, unhandled exceptions, and returns
+  // a consistent { message, requestId } shape for all error responses.
+  app.use(globalErrorHandler);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
