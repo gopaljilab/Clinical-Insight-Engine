@@ -1,8 +1,6 @@
 import { createHash, randomUUID } from "crypto";
 import { execFile, spawn, ChildProcess } from "child_process";
 import { existsSync } from "fs";
-import { writeFile, unlink } from "fs/promises";
-import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { logger } from "../logger";
@@ -269,14 +267,6 @@ interface PendingRequest {
   reject: (reason: any) => void;
   timeoutId: NodeJS.Timeout;
 }
-export async function runAssessmentInference(input: unknown): Promise<{ prediction: PredictionResult, isFallback: boolean }> {
-  if (!isPythonAvailable) {
-    return { prediction: calculateClinicalFallback(input), isFallback: true };
-  }
-
-  const release = await mlConcurrency.acquire();
-  const tempFilePath = path.join(os.tmpdir(), `${randomUUID()}.json`);
-
 class PythonDaemonManager {
   private process: ChildProcess | null = null;
   private rl: readline.Interface | null = null;
