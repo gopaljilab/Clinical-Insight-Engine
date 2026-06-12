@@ -862,18 +862,18 @@ export async function registerRoutes(
 
   app.use("/api/upload", uploadRouter);
 
-  // Endpoint to capture and log client-side React errors
-  app.post("/api/logs/client-error", (req, res) => {
+  // Endpoint to capture and log client-side React errors.
+  // Requires authentication so anonymous callers cannot flood server logs.
+  // Field lengths are capped before logging to prevent log-injection attacks.
+  app.post("/api/logs/client-error", generalLimiter, requireAuth, (req, res) => {
     try {
-      const { message, stack, componentStack, url, timestamp } = req.body;
-      logger.error(
-        {
-          source: "client",
-          url,
-          componentStack,
-          timestamp,
-          stack,
-        },
+      const message        = String(req.body?.message        ?? "").slice(0, 500);
+      const url            = String(req.body?.url            ?? "").slice(0, 200);
+      const stack          = String(req.body?.stack          ?? "").slice(0, 3000);
+      const componentStack = String(req.body?.componentStack ?? "").slice(0, 3000);
+      const timestamp      = String(req.body?.timestamp      ?? "").slice(0, 30);
+      logger.warn(
+        { source: "client", url, componentStack, timestamp, stack },
         `[Client Error] ${message}`
       );
       res.status(200).json({ success: true });
