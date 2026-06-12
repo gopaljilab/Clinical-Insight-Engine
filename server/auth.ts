@@ -3,14 +3,22 @@ import { randomInt, randomBytes } from "crypto";
 import bcrypt from "bcrypt";
 import { rateLimit } from "express-rate-limit";
 import { eq, and, gte, sql } from "drizzle-orm";
+import { issueToken } from "./services/auth/tokenValidator";
 import { storage } from "./storage";
 import { getDb } from "./db";
 import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
-import { sendVerificationCode, sendPasswordResetEmail } from "./email";
+import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { logger } from "./logger";
 import { validateDTO } from "./middleware/validateDTO";
-import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswordDTOSchema, verifyEmailDTOSchema, verifyOtpDTOSchema } from "./validation/auth.dto";
+import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswordDTOSchema, verifyEmailDTOSchema } from "./validation/auth.dto";
 
+function hashPassword(password: string): string {
+  return bcrypt.hashSync(password, 10);
+}
+
+function verifyPassword(password: string, storedHash: string): boolean {
+  return bcrypt.compareSync(password, storedHash);
+}
 // Extend express-session to include user data
 declare module "express-session" {
   interface SessionData {
@@ -20,6 +28,10 @@ declare module "express-session" {
       name: string;
       role?: string | null;
       emailVerified: boolean;
+    };
+    pendingUser?: {
+      id: string;
+      email: string;
     };
   }
 }
@@ -33,69 +45,7 @@ interface RegisteredUser {
 
 // removed duplicated functions
 
-/**
- * In-memory store for registered users.
- * In production, this should be replaced with a persistent database.
- */
-const registeredUsers = new Map<string, RegisteredUser>();
 
-function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, 10);
-}
-
-function verifyPassword(password: string, storedHash: string): boolean {
-  return bcrypt.compareSync(password, storedHash);
-}
-
-interface PendingOtp {
-  otp: string;
-  expiresAt: number;
-  attempts: number;
-}
-
-/**
- * In-memory OTP store keyed by email.
- * Each entry expires after 10 minutes.
- */
-export const pendingOtps = new Map<string, PendingOtp>();
-
-function normalizeRateLimitEmail(value: unknown): string {
-  return typeof value === "string" ? value.trim().toLowerCase() : "";
-}
-
-/**
- * Builds a stable OTP rate-limit key from the submitted email when present,
- * falling back to the client IP for malformed or incomplete requests.
- */
-function ipKeyGenerator(ip: string): string {
-  return ip;
-}
-
-export function getOtpRateLimitKey(req: Pick<Request, "body" | "ip">): string {
-  const email = normalizeRateLimitEmail(req.body?.email);
-
-  if (email) {
-    return `otp:${email}`;
-  }
-
-  return `otp:ip:${ipKeyGenerator(req.ip ?? "unknown")}`;
-}
-
-/**
- * Periodically removes expired OTP entries to prevent unbounded memory growth.
- * Runs every 5 minutes.
- */
-const otpCleanupTimer = setInterval(() => {
-  const now = Date.now();
-  for (const [email, otp] of pendingOtps) {
-    if (now > otp.expiresAt) {
-      pendingOtps.delete(email);
-    }
-  }
-}, 5 * 60 * 1000);
-if (otpCleanupTimer.unref) {
-  otpCleanupTimer.unref();
-}
 
 /**
  * Strict rate limiter for sensitive endpoints (e.g., registration).
@@ -110,25 +60,18 @@ const strictAuthLimiter = rateLimit({
 });
 
 /**
- * General rate limiter for standard auth endpoints (e.g., login).
- * More lenient than strictAuthLimiter to avoid frustrating legitimate users.
+ * Strict rate limiter for standard auth endpoints (e.g., login).
+ * Prevents brute-force attacks and credential stuffing (Fixes #996).
  */
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 15,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: { error: "Too many login/registration attempts. Please try again in 15 minutes." },
-});
-
-const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   limit: 5,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  keyGenerator: getOtpRateLimitKey,
-  message: { error: "Too many OTP verification attempts. Please try again later." },
+  message: { error: "Too many login attempts. Please try again in 15 minutes." },
 });
+
+
 
 const verifyEmailLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -168,6 +111,18 @@ function logDevOtp(email: string, otp: string) {
   if (process.env.NODE_ENV !== "production") {
     logger.info(`[DEV] OTP for ${email}: ${otp}`);
   }
+}
+
+/**
+ * Generates a rate-limit key for OTP requests.
+ * Keys by normalized email when available, falls back to client IP.
+ */
+export function getOtpRateLimitKey(req: { body: { email?: string }; ip: string }): string {
+  const email = req.body?.email?.toString().trim().toLowerCase();
+  if (email) {
+    return `otp:${email}`;
+  }
+  return `otp:ip:${req.ip}`;
 }
 
 function regenerateSession(req: Request): Promise<void> {
@@ -217,13 +172,11 @@ export function createAuthRouter(): Router {
 
   /**
    * POST /api/auth/register
-   * Validates registration fields, creates a new user account, and establishes a session.
+   * Validates registration fields, creates a new user account, and establishes a pending session.
    */
   router.post("/register", strictAuthLimiter, validateDTO(registerDTOSchema), async (req: Request, res: Response) => {
     const { fullName, email, password, licenseNumber } = req.body;
 
-
-    // Check DB for existing user
     try {
       const db = getDb();
       const [existingDbUser] = await db
@@ -237,15 +190,12 @@ export function createAuthRouter(): Router {
       }
 
       const passwordHash = hashPassword(password);
-
-      // Create email verification token
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
       let registeredUserId: string;
 
       await db.transaction(async (tx) => {
-        // Create DB user
         const [newUser] = await tx
           .insert(users)
           .values({
@@ -258,16 +208,8 @@ export function createAuthRouter(): Router {
           })
           .returning();
 
-        // Cache in-memory for legacy login flow
-        registeredUsers.set(email, {
-          fullName,
-          email,
-          passwordHash,
-          licenseNumber,
-        });
         registeredUserId = newUser.id;
 
-        // Create email verification token
         await tx.insert(emailVerificationTokens).values({
           userId: newUser.id,
           verificationCode: otp,
@@ -277,13 +219,11 @@ export function createAuthRouter(): Router {
         });
       });
 
-      // Send verification email
-      const emailSent = await sendVerificationCode(email, otp);
+      const emailSent = await sendVerificationEmail(email, otp);
       if (!emailSent) {
         return res.status(503).json({ message: "Failed to send verification email. Please try again." });
       }
 
-      // In production, send OTP via email. For development, return it in the response.
       logDevOtp(email, otp);
 
       await storage.recordLoginAudit({
@@ -293,7 +233,12 @@ export function createAuthRouter(): Router {
         loginStatus: "registration",
       });
 
-      return res.status(201).json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+      // Create a pending session
+      await regenerateSession(req);
+      req.session.pendingUser = { id: registeredUserId!, email };
+      await saveSession(req);
+
+      return res.status(201).json({ success: true, pendingEmail: email });
     } catch (err) {
       logger.error({ err }, "Registration error");
       return res.status(500).json({ message: "Registration failed due to a server error." });
@@ -302,18 +247,18 @@ export function createAuthRouter(): Router {
 
   /**
    * POST /api/auth/login
-   * Validates email/password against server-side env vars or registered users and creates a session.
+   * Validates email/password against DB and creates a pending session.
    */
   router.post("/login", authLimiter, validateDTO(loginDTOSchema), async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
-    let userName: string | null = null;
-
-    // Check in-memory store (legacy)
-    const registeredUser = registeredUsers.get(email);
-    if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
-      userName = registeredUser.fullName;
-    }
+    try {
+      const db = getDb();
+      const [dbUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
 
       // Also check DB
       if (!userName) {
@@ -337,37 +282,54 @@ export function createAuthRouter(): Router {
           }
         }
       }
-    if (!userName) {
-      await storage.recordLoginAudit({
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-        loginStatus: "login_failed",
+
+      const otp = generateOtp();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await db.transaction(async (tx) => {
+        // Invalidate old unused tokens
+        await tx
+          .update(emailVerificationTokens)
+          .set({ used: true })
+          .where(and(
+            eq(emailVerificationTokens.userId, dbUser.id),
+            eq(emailVerificationTokens.used, false),
+          ));
+
+        await tx.insert(emailVerificationTokens).values({
+          userId: dbUser.id,
+          verificationCode: otp,
+          expiresAt,
+          used: false,
+          attemptCount: 0,
+        });
       });
-      return res.status(401).json({ message: "Invalid email or password." });
+
+      const emailSent = await sendVerificationEmail(email, otp);
+      if (!emailSent) {
+        return res.status(503).json({ message: "Failed to send verification email. Please try again." });
+      }
+
+      logDevOtp(email, otp);
+
+      // Create a pending session
+      await regenerateSession(req);
+      req.session.pendingUser = { id: dbUser.id, email: dbUser.email };
+      await saveSession(req);
+
+      return res.json({ success: true, pendingEmail: email });
+    } catch (err) {
+      logger.error({ err }, "Login error");
+      return res.status(500).json({ message: "Login failed due to a server error." });
     }
-
-    const otp = generateOtp();
-    pendingOtps.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000, attempts: 0 });
-
-    // Send verification email
-    const emailSent = await sendVerificationCode(email, otp);
-    if (!emailSent) {
-      return res.status(503).json({ message: "Failed to send verification email. Please try again." });
-    }
-
-    // In production, send OTP via email. For development, return it in the response.
-    logDevOtp(email, otp);
-
-    return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
   });
 
   /**
    * POST /api/auth/resend-otp
-   * Resends a verification code for an already-started login or registration flow.
+   * Resends a verification code for an already-started login or registration flow using DB tokens.
    */
   router.post("/resend-otp", resendLimiter, async (req: Request, res: Response) => {
     const email = (req.body?.email ?? "").trim().toLowerCase();
-    const mode = req.body?.mode === "register" ? "register" : "login";
 
     if (!email) {
       return res.status(400).json({ message: "Email is required." });
@@ -377,28 +339,6 @@ export function createAuthRouter(): Router {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     try {
-      if (mode === "login") {
-        const pending = pendingOtps.get(email);
-
-        if (!pending) {
-          return res.status(400).json({ message: "No pending verification found for this email. Please sign in again." });
-        }
-
-        if (Date.now() > pending.expiresAt) {
-          pendingOtps.delete(email);
-          return res.status(400).json({ message: "OTP has expired. Please sign in again." });
-        }
-
-        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime(), attempts: 0 });
-        const emailSent = await sendVerificationCode(email, otp);
-        if (!emailSent) {
-          return res.status(503).json({ message: "Failed to send verification email. Please try again." });
-        }
-        logDevOtp(email, otp);
-
-        return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
-      }
-
       const db = getDb();
       const [user] = await db
         .select()
@@ -410,10 +350,8 @@ export function createAuthRouter(): Router {
         return res.status(404).json({ message: "User not found." });
       }
 
-      if (user.emailVerified) {
-        return res.status(400).json({ message: "Email is already verified." });
-      }
-
+      // We no longer block resend if user is verified, they might be logging in.
+      
       await db.transaction(async (tx) => {
         await tx
           .update(emailVerificationTokens)
@@ -432,13 +370,14 @@ export function createAuthRouter(): Router {
         });
       });
 
-      const emailSent = await sendVerificationCode(email, otp);
+      const emailSent = await sendVerificationEmail(email, otp);
       if (!emailSent) {
         return res.status(503).json({ message: "Failed to send verification email. Please try again." });
       }
+      
       logDevOtp(email, otp);
 
-      return res.json({ success: true, pendingEmail: email, ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+      return res.json({ success: true, pendingEmail: email });
     } catch (err) {
       logger.error({ err }, "OTP resend error");
       return res.status(500).json({ message: "Failed to resend verification code." });
@@ -564,21 +503,20 @@ export function createAuthRouter(): Router {
   /**
    * POST /api/auth/verify-email
    * Validates a 6-digit OTP against the email_verification_tokens table.
-   * On success, marks the user as verified and creates a session.
-   *
-   * Security:
-   * - OTP expires after 10 minutes
-   * - OTP can only be used once
-   * - Maximum 5 verification attempts per token
-   * - Rate limited to 10 requests/minute
+   * On success, marks the user as verified and establishes an authenticated session.
    */
   router.post("/verify-email", verifyEmailLimiter, validateDTO(verifyEmailDTOSchema), async (req: Request, res: Response) => {
     try {
       const { email, code } = req.body;
 
+      // Verify the session actually belongs to this email if they have a pending session
+      // (This adds an extra layer of security so attackers can't verify other people's emails easily)
+      if (req.session.pendingUser && req.session.pendingUser.email !== email) {
+         return res.status(403).json({ message: "Session mismatch. Please log in again." });
+      }
+
       const db = getDb();
 
-      // Find the user
       const [user] = await db
         .select()
         .from(users)
@@ -589,72 +527,106 @@ export function createAuthRouter(): Router {
         return res.status(404).json({ message: "User not found." });
       }
 
-      // If already verified, return success
-      if (user.emailVerified) {
-        await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "DOCTOR", emailVerified: true });
-        return res.json({ success: true, message: "Email already verified." });
-      }
+      type VerifyOutcome =
+        | { success: true }
+        | { success: false; status: number; message: string };
 
-      // Find an active, unexpired, unused token for this user
-      const [token] = await db
-        .select()
-        .from(emailVerificationTokens)
-        .where(
-          and(
-            eq(emailVerificationTokens.userId, user.id),
-            eq(emailVerificationTokens.used, false),
-            gte(emailVerificationTokens.expiresAt, new Date()),
-          ),
-        )
-        .orderBy(emailVerificationTokens.createdAt)
-        .limit(1);
+      const outcome: VerifyOutcome = await db.transaction(async (tx) => {
+        const [token] = await tx
+          .select()
+          .from(emailVerificationTokens)
+          .where(
+            and(
+              eq(emailVerificationTokens.userId, user.id),
+              eq(emailVerificationTokens.used, false),
+              gte(emailVerificationTokens.expiresAt, new Date()),
+            ),
+          )
+          .orderBy(emailVerificationTokens.createdAt)
+          .limit(1);
 
-      if (!token) {
-        return res.status(400).json({
-          message: "No valid verification code found. Please request a new code.",
-        });
-      }
+        if (!token) {
+          return { success: false as const, status: 400, message: "No valid verification code found. Please request a new code." };
+        }
 
-      // Check attempt count
-      const maxAttempts = 5;
-      if ((token.attemptCount ?? 0) >= maxAttempts) {
-        // Mark token as used to force a new one
-        await db
+        const maxAttempts = 3;
+        if ((token.attemptCount ?? 0) >= maxAttempts) {
+          await tx
+            .update(emailVerificationTokens)
+            .set({ used: true })
+            .where(eq(emailVerificationTokens.id, token.id));
+
+          return { success: false as const, status: 429, message: "Too many failed attempts. Please request a new verification code." };
+        }
+
+        if (token.verificationCode !== code) {
+          const newAttemptCount = (token.attemptCount ?? 0) + 1;
+
+          if (newAttemptCount >= maxAttempts) {
+            await tx
+              .update(emailVerificationTokens)
+              .set({ used: true })
+              .where(eq(emailVerificationTokens.id, token.id));
+
+            return {
+              success: false as const,
+              status: 429,
+              message: "Too many failed attempts. Please request a new verification code.",
+            };
+          }
+
+          await tx
+            .update(emailVerificationTokens)
+            .set({ attemptCount: newAttemptCount })
+            .where(and(
+              eq(emailVerificationTokens.id, token.id),
+              eq(emailVerificationTokens.used, false),
+            ));
+
+          const remaining = maxAttempts - newAttemptCount;
+          return {
+            success: false as const,
+            status: 401,
+            message: `Invalid code. ${remaining} attempt(s) remaining.`,
+          };
+        }
+
+        const [claimed] = await tx
           .update(emailVerificationTokens)
           .set({ used: true })
-          .where(eq(emailVerificationTokens.id, token.id));
+          .where(and(
+            eq(emailVerificationTokens.id, token.id),
+            eq(emailVerificationTokens.used, false),
+          ))
+          .returning();
 
-        return res.status(429).json({
-          message: "Too many failed attempts. Please request a new verification code.",
-        });
+        if (!claimed) {
+          return { success: false as const, status: 409, message: "This code has already been used." };
+        }
+
+        if (!user.emailVerified) {
+          await tx
+            .update(users)
+            .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
+            .where(eq(users.id, user.id));
+        }
+
+        return { success: true as const };
+      });
+
+      if (!outcome.success) {
+        return res.status(outcome.status).json({ message: outcome.message });
       }
 
-      // Validate the code
-      if (token.verificationCode !== code) {
-        // Increment attempt count
-        await db
-          .update(emailVerificationTokens)
-          .set({ attemptCount: (token.attemptCount ?? 0) + 1 })
-          .where(eq(emailVerificationTokens.id, token.id));
-
-        const remaining = maxAttempts - (token.attemptCount ?? 0) - 1;
-        return res.status(401).json({
-          message: `Invalid code. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : "Please request a new code."}`,
-        });
-      }
-
-      // Code is valid — mark token as used and user as verified
-      await db
-        .update(emailVerificationTokens)
-        .set({ used: true })
-        .where(eq(emailVerificationTokens.id, token.id));
-
-      await db
-        .update(users)
-        .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
-        .where(eq(users.id, user.id));
-
-      await establishAuthenticatedSession(req, { id: user.id, email: user.email, name: user.fullName, role: user.role ?? "DOCTOR", emailVerified: true });
+      // Upgrade session to fully authenticated
+      delete req.session.pendingUser;
+      await establishAuthenticatedSession(req, { 
+        id: user.id, 
+        email: user.email, 
+        name: user.fullName, 
+        role: user.role ?? "PATIENT", 
+        emailVerified: true 
+      });
 
       await storage.recordLoginAudit({
         userId: user.id,
@@ -663,7 +635,7 @@ export function createAuthRouter(): Router {
         loginStatus: "email_verified",
       });
 
-      return res.json({ success: true, message: "Email verified successfully." });
+      return res.json({ success: true, message: "Email verified successfully.", user: { id: user.id, email: user.email, name: user.fullName } });
     } catch (err) {
       logger.error({ err }, "Email verification error");
       return res.status(500).json({ message: "Verification failed due to a server error." });
@@ -672,6 +644,7 @@ export function createAuthRouter(): Router {
 
   /**
    * POST /api/auth/logout
+out
    * Destroys the current session and clears the session cookie.
    */
   router.post("/logout", async (req: Request, res: Response) => {
@@ -790,6 +763,22 @@ export function createAuthRouter(): Router {
     }
   });
 
+  /**
+   * GET /api/auth/token
+   * Issues a JWT for an authenticated, verified user.
+   * Used by clients that require a bearer token for API access.
+   */
+  router.get("/token", requireAuth, requireVerified, (req, res) => {
+    const user = req.session.user as any;
+
+    if (!user?.id || !user?.email) {
+      return res.status(401).json({ message: "Invalid session user data" });
+    }
+
+    const token = issueToken(user.id, user.email, "provider");
+    res.json({ token });
+  });
+
   return router;
 }
 
@@ -825,3 +814,12 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
   return res.status(403).json({ message: "Admin access required." });
 }
+
+export function getOtpRateLimitKey(req: any): string {
+  const email = req.body?.email;
+  if (email && typeof email === "string" && email.trim()) {
+    return `otp:${email.trim().toLowerCase()}`;
+  }
+  return `otp:ip:${req.ip || "unknown"}`;
+}
+

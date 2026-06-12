@@ -1,12 +1,13 @@
 import { useState, useRef } from "react";
 import Papa from "papaparse";
+import { ApiClient } from "@/lib/apiClient";
+import { useBulkImport } from "@/hooks/use-bulk-import";
 import { UploadCloud, CheckCircle, AlertCircle, Loader2, FileText, Download, X, XCircle, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ApiClient } from "@/lib/apiClient";
 import { AppLayout } from "@/components/layout/AppLayout";
-import type { ImportPreviewRow } from "@/utils/csvImportPreview";
+import { useBulkImport } from "@/hooks/use-bulk-import";
 
 const ACCEPTED_TYPES = ".csv,.xlsx,.xls";
 
@@ -25,33 +26,6 @@ const RISK_COLORS: Record<string, string> = {
   LOW: "bg-emerald-100 text-emerald-700",
 };
 
-function StatusCount({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return (
-    <div className={`rounded-lg border px-3 py-2 ${tone}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide">{label}</p>
-      <p className="text-2xl font-black">{value}</p>
-    </div>
-  );
-}
-
-function RowIssues({ row }: { row: ImportPreviewRow }) {
-  const issues = [...row.errors, ...row.warnings];
-  if (issues.length === 0) return <span className="text-slate-500">Ready to import</span>;
-  return (
-    <ul className="space-y-1">
-      {issues.map((issue) => (
-        <li key={issue} className="flex items-start gap-2">
-          {row.errors.includes(issue) ? (
-            <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-          ) : (
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-          )}
-          <span>{issue}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 const REQUIRED_HEADERS = [
   "patientName","gender","age","hypertension",
@@ -65,7 +39,7 @@ const SAMPLE_CSV_ROWS = [
 ];
 
 function downloadSampleCSV() {
-  const blob = new Blob([SAMPLE_CSV_ROWS.join("\n")], { type: "text/csv" });
+  const blob = new Blob([SAMPLE_CSV_ROWS.join("\\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = "sample_patient_data.csv"; a.click();
@@ -92,6 +66,7 @@ function validateParsedData(rows: any[]): ValidationResult {
 }
 
 export default function ImportData() {
+  const { preview, step, parseFile, confirmImport: handleConfirm, reset, fileName } = useBulkImport();
   const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -150,7 +125,9 @@ export default function ImportData() {
             hba1cLevel: Number(row.hba1cLevel || row.HbA1c_level),
             bloodGlucoseLevel: Number(row.bloodGlucoseLevel || row.blood_glucose_level),
           }));
-          const data = await ApiClient.post("/api/assessments/bulk", { assessments: formattedData });
+          const res = await fetch("/api/assessments/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assessments: formattedData }), credentials: "include" });
+          if (!res.ok) throw new Error("Import failed");
+          const data = await res.json();
           clearInterval(iv); setProgress(100); setResults(data.assessments);
           toast({ title: "Success", description: "Successfully imported " + data.count + " patient records." });
         } catch (error: any) {
@@ -270,7 +247,7 @@ export default function ImportData() {
         </Card>
       )}
 
-      {results.length > 0 && (
+      {!isProcessing && results.length > 0 && !validation && (
         <Button variant="outline" onClick={clearFile}>
           Import Another File
         </Button>

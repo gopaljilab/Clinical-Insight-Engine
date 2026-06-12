@@ -55,7 +55,7 @@ export function useBulkImport(): BulkImportState & BulkImportActions {
         const buffer = await file.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+        const json = XLSX.utils.sheet_to_json(sheet, { defval: "" }) as Record<string, unknown>[];
 
         parsedRows = json.map((row) => {
           const normalized: Record<string, unknown> = {};
