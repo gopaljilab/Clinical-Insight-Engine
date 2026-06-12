@@ -448,18 +448,14 @@ process.on("exit", () => {
 export async function runAssessmentInference(input: unknown): Promise<{ prediction: PredictionResult, isFallback: boolean }> {
   const release = await mlConcurrency.acquire();
   try {
-    console.log("DEBUG: Calling pythonDaemon.predict with:", input);
     const prediction = await pythonDaemon.predict(input);
-    console.log("DEBUG: pythonDaemon.predict returned:", prediction);
     return { prediction, isFallback: false };
   } catch (error: any) {
-    console.log("DEBUG: Caught error:", error);
     if (error.message?.includes("timed out")) {
       logger.error({ error: "ML prediction timed out", timeout: ML_TIMEOUT_MS });
       throw new Error("Clinical assessment timed out.");
     }
-    
-    // Use fallback
+    logger.warn({ err: error }, "ML prediction failed, using clinical fallback");
     return { prediction: calculateClinicalFallback(input), isFallback: true };
   } finally {
     release();
@@ -469,17 +465,14 @@ export async function runAssessmentInference(input: unknown): Promise<{ predicti
 export async function runAssessmentInferenceBatch(inputs: unknown[]): Promise<{ predictions: PredictionResult[], isFallback: boolean }> {
   const release = await mlConcurrency.acquire();
   try {
-    console.log("DEBUG: Calling pythonDaemon.predictBatch with:", inputs);
     const predictions = await pythonDaemon.predictBatch(inputs);
-    console.log("DEBUG: pythonDaemon.predictBatch returned:", predictions);
     return { predictions, isFallback: false };
   } catch (error: any) {
-    console.log("DEBUG: Caught error:", error);
     if (error.message?.includes("timed out")) {
       logger.error({ error: "ML batch prediction timed out", timeout: ML_TIMEOUT_MS });
+    } else {
+      logger.warn({ err: error }, "ML batch prediction failed, using clinical fallback");
     }
-    
-    // Use fallback
     const predictions = inputs.map(input => calculateClinicalFallback(input));
     return { predictions, isFallback: true };
   } finally {
