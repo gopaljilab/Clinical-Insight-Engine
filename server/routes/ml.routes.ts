@@ -1,24 +1,12 @@
 import { Router } from "express";
 import { logger } from "../logger";
 import { z } from "zod";
-import os from "os";
-import path from "path";
-import { randomUUID } from "crypto";
-import { writeFile, unlink } from "fs/promises";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService, getPythonExecutable, calculateClinicalFallback } from "../services/mlService";
+import { MLService, calculateClinicalFallback } from "../services/mlService";
 import { validateDTO } from "../middleware/validateDTO";
-import { execFile } from "child_process";
-import { promisify } from "util";
-import { fileURLToPath } from "url";
 import { mlLimiter } from "../middleware/rateLimit";
-
-const execFileAsync = promisify(execFile);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
 
 const mlRouter = Router();
 

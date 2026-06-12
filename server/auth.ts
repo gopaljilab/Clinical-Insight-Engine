@@ -60,15 +60,15 @@ const strictAuthLimiter = rateLimit({
 });
 
 /**
- * General rate limiter for standard auth endpoints (e.g., login).
- * More lenient than strictAuthLimiter to avoid frustrating legitimate users.
+ * Strict rate limiter for standard auth endpoints (e.g., login).
+ * Prevents brute-force attacks and credential stuffing (Fixes #996).
  */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 15,
+  limit: 5,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  message: { error: "Too many login/registration attempts. Please try again in 15 minutes." },
+  message: { error: "Too many login attempts. Please try again in 15 minutes." },
 });
 
 
@@ -111,6 +111,18 @@ function logDevOtp(email: string, otp: string) {
   if (process.env.NODE_ENV !== "production") {
     logger.info(`[DEV] OTP for ${email}: ${otp}`);
   }
+}
+
+/**
+ * Generates a rate-limit key for OTP requests.
+ * Keys by normalized email when available, falls back to client IP.
+ */
+export function getOtpRateLimitKey(req: { body: { email?: string }; ip: string }): string {
+  const email = req.body?.email?.toString().trim().toLowerCase();
+  if (email) {
+    return `otp:${email}`;
+  }
+  return `otp:ip:${req.ip}`;
 }
 
 function regenerateSession(req: Request): Promise<void> {
@@ -407,7 +419,7 @@ export function createAuthRouter(): Router {
           return { success: false as const, status: 400, message: "No valid verification code found. Please request a new code." };
         }
 
-        const maxAttempts = 5;
+        const maxAttempts = 3;
         if ((token.attemptCount ?? 0) >= maxAttempts) {
           await tx
             .update(emailVerificationTokens)
@@ -418,19 +430,34 @@ export function createAuthRouter(): Router {
         }
 
         if (token.verificationCode !== code) {
+          const newAttemptCount = (token.attemptCount ?? 0) + 1;
+
+          if (newAttemptCount >= maxAttempts) {
+            await tx
+              .update(emailVerificationTokens)
+              .set({ used: true })
+              .where(eq(emailVerificationTokens.id, token.id));
+
+            return {
+              success: false as const,
+              status: 429,
+              message: "Too many failed attempts. Please request a new verification code.",
+            };
+          }
+
           await tx
             .update(emailVerificationTokens)
-            .set({ attemptCount: (token.attemptCount ?? 0) + 1 })
+            .set({ attemptCount: newAttemptCount })
             .where(and(
               eq(emailVerificationTokens.id, token.id),
               eq(emailVerificationTokens.used, false),
             ));
 
-          const remaining = maxAttempts - (token.attemptCount ?? 0) - 1;
+          const remaining = maxAttempts - newAttemptCount;
           return {
             success: false as const,
             status: 401,
-            message: `Invalid code. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : "Please request a new code."}`,
+            message: `Invalid code. ${remaining} attempt(s) remaining.`,
           };
         }
 
@@ -657,3 +684,12 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
   return res.status(403).json({ message: "Admin access required." });
 }
+
+export function getOtpRateLimitKey(req: any): string {
+  const email = req.body?.email;
+  if (email && typeof email === "string" && email.trim()) {
+    return `otp:${email.trim().toLowerCase()}`;
+  }
+  return `otp:ip:${req.ip || "unknown"}`;
+}
+

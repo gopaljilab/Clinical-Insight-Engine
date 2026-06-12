@@ -113,7 +113,17 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
 
   const handleRunSimulation = async () => {
     try {
-      const response = await whatIfMutation.mutateAsync(buildInput(values));
+      const response = await simulateMutation.mutateAsync({
+        patientName: assessment.patientName,
+        gender: assessment.gender as "Male" | "Female",
+        age: assessment.age,
+        hypertension: assessment.hypertension,
+        heartDisease: assessment.heartDisease,
+        smokingHistory: values.smokingHistory as "current" | "never" | "No Info" | "former",
+        bmi: values.bmi,
+        hba1cLevel: values.hba1cLevel,
+        bloodGlucoseLevel: values.bloodGlucoseLevel,
+      });
       setSimulationResult(response);
       if (onComparisonFactors) {
         onComparisonFactors(response.factors ?? null);

@@ -1,10 +1,13 @@
-type PriorityLevel = "high" | "moderate" | "monitor";
-
-interface PriorityItem {
+import React from "react";
+export interface AttentionNavigatorItem {
   factor: string;
-  priority: PriorityLevel;
+  priority: "high" | "moderate" | "monitor";
   reason: string;
   value?: number;
+}
+
+export interface AttentionNavigator {
+  priorities: AttentionNavigatorItem[];
 }
 
 interface NavigatorProps {
