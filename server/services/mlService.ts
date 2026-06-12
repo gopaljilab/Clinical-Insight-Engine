@@ -463,6 +463,8 @@ export async function runAssessmentInferenceBatch(inputs: unknown[]): Promise<{ 
   } catch (error: any) {
     if (error.message?.includes("timed out")) {
       logger.error({ error: "ML batch prediction timed out", timeout: ML_TIMEOUT_MS });
+    } else {
+      logger.warn({ err: error }, "ML batch prediction failed, using clinical fallback");
     }
     logger.warn({ err: error }, "ML batch prediction failed, using clinical fallback");
     const predictions = inputs.map(input => calculateClinicalFallback(input));
