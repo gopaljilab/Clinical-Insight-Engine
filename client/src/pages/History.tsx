@@ -319,8 +319,34 @@ export default function History() {
     return params;
   };
 
-  const exportFilteredCsv = () => {
-    window.location.href = `/api/assessments/export.csv?${buildExportParams().toString()}`;
+  const exportFilteredCsv = async () => {
+    try {
+      const res = await fetch(`/api/assessments/export.csv?${buildExportParams().toString()}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ message: "Export failed" }));
+        toast({
+          title: "Export failed",
+          description: body.message ?? "Unable to export assessments.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "assessments.csv";
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast({
+        title: "Export failed",
+        description: err.message ?? "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    }
   };
 
   const exportFilteredPdf = async () => {
