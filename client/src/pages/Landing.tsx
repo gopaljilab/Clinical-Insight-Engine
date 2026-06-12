@@ -94,7 +94,10 @@ function BrandMark() {
 function DashboardPreview() {
   return (
     <div className="relative mx-auto max-w-xl">
-
+      <div className="absolute -left-6 top-12 hidden rounded-2xl bg-white/90 dark:bg-slate-900/90 p-4 shadow-xl shadow-slate-900/10 dark:shadow-slate-950/30 ring-1 ring-slate-200/70 dark:ring-slate-800 backdrop-blur md:block">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Risk drop</p>
+        <p className="mt-1 text-2xl font-black text-emerald-500">-18%</p>
+      </div>
       <div className="absolute -right-4 bottom-16 hidden rounded-2xl bg-white/90 dark:bg-slate-900/90 p-4 shadow-xl shadow-slate-900/10 dark:shadow-slate-950/30 ring-1 ring-slate-200/70 dark:ring-slate-800 backdrop-blur sm:block">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Model speed</p>
         <p className="mt-1 text-2xl font-black text-[#2563EB]">4.2s</p>

@@ -6,11 +6,25 @@
  * rejecting alg=none attacks and tampered payloads.
  */
 
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, expect, it, beforeAll, vi } from "vitest";
 import jwt from "jsonwebtoken";
 import { verifyToken, issueToken, getJwtSecret } from "../../server/services/auth/tokenValidator";
 import type { Request, Response, NextFunction } from "express";
 import { requireJwtAuth } from "../../server/middleware/jwtVerification";
+
+vi.mock("../../server/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../server/auth")>();
+  return {
+    ...actual,
+    getAuthenticatedUser: vi.fn().mockResolvedValue({
+      userId: "user-999",
+      email: "provider@example.com",
+      role: "provider",
+      isActive: true,
+      authMethod: "jwt",
+    }),
+  };
+});
 
 describe("JWT Token Validator", () => {
   const secret = getJwtSecret();
@@ -138,13 +152,13 @@ describe("JWT Middleware (requireJwtAuth)", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("Valid Bearer token calls next() and attaches user payload", () => {
+  it("Valid Bearer token calls next() and attaches user payload", async () => {
     const token = issueToken("user-999", "provider@example.com");
     const req = mockReq(`Bearer ${token}`);
     const res = mockRes();
     const { next, wasCalled } = mockNext();
 
-    requireJwtAuth(req, res, next);
+    await requireJwtAuth(req, res, next);
 
     expect(wasCalled()).toBe(true);
     expect(req.jwtUser).toBeDefined();

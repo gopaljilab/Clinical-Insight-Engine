@@ -35,3 +35,28 @@ export const exportLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: "Too many export requests, please try again later." }
 });
+
+// ML assessment creation: 5 requests per minute
+export const assessmentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  limit: 5, // 5 requests per IP per window
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many assessment requests. Please try again later.",
+    retryAfter: 60, // seconds
+  },
+});
+
+// ML assessment preview: 10 requests per minute
+export const previewLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many preview requests. Please try again later.",
+    retryAfter: 60,
+  },
+});
+

@@ -17,6 +17,8 @@ class SafeUnpickler(pickle.Unpickler):
 
     ALLOWED_MODULES: set[str] = {
         "builtins",
+        "numpy",
+        "scipy",
     }
 
     ALLOWED_MODULE_PREFIXES: list[str] = [

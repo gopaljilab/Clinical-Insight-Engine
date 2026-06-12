@@ -56,9 +56,9 @@ function clearToken() {
 
 function riskColor(category: string): string {
   switch (category) {
-    case "HIGH": return "text-red-600 bg-red-100";
-    case "MODERATE": return "text-amber-600 bg-amber-100";
-    default: return "text-green-600 bg-green-100";
+    case "HIGH": return "text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-950/50";
+    case "MODERATE": return "text-amber-600 bg-amber-100 dark:text-amber-400 dark:bg-amber-950/50";
+    default: return "text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-950/50";
   }
 }
 
@@ -178,7 +178,7 @@ export default function MyHealth() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center dark:bg-gray-950">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -227,8 +227,8 @@ export default function MyHealth() {
                 </h3>
                 <ul className="space-y-1.5">
                   {getPatientAdvice(sa).map((a, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm sm:text-base text-green-700">
-                      <span className="mt-1.5 block h-2 w-2 rounded-full bg-green-500 shrink-0" />
+                    <li key={i} className="flex items-start gap-2 text-sm text-green-700 dark:text-green-300">
+                      <span className="mt-1 block h-1.5 w-1.5 rounded-full bg-green-500" />
                       {a}
                     </li>
                   ))}
@@ -236,36 +236,36 @@ export default function MyHealth() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm sm:text-base font-semibold text-gray-700">Key Factors</h3>
+                <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Key Factors</h3>
                 <div className="space-y-2">
                   {sa.factors.map((f, i) => (
-                    <div key={i} className="flex items-start gap-3 rounded-lg border p-3 sm:p-4">
+                    <div key={i} className="flex items-start gap-3 rounded-lg border dark:border-gray-700 p-3 dark:bg-gray-800/50">
                       {f.impact === "positive" ? (
                         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
                       ) : (
                         <Activity className="mt-0.5 h-5 w-5 shrink-0 text-green-500" />
                       )}
                       <div>
-                        <p className="text-sm sm:text-base font-medium">{f.name}</p>
-                        <p className="text-xs sm:text-sm text-gray-500">{f.description}</p>
+                        <p className="text-sm font-medium dark:text-gray-100">{f.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{f.description}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
-                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
-                  <p className="text-xs text-gray-500">BMI</p>
-                  <p className="font-medium text-sm sm:text-base">{sa.bmi}</p>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">BMI</p>
+                  <p className="font-medium dark:text-gray-100">{sa.bmi}</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
-                  <p className="text-xs text-gray-500">HbA1c</p>
-                  <p className="font-medium text-sm sm:text-base">{sa.hba1cLevel}%</p>
+                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">HbA1c</p>
+                  <p className="font-medium dark:text-gray-100">{sa.hba1cLevel}%</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
-                  <p className="text-xs text-gray-500">Blood Glucose</p>
-                  <p className="font-medium text-sm sm:text-base">{sa.bloodGlucoseLevel} mg/dL</p>
+                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Blood Glucose</p>
+                  <p className="font-medium dark:text-gray-100">{sa.bloodGlucoseLevel} mg/dL</p>
                 </div>
               </div>
             </CardContent>
@@ -276,12 +276,12 @@ export default function MyHealth() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      <header className="border-b bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:p-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">My Health Portal</h1>
-            {user && <p className="text-xs sm:text-sm text-gray-500 truncate">Welcome, {user.patientName}</p>}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-950">
+      <header className="border-b bg-white/80 backdrop-blur-sm dark:bg-gray-900/80 dark:border-gray-800">
+        <div className="mx-auto flex max-w-6xl items-center justify-between p-4">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">My Health Portal</h1>
+            {user && <p className="text-sm text-gray-500 dark:text-gray-400">Welcome, {user.patientName}</p>}
           </div>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="min-h-[44px] shrink-0 ml-2">
             <LogOut className="mr-2 h-5 w-5" /> <span className="hidden sm:inline">Sign Out</span><span className="sm:hidden">Sign Out</span>
@@ -291,7 +291,7 @@ export default function MyHealth() {
 
       <main className="mx-auto max-w-6xl px-4 py-4 sm:p-6">
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
+          <div className="mb-4 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/50 p-3 text-sm text-red-700 dark:text-red-400">{error}</div>
         )}
 
         <Tabs defaultValue="assessments" className="space-y-4 sm:space-y-6">
@@ -304,22 +304,37 @@ export default function MyHealth() {
 
           <TabsContent value="assessments">
             <Card>
-              <CardHeader className="px-4 sm:px-6">
-                <CardTitle className="text-base sm:text-lg">Assessment History</CardTitle>
+              <CardHeader>
+                <CardTitle className="text-lg dark:text-gray-100">Assessment History</CardTitle>
               </CardHeader>
               <CardContent className="px-0 sm:px-6">
                 {assessments.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-gray-500 px-4">No assessments found.</p>
+                  <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No assessments found.</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="sticky left-0 bg-background z-10">Date</TableHead>
-                          <TableHead>Risk Score</TableHead>
-                          <TableHead>Category</TableHead>
-                          <TableHead>Age</TableHead>
-                          <TableHead className="text-right">Action</TableHead>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Risk Score</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Age</TableHead>
+                        <TableHead className="text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {assessments.map((a) => (
+                        <TableRow key={a.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50" onClick={() => setSelectedAssessment(a)}>
+                          <TableCell className="text-sm">{formatDate(a.createdAt)}</TableCell>
+                          <TableCell className="font-medium">{a.riskScore.toFixed(1)}%</TableCell>
+                          <TableCell>
+                            <Badge className={riskColor(a.riskCategory)}>{a.riskCategory}</Badge>
+                          </TableCell>
+                          <TableCell>{a.age}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadPdf(a); }}>
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -348,21 +363,21 @@ export default function MyHealth() {
 
           <TabsContent value="trends">
             <Card>
-              <CardHeader className="px-4 sm:px-6">
-                <CardTitle className="text-base sm:text-lg">Risk Score Trends</CardTitle>
+              <CardHeader>
+                <CardTitle className="text-lg dark:text-gray-100">Risk Score Trends</CardTitle>
               </CardHeader>
               <CardContent className="px-4 sm:px-6">
                 {trends.length < 2 ? (
-                  <p className="py-8 text-center text-sm text-gray-500">
+                  <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     {trends.length === 1 ? "One assessment recorded. More data needed for a trend chart." : "No trend data available yet."}
                   </p>
                 ) : (
                   <div className="h-60 sm:h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={trends.map((t) => ({ ...t, date: formatDate(t.date) }))}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+                        <CartesianGrid strokeDasharray="3 3" className="dark:stroke-gray-700" />
+                        <XAxis dataKey="date" tick={{ fontSize: 12 }} className="dark:text-gray-400" />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} className="dark:text-gray-400" />
                         <Tooltip />
                         <Legend />
                         <Line type="monotone" dataKey="riskScore" stroke="#2563eb" strokeWidth={2} dot={{ r: 4 }} name="Risk Score (%)" />
