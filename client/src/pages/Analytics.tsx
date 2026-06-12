@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useAnalytics, type CriticalAlert } from "@/hooks/use-analytics";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
@@ -14,16 +15,26 @@ const COLORS = {
 export default function Analytics() {
   const { data: stats, isLoading, error } = useAnalytics();
 
-  const distData = stats?.distribution.map(d => ({
-    name: d.category,
-    value: d.count,
-    color: COLORS[d.category as keyof typeof COLORS] || "#94a3b8"
-  })) || [];
+  const distData = useMemo(
+    () =>
+      stats?.distribution.map((d) => ({
+        name: d.category,
+        value: d.count,
+        color: COLORS[d.category as keyof typeof COLORS] ?? "#94a3b8",
+      })) ?? [],
+    [stats?.distribution]
+  );
 
-  const avgData = stats ? [
-    { name: "Average BMI", value: stats.averages.bmi.toFixed(1) },
-    { name: "Average HbA1c", value: stats.averages.hba1c.toFixed(1) }
-  ] : [];
+  const avgData = useMemo(
+    () =>
+      stats
+        ? [
+            { name: "Average BMI", value: stats.averages.bmi.toFixed(1) },
+            { name: "Average HbA1c", value: stats.averages.hba1c.toFixed(1) },
+          ]
+        : [],
+    [stats]
+  );
 
   return (
     <AppLayout>
