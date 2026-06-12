@@ -288,8 +288,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className={`transition-all duration-500 grid grid-cols-1 gap-8 lg:items-start ${result ? "lg:grid-cols-12" : "lg:grid-cols-5"}`}>
-          <div className={`transition-all duration-500 ${result ? "lg:col-span-4 sticky top-8" : "lg:col-span-3"} lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4`}>
+        <div className={`transition-all duration-500 grid grid-cols-1 gap-8 lg:items-start ${(result || isPending) ? "lg:grid-cols-12" : "lg:grid-cols-5"}`}>
+          <div className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-4 sticky top-8" : "lg:col-span-3"} lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4`}>
             <form
               onSubmit={handleSubmit(onSubmit)}
               className={`rounded-2xl border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_-2px_rgba(0,0,0,0.3)] transition-all duration-200 md:p-8 ${result ? "opacity-75 pointer-events-none" : ""}`}
@@ -560,9 +560,36 @@ export default function Dashboard() {
               </form>
             </div>
 
-            <aside className={`transition-all duration-500 ${result ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
-              {result ? (
-                <div className="rounded-2xl border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm shadow-slate-900/3 dark:shadow-gray-950/30">
+            <aside className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
+              {isPending ? (
+                <div className="rounded-2xl border border-slate-100 bg-white p-8 shadow-sm shadow-slate-900/3 flex flex-col items-center justify-center min-h-[500px]" aria-live="polite">
+                  <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-6" aria-hidden="true" />
+                  <h2 className="text-2xl font-black text-[#1E293B] mb-3">Analyzing Patient Data...</h2>
+                  <p className="text-slate-500 text-center max-w-md mb-10 text-lg">
+                    Processing clinical indicators, computing vital correlations, and generating risk prediction.
+                  </p>
+                  
+                  <div className="w-full max-w-3xl space-y-6 opacity-60">
+                    {/* Header Skeleton */}
+                    <div className="flex items-center gap-4">
+                      <div className="h-16 w-16 bg-slate-100 rounded-full animate-pulse"></div>
+                      <div className="space-y-2 flex-1">
+                        <div className="h-6 w-1/3 bg-slate-100 rounded-lg animate-pulse"></div>
+                        <div className="h-4 w-1/4 bg-slate-50 rounded-lg animate-pulse"></div>
+                      </div>
+                    </div>
+                    {/* Metrics Cards Skeleton */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-32 bg-slate-50 border border-slate-100 rounded-2xl animate-pulse"></div>
+                      ))}
+                    </div>
+                    {/* Main Content Skeleton */}
+                    <div className="h-64 bg-slate-50 border border-slate-100 rounded-2xl animate-pulse w-full"></div>
+                  </div>
+                </div>
+              ) : result ? (
+                <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
                     <h2 className="text-xl font-black text-[#1E293B] dark:text-gray-100">Assessment Complete</h2>
                     <button onClick={() => setResult(null)} className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">

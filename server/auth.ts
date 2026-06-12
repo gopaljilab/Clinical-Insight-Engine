@@ -263,13 +263,27 @@ export function createAuthRouter(): Router {
         .where(eq(users.email, email))
         .limit(1);
 
-      if (!dbUser || !verifyPassword(password, dbUser.passwordHash)) {
-        await storage.recordLoginAudit({
-          ipAddress: req.ip,
-          userAgent: req.headers["user-agent"],
-          loginStatus: "login_failed",
-        });
-        return res.status(401).json({ message: "Invalid email or password." });
+      // Also check DB
+      if (!userName) {
+        try {
+          const db = getDb();
+          const [dbUser] = await db
+            .select()
+            .from(users)
+            .where(and(eq(users.email, email), eq(users.isActive, true)))
+            .limit(1);
+
+          if (dbUser && verifyPassword(password, dbUser.passwordHash)) {
+            userName = dbUser.fullName;
+          }
+        } catch (_err) {
+          // DB not available — fall back to in-memory only
+          logger.warn("DB unavailable for login, using in-memory only.");
+          const registeredUser = registeredUsers.get(email);
+          if (registeredUser && verifyPassword(password, registeredUser.passwordHash)) {
+            userName = registeredUser.fullName;
+          }
+        }
       }
 
       const otp = generateOtp();
@@ -328,6 +342,28 @@ export function createAuthRouter(): Router {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     try {
+      if (mode === "login") {
+        const pending = pendingOtps.get(email);
+
+        if (!pending) {
+          return res.status(400).json({ message: "No pending verification found for this email. Please sign in again." });
+        }
+
+        if (Date.now() > pending.expiresAt) {
+          pendingOtps.delete(email);
+          return res.status(400).json({ message: "OTP has expired. Please sign in again." });
+        }
+
+        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime(), attempts: 0 });
+        const emailSent = await sendVerificationCode(email, otp);
+        if (!emailSent) {
+          return res.status(503).json({ message: "Failed to send verification email. Please try again." });
+        }
+        logDevOtp(email, otp);
+
+        return res.json({ success: true, pendingEmail: email });
+      }
+
       const db = getDb();
       const [user] = await db
         .select()
@@ -372,6 +408,122 @@ export function createAuthRouter(): Router {
       return res.status(500).json({ message: "Failed to resend verification code." });
     }
   });
+
+  /**
+   * POST /api/auth/verify-otp
+   * Verifies the OTP sent after login/register and establishes a session.
+   */
+  router.post("/verify-otp", otpLimiter, validateDTO(verifyOtpDTOSchema), async (req: Request, res: Response) => {
+    const { email, otp } = req.body;
+
+    const pending = pendingOtps.get(email);
+
+    if (!pending) {
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_failed",
+      });
+      return res.status(400).json({ message: "No pending verification found for this email." });
+    }
+
+    if (Date.now() > pending.expiresAt) {
+      pendingOtps.delete(email);
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_expired",
+      });
+      return res.status(400).json({ message: "OTP has expired. Please sign in again." });
+    }
+
+    if (pending.otp !== otp) {
+      pending.attempts = (pending.attempts ?? 0) + 1;
+
+      if (pending.attempts >= 3) {
+        pendingOtps.delete(email);
+        await storage.recordLoginAudit({
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+          loginStatus: "otp_failed_lockout",
+        });
+        return res.status(429).json({
+          message: "Too many failed attempts. Please sign in again.",
+        });
+      }
+
+      await storage.recordLoginAudit({
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "otp_failed",
+      });
+      const remaining = 3 - pending.attempts;
+      return res.status(401).json({
+        message: `Invalid OTP. ${remaining} attempt(s) remaining.`,
+      });
+    }
+
+    pendingOtps.delete(email);
+
+    const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
+
+    let id: string;
+    let name: string;
+    let role: string;
+
+    let emailVerified = false;
+
+    if (email === devEmail) {
+      name = "Dr. Smith";
+      id = "dev";
+      role = "DOCTOR";
+      emailVerified = true;
+    } else {
+      const db = getDb();
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
+      if (!user.isActive) {
+        return res.status(403).json({ message: "Account has been deactivated." });
+      }
+
+
+      if (!user.emailVerified) {
+        await db
+          .update(users)
+          .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
+          .where(eq(users.id, user.id));
+      }
+
+      id = user.id;
+      name = user.fullName;
+      role = user.role ?? "DOCTOR";
+      emailVerified = true;
+    }
+
+    try {
+      await establishAuthenticatedSession(req, { id, email, name, role, emailVerified });
+    } catch (error) {
+      logger.error({ err: error }, "Session regeneration failed");
+      return res.status(500).json({ message: "Failed to establish session." });
+    }
+
+    await storage.recordLoginAudit({
+      userId: id,
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      loginStatus: "login_success",
+    });
+
+    return res.json({ success: true, user: { id, email, name } });
+  });
+
+  // ─── Email Verification (DB-backed) ────────────────────────────────────
 
   /**
    * POST /api/auth/verify-email

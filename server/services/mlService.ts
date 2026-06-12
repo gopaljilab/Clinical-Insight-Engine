@@ -61,9 +61,17 @@ const mlConcurrency = new SimpleSemaphore(maxConcurrency);
  */
 const activeInferenceRequests = new Set<string>();
 
+function canonicalStringify(obj: unknown): string {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return "[" + obj.map(canonicalStringify).join(",") + "]";
+  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  const pairs = keys.map(k => JSON.stringify(k) + ":" + canonicalStringify((obj as Record<string, unknown>)[k]));
+  return "{" + pairs.join(",") + "}";
+}
+
 export function generateRequestFingerprint(payload: unknown, userId: string): string {
   return createHash("sha256")
-    .update(`${userId}::${JSON.stringify(payload)}`)
+    .update(`${userId}::${canonicalStringify(payload)}`)
     .digest("hex");
 }
 
@@ -79,8 +87,26 @@ export function getPythonExecutable() {
           path.resolve("venv", "bin", "python"),
         ];
 
-  return candidates.find((candidate) => existsSync(candidate)) ?? "python3";
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (found) return found;
+  return process.platform === "win32" ? "python" : "python3";
 }
+
+export let isPythonAvailable = true;
+
+export function checkPythonAvailability() {
+  execFile(getPythonExecutable(), ["--version"], { timeout: 2000 }, (error) => {
+    if (error) {
+      logger.warn("Python executable not found or unresponsive. Falling back to clinical rule-based model globally.");
+      isPythonAvailable = false;
+    } else {
+      isPythonAvailable = true;
+    }
+  });
+}
+
+// Start the check immediately
+checkPythonAvailability();
 
 export interface PredictionResult {
   riskScore: number;
@@ -239,10 +265,17 @@ export function calculateClinicalFallback(input: unknown): any {
 }
 
 interface PendingRequest {
-  resolve: (value: PredictionResult) => void;
+  resolve: (value: any) => void;
   reject: (reason: any) => void;
   timeoutId: NodeJS.Timeout;
 }
+export async function runAssessmentInference(input: unknown): Promise<{ prediction: PredictionResult, isFallback: boolean }> {
+  if (!isPythonAvailable) {
+    return { prediction: calculateClinicalFallback(input), isFallback: true };
+  }
+
+  const release = await mlConcurrency.acquire();
+  const tempFilePath = path.join(os.tmpdir(), `${randomUUID()}.json`);
 
 class PythonDaemonManager {
   private process: ChildProcess | null = null;
@@ -370,6 +403,36 @@ class PythonDaemonManager {
     });
   }
 
+  public async predictBatch(inputs: unknown[]): Promise<PredictionResult[]> {
+    this.init();
+
+    if (!this.process || !this.process.stdin) {
+      throw new Error("Python daemon is not running.");
+    }
+
+    const requestId = randomUUID();
+
+    return new Promise<PredictionResult[]>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        if (this.pendingRequests.has(requestId)) {
+          this.pendingRequests.delete(requestId);
+          reject(new Error("Clinical assessment timed out."));
+        }
+      }, ML_TIMEOUT_MS);
+
+      this.pendingRequests.set(requestId, { resolve, reject, timeoutId });
+
+      const payload = JSON.stringify({ requestId, input: inputs });
+      this.process!.stdin!.write(payload + "\n", (err) => {
+        if (err) {
+          clearTimeout(timeoutId);
+          this.pendingRequests.delete(requestId);
+          reject(err);
+        }
+      });
+    });
+  }
+
   public shutdown() {
     this.cleanup();
     this.pendingRequests.clear();
@@ -403,8 +466,30 @@ export async function runAssessmentInference(input: unknown): Promise<{ predicti
   }
 }
 
+export async function runAssessmentInferenceBatch(inputs: unknown[]): Promise<{ predictions: PredictionResult[], isFallback: boolean }> {
+  const release = await mlConcurrency.acquire();
+  try {
+    console.log("DEBUG: Calling pythonDaemon.predictBatch with:", inputs);
+    const predictions = await pythonDaemon.predictBatch(inputs);
+    console.log("DEBUG: pythonDaemon.predictBatch returned:", predictions);
+    return { predictions, isFallback: false };
+  } catch (error: any) {
+    console.log("DEBUG: Caught error:", error);
+    if (error.message?.includes("timed out")) {
+      logger.error({ error: "ML batch prediction timed out", timeout: ML_TIMEOUT_MS });
+    }
+    
+    // Use fallback
+    const predictions = inputs.map(input => calculateClinicalFallback(input));
+    return { predictions, isFallback: true };
+  } finally {
+    release();
+  }
+}
+
 export const MLService = {
   activeInferenceRequests,
   generateRequestFingerprint,
   runAssessmentInference,
+  runAssessmentInferenceBatch,
 };

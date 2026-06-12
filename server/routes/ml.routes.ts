@@ -35,17 +35,10 @@ mlRouter.post(
 
       let predictions: any[];
       try {
-        const { prediction } = await MLService.runAssessmentInference(input);
-        predictions = prediction as any;
-        if (!Array.isArray(predictions)) {
-          throw new Error("Expected array of predictions");
-        }
+        const result = await MLService.runAssessmentInferenceBatch(input);
+        predictions = result.predictions;
       } catch (error: any) {
-        logger.warn(
-          "Python prediction bulk failed or timed out, running clinical rule-based fallback:",
-          error
-        );
-        predictions = calculateClinicalFallback(input);
+        return res.status(500).json({ message: "Bulk ML processing failed or timed out." });
       }
 
       const createdAssessments = await Promise.all(

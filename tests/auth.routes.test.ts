@@ -73,7 +73,66 @@ describe("Auth Router - Resend OTP integration tests", () => {
     expect(res.body).toHaveProperty("message", "Email is required.");
   });
 
-  describe("login and register mode resend", () => {
+  describe("login mode resend", () => {
+    it("returns 400 when no pending OTP exists for the email", async () => {
+      const res = await request(app)
+        .post("/api/auth/resend-otp")
+        .send({ email: "newuser@clinic.com", mode: "login" });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty(
+        "message",
+        "No pending verification found for this email. Please sign in again."
+      );
+    });
+
+    it("returns 400 when pending OTP has expired", async () => {
+      // Set expired OTP in pending Map
+      pendingOtps.set("expired@clinic.com", {
+        otp: "111111",
+        expiresAt: Date.now() - 1000, // expired 1s ago
+      });
+
+      const res = await request(app)
+        .post("/api/auth/resend-otp")
+        .send({ email: "expired@clinic.com", mode: "login" });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty("message", "OTP has expired. Please sign in again.");
+      expect(pendingOtps.has("expired@clinic.com")).toBe(false);
+    });
+
+    it("updates pending OTP and returns devOtp in dev environment on success", async () => {
+      // Set valid pending OTP
+      pendingOtps.set("valid@clinic.com", {
+        otp: "111111",
+        expiresAt: Date.now() + 60 * 1000,
+      });
+
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = "development";
+
+      try {
+        const res = await request(app)
+          .post("/api/auth/resend-otp")
+          .send({ email: "valid@clinic.com", mode: "login" });
+
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveProperty("success", true);
+        expect(res.body).toHaveProperty("pendingEmail", "valid@clinic.com");
+        expect(mockSendVerificationCode).toHaveBeenCalledTimes(1);
+
+        // Verify pending OTP is updated
+        const updated = pendingOtps.get("valid@clinic.com");
+        expect(updated).toBeDefined();
+        expect(updated?.otp).toBeDefined();
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
+    });
+  });
+
+  describe("register mode resend", () => {
     it("returns 404 when user is not found in database", async () => {
       const mockLimit = vi.fn().mockResolvedValue([]);
       const mockWhere = vi.fn(() => ({ limit: mockLimit }));
@@ -108,14 +167,21 @@ describe("Auth Router - Resend OTP integration tests", () => {
         return callback(mockTx);
       });
 
-      const res = await request(app)
-        .post("/api/auth/resend-otp")
-        .send({ email: "unverified@clinic.com", mode: "register" });
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = "development";
 
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty("success", true);
-      expect(res.body).toHaveProperty("pendingEmail", "unverified@clinic.com");
-      expect(mockSendVerificationEmail).toHaveBeenCalledTimes(1);
+      try {
+        const res = await request(app)
+          .post("/api/auth/resend-otp")
+          .send({ email: "unverified@clinic.com", mode: "register" });
+
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveProperty("success", true);
+        expect(res.body).toHaveProperty("pendingEmail", "unverified@clinic.com");
+        expect(mockSendVerificationCode).toHaveBeenCalledTimes(1);
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
     });
   });
 });
