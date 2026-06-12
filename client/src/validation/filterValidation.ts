@@ -103,7 +103,6 @@ export function validateFilterInput(input: string | null | undefined): string {
   // 2. Reject XSS payloads
   for (const pattern of XSS_PATTERNS) {
     if (pattern.test(safeInput)) {
-      console.warn("[Security] Rejected XSS payload in filter input");
       return "";
     }
   }
@@ -141,8 +140,7 @@ export function validateSearchInput(
   // 2. Reject XSS payloads
   for (const pattern of XSS_PATTERNS) {
     if (pattern.test(safeInput)) {
-      console.warn("[Security] Rejected XSS payload in search input");
-      onRejected?.("Invalid characters detected in search query.");
+onRejected?.("Invalid characters detected in search query.");
       return "";
     }
   }
@@ -150,16 +148,14 @@ export function validateSearchInput(
   // 3. Reject SQL injection patterns (Fix for Issue #743)
   const sqlMatch = detectClientSqlInjection(safeInput);
   if (sqlMatch !== null) {
-    console.warn("[Security] Rejected SQL injection pattern in search input");
-    onRejected?.("Search query contains a disallowed pattern.");
+onRejected?.("Search query contains a disallowed pattern.");
     return "";
   }
 
   // 4. Strict character allowlist — only permit characters valid in patient names
   //    and clinical terms. This catches any novel injection vector not covered above.
   if (safeInput !== "" && !ALLOWED_SEARCH_CHARS.test(safeInput)) {
-    console.warn("[Security] Rejected disallowed characters in search input");
-    onRejected?.("Search query contains invalid characters.");
+onRejected?.("Search query contains invalid characters.");
     return "";
   }
 

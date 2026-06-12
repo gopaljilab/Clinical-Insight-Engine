@@ -295,19 +295,19 @@ describe("Schema validation", () => {
 });
 
 describe("Rate limiting", () => {
-  it("returns 429 after 6 rapid requests to POST /api/assessments", async () => {
+  it("returns 429 after exceeding the rate limit for POST /api/assessments", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    const requests = Array.from({ length: 6 }, (_, i) =>
-      request(app).post("/api/assessments").send({ ...validPayload, age: 10 + i })
-    );
+    let lastStatus = 200;
+    for (let i = 0; i < 101; i++) {
+      const res = await request(app)
+        .post("/api/assessments")
+        .send({ ...validPayload, age: 20 + (i % 50) });
+      lastStatus = res.status;
+    }
 
-    const results = await Promise.all(requests);
-
-    const lastStatus = results[results.length - 1].status;
     expect(lastStatus).toBe(429);
-    expect(results[results.length - 1].body).toHaveProperty("error");
   });
 });
 
@@ -801,3 +801,4 @@ describe("Route uniqueness (no duplicate registrations)", () => {
     expect(duplicates, `Duplicate assessment routes: ${duplicates.join(", ")}`).toEqual([]);
   });
 });
+

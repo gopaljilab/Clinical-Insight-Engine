@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService } from "../services/mlService";
+import { MLService, calculateClinicalFallback } from "../services/mlService";
 import { validateDTO } from "../middleware/validateDTO";
 import { mlLimiter } from "../middleware/rateLimit";
 
