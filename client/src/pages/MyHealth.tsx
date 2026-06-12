@@ -56,9 +56,9 @@ function clearToken() {
 
 function riskColor(category: string): string {
   switch (category) {
-    case "HIGH": return "text-red-600 bg-red-100";
-    case "MODERATE": return "text-amber-600 bg-amber-100";
-    default: return "text-green-600 bg-green-100";
+    case "HIGH": return "text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-950/50";
+    case "MODERATE": return "text-amber-600 bg-amber-100 dark:text-amber-400 dark:bg-amber-950/50";
+    default: return "text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-950/50";
   }
 }
 
@@ -178,7 +178,7 @@ export default function MyHealth() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center dark:bg-gray-950">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -187,7 +187,7 @@ export default function MyHealth() {
   if (selectedAssessment) {
     const sa = selectedAssessment;
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-950">
         <div className="mx-auto max-w-4xl p-6">
           <Button variant="ghost" onClick={() => setSelectedAssessment(null)} className="mb-4">
             <ChevronLeft className="mr-2 h-4 w-4" /> Back to my health
@@ -195,7 +195,7 @@ export default function MyHealth() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-2xl">Assessment #{sa.id}</CardTitle>
+                <CardTitle className="text-2xl dark:text-gray-100">Assessment #{sa.id}</CardTitle>
                 <Button variant="outline" size="sm" onClick={() => handleDownloadPdf(sa)}>
                   <Download className="mr-2 h-4 w-4" /> PDF
                 </Button>
@@ -203,31 +203,31 @@ export default function MyHealth() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Date</p>
-                  <p className="font-medium">{formatDate(sa.createdAt)}</p>
+                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Date</p>
+                  <p className="font-medium dark:text-gray-100">{formatDate(sa.createdAt)}</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Risk Score</p>
-                  <p className="font-medium">{sa.riskScore.toFixed(1)}%</p>
+                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Risk Score</p>
+                  <p className="font-medium dark:text-gray-100">{sa.riskScore.toFixed(1)}%</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Category</p>
+                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Category</p>
                   <Badge className={riskColor(sa.riskCategory)}>{sa.riskCategory}</Badge>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Age/Gender</p>
-                  <p className="font-medium">{sa.age} / {sa.gender}</p>
+                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Age/Gender</p>
+                  <p className="font-medium dark:text-gray-100">{sa.age} / {sa.gender}</p>
                 </div>
               </div>
 
-              <div className="rounded-lg border bg-green-50 p-4">
-                <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-green-800">
+              <div className="rounded-lg border bg-green-50 dark:bg-green-950/30 dark:border-green-900 p-4">
+                <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-green-800 dark:text-green-400">
                   <Heart className="h-4 w-4" /> Your Health Advice
                 </h3>
                 <ul className="space-y-1">
                   {getPatientAdvice(sa).map((a, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-green-700">
+                    <li key={i} className="flex items-start gap-2 text-sm text-green-700 dark:text-green-300">
                       <span className="mt-1 block h-1.5 w-1.5 rounded-full bg-green-500" />
                       {a}
                     </li>
@@ -236,18 +236,18 @@ export default function MyHealth() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-semibold text-gray-700">Key Factors</h3>
+                <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Key Factors</h3>
                 <div className="space-y-2">
                   {sa.factors.map((f, i) => (
-                    <div key={i} className="flex items-start gap-3 rounded-lg border p-3">
+                    <div key={i} className="flex items-start gap-3 rounded-lg border dark:border-gray-700 p-3 dark:bg-gray-800/50">
                       {f.impact === "positive" ? (
                         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                       ) : (
                         <Activity className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
                       )}
                       <div>
-                        <p className="text-sm font-medium">{f.name}</p>
-                        <p className="text-xs text-gray-500">{f.description}</p>
+                        <p className="text-sm font-medium dark:text-gray-100">{f.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{f.description}</p>
                       </div>
                     </div>
                   ))}
@@ -255,17 +255,17 @@ export default function MyHealth() {
               </div>
 
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">BMI</p>
-                  <p className="font-medium">{sa.bmi}</p>
+                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">BMI</p>
+                  <p className="font-medium dark:text-gray-100">{sa.bmi}</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">HbA1c</p>
-                  <p className="font-medium">{sa.hba1cLevel}%</p>
+                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">HbA1c</p>
+                  <p className="font-medium dark:text-gray-100">{sa.hba1cLevel}%</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Blood Glucose</p>
-                  <p className="font-medium">{sa.bloodGlucoseLevel} mg/dL</p>
+                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Blood Glucose</p>
+                  <p className="font-medium dark:text-gray-100">{sa.bloodGlucoseLevel} mg/dL</p>
                 </div>
               </div>
             </CardContent>
@@ -276,12 +276,12 @@ export default function MyHealth() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      <header className="border-b bg-white/80 backdrop-blur-sm">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-950">
+      <header className="border-b bg-white/80 backdrop-blur-sm dark:bg-gray-900/80 dark:border-gray-800">
         <div className="mx-auto flex max-w-6xl items-center justify-between p-4">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">My Health Portal</h1>
-            {user && <p className="text-sm text-gray-500">Welcome, {user.patientName}</p>}
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">My Health Portal</h1>
+            {user && <p className="text-sm text-gray-500 dark:text-gray-400">Welcome, {user.patientName}</p>}
           </div>
           <Button variant="ghost" size="sm" onClick={handleLogout}>
             <LogOut className="mr-2 h-4 w-4" /> Sign Out
@@ -291,7 +291,7 @@ export default function MyHealth() {
 
       <main className="mx-auto max-w-6xl p-6">
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+          <div className="mb-4 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/50 p-3 text-sm text-red-700 dark:text-red-400">{error}</div>
         )}
 
         <Tabs defaultValue="assessments" className="space-y-6">
@@ -303,11 +303,11 @@ export default function MyHealth() {
           <TabsContent value="assessments">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Assessment History</CardTitle>
+                <CardTitle className="text-lg dark:text-gray-100">Assessment History</CardTitle>
               </CardHeader>
               <CardContent>
                 {assessments.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-gray-500">No assessments found.</p>
+                  <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No assessments found.</p>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -321,7 +321,7 @@ export default function MyHealth() {
                     </TableHeader>
                     <TableBody>
                       {assessments.map((a) => (
-                        <TableRow key={a.id} className="cursor-pointer hover:bg-gray-50" onClick={() => setSelectedAssessment(a)}>
+                        <TableRow key={a.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50" onClick={() => setSelectedAssessment(a)}>
                           <TableCell className="text-sm">{formatDate(a.createdAt)}</TableCell>
                           <TableCell className="font-medium">{a.riskScore.toFixed(1)}%</TableCell>
                           <TableCell>
@@ -345,20 +345,20 @@ export default function MyHealth() {
           <TabsContent value="trends">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Risk Score Trends</CardTitle>
+                <CardTitle className="text-lg dark:text-gray-100">Risk Score Trends</CardTitle>
               </CardHeader>
               <CardContent>
                 {trends.length < 2 ? (
-                  <p className="py-8 text-center text-sm text-gray-500">
+                  <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     {trends.length === 1 ? "One assessment recorded. More data needed for a trend chart." : "No trend data available yet."}
                   </p>
                 ) : (
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={trends.map((t) => ({ ...t, date: formatDate(t.date) }))}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
+                        <CartesianGrid strokeDasharray="3 3" className="dark:stroke-gray-700" />
+                        <XAxis dataKey="date" tick={{ fontSize: 12 }} className="dark:text-gray-400" />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} className="dark:text-gray-400" />
                         <Tooltip />
                         <Legend />
                         <Line type="monotone" dataKey="riskScore" stroke="#2563eb" strokeWidth={2} dot={{ r: 4 }} name="Risk Score (%)" />

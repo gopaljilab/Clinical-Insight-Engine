@@ -1,18 +1,13 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "@/lib/queryClient";
 import { ApiClient } from "@/lib/apiClient";
 import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, TrendingUp, UploadCloud, User } from "lucide-react";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
 import ThemeToggle from "../ThemeToggle";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useToast } from "@/hooks/use-toast";
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { cn } from "@/lib/utils";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -39,50 +34,45 @@ export function AppLayout({ children }: AppLayoutProps) {
       .finally(() => setChecking(false));
   }, [setLocation]);
 
+  const WARNING_TIMEOUT = 14 * 60 * 1000; // 14 minutes
+  const LOGOUT_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+  const warningTimerRef = useRef<number>(0);
+  const logoutTimerRef = useRef<number>(0);
+
+  const resetTimer = useCallback(() => {
+    window.clearTimeout(warningTimerRef.current);
+    window.clearTimeout(logoutTimerRef.current);
+
+    warningTimerRef.current = window.setTimeout(() => {
+      toast({
+        title: t("auth.sessionExpiring"),
+        description: t("auth.sessionExpiringDesc"),
+        variant: "destructive",
+      });
+    }, WARNING_TIMEOUT);
+
+    logoutTimerRef.current = window.setTimeout(() => {
+      fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+        .finally(() => {
+          queryClient.clear();
+          setLocation("/");
+        });
+    }, LOGOUT_TIMEOUT);
+  }, [toast, t, setLocation, WARNING_TIMEOUT, LOGOUT_TIMEOUT]);
+
   useEffect(() => {
     if (!user) return;
 
-    let warningTimeoutId: number;
-    let logoutTimeoutId: number;
-    const WARNING_TIMEOUT = 14 * 60 * 1000; // 14 minutes
-    const LOGOUT_TIMEOUT = 15 * 60 * 1000; // 15 minutes
-
-    const resetTimer = () => {
-      window.clearTimeout(warningTimeoutId);
-      window.clearTimeout(logoutTimeoutId);
-      
-      warningTimeoutId = window.setTimeout(() => {
-        toast({
-          title: t("auth.sessionExpiring"),
-          description: t("auth.sessionExpiringDesc"),
-          variant: "destructive",
-        });
-      }, WARNING_TIMEOUT);
-
-      logoutTimeoutId = window.setTimeout(() => {
-        fetch("/api/auth/logout", { method: "POST", credentials: "include" })
-          .finally(() => {
-            queryClient.clear();
-            setLocation("/");
-          });
-      }, LOGOUT_TIMEOUT);
-    };
-
     const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
-    events.forEach((event) => {
-      window.addEventListener(event, resetTimer);
-    });
-
+    events.forEach((event) => window.addEventListener(event, resetTimer));
     resetTimer();
 
     return () => {
-      window.clearTimeout(warningTimeoutId);
-      window.clearTimeout(logoutTimeoutId);
-      events.forEach((event) => {
-        window.removeEventListener(event, resetTimer);
-      });
+      window.clearTimeout(warningTimerRef.current);
+      window.clearTimeout(logoutTimerRef.current);
+      events.forEach((event) => window.removeEventListener(event, resetTimer));
     };
-  }, [user, toast]);
+  }, [user, resetTimer]);
 
   const [isSigningOut, setIsSigningOut] = useState(false);
 

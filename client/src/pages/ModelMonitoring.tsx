@@ -56,13 +56,13 @@ function MetricCard({ title, value, icon: Icon, suffix, color }: {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-slate-500">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">{title}</CardTitle>
         <Icon className={`h-4 w-4 ${color}`} />
       </CardHeader>
       <CardContent>
-        <p className="text-3xl font-bold">
+        <p className="text-3xl font-bold dark:text-gray-100">
           {value ?? "—"}
-          {suffix && <span className="text-sm font-normal text-slate-400 ml-1">{suffix}</span>}
+          {suffix && <span className="text-sm font-normal text-slate-400 dark:text-slate-500 ml-1">{suffix}</span>}
         </p>
       </CardContent>
     </Card>
@@ -70,7 +70,7 @@ function MetricCard({ title, value, icon: Icon, suffix, color }: {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === "completed") return <Badge className="bg-green-100 text-green-700 border-green-200">Completed</Badge>;
+  if (status === "completed") return <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-400 dark:border-green-900">Completed</Badge>;
   if (status === "training") return <Badge variant="secondary" className="animate-pulse">Training…</Badge>;
   if (status === "failed") return <Badge variant="destructive">Failed</Badge>;
   return <Badge variant="outline">{status}</Badge>;
@@ -81,8 +81,8 @@ function ScoreBar({ label, value, maxValue = 1 }: { label: string; value: number
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-slate-600">{label}</span>
-        <span className="font-bold text-slate-800">{value !== null ? value.toFixed(4) : "—"}</span>
+        <span className="font-medium text-slate-600 dark:text-slate-400">{label}</span>
+        <span className="font-bold text-slate-800 dark:text-gray-100">{value !== null ? value.toFixed(4) : "—"}</span>
       </div>
       <Progress value={pct} className="h-2" />
     </div>
@@ -112,7 +112,7 @@ function RetrainDialog({ onConfirm, isTraining }: { onConfirm: () => void; isTra
             Existing model file will be replaced. Predictions may change slightly.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex items-start gap-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="flex items-start gap-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-800 dark:text-amber-400">
           <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0" />
           <span>Retraining may take a few seconds. Predictions will be temporarily unavailable.</span>
         </div>
@@ -168,28 +168,28 @@ function MetricsTab({ versions }: { versions: ModelVersion[] }) {
         <CardContent>
           <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
             <div>
-              <dt className="text-slate-500">Version</dt>
-              <dd className="font-semibold">v{latest.version}</dd>
+              <dt className="text-slate-500 dark:text-slate-400">Version</dt>
+              <dd className="font-semibold dark:text-gray-100">v{latest.version}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Status</dt>
+              <dt className="text-slate-500 dark:text-slate-400">Status</dt>
               <dd><StatusBadge status={latest.status} /></dd>
             </div>
             <div>
-              <dt className="text-slate-500">Samples</dt>
-              <dd className="font-semibold">{latest.numSamples?.toLocaleString() ?? "—"}</dd>
+              <dt className="text-slate-500 dark:text-slate-400">Samples</dt>
+              <dd className="font-semibold dark:text-gray-100">{latest.numSamples?.toLocaleString() ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Features</dt>
-              <dd className="font-semibold">{latest.numFeatures ?? "—"}</dd>
+              <dt className="text-slate-500 dark:text-slate-400">Features</dt>
+              <dd className="font-semibold dark:text-gray-100">{latest.numFeatures ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Training Duration</dt>
-              <dd className="font-semibold">{latest.trainingDurationMs ? `${(latest.trainingDurationMs / 1000).toFixed(1)}s` : "—"}</dd>
+              <dt className="text-slate-500 dark:text-slate-400">Training Duration</dt>
+              <dd className="font-semibold dark:text-gray-100">{latest.trainingDurationMs ? `${(latest.trainingDurationMs / 1000).toFixed(1)}s` : "—"}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Trained At</dt>
-              <dd className="font-semibold">{latest.createdAt ? new Date(latest.createdAt).toLocaleString() : "—"}</dd>
+              <dt className="text-slate-500 dark:text-slate-400">Trained At</dt>
+              <dd className="font-semibold dark:text-gray-100">{latest.createdAt ? new Date(latest.createdAt).toLocaleString() : "—"}</dd>
             </div>
           </dl>
         </CardContent>
@@ -222,12 +222,12 @@ function DatasetStatsTab({ stats }: { stats: DatasetStats | null }) {
           <CardContent>
             <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
               <div>
-                <dt className="text-slate-500">Total Samples</dt>
-                <dd className="font-semibold text-lg">{stats.totalSamples.toLocaleString()}</dd>
+                <dt className="text-slate-500 dark:text-slate-400">Total Samples</dt>
+                <dd className="font-semibold text-lg dark:text-gray-100">{stats.totalSamples.toLocaleString()}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Features</dt>
-                <dd className="font-semibold text-lg">{Object.keys(stats.featureStats).length}</dd>
+                <dt className="text-slate-500 dark:text-slate-400">Features</dt>
+                <dd className="font-semibold text-lg dark:text-gray-100">{Object.keys(stats.featureStats).length}</dd>
               </div>
             </dl>
           </CardContent>
@@ -245,10 +245,10 @@ function DatasetStatsTab({ stats }: { stats: DatasetStats | null }) {
             return (
               <div key={label} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-600">
+                  <span className="font-medium text-slate-600 dark:text-slate-300">
                     {label === "1" ? "Diabetic (1)" : label === "0" ? "Non-Diabetic (0)" : label}
                   </span>
-                  <span className="text-slate-500">{count.toLocaleString()} ({pct}%)</span>
+                  <span className="text-slate-500 dark:text-slate-400">{count.toLocaleString()} ({pct}%)</span>
                 </div>
                 <Progress value={parseFloat(pct)} className="h-2" />
               </div>
@@ -266,7 +266,7 @@ function DatasetStatsTab({ stats }: { stats: DatasetStats | null }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-500">
+                <tr className="border-b border-slate-200 dark:border-gray-700 text-left text-slate-500 dark:text-slate-400">
                   <th className="pb-3 font-medium">Feature</th>
                   <th className="pb-3 font-medium text-right">Mean</th>
                   <th className="pb-3 font-medium text-right">Std Dev</th>
@@ -274,10 +274,10 @@ function DatasetStatsTab({ stats }: { stats: DatasetStats | null }) {
               </thead>
               <tbody>
                 {Object.entries(stats.featureStats).map(([name, { mean, std }]) => (
-                  <tr key={name} className="border-b border-slate-100">
-                    <td className="py-2 font-medium text-slate-700">{name}</td>
-                    <td className="py-2 text-right text-slate-500">{mean.toFixed(4)}</td>
-                    <td className="py-2 text-right text-slate-500">{std.toFixed(4)}</td>
+                  <tr key={name} className="border-b border-slate-100 dark:border-gray-800">
+                    <td className="py-2 font-medium text-slate-700 dark:text-gray-200">{name}</td>
+                    <td className="py-2 text-right text-slate-500 dark:text-slate-400">{mean.toFixed(4)}</td>
+                    <td className="py-2 text-right text-slate-500 dark:text-slate-400">{std.toFixed(4)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -310,7 +310,7 @@ function VersionHistoryTab({ versions }: { versions: ModelVersion[] }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
+              <tr className="border-b border-slate-200 dark:border-gray-700 text-left text-slate-500 dark:text-slate-400">
                 <th className="pb-3 font-medium">Version</th>
                 <th className="pb-3 font-medium">Accuracy</th>
                 <th className="pb-3 font-medium">Precision</th>
@@ -323,15 +323,15 @@ function VersionHistoryTab({ versions }: { versions: ModelVersion[] }) {
             </thead>
             <tbody>
               {versions.map((v) => (
-                <tr key={v.id} className="border-b border-slate-100 hover:bg-slate-50">
-                  <td className="py-3 font-bold text-slate-700">v{v.version}</td>
+                <tr key={v.id} className="border-b border-slate-100 dark:border-gray-800 hover:bg-slate-50 dark:hover:bg-gray-800/50">
+                  <td className="py-3 font-bold text-slate-700 dark:text-gray-200">v{v.version}</td>
                   <td className="py-3">{v.accuracy !== null ? (v.accuracy * 100).toFixed(1) + "%" : "—"}</td>
                   <td className="py-3">{v.precision !== null ? (v.precision * 100).toFixed(1) + "%" : "—"}</td>
                   <td className="py-3">{v.recall !== null ? (v.recall * 100).toFixed(1) + "%" : "—"}</td>
                   <td className="py-3">{v.f1Score !== null ? (v.f1Score * 100).toFixed(1) + "%" : "—"}</td>
                   <td className="py-3">{v.aucRoc !== null ? v.aucRoc.toFixed(4) : "—"}</td>
                   <td className="py-3"><StatusBadge status={v.status} /></td>
-                  <td className="py-3 text-slate-500">{v.createdAt ? new Date(v.createdAt).toLocaleDateString() : "—"}</td>
+                  <td className="py-3 text-slate-500 dark:text-slate-400">{v.createdAt ? new Date(v.createdAt).toLocaleDateString() : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -346,7 +346,7 @@ type Tab = "metrics" | "dataset" | "history";
 
 const tabClass = (active: boolean) =>
   `px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-    active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+    active ? "bg-blue-600 text-white" : "bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-gray-700"
   }`;
 
 export default function ModelMonitoring() {
@@ -399,20 +399,20 @@ export default function ModelMonitoring() {
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Brain className="h-7 w-7 text-blue-600" />
-            <h1 className="text-2xl font-bold text-slate-800">Model Monitoring</h1>
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-gray-100">Model Monitoring</h1>
           </div>
           <RetrainDialog onConfirm={() => retrainMutation.mutate()} isTraining={isTraining} />
         </div>
 
         {retrainMutation.isError && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 border border-red-200">
+          <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-700 dark:text-red-400 border border-red-200 dark:border-red-900">
             <XCircle className="h-5 w-5" />
             {retrainMutation.error?.message || "Retraining failed"}
           </div>
         )}
 
         {retrainMutation.isSuccess && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700 border border-green-200">
+          <div className="mb-4 flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950/30 p-3 text-sm text-green-700 dark:text-green-400 border border-green-200 dark:border-green-900">
             <CheckCircle2 className="h-5 w-5" />
             Model retrained successfully (v{retrainMutation.data?.version})
           </div>
