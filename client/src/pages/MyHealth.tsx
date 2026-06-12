@@ -187,45 +187,45 @@ export default function MyHealth() {
   if (selectedAssessment) {
     const sa = selectedAssessment;
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-950">
-        <div className="mx-auto max-w-4xl p-6">
-          <Button variant="ghost" onClick={() => setSelectedAssessment(null)} className="mb-4">
-            <ChevronLeft className="mr-2 h-4 w-4" /> Back to my health
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+        <div className="mx-auto max-w-4xl px-4 py-4 sm:p-6">
+          <Button variant="ghost" onClick={() => setSelectedAssessment(null)} className="mb-4 min-h-[44px] min-w-[44px]">
+            <ChevronLeft className="mr-2 h-5 w-5" /> Back to my health
           </Button>
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-2xl dark:text-gray-100">Assessment #{sa.id}</CardTitle>
-                <Button variant="outline" size="sm" onClick={() => handleDownloadPdf(sa)}>
-                  <Download className="mr-2 h-4 w-4" /> PDF
+            <CardHeader className="px-4 sm:px-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <CardTitle className="text-xl sm:text-2xl">Assessment #{sa.id}</CardTitle>
+                <Button variant="outline" size="sm" onClick={() => handleDownloadPdf(sa)} className="min-h-[44px] self-start sm:self-auto">
+                  <Download className="mr-2 h-5 w-5" /> PDF
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Date</p>
-                  <p className="font-medium dark:text-gray-100">{formatDate(sa.createdAt)}</p>
+            <CardContent className="px-4 sm:px-6 space-y-6">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
+                  <p className="text-xs text-gray-500">Date</p>
+                  <p className="font-medium text-sm sm:text-base">{formatDate(sa.createdAt)}</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Risk Score</p>
-                  <p className="font-medium dark:text-gray-100">{sa.riskScore.toFixed(1)}%</p>
+                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
+                  <p className="text-xs text-gray-500">Risk Score</p>
+                  <p className="font-medium text-sm sm:text-base">{sa.riskScore.toFixed(1)}%</p>
                 </div>
-                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Category</p>
-                  <Badge className={riskColor(sa.riskCategory)}>{sa.riskCategory}</Badge>
+                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
+                  <p className="text-xs text-gray-500">Category</p>
+                  <Badge className={riskColor(sa.riskCategory) + " text-xs sm:text-sm"}>{sa.riskCategory}</Badge>
                 </div>
-                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Age/Gender</p>
-                  <p className="font-medium dark:text-gray-100">{sa.age} / {sa.gender}</p>
+                <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
+                  <p className="text-xs text-gray-500">Age/Gender</p>
+                  <p className="font-medium text-sm sm:text-base">{sa.age} / {sa.gender}</p>
                 </div>
               </div>
 
-              <div className="rounded-lg border bg-green-50 dark:bg-green-950/30 dark:border-green-900 p-4">
-                <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-green-800 dark:text-green-400">
-                  <Heart className="h-4 w-4" /> Your Health Advice
+              <div className="rounded-lg border bg-green-50 p-4 sm:p-5">
+                <h3 className="mb-2 flex items-center gap-2 text-sm sm:text-base font-semibold text-green-800">
+                  <Heart className="h-5 w-5" /> Your Health Advice
                 </h3>
-                <ul className="space-y-1">
+                <ul className="space-y-1.5">
                   {getPatientAdvice(sa).map((a, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-green-700 dark:text-green-300">
                       <span className="mt-1 block h-1.5 w-1.5 rounded-full bg-green-500" />
@@ -241,9 +241,9 @@ export default function MyHealth() {
                   {sa.factors.map((f, i) => (
                     <div key={i} className="flex items-start gap-3 rounded-lg border dark:border-gray-700 p-3 dark:bg-gray-800/50">
                       {f.impact === "positive" ? (
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
                       ) : (
-                        <Activity className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                        <Activity className="mt-0.5 h-5 w-5 shrink-0 text-green-500" />
                       )}
                       <div>
                         <p className="text-sm font-medium dark:text-gray-100">{f.name}</p>
@@ -283,29 +283,31 @@ export default function MyHealth() {
             <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">My Health Portal</h1>
             {user && <p className="text-sm text-gray-500 dark:text-gray-400">Welcome, {user.patientName}</p>}
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            <LogOut className="mr-2 h-4 w-4" /> Sign Out
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="min-h-[44px] shrink-0 ml-2">
+            <LogOut className="mr-2 h-5 w-5" /> <span className="hidden sm:inline">Sign Out</span><span className="sm:hidden">Sign Out</span>
           </Button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl p-6">
+      <main className="mx-auto max-w-6xl px-4 py-4 sm:p-6">
         {error && (
           <div className="mb-4 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/50 p-3 text-sm text-red-700 dark:text-red-400">{error}</div>
         )}
 
-        <Tabs defaultValue="assessments" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="assessments"><FileText className="mr-2 h-4 w-4" /> My Assessments</TabsTrigger>
-            <TabsTrigger value="trends"><Activity className="mr-2 h-4 w-4" /> Risk Trends</TabsTrigger>
-          </TabsList>
+        <Tabs defaultValue="assessments" className="space-y-4 sm:space-y-6">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="assessments" className="min-h-[44px] flex-1 sm:flex-none"><FileText className="mr-2 h-5 w-5" /> My Assessments</TabsTrigger>
+              <TabsTrigger value="trends" className="min-h-[44px] flex-1 sm:flex-none"><Activity className="mr-2 h-5 w-5" /> Risk Trends</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="assessments">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg dark:text-gray-100">Assessment History</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-0 sm:px-6">
                 {assessments.length === 0 ? (
                   <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No assessments found.</p>
                 ) : (
@@ -334,9 +336,26 @@ export default function MyHealth() {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {assessments.map((a) => (
+                          <TableRow key={a.id} className="cursor-pointer hover:bg-gray-50" onClick={() => setSelectedAssessment(a)}>
+                            <TableCell className="text-sm sticky left-0 bg-white z-10">{formatDate(a.createdAt)}</TableCell>
+                            <TableCell className="font-medium">{a.riskScore.toFixed(1)}%</TableCell>
+                            <TableCell>
+                              <Badge className={riskColor(a.riskCategory)}>{a.riskCategory}</Badge>
+                            </TableCell>
+                            <TableCell>{a.age}</TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadPdf(a); }} className="min-h-[44px] min-w-[44px]">
+                                <Download className="h-5 w-5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -347,13 +366,13 @@ export default function MyHealth() {
               <CardHeader>
                 <CardTitle className="text-lg dark:text-gray-100">Risk Score Trends</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 {trends.length < 2 ? (
                   <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     {trends.length === 1 ? "One assessment recorded. More data needed for a trend chart." : "No trend data available yet."}
                   </p>
                 ) : (
-                  <div className="h-80">
+                  <div className="h-60 sm:h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={trends.map((t) => ({ ...t, date: formatDate(t.date) }))}>
                         <CartesianGrid strokeDasharray="3 3" className="dark:stroke-gray-700" />

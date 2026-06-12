@@ -131,11 +131,11 @@ export default function PatientLogin() {
           <CardTitle className="text-xl dark:text-gray-100">Patient Portal</CardTitle>
           <CardDescription>Access your health assessments and recommendations</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           <Tabs defaultValue="login">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Sign In</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
+              <TabsTrigger value="login" className="min-h-[44px]">Sign In</TabsTrigger>
+              <TabsTrigger value="register" className="min-h-[44px]">Register</TabsTrigger>
             </TabsList>
 
             {error && (
@@ -143,7 +143,7 @@ export default function PatientLogin() {
             )}
 
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="mt-4 space-y-4">
+              <form onSubmit={handleLogin} className="mt-4 space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="login-email">Email</Label>
                   <Input
@@ -199,7 +199,7 @@ export default function PatientLogin() {
             </TabsContent>
 
             <TabsContent value="register">
-              <form onSubmit={handleRegister} className="mt-4 space-y-4">
+              <form onSubmit={handleRegister} className="mt-4 space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="reg-name">Patient Name (as known to your clinician)</Label>
                   <Input
@@ -279,11 +279,11 @@ export default function PatientLogin() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="reg-phone">Phone (optional)</Label>
-                  <Input id="reg-phone" type="tel" placeholder="+1-555-0123" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                  <Label htmlFor="reg-phone" className="text-sm sm:text-base">Phone (optional)</Label>
+                  <Input id="reg-phone" type="tel" placeholder="+1-555-0123" value={phone} onChange={(e) => setPhone(e.target.value)} className="min-h-[48px] text-base" />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                <Button type="submit" className="w-full min-h-[48px] text-base" disabled={loading}>
+                  {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
                   Create Account
                 </Button>
                 <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
