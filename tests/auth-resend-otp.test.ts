@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
@@ -15,14 +14,20 @@ vi.mock("../server/email", () => ({
   sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
 }));
 
+const mockDb = {
+  select: vi.fn(),
+  insert: vi.fn(),
+  update: vi.fn(),
+  transaction: vi.fn(),
+};
+
 vi.mock("../server/db", () => ({
-  getDb: vi.fn(),
+  getDb: () => mockDb,
 }));
 
 vi.mock("../server/storage", () => ({
   storage: {
-    getUserByEmail: vi.fn(),
-    createUser: vi.fn(),
+    recordLoginAudit: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -85,6 +90,16 @@ describe("POST /api/auth/resend-otp", () => {
     const res = await request(app)
       .post("/api/auth/resend-otp")
       .send({ email: "noone@clinic.com", mode: "login" });
+  it("returns 404 when user is not found in database", async () => {
+    const mockLimit = vi.fn().mockResolvedValue([]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockDb.select.mockImplementation(() => ({ from: mockFrom }));
+
+    const app = await buildApp();
+    const res = await request(app)
+      .post("/api/auth/resend-otp")
+      .send({ email: "noone@clinic.com" });
     expect(res.status).toBe(404);
     expect(res.body.message).toMatch(/user not found/i);
   });

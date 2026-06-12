@@ -2,6 +2,18 @@
  * Centralized API Utility Class for Data Fetching
  * Consolidates fetch logic, error handling, credentials, and JSON parsing.
  */
+
+/**
+ * Resolves a relative API path against VITE_API_BASE when configured.
+ * This ensures all ApiClient calls work correctly when the app is deployed
+ * with a separate backend origin or behind a reverse proxy with a path prefix.
+ * Falls back to the relative path when VITE_API_BASE is not set (local dev).
+ */
+function resolveUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/+$/, "") ?? "";
+  return base ? `${base}${path}` : path;
+}
+
 export class ApiClient {
   /**
    * Helper to check the response and throw standardized errors
@@ -38,7 +50,7 @@ export class ApiClient {
   }
 
   static async get<T = any>(url: string, options?: RequestInit): Promise<T> {
-    const res = await fetch(url, {
+    const res = await fetch(resolveUrl(url), {
       method: "GET",
       credentials: "include",
       ...options,
@@ -51,7 +63,7 @@ export class ApiClient {
     if (options?.headers) {
       Object.assign(headers, options.headers);
     }
-    const res = await fetch(url, {
+    const res = await fetch(resolveUrl(url), {
       method: "POST",
       credentials: "include",
       ...options,
@@ -66,7 +78,7 @@ export class ApiClient {
     if (options?.headers) {
       Object.assign(headers, options.headers);
     }
-    const res = await fetch(url, {
+    const res = await fetch(resolveUrl(url), {
       method: "PUT",
       credentials: "include",
       ...options,
@@ -77,7 +89,7 @@ export class ApiClient {
   }
 
   static async delete<T = any>(url: string, options?: RequestInit): Promise<T> {
-    const res = await fetch(url, {
+    const res = await fetch(resolveUrl(url), {
       method: "DELETE",
       credentials: "include",
       ...options,
@@ -86,7 +98,7 @@ export class ApiClient {
   }
   
   static async requestRaw(url: string, options?: RequestInit): Promise<Response> {
-    return fetch(url, {
+    return fetch(resolveUrl(url), {
       credentials: "include",
       ...options,
     });
