@@ -51,10 +51,13 @@ export async function setupVite(server: Server, app: Express) {
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
       const page = await vite.transformIndexHtml(url, template);
-      const pageWithNonce = page.replace(
-        /<script /g,
-        `<script nonce="${res.locals.cspNonce}" `,
-      );
+      const nonce = res.locals.cspNonce;
+      const pageWithNonce = page
+        .replace(/<script /g, `<script nonce="${nonce}" `)
+        .replace(
+          /<meta name="csp-nonce" content="[^"]*"/,
+          `<meta name="csp-nonce" content="${nonce}"`,
+        );
       res.status(200).set({ "Content-Type": "text/html" }).end(pageWithNonce);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);

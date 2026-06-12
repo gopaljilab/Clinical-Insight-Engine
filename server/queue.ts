@@ -1,36 +1,9 @@
 import { Queue, Worker, Job } from "bullmq";
 import { storage } from "./storage";
 import IORedis from "ioredis";
-import { execFile } from "child_process";
-import { promisify } from "util";
-import path from "path";
-import os from "os";
-import { randomUUID } from "crypto";
-import { writeFile, unlink } from "fs/promises";
-import { existsSync } from "fs";
-import { fileURLToPath } from "url";
 import { sendCriticalRiskAlert } from "./email";
 import { logger } from "./logger";
-
-export function getPythonExecutable() {
-  const candidates = process.platform === "win32"
-    ? [
-        path.resolve(".venv", "Scripts", "python.exe"),
-        path.resolve("venv", "Scripts", "python.exe")
-      ]
-    : [
-        path.resolve(".venv", "bin", "python"),
-        path.resolve("venv", "bin", "python")
-      ];
-
-  return candidates.find((candidate) => existsSync(candidate)) ?? "python3";
-}
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
-
-const execFileAsync = promisify(execFile);
+import { MLService } from "./services/mlService";
 
 let redisConnectionInstance: IORedis | null = null;
 let assessmentQueueInstance: Queue | null = null;
@@ -105,13 +78,18 @@ export function startAssessmentWorker(): void {
     "assessmentQueue",
     async (job: Job) => {
       const { input, userId, userEmail } = job.data;
-      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
 
       try {
-        await writeFile(tempFile, JSON.stringify(input));
-        const stdout = await new Promise<string>((resolve, reject) => {
-          const child = execFile(
-            getPythonExecutable(),
+        const { prediction } = await MLService.runAssessmentInference(input);
+        let prediction: any;
+        
+        if (!isPythonAvailable) {
+           prediction = calculateClinicalFallback(input);
+        } else {
+          await writeFile(tempFile, JSON.stringify(input));
+          const stdout = await new Promise<string>((resolve, reject) => {
+            const child = execFile(
+              getPythonExecutable(),
             [analyzePyPath, "predict_file", tempFile],
             {
               timeout: 60000,
@@ -138,10 +116,21 @@ export function startAssessmentWorker(): void {
           child.on("close", () => clearTimeout(fallbackTimer));
         });
 
-        const prediction = JSON.parse(stdout.trim());
-        if (prediction.error) {
-          throw new Error(prediction.error);
+          prediction = JSON.parse(stdout.trim());
+          if (prediction.error) {
+            throw new Error(prediction.error);
+          }
         }
+
+        logger.info(
+          {
+            jobId: job.id,
+            requestId,
+            durationMs: Date.now() - startedAt,
+            riskCategory: prediction.riskCategory,
+          },
+          "Assessment queue ML prediction completed",
+        );
 
         prediction.disclaimer =
             "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions.";
@@ -177,19 +166,24 @@ export function startAssessmentWorker(): void {
 
         return {
           ...assessment,
-          prediction
+          prediction,
+          requestId,
         };
       } catch (err: any) {
+        logger.error(
+          {
+            jobId: job.id,
+            requestId,
+            durationMs: Date.now() - startedAt,
+            err,
+          },
+          "Assessment queue job failed during ML processing",
+        );
         if (err.killed || err.signal === "SIGTERM") {
+        if (err.message === "Clinical assessment timed out." || err.message?.includes("timed out")) {
           throw new Error("Clinical assessment generation timed out.");
         }
         throw err;
-      } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {
-          // ignore
-        }
       }
     },
     {
@@ -199,7 +193,7 @@ export function startAssessmentWorker(): void {
   );
 
   assessmentWorkerInstance.on("failed", (job: Job | undefined, err: Error) => {
-    logger.error({ jobId: job?.id, err }, "Assessment queue job failed");
+    logger.error({ jobId: job?.id, requestId: job?.data?.requestId, err }, "Assessment queue job failed");
   });
 }
 

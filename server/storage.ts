@@ -57,6 +57,8 @@ export interface IStorage {
   updateUser(id: string, data: Partial<Pick<User, "isActive" | "role">>): Promise<User>;
   getSystemStats(): Promise<{ totalUsers: number; totalAssessments: number; riskDistribution: { category: string; count: number }[]; }>;
   recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }): Promise<void>;
+  recordPatientAccess(params: { userId: string; resourceType: string; resourceId?: string; action: string; ipAddress?: string; userAgent?: string; granted: boolean; }): Promise<void>;
+  getPatientAccessAuditLogs(page: number, limit: number): Promise<{ data: typeof patientAccessAuditLogs.$inferSelect[]; total: number }>;
   getAnalyticsStats(createdBy?: string): Promise<any>;
   getModelVersions(): Promise<ModelVersion[]>;
   getLatestModelVersion(): Promise<ModelVersion | undefined>;
@@ -80,6 +82,7 @@ export type AssessmentCreateInput = InsertAssessment & {
 };
 
 export class DatabaseStorage implements IStorage {
+
   private assessmentRepository = new AssessmentRepository();
   private userRepository = new UserRepository();
   private auditRepository = new AuditRepository();
@@ -87,43 +90,6 @@ export class DatabaseStorage implements IStorage {
   private modelVersionRepository = new ModelVersionRepository();
   private patientUserRepository = new PatientUserRepository();
 
-  getAssessments(limitOrParams?: number | Parameters<AssessmentRepository["getAssessments"]>[0], cursor?: number, createdBy?: string) { return this.assessmentRepository.getAssessments(limitOrParams, cursor, createdBy); }
-
-  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: RiskCategory, limit?: number, cursor?: number) {
-    return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor);
-  }
-
-  async getAssessmentById(id: number) {
-    return this.assessmentRepository.getAssessmentById(id);
-  }
-
-  async createAssessment(assessment: AssessmentCreateInput) {
-    return this.assessmentRepository.createAssessment(assessment);
-  }
-
-  async deleteAssessment(id: number) {
-    return this.assessmentRepository.deleteAssessment(id);
-  }
-
-  async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {
-    return this.assessmentRepository.autocompletePatientNames(query, createdBy, limit);
-  }
-
-  async createUser(data: InsertUser) {
-    return this.userRepository.createUser(data);
-  }
-
-  async getUserByEmail(email: string) {
-    return this.userRepository.getUserByEmail(email);
-  }
-
-  async getUserById(id: string) {
-    return this.userRepository.getUserById(id);
-  }
-
-  async getAllUsers(page: number, limit: number) {
-    return this.userRepository.getAllUsers(page, limit);
-  }
 
   async updateUser(id: string, data: Partial<Pick<User, "isActive" | "role">>) {
     return this.userRepository.updateUser(id, data);
@@ -177,8 +143,16 @@ export class DatabaseStorage implements IStorage {
     return this.patientUserRepository.create(data);
   }
 
-  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number) {
-    return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset);
+  async recordPatientAccess(params: { userId: string; resourceType: string; resourceId?: string; action: string; ipAddress?: string; userAgent?: string; granted: boolean; }) {
+    return this.auditRepository.recordPatientAccess(params);
+  }
+
+  async getPatientAccessAuditLogs(page: number, limit: number) {
+    return this.auditRepository.getPatientAccessAuditLogs(page, limit);
+  }
+
+  async getSystemStats() { 
+    return this.analyticsRepository.getSystemStats(); 
   }
 
   async getPatientTrends(patientName: string) {

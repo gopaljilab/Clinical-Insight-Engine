@@ -760,6 +760,35 @@ if __name__ == "__main__":
         else:
             result = interpret_prediction(model, scaler, features, data, cov_beta)
             print(json.dumps(result))
+    elif len(sys.argv) > 1 and sys.argv[1] == "daemon":
+        model, scaler, features, cov_beta = get_model()
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                request = json.loads(line)
+                request_id = request.get("requestId")
+                input_data = request.get("input")
+                if isinstance(input_data, list):
+                    prediction = interpret_predictions_batch(model, scaler, features, input_data, cov_beta)
+                else:
+                    prediction = interpret_prediction(model, scaler, features, input_data, cov_beta)
+                response = {
+                    "requestId": request_id,
+                    "prediction": prediction
+                }
+                print(json.dumps(response), flush=True)
+            except Exception as e:
+                try:
+                    request_id = request.get("requestId") if 'request' in locals() else None
+                except:
+                    request_id = None
+                response = {
+                    "requestId": request_id,
+                    "error": str(e)
+                }
+                print(json.dumps(response), flush=True)
     elif len(sys.argv) > 1 and sys.argv[1] == "counterfactual":
         if len(sys.argv) > 2:
             with open(sys.argv[2], 'r') as f:

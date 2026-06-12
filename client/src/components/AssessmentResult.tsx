@@ -446,10 +446,6 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
               </div>
 
-              <div className="mt-4">
-                <DataQualityAlerts alerts={assessment.qualityAlerts} />
-              </div>
-
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                   <h3 className="mb-3 flex items-center gap-2 font-bold">

@@ -29,28 +29,28 @@ const formSchema = insertAssessmentSchema.pick({
 type FormData = z.infer<typeof formSchema>;
 
 const inputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[#1E293B] placeholder-slate-400 shadow-sm outline-none transition-all duration-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20";
+  "w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900 px-4 py-3 text-[#1E293B] dark:text-gray-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-sm outline-none transition-all duration-200 focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-600/20 dark:focus:ring-blue-500/20";
 
 const getInputClass = (hasError: boolean) =>
   `${inputClass} ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-100 ring-2 ring-red-500/20" : ""}`;
 
-const labelClass = "text-sm font-bold text-[#1E293B]";
+const labelClass = "text-sm font-bold text-[#1E293B] dark:text-gray-100";
 
 const sectionHeadingClass =
-  "flex items-center gap-2 border-b border-slate-100 pb-3 text-sm font-black uppercase tracking-[0.14em] text-slate-500";
+  "flex items-center gap-2 border-b border-slate-100 dark:border-gray-800 pb-3 text-sm font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400";
 
 // dashboardStats removed and calculated dynamically inside the component
 
 function getRiskBadgeClass(category?: string) {
   switch ((category ?? "").toUpperCase()) {
     case "LOW":
-      return "border-green-200 bg-green-50 text-green-700";
+      return "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-400";
     case "MODERATE":
-      return "border-amber-200 bg-amber-50 text-amber-700";
+      return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-400";
     case "HIGH":
-      return "border-red-200 bg-red-50 text-red-700";
+      return "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400";
     default:
-      return "border-slate-200 bg-slate-50 text-slate-600";
+      return "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-gray-800 dark:text-slate-400";
   }
 }
 
@@ -238,12 +238,12 @@ export default function Dashboard() {
         <div className="space-y-8">
         <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-blue-700">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-950/50 px-4 py-2 text-sm font-black text-blue-700 dark:text-blue-400">
               <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.18)]" />
               Clinical AI workspace
             </div>
-            <h1 className="text-3xl md:text-5xl font-black font-display text-[#1E293B] tracking-tight">New Assessment</h1>
-            <p className="text-slate-500 mt-3 text-lg max-w-2xl leading-8">
+            <h1 className="text-3xl md:text-5xl font-black font-display text-[#1E293B] dark:text-gray-100 tracking-tight">New Assessment</h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-3 text-lg max-w-2xl leading-8">
               Enter patient details to run the preventive diabetes and cardiovascular risk model.
             </p>
           </div>
@@ -264,38 +264,38 @@ export default function Dashboard() {
                   return (
                     <div
                       key={stat.label}
-                      className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500">
-                      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      className="rounded-2xl border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm shadow-slate-900/3 dark:shadow-gray-950/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500">
+                      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
                         <Icon className="h-5 w-5" />
                       </div>
-                      <p className="text-lg font-black text-[#1E293B]">{stat.value}</p>
-                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{stat.label}</p>
+                      <p className="text-lg font-black text-[#1E293B] dark:text-gray-100">{stat.value}</p>
+                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">{stat.label}</p>
                     </div>
                   );
                 })}
                 <a
                   href="/import"
-                  className="group rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-400 hover:bg-blue-50 cursor-pointer"
+                  className="group rounded-2xl border-2 border-dashed border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
                 >
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-600 group-hover:bg-blue-200 transition-colors">
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 group-hover:bg-blue-200 dark:group-hover:bg-blue-800 transition-colors">
                     <UploadCloud className="h-5 w-5" />
                   </div>
-                  <p className="text-lg font-black text-blue-700">Batch Import</p>
-                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-blue-500">CSV / Excel &rarr;</p>
+                  <p className="text-lg font-black text-blue-700 dark:text-blue-400">Batch Import</p>
+                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-blue-500 dark:text-blue-400">CSV / Excel &rarr;</p>
                 </a>
               </>
             )}
           </div>
         </div>
 
-        <div className={`transition-all duration-500 grid grid-cols-1 gap-8 lg:items-start ${result ? "lg:grid-cols-12" : "lg:grid-cols-5"}`}>
-          <div className={`transition-all duration-500 ${result ? "lg:col-span-4 sticky top-8" : "lg:col-span-3"} lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4`}>
+        <div className={`transition-all duration-500 grid grid-cols-1 gap-8 lg:items-start ${(result || isPending) ? "lg:grid-cols-12" : "lg:grid-cols-5"}`}>
+          <div className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-4 sticky top-8" : "lg:col-span-3"} lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4`}>
             <form
               onSubmit={handleSubmit(onSubmit)}
-              className={`rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] transition-all duration-200 md:p-8 ${result ? "opacity-75 pointer-events-none" : ""}`}
+              className={`rounded-2xl border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_-2px_rgba(0,0,0,0.3)] transition-all duration-200 md:p-8 ${result ? "opacity-75 pointer-events-none" : ""}`}
             >
                 {error && (
-                  <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 text-red-600">
+                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 rounded-xl flex items-start gap-3 text-red-600 dark:text-red-400">
                     <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold">Assessment Failed</p>
@@ -305,7 +305,7 @@ export default function Dashboard() {
                 )}
 
                 <div className="space-y-6">
-                  <section className="rounded-2xl border border-slate-200 bg-slate-50/40 p-5">
+                  <section className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-slate-50/40 dark:bg-gray-800/40 p-5">
                     <h3 className={sectionHeadingClass}>
                       <UserCircle className="w-5 h-5 text-blue-600" /> Demographics
                     </h3>
@@ -345,18 +345,18 @@ export default function Dashboard() {
                         <div
                           role="group"
                           aria-labelledby="gender-label"
-                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 transition-all duration-200 ${errors.gender ? "ring-2 ring-red-500 bg-red-50/30" : ""}`}
+                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 dark:bg-gray-800 p-1 transition-all duration-200 ${errors.gender ? "ring-2 ring-red-500 bg-red-50/30 dark:bg-red-950/20" : ""}`}
                         >
                           {["Male", "Female"].map((g) => (
                             <label key={g} className="flex-1 cursor-pointer">
                               <input type="radio" value={g} {...register("gender")} className="peer sr-only" />
-                              <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 hover:text-blue-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow-sm">
+                              <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-400 peer-checked:bg-white dark:peer-checked:bg-gray-700 peer-checked:text-blue-700 dark:peer-checked:text-blue-400 peer-checked:shadow-sm">
                                 {g}
                               </div>
                             </label>
                           ))}
                         </div>
-                        {errors.gender && <p className="text-sm text-red-600 mt-1">{errors.gender.message}</p>}
+                        {errors.gender && <p className="text-sm text-red-600 dark:text-red-400 mt-1">{errors.gender.message}</p>}
                       </div>
 
                       <div className="space-y-2 md:col-span-3">
@@ -364,12 +364,12 @@ export default function Dashboard() {
                         <div
                           role="group"
                           aria-labelledby="smoking-label"
-                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 transition-all duration-200 sm:grid-cols-4 ${errors.smokingHistory ? "ring-2 ring-red-500 bg-red-50/30" : ""}`}
+                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 dark:bg-gray-800 p-1 transition-all duration-200 sm:grid-cols-4 ${errors.smokingHistory ? "ring-2 ring-red-500 bg-red-50/30 dark:bg-red-950/20" : ""}`}
                         >
                           {["never", "No Info", "current", "former"].map((smoking) => (
                             <label key={smoking} className="flex-1 cursor-pointer">
                               <input type="radio" value={smoking} {...register("smokingHistory")} className="peer sr-only" />
-                              <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 hover:text-blue-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow-sm">
+                              <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-400 peer-checked:bg-white dark:peer-checked:bg-gray-700 peer-checked:text-blue-700 dark:peer-checked:text-blue-400 peer-checked:shadow-sm">
                                 {smoking}
                               </div>
                             </label>
@@ -380,7 +380,7 @@ export default function Dashboard() {
                     </div>
                   </section>
 
-                  <section className="rounded-2xl border border-slate-200 bg-slate-50/40 p-5">
+                  <section className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-slate-50/40 dark:bg-gray-800/40 p-5">
                     <h3 className={sectionHeadingClass}>
                       <HeartPulse className="w-5 h-5 text-blue-600" /> Vitals
                     </h3>
@@ -414,7 +414,7 @@ export default function Dashboard() {
                         <div className="relative">
                           <input id="bmi" type="number" step="0.1" {...register("bmi")} className={getInputClass(!!errors.bmi)} placeholder="e.g. 25.0" />
                           {watchedValues.bmi && (
-                            <button type="button" onClick={() => setValue("bmi", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("bmi", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
                               <X className="w-4 h-4" />
                             </button>
                           )}
@@ -452,7 +452,7 @@ export default function Dashboard() {
                         <div className="relative">
                           <input id="hba1cLevel" type="number" step="0.1" {...register("hba1cLevel")} className={getInputClass(!!errors.hba1cLevel)} placeholder="e.g. 5.7" />
                           {watchedValues.hba1cLevel && (
-                            <button type="button" onClick={() => setValue("hba1cLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("hba1cLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
                               <X className="w-4 h-4" />
                             </button>
                           )}
@@ -482,7 +482,7 @@ export default function Dashboard() {
                         <div className="relative">
                           <input id="bloodGlucoseLevel" type="number" {...register("bloodGlucoseLevel")} className={getInputClass(!!errors.bloodGlucoseLevel)} placeholder="e.g. 100" />
                           {watchedValues.bloodGlucoseLevel && (
-                            <button type="button" onClick={() => setValue("bloodGlucoseLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("bloodGlucoseLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
                               <X className="w-4 h-4" />
                             </button>
                           )}
@@ -492,28 +492,28 @@ export default function Dashboard() {
                     </div>
                   </section>
 
-                  <section className="rounded-2xl border border-slate-200 bg-slate-50/40 p-5">
+                  <section className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-slate-50/40 dark:bg-gray-800/40 p-5">
                     <h3 className={sectionHeadingClass}>
                       <Activity className="w-5 h-5 text-blue-600" /> Medical History
                     </h3>
                     <div className="mt-4 space-y-4">
-                      <label className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 bg-white cursor-pointer transition-all duration-200 hover:border-blue-200 hover:shadow-sm">
+                      <label className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 cursor-pointer transition-all duration-200 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm">
                         <div>
-                          <p className="font-bold text-[#1E293B]">Hypertension</p>
-                          <p className="text-xs text-slate-500">Diagnosed high blood pressure</p>
+                          <p className="font-bold text-[#1E293B] dark:text-gray-100">Hypertension</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Diagnosed high blood pressure</p>
                         </div>
-                        <div className={`relative h-7 w-14 shrink-0 rounded-full transition-all duration-200 ${isHypertension ? "bg-blue-600 shadow-md shadow-blue-500/20" : "bg-slate-300"}`}>
+                        <div className={`relative h-7 w-14 shrink-0 rounded-full transition-all duration-200 ${isHypertension ? "bg-blue-600 shadow-md shadow-blue-500/20" : "bg-slate-300 dark:bg-slate-600"}`}>
                           <input type="checkbox" {...register("hypertension")} className="sr-only" />
                           <div className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isHypertension ? "translate-x-8" : "translate-x-1"}`} />
                         </div>
                       </label>
 
-                      <label className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 bg-white cursor-pointer transition-all duration-200 hover:border-blue-200 hover:shadow-sm">
+                      <label className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 cursor-pointer transition-all duration-200 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm">
                         <div>
-                          <p className="font-bold text-[#1E293B]">Heart Disease</p>
-                          <p className="text-xs text-slate-500">Prior cardiovascular conditions</p>
+                          <p className="font-bold text-[#1E293B] dark:text-gray-100">Heart Disease</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Prior cardiovascular conditions</p>
                         </div>
-                        <div className={`relative h-7 w-14 shrink-0 rounded-full transition-all duration-200 ${isHeartDisease ? "bg-blue-600 shadow-md shadow-blue-500/20" : "bg-slate-300"}`}>
+                        <div className={`relative h-7 w-14 shrink-0 rounded-full transition-all duration-200 ${isHeartDisease ? "bg-blue-600 shadow-md shadow-blue-500/20" : "bg-slate-300 dark:bg-slate-600"}`}>
                           <input type="checkbox" {...register("heartDisease")} className="sr-only" />
                           <div className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isHeartDisease ? "translate-x-8" : "translate-x-1"}`} />
                         </div>
@@ -522,27 +522,27 @@ export default function Dashboard() {
                   </section>
                 </div>
 
-                <div className="mt-8 rounded-xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-center text-xs italic text-slate-400">
+                <div className="mt-8 rounded-xl border border-slate-100 dark:border-gray-800 bg-slate-50 dark:bg-gray-800/50 p-4">
+                  <p className="text-center text-xs italic text-slate-400 dark:text-slate-500">
                     This tool is a prototype for decision support only. It does not provide a medical diagnosis. Always consult a healthcare professional.
                   </p>
                 </div>
 
-                <div className="mt-8 border-t border-slate-100 pt-6 flex flex-col md:flex-row justify-end gap-3">
+                <div className="mt-8 border-t border-slate-100 dark:border-gray-800 pt-6 flex flex-col md:flex-row justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => {
                       reset();
                       localStorage.removeItem("clinical-insight-assessment-draft");
                     }}
-                    className="w-full md:w-auto px-8 py-4 rounded-xl font-bold text-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 transition-all duration-200"
+                    className="w-full md:w-auto px-8 py-4 rounded-xl font-bold text-lg border border-slate-200 dark:border-gray-700 text-slate-600 dark:text-slate-400 bg-white dark:bg-gray-900 hover:bg-slate-50 dark:hover:bg-gray-800 transition-all duration-200"
                   >
                     Reset Form
                   </button>
                   <button
                     type="submit"
                     disabled={isPending || result !== null}
-                    className="w-full md:w-auto px-8 py-4 rounded-xl font-black text-lg border border-blue-200 text-blue-700 bg-white shadow-sm hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full md:w-auto px-8 py-4 rounded-xl font-black text-lg border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 bg-white dark:bg-gray-900 shadow-sm hover:bg-blue-50 dark:hover:bg-blue-950/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
                   >
                     {isPending ? (
                       <>
@@ -560,12 +560,39 @@ export default function Dashboard() {
               </form>
             </div>
 
-            <aside className={`transition-all duration-500 ${result ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
-              {result ? (
+            <aside className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
+              {isPending ? (
+                <div className="rounded-2xl border border-slate-100 bg-white p-8 shadow-sm shadow-slate-900/3 flex flex-col items-center justify-center min-h-[500px]" aria-live="polite">
+                  <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-6" aria-hidden="true" />
+                  <h2 className="text-2xl font-black text-[#1E293B] mb-3">Analyzing Patient Data...</h2>
+                  <p className="text-slate-500 text-center max-w-md mb-10 text-lg">
+                    Processing clinical indicators, computing vital correlations, and generating risk prediction.
+                  </p>
+                  
+                  <div className="w-full max-w-3xl space-y-6 opacity-60">
+                    {/* Header Skeleton */}
+                    <div className="flex items-center gap-4">
+                      <div className="h-16 w-16 bg-slate-100 rounded-full animate-pulse"></div>
+                      <div className="space-y-2 flex-1">
+                        <div className="h-6 w-1/3 bg-slate-100 rounded-lg animate-pulse"></div>
+                        <div className="h-4 w-1/4 bg-slate-50 rounded-lg animate-pulse"></div>
+                      </div>
+                    </div>
+                    {/* Metrics Cards Skeleton */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-32 bg-slate-50 border border-slate-100 rounded-2xl animate-pulse"></div>
+                      ))}
+                    </div>
+                    {/* Main Content Skeleton */}
+                    <div className="h-64 bg-slate-50 border border-slate-100 rounded-2xl animate-pulse w-full"></div>
+                  </div>
+                </div>
+              ) : result ? (
                 <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-                    <h2 className="text-xl font-black text-[#1E293B]">Assessment Complete</h2>
-                    <button onClick={() => setResult(null)} className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">
+                    <h2 className="text-xl font-black text-[#1E293B] dark:text-gray-100">Assessment Complete</h2>
+                    <button onClick={() => setResult(null)} className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
                       Clear Result & Start Over
                     </button>
                   </div>
@@ -643,18 +670,18 @@ export default function Dashboard() {
                   )}
 
                   {previewPending && (
-                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Updating risk preview...
                     </div>
                   )}
 
-                  {previewError && <p className="text-sm text-red-600">{previewError}</p>}
+                  {previewError && <p className="text-sm text-red-600 dark:text-red-400">{previewError}</p>}
 
                   {preview && (
                     <>
                       {preview.isFallback && (
-                        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <div className="flex items-start gap-2 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-400">
                           <span className="mt-0.5 shrink-0">⚠️</span>
                           <span>
                             <strong>Rule-based estimate</strong> — ML model unavailable. Results are from a simplified heuristic and may be less accurate.
@@ -671,7 +698,7 @@ export default function Dashboard() {
                       </div>
 
                       <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 mb-2">Key Drivers</p>
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-2">Key Drivers</p>
                         <div className="space-y-2">
                           {preview.factors.length > 0 ? (
                             preview.factors.slice(0, 3).map((factor) => (
@@ -688,7 +715,7 @@ export default function Dashboard() {
                               </div>
                             ))
                           ) : (
-                            <p className="text-sm text-slate-500">No significant factors highlighted yet.</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">No significant factors highlighted yet.</p>
                           )}
                         </div>
                       </div>

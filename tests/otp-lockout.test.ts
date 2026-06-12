@@ -61,44 +61,50 @@ vi.mock("../server/db", async (importOriginal) => {
   };
 });
 
-// Mock the storage module
-vi.mock("../server/storage", () => {
-  const mockStorageInstance = {
-    getUserByEmail: vi.fn(),
-    createUser: vi.fn(),
-    recordLoginAudit: vi.fn().mockResolvedValue(undefined),
-  };
+const mockDb = {
+  select: vi.fn(),
+  insert: vi.fn(),
+  update: vi.fn(),
+  transaction: vi.fn(),
+};
 
-  return {
-    storage: mockStorageInstance,
-    DatabaseStorage: vi.fn().mockImplementation(() => mockStorageInstance),
-  };
-});
-
-// Mock bcrypt compareSync because we want login to succeed
-vi.mock("bcrypt", () => ({
-  default: {
-    compareSync: () => true,
-    hashSync: () => "hashed",
-  },
-  compareSync: () => true,
-  hashSync: () => "hashed",
+vi.mock("../server/db", () => ({
+  getDb: () => mockDb,
 }));
 
-// Mock email service
+vi.mock("../server/storage", () => ({
+  storage: {
+    recordLoginAudit: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 vi.mock("../server/email", () => ({
   sendVerificationEmail: vi.fn().mockResolvedValue(true),
   sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
+  validateEmailConfig: vi.fn(),
+}));
+
+vi.mock("ioredis", () => ({
+  default: vi.fn().mockImplementation(() => ({
+    on: vi.fn(),
+    info: vi.fn().mockResolvedValue(""),
+  })),
 }));
 
 describe("OTP Brute-Force Lockout Integration", () => {
   let app: express.Express;
+  let currentAttemptCount = 0;
+  let tokenUsed = false;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     // Reset the transaction mock to default (no select results)
     mockTxRef.tx = makeTx();
 
+    currentAttemptCount = 0;
+    tokenUsed = false;
+
+    const { createAuthRouter } = await import("../server/auth");
     app = express();
     app.use(express.json());
     app.use(
@@ -109,6 +115,82 @@ describe("OTP Brute-Force Lockout Integration", () => {
       })
     );
     app.use("/api/auth", createAuthRouter());
+
+    // Mock db user select
+    const mockLimit = vi.fn().mockResolvedValue([
+      {
+        id: "test-user-id",
+        fullName: "Test Doctor",
+        email: "doc@example.com",
+        medicalLicenseNumber: "DOC123",
+        passwordHash: "$2b$10$BrtSaFVeZvqxGUJMxLtw8OdcjaZfI6gpeQpOxqUX9IW.nZA7Lh0Au",
+        role: "provider",
+        isActive: true,
+        emailVerified: true,
+      }
+    ]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockDb.select.mockImplementation(() => ({ from: mockFrom }));
+
+    // Mock db transaction for /login and /verify-email
+    mockDb.transaction.mockImplementation(async (callback) => {
+      const mockTx = {
+        select: vi.fn().mockImplementation(() => ({
+          from: vi.fn().mockImplementation(() => ({
+            where: vi.fn().mockImplementation(() => ({
+              orderBy: vi.fn().mockImplementation(() => ({
+                limit: vi.fn().mockImplementation(async () => {
+                  if (tokenUsed) return [];
+                  return [
+                    {
+                      id: "token-id",
+                      userId: "test-user-id",
+                      verificationCode: "123456",
+                      attemptCount: currentAttemptCount,
+                      expiresAt: new Date(Date.now() + 100000),
+                    },
+                  ];
+                }),
+              })),
+              limit: vi.fn().mockImplementation(async () => {
+                if (tokenUsed) return [];
+                return [
+                  {
+                    id: "token-id",
+                    userId: "test-user-id",
+                    verificationCode: "123456",
+                    attemptCount: currentAttemptCount,
+                    expiresAt: new Date(Date.now() + 100000),
+                  },
+                ];
+              }),
+            })),
+          })),
+        })),
+        update: vi.fn(() => ({
+          set: vi.fn((setVal: any) => {
+            if (setVal.attemptCount !== undefined) {
+              currentAttemptCount = setVal.attemptCount;
+            }
+            if (setVal.used !== undefined) {
+              tokenUsed = setVal.used;
+            }
+            return {
+              where: vi.fn().mockResolvedValue(undefined),
+            };
+          }),
+        })),
+        insert: vi.fn(() => ({
+          values: vi.fn().mockImplementation(async () => {
+            tokenUsed = false;
+            currentAttemptCount = 0;
+            return undefined;
+          }),
+        })),
+      };
+      return callback(mockTx);
+    });
   });
 
   it("locks out user after max failed OTP verification attempts", async () => {
