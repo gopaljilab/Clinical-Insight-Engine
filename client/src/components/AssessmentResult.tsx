@@ -209,7 +209,6 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
           </button>
         </div>
 
-        {/* Action Buttons */}
         <div className="pdf-hide-buttons flex flex-col gap-2 justify-end self-stretch print:hidden">
           <div className="flex flex-wrap gap-2 items-center justify-end">
             <button
@@ -227,7 +226,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 border border-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
             >
               {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-              {isGeneratingPDF ? "Generating..." : "Export PDF"}
+              {isGeneratingPDF ? "Generating..." : "Export Official Record"}
             </button>
             <UiTooltip>
               <TooltipTrigger asChild>

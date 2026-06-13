@@ -117,10 +117,8 @@ function getRiskColor(category?: string): string {
 
 function getReportFilename(assessment: ReportAssessment): string {
   const id = assessment.id ?? "report";
-  const patient = (assessment.patientName || "patient")
-    .replace(/[^a-z0-9]+/gi, "-")
-    .replace(/^-|-$/g, "");
-  return `clinical-risk-assessment-${patient || "patient"}-${id}.pdf`;
+  const patient = (assessment.patientName || "patient").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
+  return `ehr-clinical-report-${patient || "patient"}-${id}.pdf`;
 }
 
 function ensurePageSpace(pdf: jsPDF, y: number, requiredHeight: number): number {
@@ -379,7 +377,7 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
   const modelConfidence = formatValue(assessment.modelConfidence);
   const confidenceInterval = formatValue(assessment.confidenceInterval);
   const factors = normalizeFactors(assessment.factors);
-  const topFactors = factors.slice(0, 5);
+  const reportId = `CIE-RPT-${assessment.id ?? "N/A"}`;
   const patientAdvice = assessment.prediction?.patientAdvice ?? [
     "Review these results with a qualified clinician before making medical decisions.",
     "Focus first on the highlighted risk factors that can be changed through care planning.",
@@ -396,125 +394,143 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
         .slice(0, 6)
     : [];
 
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(20);
-  pdf.setTextColor(SLATE);
-  pdf.text("Clinical Diabetes Risk Report", MARGIN, y);
+  pdf.text("EHR Clinical Assessment Report", MARGIN, { size: 21, font: "bold", color: SLATE });
+  pdf.text(`Report ID: ${reportId}`, MARGIN, { size: 9, color: MUTED });
+  pdf.text(`Generated: ${formatDate(new Date().toISOString())}`, MARGIN, { size: 9, color: MUTED });
+  pdf.text("Report Version: 1.0", MARGIN, { size: 9, color: MUTED });
+  pdf.text("Classification: Clinical Decision Support — Not a Standalone Diagnosis", MARGIN, { size: 9, color: MUTED });
+  pdf.moveDown(6);
+  pdf.line(MARGIN, pdf.y, PAGE_WIDTH - MARGIN, pdf.y, BORDER);
+  pdf.moveDown(20);
 
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(9);
-  pdf.setTextColor(MUTED);
-  pdf.text(`Generated ${reportDate}`, MARGIN, y + 18);
-  y += 32;
+  pdf.keyValueRows([
+    ["Patient Name", formatValue(assessment.patientName)],
+    ["Assessment Date", formatDate(assessment.createdAt)],
+    ["Patient ID / Visit ID", `V-${assessment.id ?? "N/A"}`],
+    ["Provider Organization", "Clinical Insight Engine"],
+  ]);
 
   pdf.setDrawColor(220, 226, 232);
   pdf.setLineWidth(0.5);
   pdf.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
   y += 20;
 
-  y = ensurePageSpace(pdf, y, 160);
-  pdf.setFillColor(248, 250, 252);
-  pdf.rect(MARGIN, y, CONTENT_WIDTH, 110, "F");
 
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(10);
-  pdf.setTextColor(MUTED);
-  pdf.text("Assessment overview", MARGIN + 12, y + 18);
 
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(16);
-  pdf.setTextColor(SLATE);
-  pdf.text(`${riskCategory} risk — ${riskScore}`, MARGIN + 12, y + 42);
+  pdf.sectionTitle("Patient Demographics & Clinical Metrics");
+  pdf.keyValueRows([
+    ["Age", formatValue(assessment.age)],
+    ["Gender", formatValue(assessment.gender)],
+    ["BMI", formatNumber(assessment.bmi, 1)],
+    ["HbA1c", formatNumber(assessment.hba1cLevel, 1, "%")],
+    ["Blood Glucose", formatValue(assessment.bloodGlucoseLevel)],
+    ["Smoking History", formatValue(assessment.smokingHistory)],
+    ["Hypertension", formatValue(assessment.hypertension)],
+    ["Heart Disease", formatValue(assessment.heartDisease)],
+  ]);
 
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(10);
-  pdf.setTextColor(MUTED);
-  pdf.text(
-    `Model confidence: ${modelConfidence}${confidenceInterval !== "N/A" ? ` (95% CI: ${confidenceInterval})` : ""}`,
-    MARGIN + 12,
-    y + 60,
-  );
-  y += 132;
+  pdf.sectionTitle("Risk Analysis & Confidence Metrics");
+  pdf.keyValueRows([
+    ["Overall Risk Score", riskScore],
+    ["Risk Category", riskCategory],
+    ["Model Confidence", formatNumber(assessment.modelConfidence, 2)],
+    ["Confidence Interval (95%)", formatValue(assessment.confidenceInterval)],
+    ["Prediction Method", assessment.prediction?.isFallback ? "Fallback (Rule-Based)" : "ML Model"],
+  ]);
 
-  y = addSectionTitle(pdf, "Patient Information", y);
-  y = addKeyValueRows(
-    pdf,
-    [
-      ["Patient Name", formatValue(assessment.patientName)],
-      ["Assessment Date", formatDate(assessment.createdAt)],
-      ["Age", formatValue(assessment.age)],
-      ["Gender", formatValue(assessment.gender)],
-      ["BMI", formatNumber(assessment.bmi, 1)],
-      ["HbA1c", formatNumber(assessment.hba1cLevel, 1, "%")],
-      ["Blood Glucose", formatValue(assessment.bloodGlucoseLevel)],
-      ["Smoking History", formatValue(assessment.smokingHistory)],
-      ["Hypertension", formatValue(assessment.hypertension)],
-      ["Heart Disease", formatValue(assessment.heartDisease)],
-      ["Assessment ID", formatValue(assessment.id)],
-    ],
-    y,
-    2,
-  );
-
-  y = ensurePageSpace(pdf, y, 40);
-  y = addSectionTitle(pdf, "Top Contributing Risk Factors", y);
-
-  if (topFactors.length === 0) {
-    y = addWrappedText(pdf, "No risk factor details are available for this assessment.", MARGIN, y, CONTENT_WIDTH, 10, 14);
+  pdf.sectionTitle("Key Contributing Factors");
+  if (factors.length === 0) {
+    pdf.text("No model factors were returned for this assessment.", MARGIN, { size: 10, color: MUTED });
   } else {
-    topFactors.forEach((factor, index) => {
-      y = ensurePageSpace(pdf, y, 64);
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(11);
-      pdf.setTextColor(ACCENT);
-      pdf.text(`${index + 1}. ${factor.name}`, MARGIN, y);
-      y += 16;
+    const riskIncFactors = factors.filter((f) => f.impact === "positive");
+    const riskRedFactors = factors.filter((f) => f.impact !== "positive");
 
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(9);
-      pdf.setTextColor(SLATE);
-      const impactLabel = factor.impact === "positive" ? "Increases risk" : "Reduces risk";
-      const reason = factorReasoning[factor.name.trim().toLowerCase()] ?? factor.description;
-      y = addWrappedText(pdf, `${impactLabel}: ${reason}`, MARGIN + 12, y, CONTENT_WIDTH - 12, 9, 13);
-      y += 8;
+    if (riskIncFactors.length > 0) {
+      pdf.text("Risk-Increasing Factors", MARGIN, { size: 10.5, font: "bold", color: SLATE });
+      pdf.moveDown(2);
+      riskIncFactors.forEach((factor) => {
+        const reason = factorReasoning[factor.name.trim().toLowerCase()] ?? factor.description;
+        pdf.ensureSpace(42);
+        pdf.text(factor.name, MARGIN + 10, { size: 10, font: "bold", color: SLATE, lineHeight: 14 });
+        pdf.text(`Increases risk: ${reason}`, MARGIN + 10, { size: 9, color: MUTED, maxWidth: CONTENT_WIDTH - 10, lineHeight: 13 });
+        pdf.moveDown(4);
+      });
+    }
+
+    if (riskRedFactors.length > 0) {
+      pdf.ensureSpace(24);
+      pdf.text("Risk-Reducing / Protective Factors", MARGIN, { size: 10.5, font: "bold", color: SLATE });
+      pdf.moveDown(2);
+      riskRedFactors.forEach((factor) => {
+        const reason = factorReasoning[factor.name.trim().toLowerCase()] ?? factor.description;
+        pdf.ensureSpace(42);
+        pdf.text(factor.name, MARGIN + 10, { size: 10, font: "bold", color: SLATE, lineHeight: 14 });
+        pdf.text(`Reduces risk: ${reason}`, MARGIN + 10, { size: 9, color: MUTED, maxWidth: CONTENT_WIDTH - 10, lineHeight: 13 });
+        pdf.moveDown(4);
+      });
+    }
+  }
+
+  pdf.sectionTitle("Clinical Summary & Interpretation");
+  pdf.text(
+    `This assessment indicates a ${riskCategory.toLowerCase()} risk classification (score: ${riskScore}) for diabetes based on the provided clinical and demographic inputs. The result should be interpreted alongside the patient's full clinical history, medication profile, and follow-up laboratory data.`,
+    MARGIN,
+    { size: 10, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 14 },
+  );
+  pdf.moveDown(8);
+
+  pdf.text("Clinician Recommendations", MARGIN, { size: 10.5, font: "bold", color: SLATE });
+  pdf.moveDown(2);
+  clinicianAdvice.forEach((action) => pdf.bullet(action));
+
+  pdf.ensureSpace(24);
+  pdf.text("Patient Recommendations", MARGIN, { size: 10.5, font: "bold", color: SLATE });
+  pdf.moveDown(2);
+  patientAdvice.forEach((action) => pdf.bullet(action));
+
+  if (assessment.recommendations && assessment.recommendations.length > 0) {
+    pdf.ensureSpace(24);
+    pdf.text("Generated Recommendations", MARGIN, { size: 10.5, font: "bold", color: SLATE });
+    pdf.moveDown(2);
+    assessment.recommendations.slice(0, 6).forEach((rec) => {
+      pdf.ensureSpace(26);
+      pdf.text(rec.title, MARGIN + 10, { size: 10, font: "bold", color: SLATE, lineHeight: 13 });
+      pdf.text(rec.description, MARGIN + 10, { size: 9, color: MUTED, maxWidth: CONTENT_WIDTH - 10, lineHeight: 12 });
+      if (rec.urgency) {
+        pdf.textAt(`Urgency: ${rec.urgency.toUpperCase()}`, MARGIN + 10, pdf.y - 2, { size: 7.5, color: MUTED });
+      }
+      pdf.moveDown(10);
     });
   }
 
-  y = ensurePageSpace(pdf, y, 40);
-  y = addSectionTitle(pdf, "Personalized Recommendations", y);
-
-  if (recommendations.length > 0) {
-    y = addBulletList(pdf, recommendations, MARGIN, y, CONTENT_WIDTH);
-  } else {
-    y = addBulletList(pdf, clinicianAdvice, MARGIN, y, CONTENT_WIDTH);
-    y = addBulletList(pdf, patientAdvice, MARGIN, y, CONTENT_WIDTH);
-  }
-
-  y = ensurePageSpace(pdf, y, 60);
-  y = addSectionTitle(pdf, "Monitoring Workflow", y);
-  y = addBulletList(
-    pdf,
-    [
-      "Use this summary for provider review and patient documentation; it is not a standalone diagnosis.",
-      "Repeat assessment after meaningful updates to BMI, HbA1c, blood glucose, smoking history, or cardiovascular history.",
-      "Escalate high-risk or rapidly changing results to the appropriate clinical follow-up pathway.",
-    ],
+  pdf.sectionTitle("Assessment Notes");
+  pdf.text(
+    "The following clinical and lifestyle risk inputs were considered during this assessment: age, gender, BMI, HbA1c level, blood glucose level, hypertension status, heart disease history, and smoking history. The risk model evaluates these factors to produce a composite risk score and category.",
     MARGIN,
-    y,
-    CONTENT_WIDTH,
+    { size: 10, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 14 },
   );
+  pdf.moveDown(4);
+  pdf.bullet("This report is intended for clinical decision support and documentation purposes.");
+  pdf.bullet("Results should be reviewed by a qualified healthcare provider before any clinical action.");
+  pdf.bullet("Repeat assessment after meaningful changes to modifiable risk factors.");
 
-  y = ensurePageSpace(pdf, y, 60);
-  y = addSectionTitle(pdf, "Medical Disclaimer", y);
-  y = addWrappedText(
-    pdf,
-    "This report is intended for clinical reference only and does not replace medical diagnosis, judgement, or treatment by a licensed healthcare provider.",
-    MARGIN,
-    y,
-    CONTENT_WIDTH,
-    9,
-    12,
-  );
+  pdf.sectionTitle("Compliance & Versioning");
+  pdf.keyValueRows([
+    ["Report Identifier", reportId],
+    ["Report Version", "1.0"],
+    ["Generated At", formatDate(new Date().toISOString())],
+    ["Assessment Timestamp", formatDate(assessment.createdAt)],
+  ]);
+
+  pdf.ensureSpace(70);
+  pdf.line(MARGIN, pdf.y, PAGE_WIDTH - MARGIN, pdf.y, BORDER);
+  pdf.moveDown(20);
+  pdf.text("Provider Signature", MARGIN, { size: 11, font: "bold", color: SLATE });
+  pdf.text("___________________________", MARGIN, { size: 14, color: MUTED });
+  pdf.moveDown(4);
+  pdf.text("Provider Name (Printed): ___________________________", MARGIN, { size: 10, color: MUTED });
+  pdf.text("Date: ___________________________", MARGIN, { size: 10, color: MUTED });
+  pdf.text("License / NPI Number: ___________________________", MARGIN, { size: 10, color: MUTED });
 
   pdf.save(getReportFilename(assessment));
 }
