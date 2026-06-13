@@ -22,14 +22,15 @@ import { execFile } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
-import { api } from "../shared/routes";
-import { validateDTO } from "./middleware/validateDTO";
+import { api } from "@shared/routes";
+import { z } from "zod";
 import os from "os";
 import { randomUUID } from "crypto";
 import { writeFile, unlink } from "fs/promises";
-import { z } from "zod";
-import { assessmentExportQuerySchema, searchQuerySchema } from "./validation/searchValidation";
+import { validateDTO } from "./middleware/validateDTO";
+import { calculateClinicalFallback, generateRequestFingerprint } from "./services/mlService";
 import { assessmentsToCsv } from "./utils/csvExport";
+import { searchQuerySchema } from "./validation/searchValidation";
 import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
@@ -179,6 +180,10 @@ export async function registerRoutes(
 
   // Mount auth router
   app.use("/api/auth", authRouter);
+  app.use("/api/assessments", mlRouter);
+  app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", analyticsRouter);
+  app.use("/api/assessments", assessmentsRouter);
   app.post(
     api.assessments.preview.path,
     requireAuth,

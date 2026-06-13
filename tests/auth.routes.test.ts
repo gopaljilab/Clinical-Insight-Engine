@@ -27,9 +27,11 @@ vi.mock("../server/db", () => {
 });
 
 // Mock email services — auth.ts uses sendVerificationEmail
-const mockSendVerificationEmail = vi.fn().mockResolvedValue(true);
+const { mockSendVerificationEmail } = vi.hoisted(() => ({
+  mockSendVerificationEmail: vi.fn().mockResolvedValue(true),
+}));
 vi.mock("../server/email", () => ({
-  sendVerificationEmail: (email: string, otp: string) => mockSendVerificationEmail(email, otp),
+  sendVerificationEmail: mockSendVerificationEmail,
   sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
 }));
 
@@ -69,7 +71,6 @@ describe("Auth Router - Resend OTP integration tests", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mockSendVerificationEmail.mockResolvedValue(true);
 
     const { createAuthRouter } = await import("../server/auth");
     app = express();
@@ -87,7 +88,7 @@ describe("Auth Router - Resend OTP integration tests", () => {
   it("POST /api/auth/resend-otp returns 400 when email is missing", async () => {
     const res = await request(app)
       .post("/api/auth/resend-otp")
-      .send({ mode: "login" });
+      .send({});
 
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty("message", "Email is required.");

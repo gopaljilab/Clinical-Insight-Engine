@@ -2,7 +2,7 @@ import { logger } from "../logger";
 import { getAssessmentQueue } from "../queue";
 import { Router } from "express";
 import { z } from "zod";
-import { rateLimit } from "express-rate-limit";
+import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
@@ -102,7 +102,7 @@ assessmentsRouter.post(
   requireAuth,
   requireVerified,
   previewLimiter,
-  validateDTO(api.assessments.whatIf.input),
+  validateDTO(api.assessments.simulate.input),
   async (req, res) => {
     try {
       const input = req.body;

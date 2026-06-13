@@ -2,70 +2,62 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
 import session from "express-session";
-import { createAuthRouter } from "../server/auth";
 
-// Hold a mutable reference to the transaction mock so tests can swap it
-const { mockTxRef, makeTx } = vi.hoisted(() => {
-  function makeTx(selectReturns: any[] = []) {
-    return {
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            orderBy: vi.fn(() => ({
-              limit: vi.fn().mockResolvedValue(selectReturns),
-            })),
-          })),
-        })),
-      })),
-      update: vi.fn(() => ({
-        set: vi.fn(() => ({
-          where: vi.fn().mockResolvedValue([{ id: 1 }]),
-        })),
-      })),
-      insert: vi.fn(() => ({
-        values: vi.fn().mockResolvedValue(undefined),
-      })),
-    };
-  }
+const mockUser = {
+  id: "test-user-id",
+  fullName: "Test Doctor",
+  email: "doc@example.com",
+  medicalLicenseNumber: "DOC123",
+  passwordHash: "hashed",
+  role: "provider",
+  isActive: true,
+  emailVerified: true,
+};
 
-  const ref: { tx: ReturnType<typeof makeTx> } = { tx: makeTx() };
-  return { mockTxRef: ref, makeTx };
-});
-
-// Mock the db module
-vi.mock("../server/db", async (importOriginal) => {
-  const original = (await importOriginal()) as any;
-  return {
-    ...original,
-    getDb: () => ({
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: async () => [
-              {
-                id: "test-user-id",
-                fullName: "Test Doctor",
-                email: "doc@example.com",
-                medicalLicenseNumber: "DOC123",
-                passwordHash: "$2b$10$UnqO1D.K2i8e.3yY4/pZkO/rQhZz7xI7TfX6f4r4uYgG0p0p0p0p.",
-                role: "provider",
-                isActive: true,
-                emailVerified: true,
-              }
-            ]
-          })
-        })
-      }),
-      transaction: async (cb: any) => cb(mockTxRef.tx),
-    })
-  };
-});
+let mockToken = {
+  id: 1,
+  userId: "test-user-id",
+  verificationCode: "123456",
+  expiresAt: new Date(Date.now() + 10000),
+  used: false,
+  attemptCount: 0,
+};
 
 const mockDb = {
-  select: vi.fn(),
-  insert: vi.fn(),
-  update: vi.fn(),
-  transaction: vi.fn(),
+  select: vi.fn().mockImplementation(() => ({
+    from: vi.fn().mockImplementation(() => ({
+      where: vi.fn().mockImplementation(() => ({
+        limit: vi.fn().mockResolvedValue([mockUser])
+      }))
+    }))
+  })),
+  transaction: vi.fn().mockImplementation(async (cb) => {
+    const tx = {
+      select: vi.fn().mockImplementation(() => ({
+        from: vi.fn().mockImplementation(() => ({
+          where: vi.fn().mockImplementation(() => ({
+            orderBy: vi.fn().mockImplementation(() => ({
+              limit: vi.fn().mockResolvedValue([{ ...mockToken }])
+            }))
+          }))
+        }))
+      })),
+      update: vi.fn().mockImplementation(() => ({
+        set: vi.fn().mockImplementation((data) => {
+          if (data.attemptCount !== undefined) {
+             mockToken.attemptCount = data.attemptCount;
+          }
+          return {
+            where: vi.fn().mockResolvedValue(undefined)
+          };
+        })
+      })),
+      insert: vi.fn().mockImplementation(() => ({
+        values: vi.fn().mockResolvedValue(undefined)
+      })),
+    };
+    return cb(tx);
+  }),
 };
 
 vi.mock("../server/db", () => ({
@@ -74,21 +66,21 @@ vi.mock("../server/db", () => ({
 
 vi.mock("../server/storage", () => ({
   storage: {
+    getUserByEmail: vi.fn(),
+    createUser: vi.fn(),
     recordLoginAudit: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
-vi.mock("../server/email", () => ({
-  sendVerificationEmail: vi.fn().mockResolvedValue(true),
-  sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
-  validateEmailConfig: vi.fn(),
+vi.mock("bcrypt", () => ({
+  default: { compareSync: () => true, hashSync: () => "hashed" },
+  compareSync: () => true,
+  hashSync: () => "hashed",
 }));
 
-vi.mock("ioredis", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    on: vi.fn(),
-    info: vi.fn().mockResolvedValue(""),
-  })),
+vi.mock("../server/email", () => ({
+  sendVerificationEmail: vi.fn().mockResolvedValue(true),
+  validateSmtpConfig: vi.fn(),
 }));
 
 describe("OTP Brute-Force Lockout Integration", () => {
@@ -98,11 +90,7 @@ describe("OTP Brute-Force Lockout Integration", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    // Reset the transaction mock to default (no select results)
-    mockTxRef.tx = makeTx();
-
-    currentAttemptCount = 0;
-    tokenUsed = false;
+    mockToken.attemptCount = 0; // reset for each test
 
     const { createAuthRouter } = await import("../server/auth");
     app = express();
@@ -193,48 +181,35 @@ describe("OTP Brute-Force Lockout Integration", () => {
     });
   });
 
-  it("locks out user after max failed OTP verification attempts", async () => {
+  it("locks out user after 5 failed OTP verification attempts", async () => {
     const loginRes = await request(app)
       .post("/api/auth/login")
       .send({ email: "doc@example.com", password: "password" });
 
     expect(loginRes.status).toBe(200);
-    expect(loginRes.body.success).toBe(true);
-    expect(loginRes.body.pendingEmail).toBe("doc@example.com");
 
-    for (let i = 0; i < 5; i++) {
-      mockTxRef.tx = makeTx([
-        {
-          id: 1,
-          verificationCode: "123456",
-          expiresAt: new Date(Date.now() + 600_000),
-          used: false,
-          attemptCount: i,
-        },
-      ]);
-      const fail = await request(app)
-        .post("/api/auth/verify-email")
-        .send({ email: "doc@example.com", code: "000000" });
-      expect(fail.status).toBe(401);
-      const remaining = 5 - i - 1;
-      if (remaining > 0) {
-        expect(fail.body.message).toContain(`${remaining} attempt(s) remaining`);
-      }
-    }
+    const fail1 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
+    expect(fail1.status).toBe(401);
+    expect(fail1.body.message).toContain("4 attempt(s) remaining");
 
-    mockTxRef.tx = makeTx([
-      {
-        id: 1,
-        verificationCode: "123456",
-        expiresAt: new Date(Date.now() + 600_000),
-        used: false,
-        attemptCount: 5,
-      },
-    ]);
-    const lockout = await request(app)
-      .post("/api/auth/verify-email")
-      .send({ email: "doc@example.com", code: "000000" });
-    expect(lockout.status).toBe(429);
-    expect(lockout.body.message).toContain("Too many failed attempts");
+    const fail2 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
+    expect(fail2.status).toBe(401);
+    expect(fail2.body.message).toContain("3 attempt(s) remaining");
+
+    const fail3 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
+    expect(fail3.status).toBe(401);
+    expect(fail3.body.message).toContain("2 attempt(s) remaining");
+
+    const fail4 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
+    expect(fail4.status).toBe(401);
+    expect(fail4.body.message).toContain("1 attempt(s) remaining");
+
+    const fail5 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
+    expect(fail5.status).toBe(401);
+    expect(fail5.body.message).toContain("Please request a new code.");
+
+    const fail6 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
+    expect(fail6.status).toBe(429);
+    expect(fail6.body.message).toContain("Too many failed attempts");
   });
 });

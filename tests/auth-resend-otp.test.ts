@@ -21,8 +21,6 @@ vi.mock("../server/email", () => ({
 
 const mockDb = {
   select: vi.fn(),
-  insert: vi.fn(),
-  update: vi.fn(),
   transaction: vi.fn(),
 };
 
@@ -102,6 +100,7 @@ describe("POST /api/auth/resend-otp", () => {
   });
 
   it("returns 404 when user is not found in database", async () => {
+    // Mock db select to return empty array (user not found)
     const mockLimit = vi.fn().mockResolvedValue([]);
     const mockWhere = vi.fn(() => ({ limit: mockLimit }));
     const mockFrom = vi.fn(() => ({ where: mockWhere }));
@@ -120,7 +119,7 @@ describe("POST /api/auth/resend-otp", () => {
       select: () => ({
         from: () => ({
           where: () => ({
-            limit: () => Promise.resolve([{ id: "user-1", email: "test@clinic.com" }]),
+            limit: () => Promise.resolve([{ id: "user-1", emailVerified: false }]),
           }),
         }),
       }),
