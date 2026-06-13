@@ -731,15 +731,15 @@ export default function History() {
             actionHref="/dashboard"
           />
         ) : filteredRecords === 0 ? (
-          <div className="bg-card border border-border border-dashed rounded-2xl p-12 text-center flex flex-col items-center justify-center">
-            <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4 text-muted-foreground">
-              <Activity className="w-8 h-8" />
-            </div>
-            <h3 className="text-xl font-bold text-foreground mb-2">No Matching Records</h3>
-            <p className="text-muted-foreground max-w-md">
-              No patient records matching your current filter limits were found. Try refining or clearing your filters.
-            </p>
-          </div>
+          <EmptyState
+            icon={Activity}
+            title="No Matching Records"
+            description="No patient records match the current filters. Clear the filters to return to the full assessment history, or create a new assessment if this patient needs fresh data."
+            actionLabel="Clear Filters"
+            actionOnClick={clearAllFilters}
+            secondaryActionLabel="Create Assessment"
+            secondaryActionHref="/dashboard"
+          />
         ) : (
           <>
             <div className="grid gap-6">

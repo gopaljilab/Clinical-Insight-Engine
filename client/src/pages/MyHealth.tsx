@@ -10,6 +10,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Loader2, LogOut, Download, AlertTriangle, Heart, Activity, FileText, ChevronLeft } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatReadableDate } from "@/utils/dateFormat";
+import { EmptyState } from "@/components/EmptyState";
 
 interface PatientUser {
   id: string;
@@ -298,7 +299,22 @@ export default function MyHealth() {
               </CardHeader>
               <CardContent className="px-0 sm:px-6">
                 {assessments.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No assessments found.</p>
+                  <EmptyState
+                    icon={FileText}
+                    title="No Assessments Yet"
+                    description="Your completed risk assessments will appear here after your care team shares results with this patient account."
+                    actionLabel="Refresh Records"
+                    actionOnClick={() => {
+                      const token = getToken();
+                      if (token) {
+                        setLoading(true);
+                        fetchAssessments(token);
+                        fetchTrends(token);
+                      }
+                    }}
+                    secondaryActionLabel="Back to Sign In"
+                    secondaryActionOnClick={handleLogout}
+                  />
                 ) : (
                   <Table>
                     <TableHeader>
@@ -340,9 +356,22 @@ export default function MyHealth() {
               </CardHeader>
               <CardContent className="px-4 sm:px-6">
                 {trends.length < 2 ? (
-                  <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                    {trends.length === 1 ? "One assessment recorded. More data needed for a trend chart." : "No trend data available yet."}
-                  </p>
+                  <EmptyState
+                    icon={Activity}
+                    title={trends.length === 1 ? "One Result Recorded" : "No Trend Data Yet"}
+                    description={
+                      trends.length === 1
+                        ? "At least two completed assessments are needed before a risk trend chart can be drawn."
+                        : "Trend charts will appear here once assessment results are available for this account."
+                    }
+                    actionLabel="Refresh Trends"
+                    actionOnClick={() => {
+                      const token = getToken();
+                      if (token) {
+                        fetchTrends(token);
+                      }
+                    }}
+                  />
                 ) : (
                   <div className="h-60 sm:h-80">
                     <ResponsiveContainer width="100%" height="100%">
