@@ -86,13 +86,46 @@ vi.mock("../server/storage", () => {
     getAssessmentById: vi.fn().mockResolvedValue(undefined),
     deleteAssessment: vi.fn().mockResolvedValue(undefined),
     getUserByEmail: vi.fn().mockResolvedValue({ id: "admin-id" }),
+    getUserById: vi.fn().mockResolvedValue({ id: "test-user-id", email: "test@example.com", isActive: true, role: "provider" }),
     createUser: vi.fn().mockResolvedValue({ id: "admin-id" }),
+    recordPatientAccess: vi.fn().mockResolvedValue(undefined),
   };
   return {
     storage: mockStorageInstance,
     DatabaseStorage: vi.fn().mockImplementation(() => mockStorageInstance),
   };
 });
+
+vi.mock("../server/db", () => ({
+  getDb: vi.fn().mockReturnValue({
+    transaction: vi.fn().mockImplementation(async (cb) => {
+      const tx = {
+        insert: vi.fn().mockReturnValue({
+          values: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([{
+              id: 1,
+              patientName: "John Doe",
+              gender: "Male",
+              age: 45,
+              riskScore: 12.3,
+              riskCategory: "LOW",
+              factors: [],
+              createdBy: "test-user-id",
+              createdAt: new Date(),
+            }]),
+          }),
+        }),
+      };
+      return cb(tx);
+    }),
+  }),
+  verifyDatabaseConnection: vi.fn().mockResolvedValue(undefined),
+  closePool: vi.fn().mockResolvedValue(undefined),
+  getPool: vi.fn(),
+  DatabaseStartupError: class DatabaseStartupError extends Error {
+    constructor(msg: string) { super(msg); this.name = "DatabaseStartupError"; }
+  },
+}));
 
 vi.mock("fs", () => ({
   existsSync: vi.fn().mockReturnValue(false),
@@ -308,7 +341,7 @@ describe("Rate limiting", () => {
       results.push(res);
     }
 
-    expect(lastStatus).toBe(429);
+    expect(results[results.length - 1].status).toBe(429);
   });
 });
 
@@ -436,18 +469,28 @@ describe("Python inference", () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    const predictSpy = vi.spyOn(pythonDaemon, "predict").mockRejectedValue(new Error("timed out"));
+    const origExecFile = mockExecFile;
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      if (typeof opts === "function") {
+        cb = opts;
+        const err: any = new Error("Process timed out");
+        err.killed = true;
+        err.signal = "SIGTERM";
+        cb(err, null, null);
+        return;
+      }
+      const err: any = new Error("Process timed out");
+      err.killed = true;
+      err.signal = "SIGTERM";
+      cb(err, null, null);
+    });
 
-    try {
-      const res = await request(app)
-        .post("/api/assessments/preview")
-        .send(validPayload);
+    const res = await request(app)
+      .post("/api/assessments/preview")
+      .send(validPayload);
 
-      expect(res.status).toBe(503);
-      expect(res.body.message).toContain("timed out");
-    } finally {
-      predictSpy.mockRestore();
-    }
+    expect(res.status).toBe(503);
+    expect(res.body.message).toContain("timed out");
   });
 
   it("bulk route returns 201 and falls back to rule-based model on python process failure", async () => {
