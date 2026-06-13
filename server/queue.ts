@@ -3,7 +3,38 @@ import { storage } from "./storage";
 import IORedis from "ioredis";
 import { sendCriticalRiskAlert } from "./email";
 import { logger } from "./logger";
-import { MLService } from "./services/mlService";
+import { MLService, calculateClinicalFallback } from "./services/mlService";
+
+import { execFile } from "child_process";
+import fs from "fs/promises";
+import path from "path";
+import os from "os";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
+
+export function getPythonExecutable(): string {
+  const candidates =
+    process.platform === "win32"
+      ? [path.resolve(".venv", "Scripts", "python.exe"), path.resolve("venv", "Scripts", "python.exe")]
+      : [path.resolve(".venv", "bin", "python"), path.resolve("venv", "bin", "python")];
+
+  for (const c of candidates) {
+    // best-effort; ignore errors
+    try {
+      // eslint-disable-next-line no-undef
+      require("fs").accessSync(c);
+      return c;
+    } catch {
+      // ignore
+    }
+  }
+
+  return process.platform === "win32" ? "python" : "python3";
+}
+
 
 let redisConnectionInstance: IORedis | null = null;
 let assessmentQueueInstance: Queue | null = null;
@@ -79,47 +110,15 @@ export function startAssessmentWorker(): void {
     async (job: Job) => {
       const { input, userId, userEmail } = job.data;
 
+      const startedAt = Date.now();
+      const requestId = (job.data as any).requestFingerprint ?? job.id;
+
       try {
         const { prediction } = await MLService.runAssessmentInference(input);
-        let prediction: any;
-        
-        if (!isPythonAvailable) {
-           prediction = calculateClinicalFallback(input);
-        } else {
-          await writeFile(tempFile, JSON.stringify(input));
-          const stdout = await new Promise<string>((resolve, reject) => {
-            const child = execFile(
-              getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            {
-              timeout: 60000,
-              killSignal: "SIGTERM",
-            },
-            (error, stdout, stderr) => {
-              if (error) {
-                reject(error);
-              } else {
-                resolve(stdout);
-              }
-            }
-          );
+        let resolvedPrediction: any = prediction;
 
-          const fallbackTimer = setTimeout(() => {
-            try {
-              child.kill("SIGKILL");
-            } catch (e) {
-              // ignore
-            }
-            reject(new Error("Clinical assessment timed out (forced kill)."));
-          }, 65000);
-
-          child.on("close", () => clearTimeout(fallbackTimer));
-        });
-
-          prediction = JSON.parse(stdout.trim());
-          if (prediction.error) {
-            throw new Error(prediction.error);
-          }
+        if (!resolvedPrediction || resolvedPrediction.error) {
+          resolvedPrediction = calculateClinicalFallback(input);
         }
 
         logger.info(
@@ -127,35 +126,37 @@ export function startAssessmentWorker(): void {
             jobId: job.id,
             requestId,
             durationMs: Date.now() - startedAt,
-            riskCategory: prediction.riskCategory,
+            riskCategory: resolvedPrediction.riskCategory,
           },
           "Assessment queue ML prediction completed",
         );
 
-        prediction.disclaimer =
-            "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions.";
+
+        resolvedPrediction.disclaimer =
+          "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions.";
 
         const assessment = await storage.createAssessment({
           ...input,
-          riskScore: Number(prediction.riskScore),
-          riskCategory: prediction.riskCategory,
-          factors: prediction.factors,
-          confidenceInterval: prediction.confidenceInterval ?? null,
+          riskScore: Number(resolvedPrediction.riskScore),
+          riskCategory: resolvedPrediction.riskCategory,
+          factors: resolvedPrediction.factors,
+          confidenceInterval: resolvedPrediction.confidenceInterval ?? null,
           modelConfidence:
-            prediction.modelConfidence == null
+            resolvedPrediction.modelConfidence == null
               ? undefined
-              : Number(prediction.modelConfidence),
+              : Number(resolvedPrediction.modelConfidence),
           createdBy: userEmail || userId,
-          userId: userId
+          userId: userId,
         });
 
-        if (prediction.riskCategory === "HIGH" && userEmail) {
+        if (resolvedPrediction.riskCategory === "HIGH" && userEmail) {
           const alertSent = await sendCriticalRiskAlert(
             userEmail,
             input.patientName ?? "Unknown Patient",
-            Number(prediction.riskScore),
+            Number(resolvedPrediction.riskScore),
             assessment.id,
           );
+
           if (!alertSent) {
             logger.error(
               { assessmentId: assessment.id, userEmail },
@@ -166,7 +167,7 @@ export function startAssessmentWorker(): void {
 
         return {
           ...assessment,
-          prediction,
+          prediction: resolvedPrediction,
           requestId,
         };
       } catch (err: any) {
@@ -179,6 +180,7 @@ export function startAssessmentWorker(): void {
           },
           "Assessment queue job failed during ML processing",
         );
+
         if (
           err.killed ||
           err.signal === "SIGTERM" ||

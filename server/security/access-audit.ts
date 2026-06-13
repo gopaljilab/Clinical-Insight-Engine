@@ -8,6 +8,7 @@
 
 import { logger } from "../logger";
 import { storage } from "../storage";
+import type { Request } from "express";
 
 export interface AuditEvent {
   timestamp: string;

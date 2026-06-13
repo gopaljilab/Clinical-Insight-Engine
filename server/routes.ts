@@ -28,9 +28,8 @@ import os from "os";
 import { randomUUID } from "crypto";
 import { writeFile, unlink } from "fs/promises";
 import { validateDTO } from "./middleware/validateDTO";
-import { calculateClinicalFallback, generateRequestFingerprint } from "./services/mlService";
 import { assessmentsToCsv } from "./utils/csvExport";
-import { searchQuerySchema } from "./validation/searchValidation";
+import { searchQuerySchema, assessmentExportQuerySchema } from "./validation/searchValidation";
 import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
@@ -166,9 +165,11 @@ export async function registerRoutes(
   });
 
   // Seed database on startup — development only to prevent fake data in production
-  if (process.env.NODE_ENV !== "production") {
+  // Minimal unblock: disable seeding by default to avoid schema mismatch errors.
+  if (process.env.NODE_ENV !== "production" && process.env.SEED_DB === "true") {
     seedDatabase().catch((err) => logger.error({ err }, "Database seeding failed"));
   }
+
 
   app.get("/health", (req, res) => {
     res.json({

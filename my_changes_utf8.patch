@@ -1,0 +1,185 @@
+diff --git a/client/src/pages/Dashboard.tsx b/client/src/pages/Dashboard.tsx
+index 4f6a4e7b..735a5ccf 100644
+--- a/client/src/pages/Dashboard.tsx
++++ b/client/src/pages/Dashboard.tsx
+@@ -5,7 +5,8 @@ import { z } from "zod";
+ import { AppLayout } from "@/components/layout/AppLayout";
+ import { AssessmentResult } from "@/components/AssessmentResult";
+ import { useCreateAssessment } from "@/hooks/use-assessments";
+-import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UserCircle } from "lucide-react";
++import { Activity, AlertCircle, Clock3, HeartPulse, Info, Loader2, ShieldCheck, TrendingUp, UserCircle, X } from "lucide-react";
++import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+ import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
+ import { insertAssessmentSchema } from "@shared/schema";
+ 
+@@ -23,7 +24,7 @@ const formSchema = insertAssessmentSchema.pick({
+ type FormData = z.infer<typeof formSchema>;
+ 
+ const inputClass =
+-  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[#1E293B] placeholder-slate-400 shadow-sm outline-none transition-all duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
++  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[#1E293B] placeholder-slate-400 shadow-sm outline-none transition-all duration-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20";
+ 
+ const labelClass = "text-sm font-bold text-[#1E293B]";
+ 
+@@ -167,7 +168,8 @@ export default function Dashboard() {
+ 
+   return (
+     <AppLayout>
+-      <div className="space-y-8">
++      <TooltipProvider>
++        <div className="space-y-8">
+         <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+           <div>
+             <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-blue-700">
+@@ -276,20 +278,86 @@ export default function Dashboard() {
+                     </h3>
+                     <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                       <div className="space-y-2">
+-                        <label className={labelClass}>BMI (kg/m∩┐╜)</label>
+-                        <input type="number" step="0.1" {...register("bmi")} className={inputClass} placeholder="e.g. 25.0" />
++                        <div className="flex items-center gap-2">
++                          <label className={labelClass}>BMI (kg/m┬▓)</label>
++                          <Tooltip>
++                            <TooltipTrigger type="button" tabIndex={-1}>
++                              <Info className="h-4 w-4 text-slate-400 hover:text-blue-500 transition-colors" />
++                            </TooltipTrigger>
++                            <TooltipContent>
++                              <p>Body Mass Index. Normal range is 18.5 - 24.9 kg/m┬▓.</p>
++                            </TooltipContent>
++                          </Tooltip>
++                        </div>
++                        <div className="relative">
++                          <input type="number" step="0.1" {...register("bmi")} className={inputClass} placeholder="e.g. 25.0" />
++                          {watchedValues.bmi !== undefined && watchedValues.bmi !== null && String(watchedValues.bmi) !== "" && (
++                            <button
++                              type="button"
++                              onClick={() => setValue("bmi", undefined as any, { shouldDirty: true, shouldValidate: true })}
++                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none focus:text-blue-600 p-1"
++                              aria-label="Clear BMI"
++                            >
++                              <X className="h-4 w-4" />
++                            </button>
++                          )}
++                        </div>
+                         {errors.bmi && <p className="text-sm text-red-600 mt-1">{errors.bmi.message}</p>}
+                       </div>
+ 
+                       <div className="space-y-2">
+-                        <label className={labelClass}>HbA1c Level (%)</label>
+-                        <input type="number" step="0.1" {...register("hba1cLevel")} className={inputClass} placeholder="e.g. 5.7" />
++                        <div className="flex items-center gap-2">
++                          <label className={labelClass}>HbA1c Level (%)</label>
++                          <Tooltip>
++                            <TooltipTrigger type="button" tabIndex={-1}>
++                              <Info className="h-4 w-4 text-slate-400 hover:text-blue-500 transition-colors" />
++                            </TooltipTrigger>
++                            <TooltipContent>
++                              <p>Average blood sugar over 2-3 months. Normal is &lt; 5.7%.</p>
++                            </TooltipContent>
++                          </Tooltip>
++                        </div>
++                        <div className="relative">
++                          <input type="number" step="0.1" {...register("hba1cLevel")} className={inputClass} placeholder="e.g. 5.7" />
++                          {watchedValues.hba1cLevel !== undefined && watchedValues.hba1cLevel !== null && String(watchedValues.hba1cLevel) !== "" && (
++                            <button
++                              type="button"
++                              onClick={() => setValue("hba1cLevel", undefined as any, { shouldDirty: true, shouldValidate: true })}
++                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none focus:text-blue-600 p-1"
++                              aria-label="Clear HbA1c"
++                            >
++                              <X className="h-4 w-4" />
++                            </button>
++                          )}
++                        </div>
+                         {errors.hba1cLevel && <p className="text-sm text-red-600 mt-1">{errors.hba1cLevel.message}</p>}
+                       </div>
+ 
+                       <div className="space-y-2 lg:col-span-2">
+-                        <label className={labelClass}>Blood Glucose Level (mg/dL)</label>
+-                        <input type="number" {...register("bloodGlucoseLevel")} className={inputClass} placeholder="e.g. 100" />
++                        <div className="flex items-center gap-2">
++                          <label className={labelClass}>Blood Glucose Level (mg/dL)</label>
++                          <Tooltip>
++                            <TooltipTrigger type="button" tabIndex={-1}>
++                              <Info className="h-4 w-4 text-slate-400 hover:text-blue-500 transition-colors" />
++                            </TooltipTrigger>
++                            <TooltipContent>
++                              <p>Fasting blood sugar level. Normal is &lt; 100 mg/dL.</p>
++                            </TooltipContent>
++                          </Tooltip>
++                        </div>
++                        <div className="relative">
++                          <input type="number" {...register("bloodGlucoseLevel")} className={inputClass} placeholder="e.g. 100" />
++                          {watchedValues.bloodGlucoseLevel !== undefined && watchedValues.bloodGlucoseLevel !== null && String(watchedValues.bloodGlucoseLevel) !== "" && (
++                            <button
++                              type="button"
++                              onClick={() => setValue("bloodGlucoseLevel", undefined as any, { shouldDirty: true, shouldValidate: true })}
++                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none focus:text-blue-600 p-1"
++                              aria-label="Clear Blood Glucose"
++                            >
++                              <X className="h-4 w-4" />
++                            </button>
++                          )}
++                        </div>
+                         {errors.bloodGlucoseLevel && <p className="text-sm text-red-600 mt-1">{errors.bloodGlucoseLevel.message}</p>}
+                       </div>
+                     </div>
+@@ -413,7 +481,8 @@ export default function Dashboard() {
+             </aside>
+           </div>
+         </div>
+-      </div>
++        </div>
++      </TooltipProvider>
+     </AppLayout>
+   );
+ }
+diff --git a/client/src/pages/History.tsx b/client/src/pages/History.tsx
+index 7a2957ef..a55de062 100644
+--- a/client/src/pages/History.tsx
++++ b/client/src/pages/History.tsx
+@@ -115,9 +115,16 @@ export default function History() {
+       <div className="space-y-8">
+         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+           <div>
+-            <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight">
+-              Patient History
+-            </h1>
++            <div className="flex items-center gap-3">
++              <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight">
++                Patient History
++              </h1>
++              {assessments && (
++                <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-sm font-semibold text-blue-700 border border-blue-100 shadow-sm transition-all duration-200">
++                  {filteredAssessments.length} {filteredAssessments.length === 1 ? 'match' : 'matches'}
++                </span>
++              )}
++            </div>
+             <p className="text-muted-foreground mt-2 text-lg">
+               Review past preventive risk assessments.
+             </p>
+@@ -131,13 +138,13 @@ export default function History() {
+                 placeholder="Search history..." 
+                 value={searchTerm}
+                 onChange={(e) => setSearchTerm(e.target.value)}
+-                className="pl-10 pr-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full sm:w-64"
++                className="pl-10 pr-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 transition-all w-full sm:w-64"
+               />
+             </div>
+             <select
+               value={sortBy}
+               onChange={(e) => setSortBy(e.target.value)}
+-              className="px-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all w-full sm:w-48 text-sm font-semibold text-foreground cursor-pointer"
++              className="px-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 transition-all w-full sm:w-48 text-sm font-semibold text-foreground cursor-pointer"
+             >
+               <option value="date-desc">Newest First</option>
+               <option value="date-asc">Oldest First</option>
+@@ -191,7 +198,7 @@ export default function History() {
+                 </thead>
+                 <tbody className="divide-y divide-border">
+                   {sortedAssessments.map((assessment) => (
+-                    <tr key={assessment.id} className="hover:bg-muted/30 transition-colors text-sm">
++                    <tr key={assessment.id} className="hover:bg-slate-50 transition-colors duration-150 cursor-pointer text-sm">
+                       <td className="p-4 whitespace-nowrap">
+                         {formatAssessmentDate(assessment.createdAt)}
+                       </td>

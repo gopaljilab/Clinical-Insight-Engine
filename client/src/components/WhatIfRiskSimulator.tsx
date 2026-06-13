@@ -113,7 +113,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
 
   const handleRunSimulation = async () => {
     try {
-      const response = await simulateMutation.mutateAsync({
+      const response = await whatIfMutation.mutateAsync({
         patientName: assessment.patientName,
         gender: assessment.gender as "Male" | "Female",
         age: assessment.age,

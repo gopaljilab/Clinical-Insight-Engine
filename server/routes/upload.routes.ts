@@ -10,10 +10,10 @@ import { logger } from "../logger";
 
 const uploadRouter = Router();
 
-const storage = multer.memoryStorage();
+const memoryStorage = multer.memoryStorage();
 
 const upload = multer({
-  storage: storage,
+  storage: memoryStorage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB
   },

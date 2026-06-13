@@ -1,7 +1,9 @@
 import React from "react";
+export type PriorityLevel = "high" | "moderate" | "monitor";
+
 export interface AttentionNavigatorItem {
   factor: string;
-  priority: "high" | "moderate" | "monitor";
+  priority: PriorityLevel;
   reason: string;
   value?: number;
 }
@@ -11,7 +13,7 @@ export interface AttentionNavigator {
 }
 
 interface NavigatorProps {
-  priorities: PriorityItem[];
+  priorities: AttentionNavigatorItem[];
 }
 
 const PRIORITY_STYLES: Record<PriorityLevel, string> = {
@@ -32,7 +34,7 @@ export function ClinicalAttentionNavigator({ navigator }: { navigator?: Navigato
         <h3 className="mt-2 text-xl font-bold text-foreground">Priority findings for clinician review</h3>
       </div>
       <div className="grid gap-4">
-        {navigator.priorities.map((item: PriorityItem) => (
+        {navigator.priorities.map((item: AttentionNavigatorItem) => (
           <article
             key={item.factor}
             className="rounded-3xl border border-border/70 bg-muted/80 p-4 shadow-sm sm:flex sm:items-start sm:justify-between"

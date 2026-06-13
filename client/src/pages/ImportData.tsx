@@ -7,12 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useBulkImport } from "@/hooks/use-bulk-import";
+
 
 const ACCEPTED_TYPES = ".csv,.xlsx,.xls";
 
 const STEP_LABELS: Record<string, string> = {
   idle: "",
+
   parsing: "Parsing file...",
   validating: "Validating data...",
   importing: "Processing ML predictions...",

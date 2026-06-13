@@ -142,8 +142,8 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: scriptSrcDirective,
-        styleSrc: ["'self'", "https://fonts.googleapis.com"],
+        scriptSrc: process.env.NODE_ENV === "production" ? scriptSrcDirective : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:"],
         connectSrc: ["'self'", "ws://localhost:*", "ws://127.0.0.1:*"],
