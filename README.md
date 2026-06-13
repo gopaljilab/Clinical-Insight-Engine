@@ -738,7 +738,7 @@ py analyze.py predict_file patient.json
 ## 🗺 Roadmap
 
 - [ ] 📈 Longitudinal patient risk tracking across visits
-- [ ] 💡 Counterfactual reasoning — *"What single change reduces risk most?"*
+- [x] 💡 Counterfactual reasoning — *"What single change reduces risk most?"*
 - [ ] 🔬 Cohort discovery and population-level insights
 - [ ] 🏥 Integration with Electronic Health Records (EHR)
 - [ ] ⚖️ Advanced bias detection and ML fairness metrics

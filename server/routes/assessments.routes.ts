@@ -176,6 +176,51 @@ assessmentsRouter.post(
 );
 
 assessmentsRouter.post(
+  "/what-if/auto",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
+    try {
+      const input = api.assessments.create.input.parse(req.body);
+
+      if (!isPythonAvailable) {
+        return res.status(503).json({ message: "Python service is required for counterfactual auto analysis." });
+      }
+
+      await writeFile(tempFile, JSON.stringify(input));
+
+      const stdout = await new Promise<string>((resolve, reject) => {
+        const child = execFile(
+          getPythonExecutable(),
+          [analyzePyPath, "counterfactual_auto", tempFile],
+          { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
+          (error, stdout, stderr) => {
+            if (error) reject(error);
+            else resolve(stdout);
+          }
+        );
+      });
+
+      const result = JSON.parse(stdout.trim());
+      if (result?.error) {
+        return res.status(400).json({ message: result.error });
+      }
+
+      return res.json(result);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      }
+      logger.error({ err }, "What-if auto analysis failed");
+      return res.status(500).json({ message: "What-if auto analysis failed. Please try again." });
+    } finally {
+      try { await unlink(tempFile); } catch {}
+    }
+  }
+);
+
+assessmentsRouter.post(
   "/",
   requireAuth,
   requireVerified,

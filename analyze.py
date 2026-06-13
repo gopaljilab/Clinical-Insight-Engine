@@ -726,6 +726,85 @@ def counterfactual_analysis(model, scaler, features, input_data, cov_beta=None):
         "ranked": perturbation_results,
     }
 
+def get_counterfactuals(model, scaler, features, input_data, cov_beta=None):
+    """
+    Generates hypothetical inputs with healthier values and returns the top impactful changes.
+    """
+    perturbations = []
+    
+    # 1. BMI: Reduce by 2 points (if BMI > 25)
+    bmi = input_data.get('bmi')
+    if bmi is not None and bmi > 25:
+        perturbations.append({'bmi': max(25.0, float(bmi) - 2.0)})
+        
+    # 2. Blood Glucose: Reduce by 10 points (if > 100)
+    bg = input_data.get('bloodGlucoseLevel')
+    if bg is not None and bg > 100:
+        perturbations.append({'bloodGlucoseLevel': max(100.0, float(bg) - 10.0)})
+        
+    # 3. HbA1c: Reduce by 0.5 points (if > 5.7)
+    hba1c = input_data.get('hba1cLevel')
+    if hba1c is not None and hba1c > 5.7:
+        perturbations.append({'hba1cLevel': max(5.7, float(hba1c) - 0.5)})
+        
+    # 4. Smoking Status: Change to former if current
+    smoke = input_data.get('smokingHistory')
+    if smoke == 'current':
+        perturbations.append({'smokingHistory': 'former'})
+
+    # 5. Hypertension: Manage/Control
+    if input_data.get('hypertension') in [1, True, "1", "true"]:
+        perturbations.append({'hypertension': False})
+
+    if not perturbations:
+        original = interpret_prediction(model, scaler, features, input_data, cov_beta)
+        return {
+            "original": original,
+            "recommendations": []
+        }
+        
+    data = {
+        "original": input_data,
+        "perturbations": perturbations
+    }
+    
+    result = counterfactual_analysis(model, scaler, features, data, cov_beta)
+    ranked = result.get("ranked", [])
+    
+    # Generate actionable messages for top 2
+    recommendations = []
+    for item in ranked[:2]:
+        if item["riskReduction"] <= 0:
+            continue
+        
+        delta_str = item["delta"]
+        
+        action = "Making a healthy change"
+        if "bmi:" in delta_str:
+            action = "Reducing your BMI by 2 points"
+        elif "bloodGlucoseLevel:" in delta_str:
+            action = "Lowering your blood glucose by 10 points"
+        elif "hba1cLevel:" in delta_str:
+            action = "Lowering your HbA1c by 0.5%"
+        elif "smokingHistory:" in delta_str:
+            action = "Quitting smoking"
+        elif "hypertension:" in delta_str:
+            action = "Managing your hypertension effectively"
+            
+        msg = f"{action} could lower your overall diabetes risk score by {item['riskReduction']}%."
+        
+        recommendations.append({
+            "action": action,
+            "riskReduction": item["riskReduction"],
+            "newRiskScore": item["riskScore"],
+            "message": msg
+        })
+        
+    return {
+        "original": result.get("original"),
+        "recommendations": recommendations
+    }
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "predict_file":
         if len(sys.argv) > 2:
@@ -797,6 +876,15 @@ if __name__ == "__main__":
             data = json.load(sys.stdin)
         model, scaler, features, cov_beta = get_model()
         result = counterfactual_analysis(model, scaler, features, data, cov_beta)
+        print(json.dumps(result))
+    elif len(sys.argv) > 1 and sys.argv[1] == "counterfactual_auto":
+        if len(sys.argv) > 2:
+            with open(sys.argv[2], 'r') as f:
+                data = json.load(f)
+        else:
+            data = json.load(sys.stdin)
+        model, scaler, features, cov_beta = get_model()
+        result = get_counterfactuals(model, scaler, features, data, cov_beta)
         print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):
