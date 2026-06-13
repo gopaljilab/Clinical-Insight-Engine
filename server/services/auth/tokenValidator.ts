@@ -1,3 +1,4 @@
+import { logger } from "../../logger";
 /**
  * tokenValidator.ts
  *
@@ -19,7 +20,7 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-import jwt, { type JwtPayload } from "jsonwebtoken";
+import jwt, { type JwtPayload, type SignOptions } from "jsonwebtoken";
 
 /** Algorithms explicitly allowed. Any other value — including "none" — is rejected. */
 const ALLOWED_ALGORITHMS: jwt.Algorithm[] = ["HS256"];
@@ -63,7 +64,7 @@ export function getJwtSecret(): string {
       throw new Error("JWT_SECRET environment variable is required in production.");
     }
     // Development fallback — weak and obvious so it is never mistaken for production
-    console.warn(
+    logger.warn(
       "[SECURITY WARNING] JWT_SECRET is not set. Using insecure development default. " +
       "Set JWT_SECRET in your .env file before deploying."
     );
@@ -161,14 +162,14 @@ export function issueToken(
   expiresIn?: string
 ): string {
   const secret = getJwtSecret();
-  const expiry = expiresIn ?? process.env.JWT_EXPIRES_IN ?? "1h";
+  const expiry = (expiresIn ?? process.env.JWT_EXPIRES_IN ?? "15m") as SignOptions["expiresIn"];
 
-  // Use payload.sub instead of SignOptions.subject (typings vary by jsonwebtoken version)
+  // sub is set directly in the payload; do NOT also set subject in SignOptions
+  // (jsonwebtoken throws if both are present and conflict).
   return jwt.sign(
     { sub: userId, email, role },
     secret,
     {
-      subject: userId,
       // Algorithm is hardcoded — never sourced from user input or configuration
       algorithm: "HS256",
       expiresIn: expiry,

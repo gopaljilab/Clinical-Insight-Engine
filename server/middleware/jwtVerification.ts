@@ -6,9 +6,9 @@
  * Authentication flow:
  *   Request
  *     ↓ Extract "Authorization: Bearer <token>"
- *     ↓ Missing token → 401 { error: "Unauthorized" }
+ *     ↓ Missing token → 401 { message: "Unauthorized" }
  *     ↓ verifyToken() — strict HS256, no alg=none, signature verified
- *     ↓ Verification failure (any reason) → 401 { error: "Unauthorized" }
+ *     ↓ Verification failure (any reason) → 401 { message: "Unauthorized" }
  *     ↓ Attach verified payload to req.jwtUser
  *     ↓ next()
  *
@@ -63,11 +63,11 @@ function extractBearerToken(req: Request): string | null {
  *
  * Middleware that verifies a Bearer JWT on every request.
  * On success, attaches verified payload to req.jwtUser and calls next().
- * On any failure, returns 401 { error: "Unauthorized" } immediately.
+ * On any failure, returns 401 { message: "Unauthorized" } immediately.
  *
  * Never exposes verification failure details to the client.
  */
-export function requireJwtAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireJwtAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const token = extractBearerToken(req);
 
   if (!token) {
@@ -76,31 +76,38 @@ export function requireJwtAuth(req: Request, res: Response, next: NextFunction):
       "JWT required but Authorization header is missing or malformed",
       req
     );
-    res.status(401).json({ error: "Unauthorized" });
+    res.status(401).json({ message: "Unauthorized" });
     return;
   }
 
   const result = verifyToken(token);
 
   if (!result.valid) {
-    // Log the failure type internally (no token content, no PHI)
     const eventType = result.reason === "alg_not_allowed"
-      ? "SQL_INJECTION_ATTEMPT"   // Reuse closest available type for alg=none attempts
+      ? "SQL_INJECTION_ATTEMPT"
       : "UNAUTHORIZED_SEARCH_ACCESS";
 
     logSecurityEvent(
       eventType,
       `JWT verification failed: ${result.reason}`,
       req,
-      { userId: undefined } // Do not log claimed user ID from an unverified token
+      { userId: undefined }
     );
 
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  req.jwtUser = result.payload;
+
+  const { getAuthenticatedUser } = await import("../auth");
+  const authUser = await getAuthenticatedUser(req);
+  if (!authUser) {
+    logSecurityEvent("UNAUTHORIZED_SEARCH_ACCESS", "JWT user account is disabled or not found", req);
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  // Attach the verified payload — routes use this as the authoritative identity
-  req.jwtUser = result.payload;
-
+  (req as any).authenticatedUser = authUser;
   next();
 }

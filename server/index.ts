@@ -1,8 +1,11 @@
 import crypto from "crypto";
+import { safeExecML } from "./utils/exec";
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import rateLimit from "express-rate-limit";
 import {
   DatabaseStartupError,
   verifyDatabaseConnection,
@@ -11,22 +14,50 @@ import {
 } from "./db";
 import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
+import { getPythonExecutable } from "./services/mlService";
 import patientsRouter from "./routes/patients";
+import patientPortalRouter from "./routes/patient.routes";
 import { serveStatic } from "./static";
-import { sanitizeDatabaseError } from "./security/sqlProtection";
 import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
-import { getPythonExecutable } from "./routes";
-import { promisify } from "util";
-import { execFile } from "child_process";
-
-const execFileAsync = promisify(execFile);
+import { globalErrorHandler } from "./middleware/errorHandler";
+import { logger } from "./logger";
+import { requestIdMiddleware } from "./middleware/requestId";
+import {
+  verifyRedisConnection,
+  startAssessmentWorker,
+  closeQueue,
+} from "./queue";
+import { EmailConfigurationError, validateEmailConfig } from "./email";
+import { generalLimiter } from "./middleware/rateLimit";
 
 
 const app = express();
 const httpServer = createServer(app);
-const REQUEST_BODY_LIMIT = "256kb";
 
+// CORS configuration - hardened to reject requests missing the Origin header
+const allowedOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(",") 
+  : [process.env.APP_URL, process.env.API_URL, "http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:3000", "http://127.0.0.1:3000"].filter(Boolean) as string[];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    // This is required for the browser to load the initial HTML document
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"), false);
+    }
+  },
+  credentials: true,
+}));
+
+const REQUEST_BODY_LIMIT = "10kb";
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", true);
 }
@@ -64,6 +95,7 @@ app.use(
     secret: getSessionSecret(),
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     store: new PgSession({
       pool: getPool(),
       tableName: "session",
@@ -73,7 +105,7 @@ app.use(
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 15 * 60 * 1000, // 15 minutes
     },
   })
 );
@@ -88,6 +120,7 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false, limit: REQUEST_BODY_LIMIT }));
+app.use(requestIdMiddleware);
 app.use(loggingAnomalyMiddleware);
 
 // Nonce middleware - generates a unique cryptographic nonce per request for CSP
@@ -102,17 +135,14 @@ const scriptSrcDirective: Array<string | ((req: any, res: any) => string)> = [
   (_req: any, res: any) => `'nonce-${res.locals.cspNonce}'`,
 ];
 
-// Vite HMR requires eval in development mode
-if (process.env.NODE_ENV !== "production") {
-  scriptSrcDirective.push("'unsafe-eval'");
-}
+
 
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: scriptSrcDirective,
+        scriptSrc: process.env.NODE_ENV === "production" ? scriptSrcDirective : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:"],
@@ -133,22 +163,9 @@ function summarizeApiResponse(body: Record<string, any>) {
   return `[response keys: ${Object.keys(body).join(", ") || "none"}]`;
 }
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
 
-  console.log(`${formattedTime} [${source}] ${message}`);
-}
 
 app.use((req, res, next) => {
-  const requestId = crypto.randomUUID();
-  (req as any).id = requestId;
-  res.setHeader("X-Request-ID", requestId);
-
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
@@ -163,14 +180,14 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       const logPayload = {
-        requestId,
+        requestId: (req as any).id,
         method: req.method,
         path,
         status: res.statusCode,
         duration,
         responseSummary: capturedJsonResponse ? summarizeApiResponse(capturedJsonResponse) : undefined,
       };
-      log(JSON.stringify(logPayload));
+      logger.info(logPayload, "API request completed");
     }
   });
 
@@ -182,43 +199,62 @@ app.use((req, res, next) => {
     await verifyDatabaseConnection();
   } catch (error) {
     if (error instanceof DatabaseStartupError) {
-      console.error(error.message);
+      logger.error({ err: error }, error.message);
     } else {
-      console.error("Unexpected database startup error:", error);
+      logger.error({ err: error }, "Unexpected database startup error");
     }
 
     await closePool();
     process.exit(1);
   }
 
-  // Register auth routes BEFORE API routes so session is available
-  app.use("/api/auth", createAuthRouter());
-  // Warm up ML model at startup so first prediction request is fast
-  log("Warming up ML model at startup...", "ml");
-  execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
-    .then(() => log("ML model ready.", "ml"))
-    .catch((err: any) => log(`ML warmup warning: ${err.message}`, "ml"));
-  await registerRoutes(httpServer, app);
-
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    if (res.headersSent) {
-      return next(err);
+  try {
+    validateEmailConfig();
+  } catch (error) {
+    if (error instanceof EmailConfigurationError) {
+      logger.error({ err: error }, error.message);
+    } else {
+      logger.error({ err: error }, "Unexpected email configuration error");
     }
 
-    // Log the full error internally for debugging, but never send internals to clients
-    console.error("Unhandled server error:", err);
+    await closePool();
+    process.exit(1);
+  }
 
-    // Sanitize database errors — prevents table names, SQL syntax, and pg error codes
-    // from reaching the client response body
-    const { statusCode, message } = sanitizeDatabaseError(err);
+  const queueReady = await verifyRedisConnection();
+  if (queueReady) {
+    startAssessmentWorker();
+    logger.info({ source: "redis" }, "Assessment queue ready.");
+  } else {
+    logger.warn({ source: "redis" }, "Redis unavailable — async assessment queue disabled.");
+  }
 
-    // For non-DB errors (e.g. express body-parser), fall back to err.status
-    const finalStatus = (err?.code && typeof err.code === "string" && err.code.length === 5)
-      ? statusCode                            // PostgreSQL error code (5-char alphanumeric)
-      : (err?.status ?? err?.statusCode ?? statusCode);
-
-    return res.status(finalStatus).json({ message });
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests from this IP, please try again later." }
   });
+  
+  app.use("/api", apiLimiter);
+
+  // Register auth routes BEFORE API routes so session is available
+  app.use("/api/auth", createAuthRouter());
+  // Register protected patient EMR/EHR integration endpoints
+  app.use("/api/patients", generalLimiter, patientsRouter);
+  app.use("/api/patient", patientPortalRouter);
+  // Warm up ML model at startup so first prediction request is fast
+  logger.info({ source: "ml" }, "Warming up ML model at startup...");
+  safeExecML(getPythonExecutable(), ["analyze.py", "train"])
+    .then(() => logger.info({ source: "ml" }, "ML model ready."))
+    .catch((err: any) => logger.warn({ source: "ml" }, `ML warmup warning: ${err.message}`));
+  await registerRoutes(httpServer, app);
+
+  // Global error handler — must be the LAST middleware.
+  // Handles CORS errors, database errors, unhandled exceptions, and returns
+  // a consistent { message, requestId } shape for all error responses.
+  app.use(globalErrorHandler);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
@@ -238,30 +274,38 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || "5000", 10);
   const host = process.env.HOST || "0.0.0.0";
 
+  httpServer.on("error", async (error) => {
+    logger.error({ err: error }, "Server startup failed");
+    await closePool();
+    process.exit(1);
+  });
+
   httpServer.listen(
     {
       port,
       host,
     },
     () => {
-      log(`serving on ${host}:${port}`);
+      logger.info({ source: "express" }, `serving on ${host}:${port}`);
     }
   );
 
   // Graceful shutdown handler
   function shutdown(signal: string) {
-    log(`${signal} received — shutting down gracefully`);
+    logger.info({ source: "express" }, `${signal} received — shutting down gracefully`);
 
     httpServer.close(async () => {
-      log("HTTP server closed");
+      logger.info({ source: "express" }, "HTTP server closed");
+      await closeQueue();
+      logger.info({ source: "express" }, "Assessment queue closed");
       await closePool();
-      log("Database pool closed");
+      logger.info({ source: "express" }, "Database pool closed");
       process.exit(0);
     });
 
     // Force exit if graceful shutdown takes too long
     setTimeout(() => {
-      console.error("Graceful shutdown timed out — forcing exit");
+      logger.error("Graceful shutdown timed out — forcing exit");
       process.exit(1);
     }, 10000).unref();
   }

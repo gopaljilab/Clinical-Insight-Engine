@@ -11,6 +11,7 @@
 
 import type { Request } from "express";
 import { detectSqlInjectionPattern } from "../validation/searchValidation";
+import { logger } from "../logger";
 
 /** Security event types for structured logging. */
 export type SecurityEventType =
@@ -59,7 +60,7 @@ export function logSecurityEvent(
   };
 
   // Emit as structured JSON so log aggregators (Splunk, Datadog, ELK) can parse it.
-  console.warn(`[SECURITY] ${JSON.stringify(event)}`);
+  logger.warn({ securityEvent: event }, "Security Event");
 }
 
 /**
@@ -108,7 +109,7 @@ export function sanitizeDatabaseError(error: unknown): {
       case "42703": // undefined_column
       case "42601": // syntax_error
         // These should never reach clients — log and return generic message
-        console.error("[SECURITY] Database schema error leaked to handler:", pgError.code);
+        logger.error({ code: pgError.code }, "Database schema error leaked to handler");
         return { statusCode: 500, message: "An unexpected error occurred." };
       default:
         return { statusCode: 500, message: "An unexpected error occurred." };

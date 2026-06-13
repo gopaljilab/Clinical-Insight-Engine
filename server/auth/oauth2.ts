@@ -23,8 +23,12 @@ if (
         clientSecret: OAUTH2_CLIENT_SECRET,
         callbackURL: OAUTH2_CALLBACK_URL,
       },
-      (accessToken: string, refreshToken: string, profile: any, cb: any) => {
-        return cb(null, { id: "clinician-id", profile });
+      (_accessToken: string, _refreshToken: string, _profile: any, cb: any) => {
+        // OAuth2 user lookup is not yet implemented.
+        // Do NOT replace this with a hardcoded identity — every OAuth2 user would
+        // share the same account and see all other users' patient records.
+        // Implement a real DB lookup (e.g. by profile.emails[0].value) before enabling.
+        return cb(new Error("OAuth2 authentication is not yet configured for this application."));
       }
     )
   );

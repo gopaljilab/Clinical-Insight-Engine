@@ -10,7 +10,11 @@ function injectNonce(html: string, nonce: string): string {
   if (!nonce) return html;
   return html
     .replace(/<script\b/gi, `<script nonce="${nonce}"`)
-    .replace(/<link\b/gi, `<link nonce="${nonce}"`);
+    .replace(/<link\b/gi, `<link nonce="${nonce}"`)
+    .replace(
+      /<meta name="csp-nonce" content="[^"]*"/,
+      `<meta name="csp-nonce" content="${nonce}"`,
+    );
 }
 
 export function serveStatic(app: Express) {
@@ -33,7 +37,7 @@ export function serveStatic(app: Express) {
       path.resolve(distPath, "index.html"),
       "utf-8",
     );
-    html = html.replace(/<script /g, `<script nonce="${res.locals.cspNonce}" `);
+    html = injectNonce(html, res.locals.cspNonce);
     res.type("html").send(html);
   });
 }

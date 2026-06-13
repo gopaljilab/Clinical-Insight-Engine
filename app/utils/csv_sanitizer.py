@@ -11,8 +11,7 @@ import io
 from typing import Any
 
 
-DANGEROUS_PREFIXES = ('=', '+', '-', '@', '	', '', '
-')
+DANGEROUS_PREFIXES = ('=', '+', '-', '@', '\t', '\r', '\n')
 
 
 def sanitize_csv_value(value: Any) -> str:
@@ -34,8 +33,8 @@ def sanitize_csv_value(value: Any) -> str:
     s = str(value).strip()
 
     if s and s[0] in DANGEROUS_PREFIXES:
-        # Prepend tab to neutralize the formula
-        return "	" + s
+        # Prepend single quote to neutralize the formula (OWASP recommended)
+        return "'" + s
 
     return s
 
@@ -66,8 +65,7 @@ def export_to_csv_safe(data: list[dict], fieldnames: list[str] = None) -> str:
         output,
         fieldnames=cols,
         extrasaction="ignore",
-        lineterminator="
-",
+        lineterminator="\r\n",
     )
     writer.writeheader()
 

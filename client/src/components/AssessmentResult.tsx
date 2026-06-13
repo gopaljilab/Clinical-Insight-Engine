@@ -15,6 +15,7 @@ import { PredictionExplanation } from "./PredictionExplanation";
 import { DataQualityAlerts } from "./DataQualityAlerts";
 import { BiomarkerAlerts } from "./BiomarkerAlerts";
 import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
+import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -65,12 +66,13 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [isPresenting, setIsPresenting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [pdfError, setPdfError] = useState<string>("");
+  const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string }[] | null>(null);
 
   const generatePDF = async () => {
     setPdfError("");
     setIsGeneratingPDF(true);
     try {
-      downloadClinicalAssessmentPdf(assessment);
+      await downloadClinicalAssessmentPdf(assessment);
     } catch (error) {
       console.error("PDF export failed", error);
       setPdfError("Unable to export the PDF report. Please try again.");
@@ -108,9 +110,13 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   };
 
   const { data: assessmentsResponse } = useAssessments();
-  const assessmentHistory = assessmentsResponse?.pages
-    ? assessmentsResponse.pages.flatMap((p: any) => p.data)
-    : [];
+  const assessmentHistory = useMemo(
+    () => assessmentsResponse?.pages
+      ? assessmentsResponse.pages.flatMap((p: any) => p.data)
+      : assessmentsResponse?.data ?? [],
+    [assessmentsResponse]
+  );
+
   const improvementBadges = useMemo(
     () => calculateHealthBadges(assessment, assessmentHistory),
     [assessment, assessmentHistory]
@@ -135,6 +141,18 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     strength: f.strength,
   }));
 
+  const whatIfChartData = useMemo(() => {
+    if (!whatIfFactors) return null;
+    const maxStrength = Math.max(whatIfFactors.length, 1);
+    return whatIfFactors.map((f, i) => ({
+      name: f.name,
+      value: f.impact === 'positive' ? Math.round(((maxStrength - i) / maxStrength) * 100) : -Math.round(((maxStrength - i) / maxStrength) * 100),
+      impact: f.impact,
+      description: f.description,
+      isWhatIf: true,
+    }));
+  }, [whatIfFactors]);
+
   const riskScore = Number(assessment.riskScore).toFixed(1);
   const positiveFactors = factors.filter((f: any) => f.impact === "positive");
   const protectiveFactors = factors.filter((f: any) => f.impact !== "positive");
@@ -154,7 +172,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       id="assessment-result-wrapper"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 overflow-hidden flex flex-col"
+      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 flex flex-col"
     >
       {/* Header/Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 bg-muted/30 p-2.5">
@@ -196,6 +214,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             )}
           </button>
         </div>
+
+        {/* Action Buttons */}
         <div className="pdf-hide-buttons flex flex-col gap-2 justify-end self-stretch print:hidden">
           <div className="flex flex-wrap gap-2 items-center justify-end">
             <button
@@ -215,23 +235,46 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
               {isGeneratingPDF ? "Generating..." : "Export PDF"}
             </button>
-            <CopySummaryButton assessment={assessment} />
-            <button
-              type="button"
-              onClick={exportToJson}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-            >
-              <Download className="w-3.5 h-3.5" />
-              JSON
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              Print
-            </button>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <CopySummaryButton assessment={assessment} iconOnly />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Copy Summary</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={exportToJson}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label="Export JSON"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Export JSON</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label="Print"
+                >
+                  <Printer className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Print Report</p>
+              </TooltipContent>
+            </UiTooltip>
           </div>
           {pdfError ? (
             <p role="alert" className="text-sm text-red-600 mt-1">
@@ -258,6 +301,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
               className="space-y-8"
             >
               {/* Patient Hero */}
@@ -323,7 +367,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
 
-              <WhatIfRiskSimulator assessment={assessment} />
+              <WhatIfRiskSimulator assessment={assessment} onComparisonFactors={setWhatIfFactors} />
 
               <ExplainabilityPanel
                 factors={factorBreakdown}
@@ -337,6 +381,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
               className="space-y-8"
             >
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
@@ -443,26 +488,33 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               {/* Clinician Chart */}
               <div className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm overflow-hidden">
-                <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-primary" /> Factor Coefficient Impact
-                </h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary" /> Factor Coefficient Impact
+                  </h3>
+                  {whatIfChartData && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 text-xs font-semibold">
+                      What-If Comparison Active
+                    </span>
+                  )}
+                </div>
                 <div className="h-56 sm:h-64 w-full overflow-x-auto">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                      <ReferenceLine x={0} stroke="#cbd5e1" />
+                    <BarChart data={whatIfChartData ?? chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <ReferenceLine x={0} stroke="hsl(var(--border))" />
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: '#64748b', fontSize: 12 }} />
+                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
                       <Tooltip 
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
                               <div className="bg-popover text-popover-foreground border border-border p-3 rounded-lg shadow-xl text-sm max-w-xs">
-                                <p className="font-bold mb-1">{data.name}</p>
+                                <p className="font-bold mb-1">{data.name}{data.isWhatIf ? ' (What-If)' : ''}</p>
                                 <p className="text-muted-foreground">{data.description}</p>
-                                <p className="text-muted-foreground mt-2">{data.plainReason}</p>
+                                {!data.isWhatIf && <p className="text-muted-foreground mt-2">{data.plainReason}</p>}
                                 <p className={`mt-2 font-semibold ${data.impact === 'positive' ? 'text-red-500' : 'text-green-500'}`}>
-                                  Impact: {data.impact === 'positive' ? 'Increases Risk' : 'Decreases Risk'} ({data.strength}% relative strength)
+                                  Impact: {data.impact === 'positive' ? 'Increases Risk' : 'Decreases Risk'}
                                 </p>
                               </div>
                             );
@@ -471,7 +523,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                         }}
                       />
                       <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                        {chartData.map((entry: any, index: number) => (
+                        {(whatIfChartData ?? chartData).map((entry: any, index: number) => (
                           <Cell key={`cell-${index}`} fill={entry.impact === 'positive' ? '#ef4444' : '#22c55e'} />
                         ))}
                       </Bar>
