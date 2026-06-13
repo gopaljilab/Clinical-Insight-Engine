@@ -110,13 +110,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   };
 
   const { data: assessmentsResponse } = useAssessments();
-  const assessmentHistory = useMemo(
-    () => assessmentsResponse?.pages
-      ? assessmentsResponse.pages.flatMap((p: any) => p.data)
-      : assessmentsResponse?.data ?? [],
-    [assessmentsResponse]
-  );
-
+  const assessmentHistory = assessmentsResponse?.data ?? [];
   const improvementBadges = useMemo(
     () => calculateHealthBadges(assessment, assessmentHistory),
     [assessment, assessmentHistory]
