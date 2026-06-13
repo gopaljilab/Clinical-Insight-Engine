@@ -33,6 +33,7 @@ export const assessments = pgTable("assessments", {
   userId: text("user_id"),
 }, (table) => [
   index("created_by_id_idx").on(table.createdBy, table.id),
+  index("owner_id_idx").on(table.ownerId),
 ]);
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
@@ -145,6 +146,18 @@ export const loginAuditLogs = pgTable("login_audit_logs", {
   ipAddress: varchar("ip_address", { length: 100 }),
   userAgent: text("user_agent"),
   loginStatus: varchar("login_status", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const patientAccessAuditLogs = pgTable("patient_access_audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  resourceType: text("resource_type").notNull(),
+  resourceId: text("resource_id"),
+  action: text("action").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  granted: boolean("granted").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

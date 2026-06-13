@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
 import session from "express-session";
+import { eq } from "drizzle-orm";
+import { users } from "../server/db/schema";
 
-const { mockSendVerificationCode } = vi.hoisted(() => ({
-  mockSendVerificationCode: vi.fn().mockResolvedValue(true),
+const { mockSendVerificationEmail } = vi.hoisted(() => ({
+  mockSendVerificationEmail: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock("../server/email", () => ({
@@ -22,8 +24,7 @@ vi.mock("../server/db", () => ({
 
 vi.mock("../server/storage", () => ({
   storage: {
-    getUserByEmail: vi.fn(),
-    createUser: vi.fn(),
+    recordLoginAudit: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -33,6 +34,13 @@ vi.mock("ioredis", () => ({
     info: vi.fn().mockResolvedValue(""),
   })),
 }));
+
+/** Override getDb to return the given mock implementation */
+async function setMockDb(mockImpl: any) {
+  const mod = await import("../server/db");
+  const getDbMock = mod.getDb as any;
+  getDbMock.mockReturnValue(mockImpl);
+}
 
 async function buildApp() {
   const { createAuthRouter } = await import("../server/auth");
@@ -52,7 +60,7 @@ async function buildApp() {
 describe("POST /api/auth/resend-otp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSendVerificationCode.mockResolvedValue(true);
+    mockSendVerificationEmail.mockResolvedValue(true);
   });
 
   it("returns 400 when email is missing", async () => {

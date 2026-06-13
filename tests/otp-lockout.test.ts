@@ -85,6 +85,8 @@ vi.mock("../server/email", () => ({
 
 describe("OTP Brute-Force Lockout Integration", () => {
   let app: express.Express;
+  let currentAttemptCount = 0;
+  let tokenUsed = false;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -101,6 +103,82 @@ describe("OTP Brute-Force Lockout Integration", () => {
       })
     );
     app.use("/api/auth", createAuthRouter());
+
+    // Mock db user select
+    const mockLimit = vi.fn().mockResolvedValue([
+      {
+        id: "test-user-id",
+        fullName: "Test Doctor",
+        email: "doc@example.com",
+        medicalLicenseNumber: "DOC123",
+        passwordHash: "$2b$10$BrtSaFVeZvqxGUJMxLtw8OdcjaZfI6gpeQpOxqUX9IW.nZA7Lh0Au",
+        role: "provider",
+        isActive: true,
+        emailVerified: true,
+      }
+    ]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockDb.select.mockImplementation(() => ({ from: mockFrom }));
+
+    // Mock db transaction for /login and /verify-email
+    mockDb.transaction.mockImplementation(async (callback) => {
+      const mockTx = {
+        select: vi.fn().mockImplementation(() => ({
+          from: vi.fn().mockImplementation(() => ({
+            where: vi.fn().mockImplementation(() => ({
+              orderBy: vi.fn().mockImplementation(() => ({
+                limit: vi.fn().mockImplementation(async () => {
+                  if (tokenUsed) return [];
+                  return [
+                    {
+                      id: "token-id",
+                      userId: "test-user-id",
+                      verificationCode: "123456",
+                      attemptCount: currentAttemptCount,
+                      expiresAt: new Date(Date.now() + 100000),
+                    },
+                  ];
+                }),
+              })),
+              limit: vi.fn().mockImplementation(async () => {
+                if (tokenUsed) return [];
+                return [
+                  {
+                    id: "token-id",
+                    userId: "test-user-id",
+                    verificationCode: "123456",
+                    attemptCount: currentAttemptCount,
+                    expiresAt: new Date(Date.now() + 100000),
+                  },
+                ];
+              }),
+            })),
+          })),
+        })),
+        update: vi.fn(() => ({
+          set: vi.fn((setVal: any) => {
+            if (setVal.attemptCount !== undefined) {
+              currentAttemptCount = setVal.attemptCount;
+            }
+            if (setVal.used !== undefined) {
+              tokenUsed = setVal.used;
+            }
+            return {
+              where: vi.fn().mockResolvedValue(undefined),
+            };
+          }),
+        })),
+        insert: vi.fn(() => ({
+          values: vi.fn().mockImplementation(async () => {
+            tokenUsed = false;
+            currentAttemptCount = 0;
+            return undefined;
+          }),
+        })),
+      };
+      return callback(mockTx);
+    });
   });
 
   it("locks out user after 5 failed OTP verification attempts", async () => {

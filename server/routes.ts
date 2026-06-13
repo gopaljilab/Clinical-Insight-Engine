@@ -13,9 +13,10 @@ import { logger } from "./logger";
 import {
   generalLimiter,
   adminLimiter,
+  exportLimiter,
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
-import { MLService } from "./services/mlService";
+import { MLService, calculateClinicalFallback, generateRequestFingerprint } from "./services/mlService";
 import { getAssessmentQueue, getPythonExecutable } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
@@ -177,7 +178,7 @@ export async function registerRoutes(
     });
   });
 
-  // Mount domain-specific routers
+  // Mount auth router
   app.use("/api/auth", authRouter);
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
@@ -439,7 +440,7 @@ export async function registerRoutes(
             throw new Error("Expected array of predictions");
           }
         } catch (error: any) {
-          return res.status(500).json({ message: "Bulk ML processing failed or timed out." });
+          predictions = calculateClinicalFallback(input);
         }
 
         const createdAssessments = await Promise.all(
@@ -475,8 +476,6 @@ export async function registerRoutes(
     }
   );
 
-
-
   app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
     try {
       const userEmail = req.session.user?.email;
@@ -495,28 +494,7 @@ export async function registerRoutes(
       });
     }
   });
-  app.get(
-    "/api/assessments/export.csv",
-    requireAuth,
-    requireVerified,
-    async (req, res) => {
-      try {
-        const userEmail = req.session.user?.email;
-        const assessments = await storage.getAssessments(1000, undefined, userEmail);
 
-        const csv = assessmentsToCsv(
-          (assessments as any).data ?? assessments as unknown as Record<string, unknown>[]
-        );
-
-        res.header("Content-Type", "text/csv");
-        res.attachment("assessments.csv");
-        return res.send(csv);
-      } catch (err) {
-        logger.error({ err }, "Export error:");
-        return res.status(500).json({ message: "Failed to export data" });
-      }
-    }
-  );
 
   /**
    * GET /api/assessments/search
@@ -650,6 +628,45 @@ export async function registerRoutes(
   );
 
   /**
+   * GET /api/assessments/export.csv
+   *
+   * Exports filtered assessments as a CSV file.
+   */
+  app.get(
+    "/api/assessments/export.csv",
+    requireAuth,
+    requireVerified,
+    exportLimiter,
+    async (req, res) => {
+      try {
+        const userEmail = req.session.user?.email;
+        const parseResult = assessmentExportQuerySchema.safeParse(req.query);
+        if (!parseResult.success) {
+          return res.status(400).json({
+            message: parseResult.error.errors[0]?.message ?? "Invalid export query parameters.",
+          });
+        }
+
+        const assessments = await storage.getAssessments({
+          ...parseResult.data,
+          createdBy: userEmail,
+        });
+
+        const csv = assessmentsToCsv(
+          assessments.data as unknown as Record<string, unknown>[]
+        );
+
+        res.header("Content-Type", "text/csv");
+        res.attachment("assessments.csv");
+        return res.send(csv);
+      } catch (err) {
+        logger.error({ err }, "Export error:");
+        return res.status(500).json({ message: "Failed to export data" });
+      }
+    }
+  );
+
+  /**
    * GET /api/assessments/:id
    *
    * Fetch a single assessment by numeric ID.
@@ -707,6 +724,10 @@ export async function registerRoutes(
     }
   );
   
+  // Mount domain-specific routers (after app-level handlers for precedence)
+  app.use("/api/assessments", mlRouter);
+  app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", analyticsRouter);
   app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   // ─── Admin Routes ────────────────────────────────────────────────

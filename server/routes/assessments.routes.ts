@@ -6,7 +6,10 @@ import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService } from "../services/mlService";
+import { MLService, calculateClinicalFallback } from "../services/mlService";
+import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
+import { MLService, isPythonAvailable, calculateClinicalFallback } from "../services/mlService";
+
 import { generateRecommendations } from "../services/recommendation-engine";
 import {
   sanitizeDatabaseError,
@@ -34,10 +37,32 @@ function getPythonExecutable() {
     process.platform === "win32"
       ? [ path.resolve(".venv", "Scripts", "python.exe"), path.resolve("venv", "Scripts", "python.exe") ]
       : [ path.resolve(".venv", "bin", "python"), path.resolve("venv", "bin", "python") ];
-  return candidates.find((candidate) => existsSync(candidate)) ?? "python3";
+  return candidates.find((candidate) => existsSync(candidate)) ?? (process.platform === "win32" ? "python" : "python3");
 }
 
 const assessmentsRouter = Router();
+
+export const assessmentLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many assessment requests. Please try again later.",
+    retryAfter: 60,
+  },
+});
+
+export const previewLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: "Too many preview requests. Please try again later.",
+    retryAfter: 60,
+  },
+});
 
 assessmentsRouter.post(
   "/preview",
@@ -112,6 +137,32 @@ assessmentsRouter.post(
       const parsed = api.assessments.whatIfBatch.input.parse(req.body);
       const { original, perturbations } = parsed;
 
+      if (!isPythonAvailable) {
+        const originalResult = calculateClinicalFallback(original);
+        const perturbationResults = perturbations.map(p => {
+          const variant = { ...original, ...p };
+          const variantResult = calculateClinicalFallback(variant);
+          const riskReduction = originalResult.riskScore - variantResult.riskScore;
+          const desc = Object.keys(p).map(k => `${k}:${(original as any)[k] ?? '?'}->${(p as any)[k]}`).join("; ");
+          return {
+            delta: desc,
+            riskScore: variantResult.riskScore,
+            riskCategory: variantResult.riskCategory,
+            factors: variantResult.factors ?? [],
+            riskReduction: Number(riskReduction.toFixed(1)),
+            confidenceInterval: variantResult.confidenceInterval,
+            modelConfidence: variantResult.modelConfidence,
+          };
+        }).sort((a, b) => b.riskReduction - a.riskReduction);
+        
+        return res.json({
+          original: originalResult,
+          perturbations: perturbationResults,
+          ranked: perturbationResults,
+          isFallback: true
+        });
+      }
+
       const payload = { original, perturbations };
       await writeFile(tempFile, JSON.stringify(payload));
 
@@ -161,6 +212,7 @@ assessmentsRouter.post(
     let requestFingerprint: string | undefined;
     try {
       const input = req.body;
+      const requestId = (req as any).id as string | undefined;
 
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
@@ -180,12 +232,14 @@ assessmentsRouter.post(
       const job = await queue.add("predict", {
         input,
         userId,
-        userEmail
+        userEmail,
+        requestId,
       });
 
       return res.status(202).json({
         message: "Assessment request accepted and is being processed.",
-        jobId: job.id
+        jobId: job.id,
+        requestId,
       });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
@@ -201,6 +255,68 @@ assessmentsRouter.post(
       if (requestFingerprint) {
         MLService.activeInferenceRequests.delete(requestFingerprint);
       }
+    }
+  }
+);
+
+assessmentsRouter.post(
+  "/simulate",
+  requireAuth,
+  requireVerified,
+  previewLimiter,
+  validateDTO(api.assessments.simulate.input),
+  async (req, res) => {
+    try {
+      const input = req.body;
+      let prediction: any;
+
+      try {
+        const result = await MLService.runAssessmentInference(input);
+        prediction = result.prediction;
+      } catch (error: any) {
+        if (error.message?.includes("timed out")) {
+          return res.status(408).json({ message: "Clinical assessment simulation timed out." });
+        }
+
+        logger.warn(
+          "Python prediction simulation failed, falling back to clinical rule-based model:",
+          error
+        );
+        prediction = calculateClinicalFallback(input);
+      }
+
+      logger.info(
+        `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+      );
+
+      return res.json({
+        simulatedRisk: prediction.riskScore,
+        riskCategory: prediction.riskCategory,
+        confidence: prediction.modelConfidence ?? null,
+        factorContributions: prediction.factors ?? [],
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      }
+      logger.error({ err }, "Error creating assessment simulation");
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+assessmentsRouter.get(
+  "/patient/:patientName/trends",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
+      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+      return res.json(result);
+    } catch (err) {
+      logger.error({ err }, "Patient trends fetch error:");
+      return res.status(500).json({ message: "Failed to fetch patient trends." });
     }
   }
 );
