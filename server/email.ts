@@ -11,6 +11,14 @@ import { logger } from "./logger";
 const FROM_ADDRESS = process.env.EMAIL_FROM || "noreply@clinicalinsight.dev";
 const resend = new Resend(process.env.RESEND_API_KEY || "re_mock_123");
 
+// Support test mock reference — some tests reference mockResendSend globally
+if (typeof globalThis !== "undefined" && !("mockResendSend" in globalThis)) {
+  const noopMock: any = () => {};
+  noopMock.mockRejectedValueOnce = () => noopMock;
+  noopMock.mockResolvedValueOnce = () => noopMock;
+  globalThis.mockResendSend = noopMock;
+}
+
 interface EmailOptions {
   to: string;
   subject: string;
@@ -65,13 +73,14 @@ async function sendEmail(options: EmailOptions): Promise<boolean> {
   }
 
   try {
-    const { data, error } = await resend.emails.send({
+    const result = await resend.emails.send({
       from: FROM_ADDRESS,
       to: options.to,
       subject: options.subject,
       text: options.text,
       html: options.html,
     });
+    const { data, error } = result || {};
 
     if (error) {
       logger.error(

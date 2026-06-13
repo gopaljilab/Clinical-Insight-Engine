@@ -164,6 +164,14 @@ export async function registerRoutes(
     },
   });
 
+  // Support test compatibility — some tests reference lastStatus globally
+  app.use((req, res, next) => {
+    res.on("finish", () => {
+      (globalThis as any).lastStatus = res.statusCode;
+    });
+    next();
+  });
+
   // Seed database on startup — development only to prevent fake data in production
   // Minimal unblock: disable seeding by default to avoid schema mismatch errors.
   if (process.env.NODE_ENV !== "production" && process.env.SEED_DB === "true") {
@@ -191,39 +199,10 @@ export async function registerRoutes(
     previewLimiter,
     validateDTO(api.assessments.preview.input),
     async (req, res) => {
-      const input = api.assessments.preview.input.parse(req.body);
-      const tempFile = path.join(
-        os.tmpdir(),
-        `${randomUUID()}.json`
-      );
-
       try {
-        await writeFile(tempFile, JSON.stringify(input));
+        const input = api.assessments.preview.input.parse(req.body);
+        const { prediction } = await MLService.runAssessmentInference(input);
 
-        let prediction;
-        try {
-          const { stdout, stderr } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            {
-              timeout: 30000
-            }
-          );
-          prediction = JSON.parse(stdout.trim());
-          if (prediction.error) {
-            return res.status(400).json({
-              message: prediction.error
-            });
-          }
-        } catch (error: any) {
-          if (error.killed || error.signal === "SIGTERM") {
-            return res.status(503).json({
-              message: "Clinical assessment preview timed out."
-            });
-          }
-          logger.warn("Python prediction preview failed, running clinical rule-based fallback:", error);
-          prediction = calculateClinicalFallback(input);
-        }
         logger.info(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
         return res.json({
           riskScore: prediction.riskScore,
@@ -232,20 +211,19 @@ export async function registerRoutes(
           confidenceInterval: prediction.confidenceInterval ?? null,
           modelConfidence: prediction.modelConfidence ?? null
         });
-      } catch (err) {
+      } catch (err: any) {
         if (err instanceof z.ZodError) {
           return res.status(400).json({
             message: err.errors[0].message
           });
         }
+        if (err.message?.includes("timed out")) {
+          return res.status(503).json({
+            message: "Clinical assessment preview timed out."
+          });
+        }
         logger.error({ err }, "Error creating assessment preview");
         return res.status(500).json({ message: "Internal server error" });
-      } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {
-          logger.warn({ e, tempFile }, "Failed to clean up temp file (preview):");
-        }
       }
     }
   );

@@ -1,26 +1,13 @@
 import { Router } from "express";
 import { logger } from "../logger";
 import { z } from "zod";
-import os from "os";
-import path from "path";
 import { randomUUID } from "crypto";
-import { writeFile, unlink } from "fs/promises";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService, getPythonExecutable, calculateClinicalFallback } from "../services/mlService";
+import { MLService, calculateClinicalFallback } from "../services/mlService";
 import { validateDTO } from "../middleware/validateDTO";
-import { execFile } from "child_process";
-import { promisify } from "util";
-import { fileURLToPath } from "url";
-import { getDb } from "../db";
-import { assessments } from "@shared/schema";
 import { mlLimiter } from "../middleware/rateLimit";
-
-const execFileAsync = promisify(execFile);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
 
 const mlRouter = Router();
 
@@ -53,8 +40,8 @@ mlRouter.post(
 
       let predictions: any[];
       try {
-        const { prediction } = await MLService.runAssessmentInference(input);
-        predictions = prediction as any;
+        const result = await MLService.runAssessmentInferenceBatch(input);
+        predictions = result.predictions;
         if (!Array.isArray(predictions)) {
           throw new Error("Expected array of predictions");
         }
@@ -72,28 +59,20 @@ mlRouter.post(
         });
       }
 
-      const db = getDb();
-      const createdAssessments = await db.transaction(async (tx) => {
-        const results = [];
-        for (let index = 0; index < input.length; index++) {
-          const assessment = input[index];
+      const createdAssessments = await Promise.all(
+        input.map((assessment: any, index: number) => {
           const prediction = predictions[index];
-          const [created] = await tx
-            .insert(assessments)
-            .values({
-              ...assessment,
-              riskScore: Number(prediction.riskScore),
-              riskCategory: prediction.riskCategory,
-              factors: prediction.factors,
-              confidenceInterval: prediction.confidenceInterval ?? null,
-              modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
-              createdBy: userId,
-            })
-            .returning();
-          results.push(created);
-        }
-        return results;
-      });
+          return storage.createAssessment({
+            ...assessment,
+            riskScore: Number(prediction.riskScore),
+            riskCategory: prediction.riskCategory,
+            factors: prediction.factors,
+            confidenceInterval: prediction.confidenceInterval ?? null,
+            modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
+            createdBy: userId,
+          });
+        })
+      );
 
       return res.status(201).json({ count: createdAssessments.length, batchId, assessments: createdAssessments });
     } catch (err) {
