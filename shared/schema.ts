@@ -42,11 +42,7 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   patientName: z
     .string({ invalid_type_error: "Patient name must be a string" })
     .trim()
-<<<<<<< HEAD
     .min(1, "Patient name cannot be empty if provided")
-=======
-    .min(1, "Patient name is required")
->>>>>>> 041e9bfe (fixing tsx ci failure present in assesmentresult.tsx)
     .optional(),
   gender: z.enum(["Male", "Female"], {
     required_error: "Gender is required",
