@@ -1,9 +1,20 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { HealthBadges } from "@/components/HealthBadges";
+import { CopySummaryButton } from "@/components/CopySummaryButton";
+import { useAssessments } from "@/hooks/use-assessments";
+import { calculateHealthBadges } from "@/utils/healthBadges";
+import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
+import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
+import { Recommendations } from "./Recommendations";
+import { PredictionExplanation } from "./PredictionExplanation";
+import { DataQualityAlerts } from "./DataQualityAlerts";
+import { BiomarkerAlerts } from "./BiomarkerAlerts";
+import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -52,6 +63,21 @@ const getFactorReason = (factor: RiskFactor) => {
 export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [view, setView] = useState<"patient" | "clinician">("patient");
   const [isPresenting, setIsPresenting] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [pdfError, setPdfError] = useState<string>("");
+
+  const generatePDF = async () => {
+    setPdfError("");
+    setIsGeneratingPDF(true);
+    try {
+      downloadClinicalAssessmentPdf(assessment);
+    } catch (error) {
+      console.error("PDF export failed", error);
+      setPdfError("Unable to export the PDF report. Please try again.");
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
 
   const exportToJson = () => {
     const blob = new Blob([JSON.stringify(assessment, null, 2)], { type: "application/json" });
@@ -80,6 +106,15 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       default: return "#2563eb";
     }
   };
+
+  const { data: assessmentsResponse } = useAssessments();
+  const assessmentHistory = assessmentsResponse?.pages
+    ? assessmentsResponse.pages.flatMap((p: any) => p.data)
+    : [];
+  const improvementBadges = useMemo(
+    () => calculateHealthBadges(assessment, assessmentHistory),
+    [assessment, assessmentHistory]
+  );
 
   const factors = normalizeFactors(assessment.factors);
   const totalFactors = Math.max(factors.length, 1);
@@ -116,6 +151,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
   return (
     <motion.div 
+      id="assessment-result-wrapper"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 overflow-hidden flex flex-col"
@@ -160,31 +196,48 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             )}
           </button>
         </div>
-        <div className="flex items-center gap-2 justify-end self-stretch print:hidden">
-          <button
-            type="button"
-            onClick={() => setIsPresenting(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <MonitorPlay className="w-3.5 h-3.5" />
-            Present
-          </button>
-          <button
-            type="button"
-            onClick={exportToJson}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            Print
-          </button>
+        <div className="pdf-hide-buttons flex flex-col gap-2 justify-end self-stretch print:hidden">
+          <div className="flex flex-wrap gap-2 items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setIsPresenting(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
+            >
+              <MonitorPlay className="w-3.5 h-3.5" />
+              Present
+            </button>
+            <button
+              type="button"
+              onClick={generatePDF}
+              disabled={isGeneratingPDF}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 border border-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+            >
+              {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+              {isGeneratingPDF ? "Generating..." : "Export PDF"}
+            </button>
+            <CopySummaryButton assessment={assessment} />
+            <button
+              type="button"
+              onClick={exportToJson}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+            >
+              <Download className="w-3.5 h-3.5" />
+              JSON
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Print
+            </button>
+          </div>
+          {pdfError ? (
+            <p role="alert" className="text-sm text-red-600 mt-1">
+              {pdfError}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -223,6 +276,14 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </p>
               </div>
 
+              <HealthBadges
+                badges={improvementBadges}
+                title="Progress badges"
+                description="See improvements and long-term trends based on this assessment and past history."
+              />
+
+              <DataQualityAlerts alerts={assessment.qualityAlerts} />
+
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
@@ -255,6 +316,14 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   </div>
                 ))}
               </div>
+
+              <Recommendations recommendations={assessment.recommendations} audience="patient" />
+
+              <PredictionExplanation explanation={assessment.explanation} view="patient" />
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
+
+              <WhatIfRiskSimulator assessment={assessment} />
 
               <ExplainabilityPanel
                 factors={factorBreakdown}
@@ -329,6 +398,11 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                <DataQualityAlerts alerts={assessment.qualityAlerts} />
+                <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -412,6 +486,10 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 reducedRiskFactors={reducedRiskFactors}
               />
 
+              <PredictionExplanation explanation={assessment.explanation} view="clinician" />
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
+
               <div className="rounded-xl border border-border bg-muted/30 p-5">
                 <h3 className="mb-4 font-bold">Suggested clinical follow-up</h3>
                 <div className="grid gap-3 md:grid-cols-3">
@@ -421,6 +499,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                     </div>
                   ))}
                 </div>
+              </div>
+              <div className="mt-4">
+                <Recommendations recommendations={assessment.recommendations} audience="clinician" />
               </div>
             </motion.div>
           )}
