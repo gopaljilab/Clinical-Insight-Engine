@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Stethoscope, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Stethoscope, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { PasswordStrength } from "@/components/auth/PasswordStrength";
 
 interface FieldErrors {
@@ -191,9 +191,8 @@ export default function PatientLogin() {
                     Remember me
                   </label>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {loading ? "Signing In..." : "Sign In"}
+                <Button type="submit" className="w-full" isLoading={loading} loadingText="Signing In...">
+                  Sign In
                 </Button>
               </form>
             </TabsContent>
@@ -282,8 +281,7 @@ export default function PatientLogin() {
                   <Label htmlFor="reg-phone" className="text-sm sm:text-base">Phone (optional)</Label>
                   <Input id="reg-phone" type="tel" placeholder="+1-555-0123" value={phone} onChange={(e) => setPhone(e.target.value)} className="min-h-[48px] text-base" />
                 </div>
-                <Button type="submit" className="w-full min-h-[48px] text-base" disabled={loading}>
-                  {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                <Button type="submit" className="w-full min-h-[48px] text-base" isLoading={loading}>
                   Create Account
                 </Button>
                 <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
