@@ -139,7 +139,7 @@ export async function registerRoutes(
   app.use("/api/assessments", analyticsRouter);
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
-  app.use("/api/assessments", analyticsRouter);
+  app.use("/api", analyticsRouter);
   app.post(
     api.assessments.preview.path,
     requireAuth,
@@ -537,25 +537,6 @@ export async function registerRoutes(
         logger.error({ err }, "Assessment search error:");
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
-      }
-    }
-  );
-
-  app.get(
-    "/api/assessments/analytics",
-    requireAuth,
-    requireVerified,
-    async (req, res) => {
-      try {
-        const userEmail = req.session.user?.email;
-        if (!userEmail) {
-           return res.status(401).json({ message: "Unauthorized" });
-        }
-        const stats = await storage.getAnalyticsStats(userEmail);
-        return res.json(stats);
-      } catch (err) {
-        logger.error({ err }, "Analytics fetch error:");
-        return res.status(500).json({ message: "Failed to fetch analytics" });
       }
     }
   );
