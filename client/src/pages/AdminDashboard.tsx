@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { useToast } from "@/hooks/use-toast";
+import { formatReadableDate } from "@/utils/dateFormat";
 
 type Tab = "users" | "audit" | "stats";
 
@@ -216,7 +217,7 @@ function AuditLogsTab({ active }: { active: boolean }) {
           {data?.data.map((log) => (
             <tr key={log.id} className="border-b border-slate-100 dark:border-gray-800">
               <td className="py-3 pr-4 text-slate-500 dark:text-slate-400">
-                {log.createdAt ? new Date(log.createdAt).toLocaleString() : "-"}
+                {formatReadableDate(log.createdAt, { fallback: "-" })}
               </td>
               <td className="py-3 pr-4 text-slate-500 dark:text-slate-400">{log.userId ? log.userId.slice(0, 8) + "..." : "-"}</td>
               <td className="py-3 pr-4 dark:text-gray-300">{log.ipAddress || "-"}</td>

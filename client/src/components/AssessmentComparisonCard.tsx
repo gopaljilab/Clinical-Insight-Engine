@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
 import { type AssessmentResponse } from "@shared/routes";
 import AssessmentSelector from "@/components/AssessmentSelector";
 import ComparisonTable from "@/components/ComparisonTable";
+import { formatReadableDate } from "@/utils/dateFormat";
 
 interface Props {
   assessments: AssessmentResponse[];
@@ -51,9 +51,7 @@ export default function AssessmentComparisonCard({
   const formatSummary = (assessment: AssessmentResponse | null) => {
     if (!assessment) return "No assessment selected";
 
-    const date = assessment.createdAt
-      ? format(new Date(assessment.createdAt), "MMM d, yyyy")
-      : "Unknown date";
+    const date = formatReadableDate(assessment.createdAt, { includeTime: false });
     const risk = assessment.riskScore !== undefined && assessment.riskScore !== null
       ? `${Number(assessment.riskScore).toFixed(1)}%`
       : "N/A";

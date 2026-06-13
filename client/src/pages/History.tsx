@@ -2,10 +2,6 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import type { Assessment, AssessmentFactor } from "@shared/schema";
 import { useAssessments, usePatientAssessments, useClearPatientCache, useDeleteAssessment } from "@/hooks/use-assessments";
 import {
-  format,
-  isValid,
-} from "date-fns";
-import {
   Loader2,
   User,
   Activity,
@@ -30,6 +26,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import RiskTrendChart, { PATIENT_COLORS } from "@/components/RiskTrendChart";
 import { EmptyState } from "@/components/EmptyState";
 import HealthBadges from "@/components/HealthBadges";
+import { formatReadableDate } from "@/utils/dateFormat";
 import { calculateHealthBadges } from "@/utils/healthBadges";
 import { AssessmentSearchBar } from "@/components/AssessmentSearchBar";
 import { AssessmentFilters } from "@/components/AssessmentFilters";
@@ -273,8 +270,8 @@ export default function History() {
       chips.push({ id: 'age', label: `Age: ${min} - ${max}`, onRemove: () => { setMinAge(undefined); setMaxAge(undefined); } });
     }
     if (startDate || endDate) {
-      const start = startDate ? format(new Date(startDate), "MMM d, yyyy") : "Any";
-      const end = endDate ? format(new Date(endDate), "MMM d, yyyy") : "Any";
+      const start = startDate ? formatReadableDate(startDate, { includeTime: false }) : "Any";
+      const end = endDate ? formatReadableDate(endDate, { includeTime: false }) : "Any";
       chips.push({ id: 'date', label: `Date: ${start} - ${end}`, onRemove: () => { setStartDate(""); setEndDate(""); } });
     }
     return chips;
@@ -415,7 +412,7 @@ export default function History() {
     if (!assessment) return;
 
     const patientName = escapeHtml(assessment.patientName || "Unknown Patient");
-    const date = escapeHtml(assessment.createdAt ? new Date(assessment.createdAt).toLocaleString() : "Unknown Date");
+    const date = escapeHtml(formatReadableDate(assessment.createdAt, { fallback: "Unknown Date" }));
     const age = escapeHtml(assessment.age ?? "N/A");
     const bmi = escapeHtml(assessment.bmi ?? "N/A");
     const hba1cLevel = escapeHtml(assessment.hba1cLevel ?? "N/A");
@@ -539,9 +536,7 @@ export default function History() {
 
 
   const formatAssessmentDate = (dateVal: any) => {
-    if (!dateVal) return "Unknown";
-    const dateObj = new Date(dateVal);
-    return isValid(dateObj) ? format(dateObj, "MMM d, yyyy") : "Unknown";
+    return formatReadableDate(dateVal, { fallback: "Unknown", includeTime: false });
   };
 
   const clearDateFilters = () => {

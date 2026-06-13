@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Loader2, LogOut, Download, AlertTriangle, Heart, Activity, FileText, ChevronLeft } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatReadableDate } from "@/utils/dateFormat";
 
 interface PatientUser {
   id: string;
@@ -69,14 +70,6 @@ function riskColorHex(category: string): string {
     case "MODERATE": return "#d97706";
     default: return "#16a34a";
   }
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      year: "numeric", month: "short", day: "numeric",
-    });
-  } catch { return dateStr; }
 }
 
 export default function MyHealth() {
@@ -150,7 +143,7 @@ export default function MyHealth() {
     doc.text("Patient Health Summary", 14, 22);
     doc.setFontSize(11);
     doc.text(`Patient: ${assessment.patientName}`, 14, 32);
-    doc.text(`Date: ${formatDate(assessment.createdAt)}`, 14, 40);
+    doc.text(`Date: ${formatReadableDate(assessment.createdAt, { includeTime: false })}`, 14, 40);
     doc.text(`Risk Score: ${assessment.riskScore.toFixed(1)}%`, 14, 50);
     doc.text(`Risk Category: ${assessment.riskCategory}`, 14, 58);
     doc.text(`Age: ${assessment.age}  |  Gender: ${assessment.gender}`, 14, 66);
@@ -201,7 +194,7 @@ export default function MyHealth() {
               <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
                 <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
                   <p className="text-xs text-gray-500">Date</p>
-                  <p className="font-medium text-sm sm:text-base">{formatDate(sa.createdAt)}</p>
+                  <p className="font-medium text-sm sm:text-base">{formatReadableDate(sa.createdAt, { includeTime: false })}</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
                   <p className="text-xs text-gray-500">Risk Score</p>
@@ -320,7 +313,7 @@ export default function MyHealth() {
                     <TableBody>
                       {assessments.map((a) => (
                         <TableRow key={a.id} className="cursor-pointer hover:bg-gray-50" onClick={() => setSelectedAssessment(a)}>
-                          <TableCell className="text-sm sticky left-0 bg-white z-10">{formatDate(a.createdAt)}</TableCell>
+                          <TableCell className="text-sm sticky left-0 bg-white z-10">{formatReadableDate(a.createdAt, { includeTime: false })}</TableCell>
                           <TableCell className="font-medium">{a.riskScore.toFixed(1)}%</TableCell>
                           <TableCell>
                             <Badge className={riskColor(a.riskCategory)}>{a.riskCategory}</Badge>
@@ -353,7 +346,7 @@ export default function MyHealth() {
                 ) : (
                   <div className="h-60 sm:h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={trends.map((t) => ({ ...t, date: formatDate(t.date) }))}>
+                      <LineChart data={trends.map((t) => ({ ...t, date: formatReadableDate(t.date, { includeTime: false }) }))}>
                         <CartesianGrid strokeDasharray="3 3" className="dark:stroke-gray-700" />
                         <XAxis dataKey="date" tick={{ fontSize: 12 }} className="dark:text-gray-400" />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} className="dark:text-gray-400" />

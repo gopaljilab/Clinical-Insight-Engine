@@ -10,8 +10,9 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { format, isValid } from "date-fns";
+import { isValid } from "date-fns";
 import type { Assessment } from "@shared/schema";
+import { formatCompactDate } from "@/utils/dateFormat";
 
 interface PatientGroup {
   patientName: string;
@@ -141,8 +142,7 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
             tickFormatter={(iso: string) => {
               if (iso === "?") return "?";
-              const d = new Date(iso);
-              return isValid(d) ? format(d, "MMM d, HH:mm") : "?";
+              return formatCompactDate(iso);
             }}
           />
           <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />

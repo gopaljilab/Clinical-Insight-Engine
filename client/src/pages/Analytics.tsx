@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveCo
 import { Activity, Users, AlertTriangle, BarChart3 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { EmptyState } from "@/components/EmptyState";
+import { formatReadableDate } from "@/utils/dateFormat";
 
 const COLORS = {
   LOW: "#10b981", // Emerald 500
@@ -152,7 +153,7 @@ export default function Analytics() {
                           <div>
                             <p className="font-bold text-foreground">{alert.patientName}</p>
                             <p className="text-xs font-semibold text-muted-foreground">
-                              {alert.gender}, {alert.age} yrs • Assessed: {alert.createdAt ? new Date(alert.createdAt).toLocaleDateString() : "Unknown"}
+                              {alert.gender}, {alert.age} yrs • Assessed: {formatReadableDate(alert.createdAt, { fallback: "Unknown", includeTime: false })}
                             </p>
                           </div>
                         </div>

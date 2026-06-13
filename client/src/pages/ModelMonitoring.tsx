@@ -20,6 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/EmptyState";
+import { formatReadableDate } from "@/utils/dateFormat";
 
 type ModelVersion = {
   id: number;
@@ -189,7 +190,7 @@ function MetricsTab({ versions }: { versions: ModelVersion[] }) {
             </div>
             <div>
               <dt className="text-slate-500 dark:text-slate-400">Trained At</dt>
-              <dd className="font-semibold dark:text-gray-100">{latest.createdAt ? new Date(latest.createdAt).toLocaleString() : "—"}</dd>
+              <dd className="font-semibold dark:text-gray-100">{formatReadableDate(latest.createdAt, { fallback: "—" })}</dd>
             </div>
           </dl>
         </CardContent>
@@ -331,7 +332,7 @@ function VersionHistoryTab({ versions }: { versions: ModelVersion[] }) {
                   <td className="py-3">{v.f1Score !== null ? (v.f1Score * 100).toFixed(1) + "%" : "—"}</td>
                   <td className="py-3">{v.aucRoc !== null ? v.aucRoc.toFixed(4) : "—"}</td>
                   <td className="py-3"><StatusBadge status={v.status} /></td>
-                  <td className="py-3 text-slate-500 dark:text-slate-400">{v.createdAt ? new Date(v.createdAt).toLocaleDateString() : "—"}</td>
+                  <td className="py-3 text-slate-500 dark:text-slate-400">{formatReadableDate(v.createdAt, { fallback: "—", includeTime: false })}</td>
                 </tr>
               ))}
             </tbody>

@@ -1,4 +1,5 @@
 import { type AssessmentResponse } from "@shared/routes";
+import { formatReadableDate } from "./dateFormat";
 
 type ReportAssessment = AssessmentResponse;
 export type PatientSummaryAssessment = Pick<
@@ -96,20 +97,7 @@ function formatNumber(value: unknown, fractionDigits = 1, suffix = ""): string {
 }
 
 function formatDate(value: unknown): string {
-  if (!value) {
-    return "N/A";
-  }
-
-  const date = new Date(value as string);
-  return Number.isNaN(date.getTime())
-    ? "N/A"
-    : date.toLocaleString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+  return formatReadableDate(value as string | Date | null | undefined, { fallback: "N/A" });
 }
 
 function getRiskColor(category: string): string {
