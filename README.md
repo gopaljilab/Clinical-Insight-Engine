@@ -686,6 +686,7 @@ py analyze.py predict_file patient.json
 | `DEV_CLINICIAN_EMAIL` | `.env.local` | Seeded clinician email (dev only) |
 | `DEV_CLINICIAN_PASSWORD` | `.env.local` | Seeded clinician password (dev only) |
 | `NEXT_PUBLIC_LOCAL_ENCRYPTION_KEY` | `.env.local` | Local encryption key (dev only) |
+| `ENABLE_PHI_REDACTION` | `.env` | Enable privacy-preserving PHI redaction (defaults to `true`) |
 
 > **Security:** `.env.local` is git-ignored and should **never** be committed. Production builds do not expose dev credentials.
 

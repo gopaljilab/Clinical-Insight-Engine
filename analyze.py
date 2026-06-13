@@ -7,6 +7,7 @@ import time
 import numpy as np
 import pandas as pd
 from app.ml.prediction_cache import get_cache
+from app.middleware.phi_redaction import phi_redaction_middleware
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
@@ -479,6 +480,7 @@ def get_model():
     finally:
         _release_lock()
 
+@phi_redaction_middleware
 def interpret_predictions_batch(model, scaler, features, input_data_list, cov_beta=None):
     """Vectorized batch prediction for a list of patient records using NumPy."""
     if model is None:
@@ -669,6 +671,7 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
             
     return results
 
+@phi_redaction_middleware
 def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     """Interprets a single patient's data, yielding clinician and patient views."""
     res = interpret_predictions_batch(model, scaler, features, [input_data], cov_beta)
@@ -678,6 +681,7 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
         return res[0]
     return res
 
+@phi_redaction_middleware
 def counterfactual_analysis(model, scaler, features, input_data, cov_beta=None):
     """
     Performs what-if counterfactual analysis.
