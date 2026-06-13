@@ -318,7 +318,10 @@ export default function Dashboard() {
                           {...register("patientName")}
                           className={getInputClass(!!errors.patientName)}
                           placeholder="e.g., John Doe"
+                          aria-label="Patient full name"
+                          aria-describedby="patientName-guidance"
                         />
+                        <p id="patientName-guidance" className="text-xs text-slate-500 dark:text-slate-400">Enter the full name used in the clinical record.</p>
                         {errors.patientName && <p className="text-sm text-red-600 mt-1">{errors.patientName.message}</p>}
                       </div>
 
@@ -336,7 +339,16 @@ export default function Dashboard() {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <input id="age" type="number" {...register("age")} className={getInputClass(!!errors.age)} placeholder="e.g. 45" />
+                        <input
+                          id="age"
+                          type="number"
+                          {...register("age")}
+                          className={getInputClass(!!errors.age)}
+                          placeholder="e.g. 45 years"
+                          aria-label="Patient age in years"
+                          aria-describedby="age-guidance"
+                        />
+                        <p id="age-guidance" className="text-xs text-slate-500 dark:text-slate-400">Use whole years; the model is intended for adult patients.</p>
                         {errors.age && <p className="text-sm text-red-600 mt-1">{errors.age.message}</p>}
                       </div>
 
@@ -412,13 +424,23 @@ export default function Dashboard() {
                           )}
                         </div>
                         <div className="relative">
-                          <input id="bmi" type="number" step="0.1" {...register("bmi")} className={getInputClass(!!errors.bmi)} placeholder="e.g. 25.0" />
+                          <input
+                            id="bmi"
+                            type="number"
+                            step="0.1"
+                            {...register("bmi")}
+                            className={getInputClass(!!errors.bmi)}
+                            placeholder="e.g. 24.5 kg/m²"
+                            aria-label="Body mass index in kilograms per square meter"
+                            aria-describedby="bmi-guidance"
+                          />
                           {watchedValues.bmi && (
                             <button type="button" onClick={() => setValue("bmi", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
                               <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
+                        <p id="bmi-guidance" className="text-xs text-slate-500 dark:text-slate-400">Enter BMI in kg/m², typically between 18.5 and 30+.</p>
                         {errors.bmi && <p className="text-sm text-red-600 mt-1">{errors.bmi.message}</p>}
                         <BMIClassificationHelper bmi={watchedValues.bmi} />
                       </div>
@@ -450,13 +472,23 @@ export default function Dashboard() {
                           )}
                         </div>
                         <div className="relative">
-                          <input id="hba1cLevel" type="number" step="0.1" {...register("hba1cLevel")} className={getInputClass(!!errors.hba1cLevel)} placeholder="e.g. 5.7" />
+                          <input
+                            id="hba1cLevel"
+                            type="number"
+                            step="0.1"
+                            {...register("hba1cLevel")}
+                            className={getInputClass(!!errors.hba1cLevel)}
+                            placeholder="e.g. 5.7%"
+                            aria-label="HbA1c level percentage"
+                            aria-describedby="hba1cLevel-guidance"
+                          />
                           {watchedValues.hba1cLevel && (
                             <button type="button" onClick={() => setValue("hba1cLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
                               <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
+                        <p id="hba1cLevel-guidance" className="text-xs text-slate-500 dark:text-slate-400">Enter the HbA1c percentage from the most recent lab result.</p>
                         {errors.hba1cLevel && <p className="text-sm text-red-600 mt-1">{errors.hba1cLevel.message}</p>}
                       </div>
 
@@ -480,13 +512,22 @@ export default function Dashboard() {
                           </Tooltip>
                         </div>
                         <div className="relative">
-                          <input id="bloodGlucoseLevel" type="number" {...register("bloodGlucoseLevel")} className={getInputClass(!!errors.bloodGlucoseLevel)} placeholder="e.g. 100" />
+                          <input
+                            id="bloodGlucoseLevel"
+                            type="number"
+                            {...register("bloodGlucoseLevel")}
+                            className={getInputClass(!!errors.bloodGlucoseLevel)}
+                            placeholder="e.g. 140 mg/dL"
+                            aria-label="Blood glucose level in milligrams per deciliter"
+                            aria-describedby="bloodGlucoseLevel-guidance"
+                          />
                           {watchedValues.bloodGlucoseLevel && (
                             <button type="button" onClick={() => setValue("bloodGlucoseLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
                               <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
+                        <p id="bloodGlucoseLevel-guidance" className="text-xs text-slate-500 dark:text-slate-400">Use mg/dL from the most recent fasting or clinical glucose reading.</p>
                         {errors.bloodGlucoseLevel && <p className="text-sm text-red-600 mt-1">{errors.bloodGlucoseLevel.message}</p>}
                       </div>
                     </div>
