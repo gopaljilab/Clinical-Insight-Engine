@@ -46,7 +46,7 @@ describe("sendVerificationEmail", () => {
   it("does not log OTP in production mode", async () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
-    mockResendSend.mockRejectedValueOnce(new Error("No API key"));
+    mockSend.mockResolvedValueOnce({ error: new Error("No API key") });
     try {
       const sent = await sendVerificationEmail("test@example.com", "123456");
       expect(sent).toBe(false);
@@ -140,7 +140,7 @@ describe("sendCriticalRiskAlert", () => {
     process.env.NODE_ENV = "production";
     process.env.RESEND_API_KEY = "re_test_key";
     try {
-      mockResendSend.mockResolvedValueOnce({ data: { id: "test-id" }, error: null });
+      mockSend.mockResolvedValueOnce({ data: { id: "test-id" }, error: null });
       const sent = await sendCriticalRiskAlert("doc@example.com", "Jane Doe", 85.5, 123);
       expect(sent).toBe(true);
       const loggedOutput = mockInfo.mock.calls.map((call: any) => JSON.stringify(call)).join(" ");

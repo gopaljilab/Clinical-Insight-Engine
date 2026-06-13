@@ -1,4 +1,4 @@
-import { loginAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser, type ModelVersion, type InsertModelVersion, type InsertPatientUser, type PatientUser } from "@shared/schema";
+import { loginAuditLogs, patientAccessAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser, type ModelVersion, type InsertModelVersion, type InsertPatientUser, type PatientUser } from "@shared/schema";
 import { assessments, users } from "@shared/schema";
 import { getDb } from "./db";
 import { eq, desc, and, or, ilike } from "drizzle-orm";
@@ -90,6 +90,18 @@ export class DatabaseStorage implements IStorage {
   private modelVersionRepository = new ModelVersionRepository();
   private patientUserRepository = new PatientUserRepository();
 
+  async getAssessments(limitOrParams?: any, cursor?: number, createdBy?: string) { return this.assessmentRepository.getAssessments(limitOrParams, cursor, createdBy); }
+  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: RiskCategory, limit?: number, cursor?: number) { return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor); }
+  async getAssessmentById(id: number) { return this.assessmentRepository.getAssessmentById(id); }
+  async createAssessment(assessment: any) { return this.assessmentRepository.createAssessment(assessment); }
+  async deleteAssessment(id: number) { return this.assessmentRepository.deleteAssessment(id); }
+  async autocompletePatientNames(query: string, createdBy?: string, limit?: number) { return this.assessmentRepository.autocompletePatientNames(query, createdBy, limit); }
+  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number) { return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset); }
+
+  async createUser(data: InsertUser) { return this.userRepository.createUser(data); }
+  async getUserByEmail(email: string) { return this.userRepository.getUserByEmail(email); }
+  async getUserById(id: string) { return this.userRepository.getUserById(id); }
+  async getAllUsers(page: number, limit: number) { return this.userRepository.getAllUsers(page, limit); }
 
   async updateUser(id: string, data: Partial<Pick<User, "isActive" | "role">>) {
     return this.userRepository.updateUser(id, data);
@@ -149,10 +161,6 @@ export class DatabaseStorage implements IStorage {
 
   async getPatientAccessAuditLogs(page: number, limit: number) {
     return this.auditRepository.getPatientAccessAuditLogs(page, limit);
-  }
-
-  async getSystemStats() { 
-    return this.analyticsRepository.getSystemStats(); 
   }
 
   async getPatientTrends(patientName: string) {

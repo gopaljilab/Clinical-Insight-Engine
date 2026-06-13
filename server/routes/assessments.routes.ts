@@ -6,8 +6,6 @@ import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService, calculateClinicalFallback } from "../services/mlService";
-import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { MLService, isPythonAvailable, calculateClinicalFallback } from "../services/mlService";
 
 import { generateRecommendations } from "../services/recommendation-engine";
@@ -41,28 +39,6 @@ function getPythonExecutable() {
 }
 
 const assessmentsRouter = Router();
-
-export const assessmentLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 5,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: {
-    error: "Too many assessment requests. Please try again later.",
-    retryAfter: 60,
-  },
-});
-
-export const previewLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 10,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  message: {
-    error: "Too many preview requests. Please try again later.",
-    retryAfter: 60,
-  },
-});
 
 assessmentsRouter.post(
   "/preview",
@@ -576,6 +552,69 @@ assessmentsRouter.delete(
       logger.error({ err }, "Assessment delete error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
+    }
+  }
+);
+
+assessmentsRouter.post(
+  "/bulk",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    const userId = (req.session.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required." });
+    }
+
+    const inputSchema = z.array(api.assessments.create.input);
+    let requestFingerprint: string | null = null;
+
+    try {
+      const input = inputSchema.parse(req.body.assessments);
+      
+      requestFingerprint = MLService.generateRequestFingerprint(input, userId);
+      if (MLService.activeInferenceRequests.has(requestFingerprint)) {
+        return res.status(409).json({ message: "Bulk request already processing." });
+      }
+      MLService.activeInferenceRequests.add(requestFingerprint);
+
+      let predictions: any[];
+      try {
+        const result = await MLService.runAssessmentInferenceBatch(input);
+        predictions = result.predictions;
+        if (!Array.isArray(predictions)) {
+          throw new Error("Expected array of predictions");
+        }
+      } catch (error: any) {
+        predictions = calculateClinicalFallback(input);
+      }
+
+      const createdAssessments = await Promise.all(
+        input.map((assessment, index) => {
+          const prediction = predictions[index];
+          return storage.createAssessment({
+            ...assessment,
+            riskScore: Number(prediction.riskScore),
+            riskCategory: prediction.riskCategory,
+            factors: prediction.factors,
+            confidenceInterval: prediction.confidenceInterval ?? null,
+            modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
+            createdBy: userId,
+          });
+        })
+      );
+
+      return res.status(201).json({ count: createdAssessments.length, assessments: createdAssessments });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid bulk input data format. Ensure all rows meet schema requirements." });
+      }
+      logger.error({ err }, "Bulk create error:");
+      return res.status(500).json({ message: "Failed to generate bulk assessments." });
+    } finally {
+      if (requestFingerprint) {
+        MLService.activeInferenceRequests.delete(requestFingerprint);
+      }
     }
   }
 );

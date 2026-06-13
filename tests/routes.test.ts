@@ -86,7 +86,9 @@ vi.mock("../server/storage", () => {
     getAssessmentById: vi.fn().mockResolvedValue(undefined),
     deleteAssessment: vi.fn().mockResolvedValue(undefined),
     getUserByEmail: vi.fn().mockResolvedValue({ id: "admin-id" }),
+    getUserById: vi.fn().mockResolvedValue({ id: "test-user-id", email: "test@example.com", role: "provider", isActive: true }),
     createUser: vi.fn().mockResolvedValue({ id: "admin-id" }),
+    recordPatientAccess: vi.fn().mockResolvedValue(undefined),
   };
   return {
     storage: mockStorageInstance,
@@ -308,7 +310,7 @@ describe("Rate limiting", () => {
       results.push(res);
     }
 
-    expect(lastStatus).toBe(429);
+    expect(results[results.length - 1].status).toBe(429);
   });
 });
 

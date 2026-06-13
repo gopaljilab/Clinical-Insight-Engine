@@ -181,7 +181,7 @@ describe("OTP Brute-Force Lockout Integration", () => {
     });
   });
 
-  it("locks out user after 5 failed OTP verification attempts", async () => {
+  it("locks out user after 3 failed OTP verification attempts", async () => {
     const loginRes = await request(app)
       .post("/api/auth/login")
       .send({ email: "doc@example.com", password: "password" });
@@ -190,26 +190,14 @@ describe("OTP Brute-Force Lockout Integration", () => {
 
     const fail1 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
     expect(fail1.status).toBe(401);
-    expect(fail1.body.message).toContain("4 attempt(s) remaining");
+    expect(fail1.body.message).toContain("2 attempt(s) remaining");
 
     const fail2 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
     expect(fail2.status).toBe(401);
-    expect(fail2.body.message).toContain("3 attempt(s) remaining");
+    expect(fail2.body.message).toContain("1 attempt(s) remaining");
 
     const fail3 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
-    expect(fail3.status).toBe(401);
-    expect(fail3.body.message).toContain("2 attempt(s) remaining");
-
-    const fail4 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
-    expect(fail4.status).toBe(401);
-    expect(fail4.body.message).toContain("1 attempt(s) remaining");
-
-    const fail5 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
-    expect(fail5.status).toBe(401);
-    expect(fail5.body.message).toContain("Please request a new code.");
-
-    const fail6 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
-    expect(fail6.status).toBe(429);
-    expect(fail6.body.message).toContain("Too many failed attempts");
+    expect(fail3.status).toBe(429);
+    expect(fail3.body.message).toContain("Too many failed attempts");
   });
 });

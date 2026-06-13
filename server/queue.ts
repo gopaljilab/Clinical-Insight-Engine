@@ -77,50 +77,11 @@ export function startAssessmentWorker(): void {
   assessmentWorkerInstance = new Worker(
     "assessmentQueue",
     async (job: Job) => {
-      const { input, userId, userEmail } = job.data;
+      const { input, userId, userEmail, requestId = "job-" + job.id, startedAt = Date.now() } = job.data;
 
       try {
         const { prediction } = await MLService.runAssessmentInference(input);
-        let prediction: any;
-        
-        if (!isPythonAvailable) {
-           prediction = calculateClinicalFallback(input);
-        } else {
-          await writeFile(tempFile, JSON.stringify(input));
-          const stdout = await new Promise<string>((resolve, reject) => {
-            const child = execFile(
-              getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            {
-              timeout: 60000,
-              killSignal: "SIGTERM",
-            },
-            (error, stdout, stderr) => {
-              if (error) {
-                reject(error);
-              } else {
-                resolve(stdout);
-              }
-            }
-          );
 
-          const fallbackTimer = setTimeout(() => {
-            try {
-              child.kill("SIGKILL");
-            } catch (e) {
-              // ignore
-            }
-            reject(new Error("Clinical assessment timed out (forced kill)."));
-          }, 65000);
-
-          child.on("close", () => clearTimeout(fallbackTimer));
-        });
-
-          prediction = JSON.parse(stdout.trim());
-          if (prediction.error) {
-            throw new Error(prediction.error);
-          }
-        }
 
         logger.info(
           {

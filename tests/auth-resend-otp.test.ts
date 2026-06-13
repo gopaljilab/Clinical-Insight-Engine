@@ -10,7 +10,7 @@ const { mockSendVerificationEmail } = vi.hoisted(() => ({
 }));
 
 vi.mock("../server/email", () => ({
-  sendVerificationEmail: mockSendVerificationCode,
+  sendVerificationEmail: mockSendVerificationEmail,
   sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
 }));
 

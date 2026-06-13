@@ -536,36 +536,7 @@ export default function History() {
     setCurrentPage(1);
   }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate, sortBy]);
 
-  const sortedAssessments = assessments;
-  const latestBadgeAssessment = useMemo(() => {
-    if (sortedAssessments.length === 0) return null;
-    return (
-      sortedAssessments.find((assessment) =>
-        calculateHealthBadges(assessment, sortedAssessments).length > 0
-      ) || sortedAssessments[0]
-    );
-  }, [sortedAssessments]);
 
-  const latestBadges = useMemo(() => {
-    if (!latestBadgeAssessment) return [];
-    return calculateHealthBadges(latestBadgeAssessment, sortedAssessments);
-  }, [latestBadgeAssessment, sortedAssessments]);
-
-  const selectedPatientBadges = useMemo(() => {
-    const sortedHistory = [...selectedPatientHistory].sort(
-      (a, b) =>
-        new Date(b.createdAt || 0).getTime() -
-        new Date(a.createdAt || 0).getTime()
-    );
-
-    if (sortedHistory.length === 0) return [];
-    return calculateHealthBadges(sortedHistory[0], sortedHistory);
-  }, [selectedPatientHistory]);
-
-  // 4. Pagination
-  const totalRecords = assessments.length;
-  const filteredRecords = sortedAssessments.length;
-  const paginatedAssessments = sortedAssessments;
 
   const formatAssessmentDate = (dateVal: any) => {
     if (!dateVal) return "Unknown";

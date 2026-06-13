@@ -1,4 +1,4 @@
-import mlRouter from "./routes/ml.routes";
+
 import exportsRouter from "./routes/exports.routes";
 import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
@@ -16,9 +16,8 @@ import {
   exportLimiter,
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
-import { MLService, calculateClinicalFallback, generateRequestFingerprint } from "./services/mlService";
-import { getAssessmentQueue, getPythonExecutable } from "./queue";
-import { execFile } from "child_process";
+import { MLService } from "./services/mlService";
+import { getAssessmentQueue } from "./queue";
 import path from "path";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
@@ -26,7 +25,6 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import os from "os";
 import { randomUUID } from "crypto";
-import { writeFile, unlink } from "fs/promises";
 import { validateDTO } from "./middleware/validateDTO";
 import { calculateClinicalFallback, generateRequestFingerprint } from "./services/mlService";
 import { assessmentsToCsv } from "./utils/csvExport";
@@ -38,15 +36,6 @@ import { logAccessAttempt } from "./security/access-audit";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
-
-function execFileAsync(file: string, args: string[], options: any): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    execFile(file, args, options, (err, stdout, stderr) => {
-      if (err) reject(err);
-      else resolve({ stdout: stdout as unknown as string, stderr: stderr as unknown as string });
-    });
-  });
-}
 
 async function seedDatabase() {
   const adminEmail = process.env.ADMIN_EMAIL;
@@ -180,7 +169,7 @@ export async function registerRoutes(
 
   // Mount auth router
   app.use("/api/auth", authRouter);
-  app.use("/api/assessments", mlRouter);
+
   app.use("/api/assessments", exportsRouter);
   app.use("/api/assessments", analyticsRouter);
   app.use("/api/assessments", assessmentsRouter);
@@ -192,38 +181,22 @@ export async function registerRoutes(
     validateDTO(api.assessments.preview.input),
     async (req, res) => {
       const input = api.assessments.preview.input.parse(req.body);
-      const tempFile = path.join(
-        os.tmpdir(),
-        `${randomUUID()}.json`
-      );
 
       try {
-        await writeFile(tempFile, JSON.stringify(input));
-
         let prediction;
         try {
-          const { stdout, stderr } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            {
-              timeout: 30000
-            }
-          );
-          prediction = JSON.parse(stdout.trim());
+          const result = await MLService.runAssessmentInference(input);
+          prediction = result.prediction;
           if (prediction.error) {
-            return res.status(400).json({
-              message: prediction.error
-            });
+            return res.status(400).json({ message: prediction.error });
           }
         } catch (error: any) {
-          if (error.killed || error.signal === "SIGTERM") {
-            return res.status(503).json({
-              message: "Clinical assessment preview timed out."
-            });
+          if (error.message === "Clinical assessment timed out.") {
+            return res.status(503).json({ message: "Clinical assessment preview timed out." });
           }
-          logger.warn("Python prediction preview failed, running clinical rule-based fallback:", error);
           prediction = calculateClinicalFallback(input);
         }
+
         logger.info(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
         return res.json({
           riskScore: prediction.riskScore,
@@ -234,18 +207,10 @@ export async function registerRoutes(
         });
       } catch (err) {
         if (err instanceof z.ZodError) {
-          return res.status(400).json({
-            message: err.errors[0].message
-          });
+          return res.status(400).json({ message: err.errors[0].message });
         }
         logger.error({ err }, "Error creating assessment preview");
         return res.status(500).json({ message: "Internal server error" });
-      } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {
-          logger.warn({ e, tempFile }, "Failed to clean up temp file (preview):");
-        }
       }
     }
   );
@@ -258,32 +223,19 @@ export async function registerRoutes(
     validateDTO(api.assessments.simulate.input),
     async (req, res) => {
       const input = api.assessments.simulate.input.parse(req.body);
-      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
 
       try {
-        await writeFile(tempFile, JSON.stringify(input));
-
         let prediction: any;
         try {
-          const { stdout } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            { timeout: 30000 }
-          );
-
-          prediction = JSON.parse(stdout.trim());
+          const result = await MLService.runAssessmentInference(input);
+          prediction = result.prediction;
           if (prediction.error) {
             return res.status(400).json({ message: prediction.error });
           }
         } catch (error: any) {
-          if (error.killed || error.signal === "SIGTERM") {
+          if (error.message === "Clinical assessment timed out.") {
             return res.status(408).json({ message: "Clinical assessment simulation timed out." });
           }
-
-          logger.warn(
-            "Python prediction simulation failed, falling back to clinical rule-based model:",
-            error
-          );
           prediction = calculateClinicalFallback(input);
         }
 
@@ -303,12 +255,6 @@ export async function registerRoutes(
         }
         logger.error({ err }, "Error creating assessment simulation");
         return res.status(500).json({ message: "Internal server error" });
-      } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {
-          logger.warn({ e, tempFile }, "Failed to clean up temp file (simulate):");
-        }
       }
     }
   );
@@ -412,7 +358,6 @@ export async function registerRoutes(
       }
 
       const inputSchema = z.array(api.assessments.create.input);
-      let tempFilePath: string | null = null;
       let requestFingerprint: string | null = null;
 
       try {
@@ -424,18 +369,10 @@ export async function registerRoutes(
         }
         MLService.activeInferenceRequests.add(requestFingerprint);
 
-        tempFilePath = path.join(os.tmpdir(), `bulk_${randomUUID()}.json`);
-        await writeFile(tempFilePath, JSON.stringify(input));
-
         let predictions: any[];
         try {
-          const { stdout } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFilePath],
-            { timeout: 60000, maxBuffer: 50 * 1024 * 1024 }
-          );
-
-          predictions = JSON.parse(stdout.trim());
+          const result = await MLService.runAssessmentInferenceBatch(input);
+          predictions = result.predictions;
           if (!Array.isArray(predictions)) {
             throw new Error("Expected array of predictions");
           }
@@ -466,9 +403,6 @@ export async function registerRoutes(
         logger.error({ err }, "Bulk create error:");
         return res.status(500).json({ message: "Failed to generate bulk assessments." });
       } finally {
-        if (tempFilePath) {
-          try { await unlink(tempFilePath); } catch {}
-        }
         if (requestFingerprint) {
           MLService.activeInferenceRequests.delete(requestFingerprint);
         }
@@ -627,44 +561,7 @@ export async function registerRoutes(
     }
   );
 
-  /**
-   * GET /api/assessments/export.csv
-   *
-   * Exports filtered assessments as a CSV file.
-   */
-  app.get(
-    "/api/assessments/export.csv",
-    requireAuth,
-    requireVerified,
-    exportLimiter,
-    async (req, res) => {
-      try {
-        const userEmail = req.session.user?.email;
-        const parseResult = assessmentExportQuerySchema.safeParse(req.query);
-        if (!parseResult.success) {
-          return res.status(400).json({
-            message: parseResult.error.errors[0]?.message ?? "Invalid export query parameters.",
-          });
-        }
 
-        const assessments = await storage.getAssessments({
-          ...parseResult.data,
-          createdBy: userEmail,
-        });
-
-        const csv = assessmentsToCsv(
-          assessments.data as unknown as Record<string, unknown>[]
-        );
-
-        res.header("Content-Type", "text/csv");
-        res.attachment("assessments.csv");
-        return res.send(csv);
-      } catch (err) {
-        logger.error({ err }, "Export error:");
-        return res.status(500).json({ message: "Failed to export data" });
-      }
-    }
-  );
 
   /**
    * GET /api/assessments/:id
@@ -725,7 +622,7 @@ export async function registerRoutes(
   );
   
   // Mount domain-specific routers (after app-level handlers for precedence)
-  app.use("/api/assessments", mlRouter);
+
   app.use("/api/assessments", exportsRouter);
   app.use("/api/assessments", analyticsRouter);
   app.use("/api/assessments", generalLimiter, assessmentsRouter);
@@ -815,6 +712,10 @@ export async function registerRoutes(
 
   app.post("/api/admin/model/retrain", requireAuth, requireAdmin, async (req, res) => {
     try {
+      const { execFile } = await import("child_process");
+      const { promisify } = await import("util");
+      const { getPythonExecutable } = await import("./services/mlService");
+      const execFileAsync = promisify(execFile);
       const { stdout, stderr } = await execFileAsync(
         getPythonExecutable(),
         [analyzePyPath, "train_and_evaluate"],

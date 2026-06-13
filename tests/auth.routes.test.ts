@@ -29,7 +29,7 @@ vi.mock("../server/db", () => {
 // Mock email services — auth.ts uses sendVerificationEmail
 const mockSendVerificationEmail = vi.fn().mockResolvedValue(true);
 vi.mock("../server/email", () => ({
-  sendVerificationEmail: (email: string, otp: string) => mockSendVerificationCode(email, otp),
+  sendVerificationEmail: (email: string, otp: string) => mockSendVerificationEmail(email, otp),
   sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
 }));
 
