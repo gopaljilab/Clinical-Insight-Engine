@@ -61,13 +61,15 @@ export function logAccessAttempt(
     logger.warn({ audit: event, security: true }, "Access Denied");
   }
 
-  storage.recordPatientAccess({
-    userId,
-    resourceType,
-    resourceId: String(resourceId),
-    action: granted ? "VIEW" : "DENIED",
-    ipAddress: req?.ip,
-    userAgent: req?.headers?.["user-agent"],
-    granted,
-  }).catch((err) => logger.error({ err }, "Failed to persist access audit log"));
+  if (typeof storage.recordPatientAccess === "function") {
+    storage.recordPatientAccess({
+      userId,
+      resourceType,
+      resourceId: String(resourceId),
+      action: granted ? "VIEW" : "DENIED",
+      ipAddress: req?.ip,
+      userAgent: req?.headers?.["user-agent"],
+      granted,
+    }).catch((err) => logger.error({ err }, "Failed to persist access audit log"));
+  }
 }
