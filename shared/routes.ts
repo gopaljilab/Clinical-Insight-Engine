@@ -166,6 +166,91 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    whatIf: {
+      method: "POST" as const,
+      path: "/api/assessments/what-if" as const,
+      input: insertAssessmentSchema,
+      responses: {
+        200: z.object({
+          simulatedRisk: z.number(),
+          riskCategory: z.enum(["LOW", "MODERATE", "HIGH"]),
+          factors: z.array(
+            z.object({
+              name: z.string(),
+              impact: z.string(),
+              description: z.string(),
+            })
+          ),
+          confidenceInterval: z.string().nullable().optional(),
+          modelConfidence: z.number().nullable().optional(),
+          isFallback: z.boolean().optional(),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    whatIfBatch: {
+      method: "POST" as const,
+      path: "/api/assessments/what-if/batch" as const,
+      input: z.object({
+        assessmentId: z.number().optional(),
+        original: insertAssessmentSchema,
+        perturbations: z.array(
+          z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+        ).max(50, "Maximum of 50 perturbations allowed per request"),
+      }),
+      responses: {
+        200: z.object({
+          original: z.object({
+            riskScore: z.number(),
+            riskCategory: z.string(),
+            factors: z.array(
+              z.object({
+                name: z.string(),
+                impact: z.string(),
+                description: z.string(),
+              })
+            ),
+          }),
+          perturbations: z.array(
+            z.object({
+              delta: z.string(),
+              riskScore: z.number(),
+              riskCategory: z.string(),
+              factors: z.array(
+                z.object({
+                  name: z.string(),
+                  impact: z.string(),
+                  description: z.string(),
+                })
+              ),
+              riskReduction: z.number(),
+              confidenceInterval: z.string().nullable().optional(),
+              modelConfidence: z.number().nullable().optional(),
+            })
+          ),
+          ranked: z.array(
+            z.object({
+              delta: z.string(),
+              riskScore: z.number(),
+              riskCategory: z.string(),
+              factors: z.array(
+                z.object({
+                  name: z.string(),
+                  impact: z.string(),
+                  description: z.string(),
+                })
+              ),
+              riskReduction: z.number(),
+              confidenceInterval: z.string().nullable().optional(),
+              modelConfidence: z.number().nullable().optional(),
+            })
+          ),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
     biomarkerAlerts: {
       method: "GET" as const,
       path: "/api/assessments/biomarker-alerts" as const,

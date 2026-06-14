@@ -879,3 +879,78 @@ describe("Route uniqueness (no duplicate registrations)", () => {
   });
 });
 
+const whatIfBatchSuccessOutput = JSON.stringify({
+  original: {
+    riskScore: 12.3,
+    riskCategory: "LOW",
+    factors: [{ name: "Age", impact: "positive", description: "Increases risk" }],
+  },
+  perturbations: [
+    {
+      delta: "BMI reduced by 2",
+      riskScore: 10.1,
+      riskCategory: "LOW",
+      factors: [{ name: "Age", impact: "positive", description: "Increases risk" }],
+      riskReduction: 2.2,
+      confidenceInterval: "7.0% - 14.0%",
+      modelConfidence: 0.88,
+    }
+  ]
+});
+
+describe("What-if batch analysis endpoint", () => {
+  it("returns 200 and simulated risk reductions for valid inputs", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+      const callback = typeof opts === "function" ? opts : cb;
+      setTimeout(() => {
+        callback(null, whatIfBatchSuccessOutput, "");
+      }, 0);
+      return {
+        stdin: {
+          on: vi.fn(),
+          write: vi.fn(),
+          end: vi.fn(),
+        },
+      } as any;
+    });
+
+    const payload = {
+      original: validPayload,
+      perturbations: [{ bmi: 22.5 }],
+    };
+
+    const res = await request(app)
+      .post("/api/assessments/what-if/batch")
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("original");
+    expect(res.body.original).toHaveProperty("riskScore", 12.3);
+    expect(res.body.perturbations).toHaveLength(1);
+    expect(res.body.perturbations[0]).toHaveProperty("delta", "BMI reduced by 2");
+  });
+
+  it("returns 400 when perturbations count exceeds the maximum limit of 50", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const excessivePerturbations = Array.from({ length: 51 }, (_, i) => ({
+      bmi: 20 + i,
+    }));
+
+    const payload = {
+      original: validPayload,
+      perturbations: excessivePerturbations,
+    };
+
+    const res = await request(app)
+      .post("/api/assessments/what-if/batch")
+      .send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain("Maximum of 50 perturbations allowed");
+  });
+});

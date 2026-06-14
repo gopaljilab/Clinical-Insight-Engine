@@ -19,9 +19,7 @@ import { searchQuerySchema, assessmentsQuerySchema } from "../validation/searchV
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
 import { validateDTO } from "../middleware/validateDTO";
-import { writeFile, unlink } from "fs/promises";
 import { existsSync } from "fs";
-import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -111,7 +109,6 @@ assessmentsRouter.post(
   requireAuth,
   requireVerified,
   async (req, res) => {
-    const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
     try {
       const parsed = api.assessments.whatIfBatch.input.parse(req.body);
       const { original, perturbations } = parsed;
@@ -143,18 +140,25 @@ assessmentsRouter.post(
       }
 
       const payload = { original, perturbations };
-      await writeFile(tempFile, JSON.stringify(payload));
 
       const stdout = await new Promise<string>((resolve, reject) => {
         const child = execFile(
           getPythonExecutable(),
-          [analyzePyPath, "counterfactual", tempFile],
+          [analyzePyPath, "counterfactual"],
           { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
           (error, stdout, stderr) => {
             if (error) reject(error);
             else resolve(stdout);
           }
         );
+
+        if (child.stdin) {
+          child.stdin.on("error", (err) => {
+            logger.error({ err }, "Error writing to python stdin");
+          });
+          child.stdin.write(JSON.stringify(payload));
+          child.stdin.end();
+        }
       });
 
       const result = JSON.parse(stdout.trim());
@@ -169,8 +173,6 @@ assessmentsRouter.post(
       }
       logger.error({ err }, "What-if batch analysis failed");
       return res.status(500).json({ message: "What-if batch analysis failed. Please try again." });
-    } finally {
-      try { await unlink(tempFile); } catch {}
     }
   }
 );
