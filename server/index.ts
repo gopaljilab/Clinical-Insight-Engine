@@ -42,10 +42,9 @@ const allowedOrigins = process.env.CORS_ORIGINS
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    // This is required for the browser to load the initial HTML document
+    // Reject requests with no origin to prevent CORS bypass
     if (!origin) {
-      return callback(null, true);
+      return callback(new Error("CORS: Origin header is required"), false);
     }
     
     if (allowedOrigins.includes(origin)) {
