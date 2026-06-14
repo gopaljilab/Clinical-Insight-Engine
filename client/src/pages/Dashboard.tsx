@@ -13,7 +13,7 @@ import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@s
 import { insertAssessmentSchema } from "@shared/schema";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-
+import { useTranslation } from "react-i18next";
 const formSchema = insertAssessmentSchema.pick({
   patientName: true,
   gender: true,
@@ -65,6 +65,7 @@ export default function Dashboard() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const { mutate: createAssessment, isPending, error } = useCreateAssessment();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const { data: assessmentsData } = useAssessments({ limit: 50 });
   const assessments = assessmentsData?.data ?? [];
@@ -253,9 +254,9 @@ export default function Dashboard() {
               <div className="sm:col-span-4">
                 <EmptyState
                   icon={Activity}
-                  title="No Assessments Yet"
-                  description="Your statistics will appear here once you run your first risk assessment."
-                  actionLabel="Run First Assessment"
+                  title={t('dashboard.emptyState.title')}
+                  description={t('dashboard.emptyState.description')}
+                  actionLabel={t('dashboard.emptyState.actionLabel')}
                   actionOnClick={() =>
                     document
                       .getElementById("assessment-form")

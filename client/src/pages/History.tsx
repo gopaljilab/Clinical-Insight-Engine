@@ -32,6 +32,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "react-i18next";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
@@ -65,7 +66,7 @@ export default function History() {
   }, []);
 
   const { toast } = useToast();
-
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
   const [currentPage, setCurrentPage] = useState(1);
@@ -715,19 +716,19 @@ export default function History() {
         ) : totalRecords === 0 ? (
           <EmptyState
             icon={Activity}
-            title="No Assessments Found"
-            description="There are no patient assessments loaded yet. Create your first assessment to start tracking patient health trajectories."
-            actionLabel="Create First Assessment"
+            title={t('history.emptyState.noAssessments.title')}
+            description={t('history.emptyState.noAssessments.description')}
+            actionLabel={t('history.emptyState.noAssessments.actionLabel')}
             actionHref="/dashboard"
           />
         ) : filteredRecords === 0 ? (
           <EmptyState
             icon={Activity}
-            title="No Matching Records"
-            description="No patient records match the current filters. Clear the filters to return to the full assessment history, or create a new assessment if this patient needs fresh data."
-            actionLabel="Clear Filters"
+            title={t('history.emptyState.noMatching.title')}
+            description={t('history.emptyState.noMatching.description')}
+            actionLabel={t('history.emptyState.noMatching.actionLabel')}
             actionOnClick={clearAllFilters}
-            secondaryActionLabel="Create Assessment"
+            secondaryActionLabel={t('history.emptyState.noMatching.secondaryActionLabel')}
             secondaryActionHref="/dashboard"
           />
         ) : (

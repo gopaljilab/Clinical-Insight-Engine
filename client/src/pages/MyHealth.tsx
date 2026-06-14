@@ -11,6 +11,7 @@ import { Loader2, LogOut, Download, AlertTriangle, Heart, Activity, FileText, Ch
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatReadableDate } from "@/utils/dateFormat";
 import { EmptyState } from "@/components/EmptyState";
+import { useTranslation } from "react-i18next";
 
 interface PatientUser {
   id: string;
@@ -81,6 +82,7 @@ export default function MyHealth() {
   const [loading, setLoading] = useState(true);
   const [selectedAssessment, setSelectedAssessment] = useState<Assessment | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const token = getToken();
@@ -301,9 +303,9 @@ export default function MyHealth() {
                 {assessments.length === 0 ? (
                   <EmptyState
                     icon={FileText}
-                    title="No Assessments Yet"
-                    description="Your completed risk assessments will appear here after your care team shares results with this patient account."
-                    actionLabel="Refresh Records"
+                    title={t('myHealth.emptyAssessments.title')}
+                    description={t('myHealth.emptyAssessments.description')}
+                    actionLabel={t('myHealth.emptyAssessments.actionLabel')}  
                     actionOnClick={() => {
                       const token = getToken();
                       if (token) {
@@ -312,7 +314,7 @@ export default function MyHealth() {
                         fetchTrends(token);
                       }
                     }}
-                    secondaryActionLabel="Back to Sign In"
+                    secondaryActionLabel={t('myHealth.emptyAssessments.secondaryActionLabel')}
                     secondaryActionOnClick={handleLogout}
                   />
                 ) : (
@@ -358,13 +360,13 @@ export default function MyHealth() {
                 {trends.length < 2 ? (
                   <EmptyState
                     icon={Activity}
-                    title={trends.length === 1 ? "One Result Recorded" : "No Trend Data Yet"}
+                    title={trends.length === 1 ? t('myHealth.emptyTrends.titleOne') : t('myHealth.emptyTrends.titleNone')}
                     description={
                       trends.length === 1
-                        ? "At least two completed assessments are needed before a risk trend chart can be drawn."
-                        : "Trend charts will appear here once assessment results are available for this account."
+                        ? t('myHealth.emptyTrends.descriptionOne')
+                        : t('myHealth.emptyTrends.descriptionNone')
                     }
-                    actionLabel="Refresh Trends"
+                    actionLabel={t('myHealth.emptyTrends.actionLabel')}
                     actionOnClick={() => {
                       const token = getToken();
                       if (token) {
