@@ -255,6 +255,12 @@ export default function Dashboard() {
                   icon={Activity}
                   title="No Assessments Yet"
                   description="Your statistics will appear here once you run your first risk assessment."
+                  actionLabel="Run First Assessment"
+                  actionOnClick={() =>
+                    document
+                      .getElementById("assessment-form")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
                 />
               </div>
             ) : (
@@ -291,6 +297,7 @@ export default function Dashboard() {
         <div className={`transition-all duration-500 grid grid-cols-1 gap-8 lg:items-start ${(result || isPending) ? "lg:grid-cols-12" : "lg:grid-cols-5"}`}>
           <div className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-4 sticky top-8" : "lg:col-span-3"} lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4`}>
             <form
+              id="assessment-form"
               onSubmit={handleSubmit(onSubmit)}
               className={`rounded-2xl border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_-2px_rgba(0,0,0,0.3)] transition-all duration-200 md:p-8 ${result ? "opacity-75 pointer-events-none" : ""}`}
             >

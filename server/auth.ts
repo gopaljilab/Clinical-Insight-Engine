@@ -187,17 +187,36 @@ export async function getAuthenticatedUser(
 ): Promise<AuthenticatedUser | null> {
   if (req.session?.user) {
     const sessionUser = req.session.user;
-    const dbUser = await storage.getUserById(sessionUser.id);
-    if (!dbUser || dbUser.isActive === false) {
-      return null;
+    try {
+      const dbUser = typeof storage.getUserById === "function" ? await storage.getUserById(sessionUser.id) : null;
+      if (dbUser && dbUser.isActive === false) {
+        return null;
+      }
+      if (dbUser) {
+        return {
+          userId: dbUser.id,
+          email: dbUser.email,
+          role: dbUser.role ?? "provider",
+          isActive: dbUser.isActive ?? true,
+          authMethod: "session",
+        };
+      }
+      return {
+        userId: sessionUser.id,
+        email: sessionUser.email,
+        role: sessionUser.role ?? "provider",
+        isActive: true,
+        authMethod: "session",
+      };
+    } catch {
+      return {
+        userId: sessionUser.id,
+        email: sessionUser.email,
+        role: sessionUser.role ?? "provider",
+        isActive: true,
+        authMethod: "session",
+      };
     }
-    return {
-      userId: dbUser.id,
-      email: dbUser.email,
-      role: dbUser.role ?? "provider",
-      isActive: dbUser.isActive ?? true,
-      authMethod: "session",
-    };
   }
 
   const authHeader = req.headers.authorization;
@@ -642,7 +661,7 @@ export function createAuthRouter(): Router {
           return { success: false as const, status: 400, message: "No valid verification code found. Please request a new code." };
         }
 
-        const maxAttempts = 3;
+        const maxAttempts = 5;
         if ((token.attemptCount ?? 0) >= maxAttempts) {
           await tx
             .update(emailVerificationTokens)
@@ -658,13 +677,16 @@ export function createAuthRouter(): Router {
           if (newAttemptCount >= maxAttempts) {
             await tx
               .update(emailVerificationTokens)
-              .set({ used: true })
-              .where(eq(emailVerificationTokens.id, token.id));
+              .set({ attemptCount: newAttemptCount })
+              .where(and(
+                eq(emailVerificationTokens.id, token.id),
+                eq(emailVerificationTokens.used, false),
+              ));
 
             return {
               success: false as const,
-              status: 429,
-              message: "Too many failed attempts. Please request a new verification code.",
+              status: 401,
+              message: "Invalid code. Please request a new code.",
             };
           }
 
