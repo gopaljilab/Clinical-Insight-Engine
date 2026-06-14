@@ -141,6 +141,19 @@
       "riskCategory": "Category",
       "date": "Date",
       "actions": "Actions"
+    },
+    "emptyState": {
+      "noAssessments": {
+      "title": "No Assessments Found",
+      "description": "There are no patient assessments loaded yet. Create your first assessment to start tracking patient health trajectories.",
+      "actionLabel": "Create First Assessment"
+      },
+      "noMatching": {
+      "title": "No Matching Records",
+      "description": "No patient records match the current filters. Clear the filters to return to the full assessment history, or create a new assessment if this patient needs fresh data.",
+      "actionLabel": "Clear Filters",
+      "secondaryActionLabel": "Create Assessment"
+      }
     }
   },
   "analytics": {
@@ -209,6 +222,28 @@
     "age": {
       "clinician": "Consider age-related metabolic changes in the management plan.",
       "patient": "As you get older, it's more important to stay active and monitor your health."
+    }
+  },
+  "dashboard": {
+    "emptyState": {
+    "title": "No Assessments Yet",
+    "description": "Your statistics will appear here once you run your first risk assessment.",
+    "actionLabel": "Run First Assessment"
+    }
+  },
+  "myHealth": {
+    "emptyAssessments": {
+      "title": "No Assessments Yet",
+      "description": "Your completed risk assessments will appear here after your care team shares results with this patient account.",
+      "actionLabel": "Refresh Records",
+      "secondaryActionLabel": "Back to Sign In"
+    },
+    "emptyTrends": {
+      "titleOne": "One Result Recorded",
+      "titleNone": "No Trend Data Yet",
+      "descriptionOne": "At least two completed assessments are needed before a risk trend chart can be drawn.",
+      "descriptionNone": "Trend charts will appear here once assessment results are available for this account.",
+      "actionLabel": "Refresh Trends"
     }
   }
 }
