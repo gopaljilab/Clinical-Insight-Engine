@@ -11,10 +11,10 @@ import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { Recommendations } from "./Recommendations";
-import { DataQualityAlerts } from "./DataQualityAlerts";
 import { PredictionExplanation } from "./PredictionExplanation";
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
+import { DataQualityAlerts } from "./DataQualityAlerts";
+import { BiomarkerAlerts } from "./BiomarkerAlerts";
+import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface AssessmentResultProps {
@@ -65,36 +65,17 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [view, setView] = useState<"patient" | "clinician">("patient");
   const [isPresenting, setIsPresenting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [pdfError, setPdfError] = useState<string>("");
   const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string }[] | null>(null);
 
   const generatePDF = async () => {
+    setPdfError("");
     setIsGeneratingPDF(true);
     try {
-      const element = document.getElementById("assessment-result-wrapper");
-      if (!element) return;
-      
-      const buttons = element.querySelector('.pdf-hide-buttons') as HTMLElement;
-      const originalDisplay = buttons ? buttons.style.display : '';
-      if (buttons) buttons.style.display = 'none';
-
-      const canvas = await html2canvas(element, { 
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-      
-      if (buttons) buttons.style.display = originalDisplay;
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Clinical_Insight_Report_${assessment.patientName?.replace(/\s+/g, '_') ?? 'Patient'}.pdf`);
+      await downloadClinicalAssessmentPdf(assessment);
     } catch (error) {
-      console.error("Error generating PDF:", error);
+      console.error("PDF export failed", error);
+      setPdfError("Unable to export the PDF report. Please try again.");
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -129,10 +110,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   };
 
   const { data: assessmentsResponse } = useAssessments();
-  const assessmentHistory = useMemo(
-    () => assessmentsResponse?.data ?? [],
-    [assessmentsResponse]
-  );
+  const assessmentHistory = assessmentsResponse?.data ?? [];
   const improvementBadges = useMemo(
     () => calculateHealthBadges(assessment, assessmentHistory),
     [assessment, assessmentHistory]
@@ -230,64 +208,72 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             )}
           </button>
         </div>
-        <div className="pdf-hide-buttons flex items-center gap-2 justify-end self-stretch print:hidden">
-          <button
-            type="button"
-            onClick={() => setIsPresenting(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <MonitorPlay className="w-3.5 h-3.5" />
-            Present
-          </button>
-          <button
-            type="button"
-            onClick={generatePDF}
-            disabled={isGeneratingPDF}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 border border-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
-          >
-            {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-            {isGeneratingPDF ? "Generating..." : "Download PDF"}
-          </button>
-          <UiTooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <CopySummaryButton assessment={assessment} iconOnly />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Copy Summary</p>
-            </TooltipContent>
-          </UiTooltip>
-          <UiTooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={exportToJson}
-                className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-                aria-label="Export JSON"
-              >
-                <Download className="w-4 h-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Export JSON</p>
-            </TooltipContent>
-          </UiTooltip>
-          <UiTooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-                aria-label="Print"
-              >
-                <Printer className="w-4 h-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Print Report</p>
-            </TooltipContent>
-          </UiTooltip>
+
+        <div className="pdf-hide-buttons flex flex-col gap-2 justify-end self-stretch print:hidden">
+          <div className="flex flex-wrap gap-2 items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setIsPresenting(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
+            >
+              <MonitorPlay className="w-3.5 h-3.5" />
+              Present
+            </button>
+            <button
+              type="button"
+              onClick={generatePDF}
+              disabled={isGeneratingPDF}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 border border-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+            >
+              {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+              {isGeneratingPDF ? "Generating..." : "Export Official Record"}
+            </button>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <CopySummaryButton assessment={assessment} iconOnly />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Copy Summary</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={exportToJson}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label="Export JSON"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Export JSON</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label="Print"
+                >
+                  <Printer className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Print Report</p>
+              </TooltipContent>
+            </UiTooltip>
+          </div>
+          {pdfError ? (
+            <p role="alert" className="text-sm text-red-600 mt-1">
+              {pdfError}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -333,6 +319,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 description="See improvements and long-term trends based on this assessment and past history."
               />
 
+              <DataQualityAlerts alerts={assessment.qualityAlerts} />
+
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
@@ -367,6 +355,10 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               </div>
 
               <Recommendations recommendations={assessment.recommendations} audience="patient" />
+
+              <PredictionExplanation explanation={assessment.explanation} view="patient" />
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
 
               <WhatIfRiskSimulator assessment={assessment} onComparisonFactors={setWhatIfFactors} />
 
@@ -444,6 +436,11 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                <DataQualityAlerts alerts={assessment.qualityAlerts} />
+                <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -535,6 +532,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               />
 
               <PredictionExplanation explanation={assessment.explanation} view="clinician" />
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
 
               <div className="rounded-xl border border-border bg-muted/30 p-5">
                 <h3 className="mb-4 font-bold">Suggested clinical follow-up</h3>
