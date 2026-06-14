@@ -9,6 +9,19 @@
  */
 
 import { z } from "zod";
+import { parseClinicalDate } from "@shared/dateParser";
+
+/**
+ * Strict ISO 8601 date validator for query parameters.
+ * Rejects ambiguous formats such as MM/DD/YYYY or DD/MM/YYYY and returns
+ * a human-readable error directing callers to use YYYY-MM-DD.
+ */
+function isIso8601Date(val: string | undefined): boolean {
+  if (!val) return true;
+  const result = parseClinicalDate(val);
+  // Only accept with full confidence (1.0) — i.e. unambiguous ISO-like input
+  return result.confidence === 1.0 && result.date !== null;
+}
 
 /** Maximum characters allowed in a search query string. */
 const MAX_SEARCH_LENGTH = 200;
@@ -208,15 +221,19 @@ export const assessmentsQuerySchema = z.object({
   startDate: z
     .string()
     .optional()
-    .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
-      message: "Invalid start date format",
+    .refine(isIso8601Date, {
+      message:
+        "startDate must be in ISO 8601 format (YYYY-MM-DD). " +
+        "Ambiguous formats such as MM/DD/YYYY are not accepted.",
     }),
 
   endDate: z
     .string()
     .optional()
-    .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
-      message: "Invalid end date format",
+    .refine(isIso8601Date, {
+      message:
+        "endDate must be in ISO 8601 format (YYYY-MM-DD). " +
+        "Ambiguous formats such as MM/DD/YYYY are not accepted.",
     }),
 });
 
