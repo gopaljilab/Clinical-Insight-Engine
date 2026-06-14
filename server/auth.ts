@@ -661,7 +661,7 @@ export function createAuthRouter(): Router {
           return { success: false as const, status: 400, message: "No valid verification code found. Please request a new code." };
         }
 
-        const maxAttempts = 5;
+        const maxAttempts = 3;
         if ((token.attemptCount ?? 0) >= maxAttempts) {
           await tx
             .update(emailVerificationTokens)
@@ -677,7 +677,7 @@ export function createAuthRouter(): Router {
           if (newAttemptCount >= maxAttempts) {
             await tx
               .update(emailVerificationTokens)
-              .set({ attemptCount: newAttemptCount })
+              .set({ attemptCount: newAttemptCount, used: true })
               .where(and(
                 eq(emailVerificationTokens.id, token.id),
                 eq(emailVerificationTokens.used, false),
@@ -685,8 +685,8 @@ export function createAuthRouter(): Router {
 
             return {
               success: false as const,
-              status: 401,
-              message: "Invalid code. Please request a new code.",
+              status: 429,
+              message: "Too many failed attempts. Please request a new verification code.",
             };
           }
 

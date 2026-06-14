@@ -126,23 +126,6 @@
     "exportCsv": "Exporter en CSV",
     "disclaimer": "Cette évaluation est fournie à titre informatif uniquement et ne remplace pas un avis médical professionnel."
   },
-  "history": {
-    "title": "Historique du Patient",
-    "searchPlaceholder": "Rechercher par nom du patient...",
-    "filterRisk": "Filtrer par Risque",
-    "all": "Tous",
-    "exportSelected": "Exporter la Sélection",
-    "compare": "Comparer",
-    "noResults": "Aucune évaluation trouvée",
-    "noResultsDesc": "Essayez d'ajuster vos critères de recherche ou de filtre.",
-    "table": {
-      "patientName": "Patient",
-      "riskScore": "Score",
-      "riskCategory": "Catégorie",
-      "date": "Date",
-      "actions": "Actions"
-    }
-  },
   "analytics": {
     "title": "Analytiques",
     "totalAssessments": "Évaluations Totales",
@@ -209,6 +192,58 @@
     "age": {
       "clinician": "Prendre en compte les changements métaboliques liés à l'âge dans le plan de gestion.",
       "patient": "En vieillissant, il est d'autant plus important de rester actif et de surveiller sa santé."
+    }
+  },
+  "history": {
+    "title": "Historique du Patient",
+    "searchPlaceholder": "Rechercher par nom du patient...",
+    "filterRisk": "Filtrer par Risque",
+    "all": "Tous",
+    "exportSelected": "Exporter la Sélection",
+    "compare": "Comparer",
+    "noResults": "Aucune évaluation trouvée",
+    "noResultsDesc": "Essayez d'ajuster vos critères de recherche ou de filtre.",
+    "table": {
+      "patientName": "Patient",
+      "riskScore": "Score",
+      "riskCategory": "Catégorie",
+      "date": "Date",
+      "actions": "Actions"
+    },
+    "emptyState": {
+      "noAssessments": {
+        "title": "Aucune Évaluation Trouvée",
+        "description": "Aucune évaluation de patient n'a encore été chargée. Créez votre première évaluation pour commencer à suivre les trajectoires de santé des patients.",
+        "actionLabel": "Créer la Première Évaluation"
+      },
+      "noMatching": {
+        "title": "Aucun Dossier Correspondant",
+        "description": "Aucun dossier patient ne correspond aux filtres actuels. Effacez les filtres pour revenir à l'historique complet ou créez une nouvelle évaluation.",
+        "actionLabel": "Effacer les Filtres",
+        "secondaryActionLabel": "Créer une Évaluation"
+      }
+    }
+  },
+  "dashboard": {
+    "emptyState": {
+      "title": "Aucune Évaluation pour l'Instant",
+      "description": "Vos statistiques apparaîtront ici une fois que vous aurez effectué votre première évaluation des risques.",
+      "actionLabel": "Effectuer la Première Évaluation"
+    }
+  },
+  "myHealth": {
+    "emptyAssessments": {
+      "title": "Aucune Évaluation pour l'Instant",
+      "description": "Vos évaluations de risque complétées apparaîtront ici après que votre équipe soignante aura partagé les résultats avec ce compte patient.",
+      "actionLabel": "Actualiser les Dossiers",
+      "secondaryActionLabel": "Retour à la Connexion"
+    },
+    "emptyTrends": {
+      "titleOne": "Un Résultat Enregistré",
+      "titleNone": "Aucune Donnée de Tendance pour l'Instant",
+      "descriptionOne": "Au moins deux évaluations complétées sont nécessaires avant de pouvoir afficher un graphique de tendance des risques.",
+      "descriptionNone": "Les graphiques de tendance apparaîtront ici une fois que des résultats d'évaluation seront disponibles pour ce compte.",
+      "actionLabel": "Actualiser les Tendances"
     }
   }
 }

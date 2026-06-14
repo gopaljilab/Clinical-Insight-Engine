@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { HealthBadges } from "@/components/HealthBadges";
 import { CopySummaryButton } from "@/components/CopySummaryButton";
-import { useAssessments } from "@/hooks/use-assessments";
+import { useAssessments, useWhatIfAuto } from "@/hooks/use-assessments";
 import { calculateHealthBadges } from "@/utils/healthBadges";
 import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
@@ -356,6 +356,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <Recommendations recommendations={assessment.recommendations} audience="patient" />
 
+              <PathToImprovement assessment={assessment} />
               <PredictionExplanation explanation={assessment.explanation} view="patient" />
 
               <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
@@ -636,6 +637,60 @@ function ExplainabilityPanel({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function PathToImprovement({ assessment }: { assessment: AssessmentResponse }) {
+  const { mutate, data, isPending } = useWhatIfAuto();
+
+  useEffect(() => {
+    mutate({
+      patientName: assessment.patientName,
+      gender: assessment.gender as "Male" | "Female",
+      age: assessment.age,
+      hypertension: assessment.hypertension,
+      heartDisease: assessment.heartDisease,
+      smokingHistory: assessment.smokingHistory as "current" | "never" | "No Info" | "former",
+      bmi: assessment.bmi ?? 25,
+      hba1cLevel: assessment.hba1cLevel ?? 5.5,
+      bloodGlucoseLevel: assessment.bloodGlucoseLevel ?? 100,
+    });
+  }, [assessment]);
+
+  if (isPending || !data) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-5 shadow-sm animate-pulse flex items-center justify-center min-h-[100px]">
+        <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+        <span className="text-muted-foreground text-sm">Analyzing counterfactual scenarios...</span>
+      </div>
+    );
+  }
+
+  const recommendations = data.recommendations;
+  if (!recommendations || recommendations.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl p-6 shadow-sm relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-4 opacity-10">
+        <TrendingDown className="w-24 h-24 text-green-700" />
+      </div>
+      <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-900 relative z-10">
+        <TrendingDown className="w-5 h-5" /> Path to Improvement
+      </h3>
+      <div className="space-y-4 relative z-10">
+        {recommendations.map((rec: any, idx: number) => (
+          <div key={idx} className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border border-green-200/50 flex gap-3 shadow-sm">
+            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-green-900">{rec.action}</p>
+              <p className="text-green-800/80 text-sm mt-1">{rec.message}</p>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -15,6 +15,7 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^7.3.4",
     "@elastic/elasticsearch": "^9.4.2",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
@@ -90,6 +91,7 @@
     "react-resizable-panels": "^2.1.7",
     "recharts": "^2.15.2",
     "resend": "^6.12.4",
+    "swagger-ui-express": "^5.0.1",
     "tailwind-merge": "^2.6.1",
     "tw-animate-css": "^1.2.5",
     "uuid": "^14.0.0",
@@ -123,6 +125,7 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@types/supertest": "^7.2.0",
+    "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.7.0",
@@ -134,7 +137,7 @@
     "puppeteer": "^25.1.0",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.3.0",
-    "tsx": "^4.20.5",
+    "tsx": "^4.22.4",
     "typescript": "5.6.3",
     "vite": "^7.3.0",
     "vitest": "^3.2.4"

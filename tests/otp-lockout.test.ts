@@ -91,6 +91,8 @@ describe("OTP Brute-Force Lockout Integration", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockToken.attemptCount = 0; // reset for each test
+    currentAttemptCount = 0;
+    tokenUsed = false;
 
     const { createAuthRouter } = await import("../server/auth");
     app = express();
@@ -190,30 +192,18 @@ describe("OTP Brute-Force Lockout Integration", () => {
 
     const fail1 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
     expect(fail1.status).toBe(401);
-    expect(fail1.body.message).toContain("4 attempt(s) remaining");
+    expect(fail1.body.message).toContain("2 attempt(s) remaining");
 
     const fail2 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
     expect(fail2.status).toBe(401);
-    expect(fail2.body.message).toContain("3 attempt(s) remaining");
+    expect(fail2.body.message).toContain("1 attempt(s) remaining");
 
     const fail3 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
-    expect(fail3.status).toBe(401);
-    expect(fail3.body.message).toContain("2 attempt(s) remaining");
+    expect(fail3.status).toBe(429);
+    expect(fail3.body.message).toContain("Too many failed attempts");
 
     const fail4 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
-    expect(fail4.status).toBe(401);
-    expect(fail4.body.message).toContain("1 attempt(s) remaining");
-
-    const fail5 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
-    expect(fail5.status).toBe(401);
-    expect(fail5.body.message).toContain("Invalid code. Please request a new code.");
-
-    const fail6 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
-    expect(fail6.status).toBe(429);
-    expect(fail6.body.message).toContain("Too many failed attempts");
-
-    const fail7 = await request(app).post("/api/auth/verify-email").send({ email: "doc@example.com", code: "000000" });
-    expect(fail7.status).toBe(400);
-    expect(fail7.body.message).toContain("No valid verification code found");
+    expect(fail4.status).toBe(400);
+    expect(fail4.body.message).toContain("No valid verification code found");
   });
 });

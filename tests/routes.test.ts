@@ -469,16 +469,18 @@ describe("Python inference", () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    const predictSpy = vi.spyOn(pythonDaemon, "predict").mockRejectedValue(new Error("timed out"));
+    const predictSpy = vi.spyOn(pythonDaemon, "predict").mockRejectedValue(new Error("Process timed out"));
 
-    const res = await request(app)
-      .post("/api/assessments/preview")
-      .send(validPayload);
+    try {
+      const res = await request(app)
+        .post("/api/assessments/preview")
+        .send(validPayload);
 
-    expect(res.status).toBe(503);
-    expect(res.body.message).toContain("timed out");
-    
-    predictSpy.mockRestore();
+      expect(res.status).toBe(503);
+      expect(res.body.message).toContain("timed out");
+    } finally {
+      predictSpy.mockRestore();
+    }
   });
 
   it("bulk route returns 201 and falls back to rule-based model on python process failure", async () => {
