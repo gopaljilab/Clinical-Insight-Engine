@@ -469,28 +469,18 @@ describe("Python inference", () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    const origExecFile = mockExecFile;
-    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-      if (typeof opts === "function") {
-        cb = opts;
-        const err: any = new Error("Process timed out");
-        err.killed = true;
-        err.signal = "SIGTERM";
-        cb(err, null, null);
-        return;
-      }
-      const err: any = new Error("Process timed out");
-      err.killed = true;
-      err.signal = "SIGTERM";
-      cb(err, null, null);
-    });
+    const predictSpy = vi.spyOn(pythonDaemon, "predict").mockRejectedValue(new Error("Process timed out"));
 
-    const res = await request(app)
-      .post("/api/assessments/preview")
-      .send(validPayload);
+    try {
+      const res = await request(app)
+        .post("/api/assessments/preview")
+        .send(validPayload);
 
-    expect(res.status).toBe(503);
-    expect(res.body.message).toContain("timed out");
+      expect(res.status).toBe(503);
+      expect(res.body.message).toContain("timed out");
+    } finally {
+      predictSpy.mockRestore();
+    }
   });
 
   it("bulk route returns 201 and falls back to rule-based model on python process failure", async () => {
