@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import pickle
 
+
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
 
 LOCK_TIMEOUT = 60
@@ -480,6 +481,24 @@ def get_model():
     finally:
         _release_lock()
 
+def validate_assessment_input(data):
+    if not isinstance(data, dict):
+        raise ValueError("Input must be an object")
+
+    age = data.get("age")
+    if age is None or age < 0 or age > 130:
+        raise ValueError("Invalid age")
+
+    gender = data.get("gender")
+    if gender not in ("Male", "Female"):
+        raise ValueError("Invalid gender")
+
+    bmi = data.get("bmi")
+    if bmi is not None and (bmi < 0 or bmi > 100):
+        raise ValueError("Invalid BMI")
+
+    return data
+
 @phi_redaction_middleware
 def interpret_predictions_batch(model, scaler, features, input_data_list, cov_beta=None):
     """Vectorized batch prediction for a list of patient records using NumPy."""
@@ -853,10 +872,31 @@ if __name__ == "__main__":
                 request = json.loads(line)
                 request_id = request.get("requestId")
                 input_data = request.get("input")
+                
                 if isinstance(input_data, list):
-                    prediction = interpret_predictions_batch(model, scaler, features, input_data, cov_beta)
+                    validated_input = [
+                        validate_assessment_input(item)
+                        for item in input_data
+                        ]
+                    prediction = interpret_predictions_batch(
+                        model,
+                        scaler,
+                        features,
+                        validated_input,
+                        cov_beta,
+                    )
                 else:
-                    prediction = interpret_prediction(model, scaler, features, input_data, cov_beta)
+                    validated_input = validate_assessment_input(
+                        input_data
+                        )
+
+                    prediction = interpret_prediction(
+                        model,
+                        scaler,
+                        features,
+                        validated_input,
+                        cov_beta,
+                    )
                 response = {
                     "requestId": request_id,
                     "prediction": prediction

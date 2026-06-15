@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -10,9 +10,10 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { isValid } from "date-fns";
 import type { Assessment } from "@shared/schema";
 import { formatCompactDate } from "@/utils/dateFormat";
+// Vite's specific syntax to import as a web worker
+import ChartWorker from "@/utils/chartWorker?worker";
 
 interface PatientGroup {
   patientName: string;
@@ -22,7 +23,6 @@ interface PatientGroup {
 
 interface Props {
   assessments: Assessment[];
-  /** When provided, renders one line per patient for the selected metric */
   patientGroups?: PatientGroup[];
 }
 
@@ -45,50 +45,42 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
   const [activeMetrics, setActiveMetrics] = useState<Record<string, boolean>>(
     Object.fromEntries(METRICS.map(m => [m.key, m.active]))
   );
+  
+  // States for worker data and loading sequence
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [isProcessing, setIsProcessing] = useState(true);
 
   const isComparisonMode = !!patientGroups && patientGroups.length > 0;
 
-  const chartData = useMemo(() => {
-    if (isComparisonMode) {
-      const merged: Record<string, any> = {};
-      for (const group of patientGroups!) {
-        for (const a of group.assessments) {
-          const dateObj = a.createdAt ? new Date(a.createdAt) : null;
-          const dateKey = dateObj && isValid(dateObj) ? dateObj.toISOString() : `?${a.id}`;
-          if (!merged[dateKey]) {
-            merged[dateKey] = { date: dateKey };
-          }
-          merged[dateKey][`${group.patientName}_riskScore`] = Number(Number(a.riskScore).toFixed(1));
-          merged[dateKey][`${group.patientName}_bmi`] = Number(Number(a.bmi).toFixed(1));
-          merged[dateKey][`${group.patientName}_hba1cLevel`] = Number(Number(a.hba1cLevel).toFixed(1));
-          merged[dateKey][`${group.patientName}_bloodGlucoseLevel`] = Number(Number(a.bloodGlucoseLevel).toFixed(1));
-        }
-      }
-      return Object.values(merged).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }
+  // Web Worker abstraction logic
+  useEffect(() => {
+    setIsProcessing(true);
+    const worker = new ChartWorker();
 
-    return [...assessments]
-      .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
-      .map(a => {
-        const dateObj = a.createdAt ? new Date(a.createdAt) : null;
-        return {
-          date: dateObj && isValid(dateObj) ? dateObj.toISOString() : "?",
-          riskScore: Number(Number(a.riskScore).toFixed(1)),
-          bmi: Number(Number(a.bmi).toFixed(1)),
-          hba1cLevel: Number(Number(a.hba1cLevel).toFixed(1)),
-          bloodGlucoseLevel: Number(Number(a.bloodGlucoseLevel).toFixed(1)),
-          riskCategory: a.riskCategory,
-        };
-      });
+    worker.postMessage({
+      assessments,
+      patientGroups,
+      isComparisonMode
+    });
+
+    worker.onmessage = (e) => {
+      setChartData(e.data);
+      setIsProcessing(false);
+    };
+
+    return () => {
+      worker.terminate(); // Cleanup to prevent memory leaks
+    };
   }, [assessments, patientGroups, isComparisonMode]);
 
   function toggleMetric(key: string) {
     setActiveMetrics(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
+  // Pre-calculate if trend can be shown using props, avoiding reliance on async chartData
   const canShowTrend = isComparisonMode
     ? patientGroups!.some(g => g.assessments.length >= 2)
-    : chartData.length >= 2;
+    : assessments.length >= 2;
 
   if (!canShowTrend) {
     return (
@@ -135,72 +127,78 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
       </div>
 
       <ResponsiveContainer width="100%" height={isComparisonMode ? 320 : 280}>
-        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis
-            dataKey="date"
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-            tickFormatter={(iso: string) => {
-              if (iso === "?") return "?";
-              return formatCompactDate(iso);
-            }}
-          />
-          <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-          <Tooltip
-            contentStyle={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "12px",
-              fontSize: "12px",
-            }}
-          />
-          <Legend wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }} />
-          {activeMetrics["riskScore"] && !isComparisonMode && (
-            <>
-              <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="4 4" label={{ value: "High Risk", fontSize: 10, fill: "#EF4444" }} />
-              <ReferenceLine y={20} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "Moderate Risk", fontSize: 10, fill: "#F59E0B" }} />
-            </>
-          )}
-          {isComparisonMode
-            ? patientGroups!.map((group) => {
-                const activeMetricKeys = METRICS.filter(m => activeMetrics[m.key]).map(m => m.key);
-                return activeMetricKeys.map((metricKey) => {
-                  const metricDef = METRICS.find(m => m.key === metricKey)!;
-                  const dataKey = `${group.patientName}_${metricKey}`;
-                  return (
-                    <Line
-                      key={dataKey}
-                      type="monotone"
-                      dataKey={dataKey}
-                      name={`${group.patientName} — ${metricDef.label}`}
-                      stroke={group.color}
-                      strokeWidth={2.5}
-                      dot={{ r: 4, fill: group.color, stroke: "white", strokeWidth: 1.5 }}
-                      activeDot={{ r: 6 }}
-                      connectNulls
-                    />
-                  );
-                });
-              })
-            : METRICS.map(({ key, label, color }) =>
-              activeMetrics[key] ? (
-                <Line
-                  key={key}
-                  type="monotone"
-                  dataKey={key}
-                  name={label}
-                  stroke={color}
-                  strokeWidth={2.5}
-                  dot={(props: any) => {
-                    const { cx, cy, payload } = props;
-                    const dotColor = key === "riskScore" ? getRiskColor(payload.riskScore) : color;
-                    return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={dotColor} stroke="white" strokeWidth={1.5} />;
-                  }}
-                  activeDot={{ r: 6 }}
-                />
-              ) : null
+        {isProcessing ? (
+          <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+             Processing high-frequency metrics...
+          </div>
+        ) : (
+          <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+              tickFormatter={(iso: string) => {
+                if (iso === "?") return "?";
+                return formatCompactDate(iso);
+              }}
+            />
+            <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+            <Tooltip
+              contentStyle={{
+                background: "hsl(var(--card))",
+                border: "1px solid hsl(var(--border))",
+                borderRadius: "12px",
+                fontSize: "12px",
+              }}
+            />
+            <Legend wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }} />
+            {activeMetrics["riskScore"] && !isComparisonMode && (
+              <>
+                <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="4 4" label={{ value: "High Risk", fontSize: 10, fill: "#EF4444" }} />
+                <ReferenceLine y={20} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "Moderate Risk", fontSize: 10, fill: "#F59E0B" }} />
+              </>
             )}
-        </LineChart>
+            {isComparisonMode
+              ? patientGroups!.map((group) => {
+                  const activeMetricKeys = METRICS.filter(m => activeMetrics[m.key]).map(m => m.key);
+                  return activeMetricKeys.map((metricKey) => {
+                    const metricDef = METRICS.find(m => m.key === metricKey)!;
+                    const dataKey = `${group.patientName}_${metricKey}`;
+                    return (
+                      <Line
+                        key={dataKey}
+                        type="monotone"
+                        dataKey={dataKey}
+                        name={`${group.patientName} — ${metricDef.label}`}
+                        stroke={group.color}
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: group.color, stroke: "white", strokeWidth: 1.5 }}
+                        activeDot={{ r: 6 }}
+                        connectNulls
+                      />
+                    );
+                  });
+                })
+              : METRICS.map(({ key, label, color }) =>
+                  activeMetrics[key] ? (
+                    <Line
+                      key={key}
+                      type="monotone"
+                      dataKey={key}
+                      name={label}
+                      stroke={color}
+                      strokeWidth={2.5}
+                      dot={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        const dotColor = key === "riskScore" ? getRiskColor(payload.riskScore) : color;
+                        return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={dotColor} stroke="white" strokeWidth={1.5} />;
+                      }}
+                      activeDot={{ r: 6 }}
+                    />
+                  ) : null
+                )}
+          </LineChart>
+        )}
       </ResponsiveContainer>
     </div>
   );

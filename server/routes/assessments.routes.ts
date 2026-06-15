@@ -113,12 +113,16 @@ assessmentsRouter.post(
   async (req, res) => {
     const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
     try {
-      const parsed = api.assessments.whatIfBatch.input.parse(req.body);
+      const whatIfBatchSchema = z.object({
+        original: z.any(),
+        perturbations: z.array(z.record(z.any()))
+      });
+      const parsed = whatIfBatchSchema.parse(req.body);
       const { original, perturbations } = parsed;
 
       if (!isPythonAvailable) {
         const originalResult = calculateClinicalFallback(original);
-        const perturbationResults = perturbations.map(p => {
+        const perturbationResults = perturbations.map((p: any) => {
           const variant = { ...original, ...p };
           const variantResult = calculateClinicalFallback(variant);
           const riskReduction = originalResult.riskScore - variantResult.riskScore;
@@ -132,7 +136,7 @@ assessmentsRouter.post(
             confidenceInterval: variantResult.confidenceInterval,
             modelConfidence: variantResult.modelConfidence,
           };
-        }).sort((a, b) => b.riskReduction - a.riskReduction);
+        }).sort((a: any, b: any) => b.riskReduction - a.riskReduction);
         
         return res.json({
           original: originalResult,
