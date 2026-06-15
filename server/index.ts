@@ -31,6 +31,7 @@ import {
 import { EmailConfigurationError, validateEmailConfig } from "./email";
 import { generalLimiter } from "./middleware/rateLimit";
 import { registerOpenApiDocs } from "./openapi";
+import { initAssessmentSocket } from "./socket/assessmentSocket";
 import { rlsContextMiddleware } from "./middleware/rlsContext";
 
 
@@ -258,6 +259,7 @@ registerOpenApiDocs(app);
   safeExecML(getPythonExecutable(), ["analyze.py", "train"])
     .then(() => logger.info({ source: "ml" }, "ML model ready."))
     .catch((err: any) => logger.warn({ source: "ml" }, `ML warmup warning: ${err.message}`));
+  initAssessmentSocket(httpServer);
   await registerRoutes(httpServer, app);
 
   // Global error handler — must be the LAST middleware.
