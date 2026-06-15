@@ -31,12 +31,13 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
   const ph = doc.internal.pageSize.getHeight();
   const m = 12;
   const cw = pw - 2 * m;
+  let pageNum = 1;
 
   const addFooter = () => {
     doc.setFontSize(8);
     doc.setFont("Helvetica", "italic");
     doc.text(
-      `Clinical Insight Engine — Page ${doc.getCurrentPageInfo().pageNumber}`,
+      `Clinical Insight Engine — Page ${pageNum}`,
       pw / 2,
       ph - 6,
       { align: "center" }
@@ -103,6 +104,7 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
 
   // ── Page 2+: Summary Table ──
   doc.addPage();
+  pageNum += 1;
   const cols = [
     { label: "#", w: 10 },
     { label: "Date", w: 32 },
@@ -147,6 +149,7 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
     if (i > 0 && i % rowsPerPage === 0) {
       addFooter();
       doc.addPage();
+      pageNum += 1;
       y = tableTop;
       drawHeader(y);
       y += headerH;
@@ -186,6 +189,7 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
   // ── Individual Detail Pages ──
   for (const a of assessments) {
     doc.addPage();
+    pageNum += 1;
 
     const labelVal = (label: string, val: string, yy: number) => {
       doc.setFont("Helvetica", "bold");
@@ -252,6 +256,7 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
         if (yy > ph - 20) {
           addFooter();
           doc.addPage();
+          pageNum += 1;
           yy = m + 5;
         }
         const impactColor = f.impact === "positive" ? [34, 197, 94] : [239, 68, 68];
