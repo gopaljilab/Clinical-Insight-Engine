@@ -322,7 +322,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
             Biggest Impact Changes
           </div>
           <div className="grid gap-3">
-            {batchResult.ranked.slice(0, 5).map((item, i) => {
+            {batchResult.ranked.slice(0, 5).map((item: any, i: number) => {
               const isReduction = item.riskReduction > 0;
               return (
                 <div key={item.delta} className="flex items-center justify-between rounded-2xl border border-border/70 bg-card p-4 text-sm">

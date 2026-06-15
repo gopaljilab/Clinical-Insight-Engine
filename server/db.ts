@@ -1,7 +1,10 @@
+import { AsyncLocalStorage } from "async_hooks";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
 import { logger } from "./logger";
+
+export const dbRlsStorage = new AsyncLocalStorage<NodePgDatabase<typeof schema>>();
 
 const { Pool } = pg;
 
@@ -95,10 +98,16 @@ export async function withRetry<T>(
 
 export function getPool() {
   if (!poolInstance) {
+    const dbUrl = getDatabaseUrl();
+    const useSSL =
+      process.env.DB_SSL === "true" ||
+      /supabase\.co|pooler\.supabase\.com/i.test(dbUrl);
+
     poolInstance = new Pool({
-      connectionString: getDatabaseUrl(),
+      connectionString: dbUrl,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 10000,
+      ...(useSSL ? { ssl: { rejectUnauthorized: false } } : {}),
     });
 
     poolInstance.on("error", (err) => {
@@ -157,6 +166,9 @@ export function getPool() {
 }
 
 export function getDb() {
+  const rlsDb = dbRlsStorage.getStore();
+  if (rlsDb) return rlsDb;
+
   if (!dbInstance) {
     const rawDb = drizzle(getPool(), { schema });
     const originalTransaction = rawDb.transaction.bind(rawDb);

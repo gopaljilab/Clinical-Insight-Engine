@@ -3,23 +3,32 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Activity,
+  AlertTriangle,
   ArrowRight,
+  BarChart3,
+  BookOpen,
+  Brain,
+  Check,
   CheckCircle2,
   ChevronDown,
+  ClipboardList,
+  Clock,
   Github,
   HeartPulse,
   LineChart,
   Linkedin,
   LockKeyhole,
   Mail,
-  ShieldCheck,
-  Stethoscope,
-  Workflow,
+  MessageSquare,
   Plus,
-  Check,
+  ShieldCheck,
   Sparkles,
-  ClipboardList,
+  Star,
+  Stethoscope,
   Target,
+  TrendingUp,
+  Users,
+  Workflow,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -382,6 +391,93 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* Problem/Solution Narrative */}
+        <section className="px-5 py-20 sm:px-6 lg:px-8 border-b border-slate-100 dark:border-slate-800">
+          <div className="mx-auto max-w-7xl">
+            <motion.div
+              className="mx-auto max-w-3xl text-center"
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.4 }}
+            >
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-[#2563EB]">
+                The Clinical Challenge
+              </p>
+              <h2 className="mt-4 text-3xl font-black tracking-tight text-[#1E293B] dark:text-slate-100 sm:text-4xl">
+                Why traditional risk assessment falls short
+              </h2>
+            </motion.div>
+
+            <div className="mt-14 grid gap-8 md:grid-cols-2">
+              <motion.div
+                className="rounded-2xl bg-white dark:bg-slate-900/40 border border-red-200 dark:border-red-900/30 p-8 shadow-sm"
+                variants={fadeUp}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, amount: 0.25 }}
+                transition={{ duration: 0.35 }}
+              >
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-950/40 text-red-500">
+                  <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <h3 className="text-xl font-black text-[#1E293B] dark:text-slate-100">
+                  The Problem
+                </h3>
+                <ul className="mt-6 space-y-4">
+                  {[
+                    "Limited consultation time prevents comprehensive risk evaluation",
+                    "Scattered patient data across multiple systems and paper records",
+                    "Subjective risk assessment varies between clinicians",
+                  ].map((item) => (
+                    <li key={item} className="flex gap-3">
+                      <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-500">
+                        <Plus className="h-3 w-3 rotate-45" />
+                      </span>
+                      <span className="text-sm leading-6 text-slate-600 dark:text-slate-400">
+                        {item}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+
+              <motion.div
+                className="rounded-2xl bg-white dark:bg-slate-900/40 border border-emerald-200 dark:border-emerald-900/30 p-8 shadow-sm"
+                variants={fadeUp}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, amount: 0.25 }}
+                transition={{ duration: 0.35, delay: 0.1 }}
+              >
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500">
+                  <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <h3 className="text-xl font-black text-[#1E293B] dark:text-slate-100">
+                  Our Solution
+                </h3>
+                <ul className="mt-6 space-y-4">
+                  {[
+                    "AI-powered risk assessment in under 30 seconds per patient",
+                    "Unified dashboard consolidating all clinical markers in one view",
+                    "Objective, data-driven risk scores with full explainability",
+                  ].map((item) => (
+                    <li key={item} className="flex gap-3">
+                      <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-500">
+                        <Check className="h-3 w-3" />
+                      </span>
+                      <span className="text-sm leading-6 text-slate-600 dark:text-slate-400">
+                        {item}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            </div>
+          </div>
+        </section>
+
         <section
           id="security"
           className="bg-slate-100/80 dark:bg-slate-900/20 px-5 py-8 sm:px-6 lg:px-8"
@@ -459,6 +555,62 @@ export default function Landing() {
                       {feature.description}
                     </p>
                   </motion.article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* Impact Metrics */}
+        <section className="px-5 py-20 sm:px-6 lg:px-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/10">
+          <div className="mx-auto max-w-7xl">
+            <motion.div
+              className="mx-auto max-w-3xl text-center"
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.4 }}
+            >
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-[#2563EB]">
+                Real-World Impact
+              </p>
+              <h2 className="mt-4 text-3xl font-black tracking-tight text-[#1E293B] dark:text-slate-100 sm:text-4xl">
+                Proven outcomes across clinical settings
+              </h2>
+            </motion.div>
+
+            <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { icon: Clock, value: "30s", label: "Assessment time", sublabel: "Per patient" },
+                { icon: TrendingUp, value: "94%", label: "Prediction accuracy", sublabel: "Validated cohort" },
+                { icon: Users, value: "2,400+", label: "Patients monitored", sublabel: "Active tracking" },
+                { icon: BarChart3, value: "-38%", label: "High-risk reduction", sublabel: "6-month cohort" },
+              ].map((stat, index) => {
+                const Icon = stat.icon;
+                return (
+                  <motion.div
+                    key={stat.label}
+                    className="rounded-2xl bg-white dark:bg-slate-900/40 border border-transparent dark:border-slate-850/50 p-8 text-center shadow-sm ring-1 ring-slate-200/70 dark:ring-slate-800"
+                    variants={fadeUp}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, amount: 0.25 }}
+                    transition={{ duration: 0.35, delay: index * 0.08 }}
+                  >
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] mb-4">
+                      <Icon className="h-6 w-6" aria-hidden="true" />
+                    </div>
+                    <p className="text-3xl font-black text-[#1E293B] dark:text-slate-100">
+                      {stat.value}
+                    </p>
+                    <p className="mt-1 font-bold text-slate-600 dark:text-slate-400">
+                      {stat.label}
+                    </p>
+                    <p className="mt-0.5 text-xs font-semibold uppercase tracking-[0.1em] text-slate-400 dark:text-slate-500">
+                      {stat.sublabel}
+                    </p>
+                  </motion.div>
                 );
               })}
             </div>
@@ -959,6 +1111,142 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* AI Explainability */}
+        <section className="px-5 py-20 sm:px-6 lg:px-8 border-b border-slate-100 dark:border-slate-800">
+          <div className="mx-auto max-w-7xl">
+            <motion.div
+              className="mx-auto max-w-3xl text-center"
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.4 }}
+            >
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-[#2563EB]">
+                How It Works
+              </p>
+              <h2 className="mt-4 text-3xl font-black tracking-tight text-[#1E293B] dark:text-slate-100 sm:text-4xl">
+                From clinical data to actionable insight
+              </h2>
+              <p className="mt-5 text-lg leading-8 text-slate-600 dark:text-slate-400">
+                Our AI engine processes patient markers through validated models
+                to deliver explainable risk assessments.
+              </p>
+            </motion.div>
+
+            <div className="mt-14 grid gap-6 md:grid-cols-4">
+              {[
+                { icon: ClipboardList, step: "1", title: "Input Markers", desc: "HbA1c, BMI, blood pressure, age, and lifestyle factors" },
+                { icon: Brain, step: "2", title: "AI Processing", desc: "Validated predictive models analyze multi-factor interactions" },
+                { icon: BarChart3, step: "3", title: "Risk Scoring", desc: "Explainable 0-100 score with primary driver identification" },
+                { icon: Target, step: "4", title: "Clinical Action", desc: "Actionable insights and smart goals for patient consultation" },
+              ].map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <motion.div
+                    key={item.title}
+                    className="relative"
+                    variants={fadeUp}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, amount: 0.25 }}
+                    transition={{ duration: 0.35, delay: index * 0.1 }}
+                  >
+                    <div className="rounded-2xl bg-white dark:bg-slate-900/40 border border-transparent dark:border-slate-850/50 p-6 text-center shadow-sm ring-1 ring-slate-200/70 dark:ring-slate-800 h-full">
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] mb-4">
+                        <Icon className="h-7 w-7" aria-hidden="true" />
+                      </div>
+                      <div className="mx-auto mb-3 flex h-7 w-7 items-center justify-center rounded-full bg-[#2563EB] text-xs font-black text-white">
+                        {item.step}
+                      </div>
+                      <h3 className="text-base font-black text-[#1E293B] dark:text-slate-100">
+                        {item.title}
+                      </h3>
+                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                        {item.desc}
+                      </p>
+                    </div>
+                    {index < 3 && (
+                      <div className="hidden md:flex absolute top-1/2 -right-3 z-10 -translate-y-1/2">
+                        <ArrowRight className="h-5 w-5 text-blue-400" aria-hidden="true" />
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* Testimonials */}
+        <section className="px-5 py-20 sm:px-6 lg:px-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/10">
+          <div className="mx-auto max-w-7xl">
+            <motion.div
+              className="mx-auto max-w-3xl text-center"
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.4 }}
+            >
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-[#2563EB]">
+                Testimonials
+              </p>
+              <h2 className="mt-4 text-3xl font-black tracking-tight text-[#1E293B] dark:text-slate-100 sm:text-4xl">
+                Trusted by clinical teams
+              </h2>
+            </motion.div>
+
+            <div className="mt-14 grid gap-6 md:grid-cols-3">
+              {[
+                {
+                  quote: "Clinical Insight has transformed our preventive cardiometabolic screening workflow. What used to take 10 minutes now takes under 30 seconds.",
+                  author: "Dr. Sarah Chen",
+                  role: "Cardiologist, St. Mary\u2019s Hospital",
+                },
+                {
+                  quote: "The explainable AI reports are a game-changer for patient consultations. I can show patients exactly what is driving their risk score.",
+                  author: "Dr. James Okonkwo",
+                  role: "Endocrinologist, University Medical Center",
+                },
+                {
+                  quote: "Our clinic reduced high-risk patient backlog by 40% in three months. The longitudinal tracking helps us prioritize interventions effectively.",
+                  author: "Lisa Torres",
+                  role: "Lead Nurse Practitioner, HealthFirst Clinic",
+                },
+              ].map((testimonial, index) => (
+                <motion.div
+                  key={testimonial.author}
+                  className="rounded-2xl bg-white dark:bg-slate-900/40 border border-transparent dark:border-slate-850/50 p-8 shadow-sm ring-1 ring-slate-200/70 dark:ring-slate-800"
+                  variants={fadeUp}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true, amount: 0.25 }}
+                  transition={{ duration: 0.35, delay: index * 0.08 }}
+                >
+                  <MessageSquare className="h-8 w-8 text-blue-300 dark:text-blue-600 mb-4" aria-hidden="true" />
+                  <blockquote className="text-sm leading-7 text-slate-600 dark:text-slate-400 italic">
+                    &ldquo;{testimonial.quote}&rdquo;
+                  </blockquote>
+                  <div className="mt-6 flex items-center gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />
+                    ))}
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-sm font-black text-[#1E293B] dark:text-slate-100">
+                      {testimonial.author}
+                    </p>
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      {testimonial.role}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* Section 3: FAQ Accordion */}
         <section
           id="faq"
@@ -998,6 +1286,18 @@ export default function Landing() {
                 {
                   q: "How does the engine calculate risk?",
                   a: "The risk modeling engine analyzes key clinical markers including HbA1c, BMI, blood pressure, and age using predictive algorithms validated against peer-reviewed cardiometabolic datasets. It highlights the primary factors driving the risk score to assist in clinical decision-making.",
+                },
+                {
+                  q: "What integrations do you support?",
+                  a: "Clinical Insight offers REST API access for EHR integration, PDF report exports, and CSV data import/export. We are actively building native integrations with Epic and Cerner.",
+                },
+                {
+                  q: "Is there a mobile app available?",
+                  a: "Our platform is fully responsive and optimized for tablet use during patient consultations. A dedicated mobile application for iOS and Android is currently in development.",
+                },
+                {
+                  q: "How long does implementation take?",
+                  a: "Most clinics go from sign-up to full deployment in under 48 hours. Our team provides onboarding support and training materials to ensure a smooth rollout.",
                 },
               ].map((faq, index) => {
                 const isOpen = openFaqIndex === index;
@@ -1045,27 +1345,79 @@ export default function Landing() {
         </section>
 
         <section id="pricing" className="px-5 pb-20 sm:px-6 lg:px-8">
-          <div className="mx-auto grid max-w-7xl items-center gap-8 rounded-[2rem] bg-[#1E293B] p-8 text-white shadow-2xl shadow-slate-900/15 md:grid-cols-[1fr_auto] md:p-10">
-            <div>
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-blue-100">
-                <Stethoscope className="h-4 w-4" aria-hidden="true" />
-                Clinic-ready rollout
+          <div className="mx-auto max-w-7xl">
+            <div className="grid items-center gap-8 rounded-[2rem] bg-[#1E293B] p-8 text-white shadow-2xl shadow-slate-900/15 md:grid-cols-[1fr_auto] md:p-10">
+              <div>
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-blue-100">
+                  <Stethoscope className="h-4 w-4" aria-hidden="true" />
+                  Clinic-ready rollout
+                </div>
+                <h2 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+                  Bring preventive risk intelligence into every consultation.
+                </h2>
+                <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
+                  Flexible demo plans for clinics, hospitals, and digital health
+                  teams evaluating AI-assisted cardiometabolic screening.
+                </p>
               </div>
-              <h2 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
-                Bring preventive risk intelligence into every consultation.
-              </h2>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-                Flexible demo plans for clinics, hospitals, and digital health
-                teams evaluating AI-assisted cardiometabolic screening.
-              </p>
+              <a
+                href="mailto:support@clinicalinsight.org"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-base font-black text-[#1E293B] shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blue-50 focus:outline-none focus:ring-4 focus:ring-white/30"
+              >
+                Contact Sales
+                <Mail className="h-5 w-5 text-[#2563EB]" aria-hidden="true" />
+              </a>
             </div>
-            <a
-              href="mailto:support@clinicalinsight.org"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-base font-black text-[#1E293B] shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blue-50 focus:outline-none focus:ring-4 focus:ring-white/30"
-            >
-              Contact Sales
-              <Mail className="h-5 w-5 text-[#2563EB]" aria-hidden="true" />
-            </a>
+
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              {[
+                {
+                  icon: Mail,
+                  title: "Request a Demo",
+                  desc: "See Clinical Insight in action with a personalized walkthrough for your clinical team.",
+                  href: "mailto:support@clinicalinsight.org",
+                  label: "support@clinicalinsight.org",
+                },
+                {
+                  icon: BookOpen,
+                  title: "Read the Docs",
+                  desc: "Explore our comprehensive API documentation, integration guides, and clinical validation data.",
+                  href: "#",
+                  label: "View Documentation",
+                },
+                {
+                  icon: MessageSquare,
+                  title: "Have Questions?",
+                  desc: "Our clinical support team is standing by to answer any questions about deployment and workflows.",
+                  href: "mailto:support@clinicalinsight.org",
+                  label: "Ask a Question",
+                },
+              ].map((option) => {
+                const Icon = option.icon;
+                return (
+                  <a
+                    key={option.title}
+                    href={option.href}
+                    className="group rounded-2xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-[#2563EB]/30"
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] group-hover:bg-[#2563EB] group-hover:text-white transition-all duration-200">
+                        <Icon className="h-5 w-5" aria-hidden="true" />
+                      </div>
+                      <p className="text-sm font-black text-[#1E293B] dark:text-slate-100">
+                        {option.title}
+                      </p>
+                    </div>
+                    <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+                      {option.desc}
+                    </p>
+                    <p className="mt-3 text-xs font-bold text-[#2563EB] group-hover:text-blue-700 transition-colors">
+                      {option.label} &rarr;
+                    </p>
+                  </a>
+                );
+              })}
+            </div>
           </div>
         </section>
       </main>

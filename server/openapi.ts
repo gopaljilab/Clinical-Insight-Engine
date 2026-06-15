@@ -1,48 +1,64 @@
 import type { Express, NextFunction, Request, Response } from "express";
-import swaggerUi from "swagger-ui-express";
-import {
-  extendZodWithOpenApi,
-  OpenAPIRegistry,
-  OpenApiGeneratorV3,
-} from "@asteasolutions/zod-to-openapi";
+
+// Optional dependency gating: this project should still run even if the
+// OpenAPI tooling dependencies are not installed.
+let swaggerUi: any;
+let extendZodWithOpenApi: any;
+let OpenAPIRegistry: any;
+let OpenApiGeneratorV3: any;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  swaggerUi = require("swagger-ui-express");
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  ({ extendZodWithOpenApi, OpenAPIRegistry, OpenApiGeneratorV3 } = require("@asteasolutions/zod-to-openapi"));
+} catch {
+  swaggerUi = null;
+}
+
 import { z } from "zod";
 import { loginDTOSchema } from "./validation/auth.dto";
 
-extendZodWithOpenApi(z);
+if (extendZodWithOpenApi) {
+  extendZodWithOpenApi(z);
+}
 
 const swaggerUiOptions = {
+
   customSiteTitle: "Clinical Insight Engine API Docs",
   swaggerOptions: {
     persistAuthorization: true,
   },
 };
 
-const registry = new OpenAPIRegistry();
+const registry = OpenAPIRegistry ? new OpenAPIRegistry() : null;
 
-registry.registerComponent("securitySchemes", "SessionAuth", {
-  type: "apiKey",
-  in: "cookie",
-  name: "connect.sid",
-  description: "Authenticated Express session cookie.",
-});
 
-registry.registerComponent("securitySchemes", "BearerAuth", {
-  type: "http",
-  scheme: "bearer",
-  bearerFormat: "JWT",
-  description: "JWT issued by GET /api/auth/token.",
-});
+if (registry) {
+  registry.registerComponent("securitySchemes", "SessionAuth", {
+    type: "apiKey",
+    in: "cookie",
+    name: "connect.sid",
+    description: "Authenticated Express session cookie.",
+  });
 
-const errorResponseSchema = registry.register(
+  registry.registerComponent("securitySchemes", "BearerAuth", {
+    type: "http",
+    scheme: "bearer",
+    bearerFormat: "JWT",
+    description: "JWT issued by GET /api/auth/token.",
+  });
+}
+
+const errorResponseSchema = registry?.register(
   "ErrorResponse",
   z.object({
     message: z.string(),
   })
 );
 
-const loginRequestSchema = registry.register("LoginRequest", loginDTOSchema);
+const loginRequestSchema = registry?.register("LoginRequest", loginDTOSchema);
 
-const loginResponseSchema = registry.register(
+const loginResponseSchema = registry?.register(
   "LoginResponse",
   z.object({
     success: z.boolean(),
@@ -50,7 +66,7 @@ const loginResponseSchema = registry.register(
   })
 );
 
-const currentUserResponseSchema = registry.register(
+const currentUserResponseSchema = registry?.register(
   "CurrentUserResponse",
   z.object({
     user: z.object({
@@ -63,7 +79,7 @@ const currentUserResponseSchema = registry.register(
   })
 );
 
-registry.registerPath({
+registry?.registerPath({
   method: "get",
   path: "/health",
   tags: ["System"],
@@ -84,7 +100,7 @@ registry.registerPath({
   },
 });
 
-registry.registerPath({
+registry?.registerPath({
   method: "post",
   path: "/api/auth/login",
   tags: ["Authentication"],
@@ -129,7 +145,7 @@ registry.registerPath({
   },
 });
 
-registry.registerPath({
+registry?.registerPath({
   method: "get",
   path: "/api/auth/me",
   tags: ["Authentication"],
@@ -155,9 +171,9 @@ registry.registerPath({
   },
 });
 
-const generator = new OpenApiGeneratorV3(registry.definitions);
+const generator = OpenApiGeneratorV3 ? new OpenApiGeneratorV3(registry?.definitions || []) : null;
 
-export const openApiDocument = generator.generateDocument({
+export const openApiDocument = generator ? generator.generateDocument({
   openapi: "3.0.0",
   info: {
     title: "Clinical Insight Engine API",
@@ -171,7 +187,7 @@ export const openApiDocument = generator.generateDocument({
       description: "Current server",
     },
   ],
-});
+}) : {};
 
 function swaggerDocsCsp(_req: Request, res: Response, next: NextFunction) {
   res.setHeader(
@@ -195,16 +211,18 @@ export function registerOpenApiDocs(app: Express) {
     res.json(openApiDocument);
   });
 
-  app.get(
-    "/api-docs",
-    swaggerDocsCsp,
-    swaggerUi.setup(openApiDocument, swaggerUiOptions)
-  );
+  if (swaggerUi) {
+    app.get(
+      "/api-docs",
+      swaggerDocsCsp,
+      swaggerUi.setup(openApiDocument, swaggerUiOptions)
+    );
 
-  app.use(
-    "/api-docs",
-    swaggerDocsCsp,
-    swaggerUi.serve,
-    swaggerUi.setup(openApiDocument, swaggerUiOptions)
-  );
+    app.use(
+      "/api-docs",
+      swaggerDocsCsp,
+      swaggerUi.serve,
+      swaggerUi.setup(openApiDocument, swaggerUiOptions)
+    );
+  }
 }
