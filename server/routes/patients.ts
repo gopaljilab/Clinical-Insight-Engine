@@ -1,6 +1,7 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import { requireJwtAuth } from "../middleware/jwtVerification";
 import { storage } from "../storage";
+import { logger } from "../logger";
 
 const router = Router();
 
@@ -25,9 +26,16 @@ router.get("/", async (req, res, next) => {
     });
 
     res.json({ data: sanitizedRecords });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    logger.error({ err }, "Patient routes fetch error");
+    next(err);
   }
+});
+
+router.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  logger.error({ err }, "Patient routes error");
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: err.message || "Internal server error" });
 });
 
 export default router;
