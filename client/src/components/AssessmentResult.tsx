@@ -15,6 +15,7 @@ import { PredictionExplanation } from "./PredictionExplanation";
 import { DataQualityAlerts } from "./DataQualityAlerts";
 import { BiomarkerAlerts } from "./BiomarkerAlerts";
 import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
+import { ClinicalCopilot } from "./ClinicalCopilot";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface AssessmentResultProps {
@@ -363,6 +364,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <WhatIfRiskSimulator assessment={assessment} onComparisonFactors={setWhatIfFactors} />
 
+              <ClinicalCopilot assessment={assessment} />
+
               <ExplainabilityPanel
                 factors={factorBreakdown}
                 increasedRiskFactors={increasedRiskFactors}
@@ -549,6 +552,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               <div className="mt-4">
                 <Recommendations recommendations={assessment.recommendations} audience="clinician" />
               </div>
+
+              <ClinicalCopilot assessment={assessment} />
             </motion.div>
           )}
         </AnimatePresence>
