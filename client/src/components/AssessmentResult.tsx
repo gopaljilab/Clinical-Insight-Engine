@@ -1,12 +1,22 @@
-import { useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { HealthBadges } from "@/components/HealthBadges";
+import { CopySummaryButton } from "@/components/CopySummaryButton";
+import { useAssessments, useWhatIfAuto } from "@/hooks/use-assessments";
+import { calculateHealthBadges } from "@/utils/healthBadges";
 import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
+import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
+import { Recommendations } from "./Recommendations";
+import { PredictionExplanation } from "./PredictionExplanation";
+import { DataQualityAlerts } from "./DataQualityAlerts";
+import { BiomarkerAlerts } from "./BiomarkerAlerts";
+import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
+import { ClinicalCopilot } from "./ClinicalCopilot";
+import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -56,35 +66,17 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [view, setView] = useState<"patient" | "clinician">("patient");
   const [isPresenting, setIsPresenting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [pdfError, setPdfError] = useState<string>("");
+  const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string }[] | null>(null);
 
   const generatePDF = async () => {
+    setPdfError("");
     setIsGeneratingPDF(true);
     try {
-      const element = document.getElementById("assessment-result-wrapper");
-      if (!element) return;
-      
-      const buttons = element.querySelector('.pdf-hide-buttons') as HTMLElement;
-      const originalDisplay = buttons ? buttons.style.display : '';
-      if (buttons) buttons.style.display = 'none';
-
-      const canvas = await html2canvas(element, { 
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-      
-      if (buttons) buttons.style.display = originalDisplay;
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Clinical_Insight_Report_${assessment.patientName?.replace(/\s+/g, '_') ?? 'Patient'}.pdf`);
+      await downloadClinicalAssessmentPdf(assessment);
     } catch (error) {
-      console.error("Error generating PDF:", error);
+      console.error("PDF export failed", error);
+      setPdfError("Unable to export the PDF report. Please try again.");
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -118,6 +110,13 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     }
   };
 
+  const { data: assessmentsResponse } = useAssessments();
+  const assessmentHistory = assessmentsResponse?.data ?? [];
+  const improvementBadges = useMemo(
+    () => calculateHealthBadges(assessment, assessmentHistory),
+    [assessment, assessmentHistory]
+  );
+
   const factors = normalizeFactors(assessment.factors);
   const totalFactors = Math.max(factors.length, 1);
   const factorBreakdown: FactorBreakdown[] = factors.map((factor, index) => ({
@@ -136,6 +135,18 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     plainReason: f.plainReason,
     strength: f.strength,
   }));
+
+  const whatIfChartData = useMemo(() => {
+    if (!whatIfFactors) return null;
+    const maxStrength = Math.max(whatIfFactors.length, 1);
+    return whatIfFactors.map((f, i) => ({
+      name: f.name,
+      value: f.impact === 'positive' ? Math.round(((maxStrength - i) / maxStrength) * 100) : -Math.round(((maxStrength - i) / maxStrength) * 100),
+      impact: f.impact,
+      description: f.description,
+      isWhatIf: true,
+    }));
+  }, [whatIfFactors]);
 
   const riskScore = Number(assessment.riskScore).toFixed(1);
   const positiveFactors = factors.filter((f: any) => f.impact === "positive");
@@ -156,7 +167,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       id="assessment-result-wrapper"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 overflow-hidden flex flex-col"
+      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 flex flex-col"
     >
       {/* Header/Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 bg-muted/30 p-2.5">
@@ -198,40 +209,72 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             )}
           </button>
         </div>
-        <div className="pdf-hide-buttons flex items-center gap-2 justify-end self-stretch print:hidden">
-          <button
-            type="button"
-            onClick={() => setIsPresenting(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <MonitorPlay className="w-3.5 h-3.5" />
-            Present
-          </button>
-          <button
-            type="button"
-            onClick={generatePDF}
-            disabled={isGeneratingPDF}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 border border-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
-          >
-            {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-            {isGeneratingPDF ? "Generating..." : "Download PDF"}
-          </button>
-          <button
-            type="button"
-            onClick={exportToJson}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <Download className="w-3.5 h-3.5" />
-            JSON
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            Print
-          </button>
+
+        <div className="pdf-hide-buttons flex flex-col gap-2 justify-end self-stretch print:hidden">
+          <div className="flex flex-wrap gap-2 items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setIsPresenting(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
+            >
+              <MonitorPlay className="w-3.5 h-3.5" />
+              Present
+            </button>
+            <button
+              type="button"
+              onClick={generatePDF}
+              disabled={isGeneratingPDF}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 border border-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+            >
+              {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+              {isGeneratingPDF ? "Generating..." : "Export Official Record"}
+            </button>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <CopySummaryButton assessment={assessment} iconOnly />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Copy Summary</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={exportToJson}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label="Export JSON"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Export JSON</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label="Print"
+                >
+                  <Printer className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Print Report</p>
+              </TooltipContent>
+            </UiTooltip>
+          </div>
+          {pdfError ? (
+            <p role="alert" className="text-sm text-red-600 mt-1">
+              {pdfError}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -252,6 +295,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
               className="space-y-8"
             >
               {/* Patient Hero */}
@@ -269,6 +313,14 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   Based on your provided information, your preventive diabetes risk is considered <strong>{assessment.riskCategory.toLowerCase()}</strong>.
                 </p>
               </div>
+
+              <HealthBadges
+                badges={improvementBadges}
+                title="Progress badges"
+                description="See improvements and long-term trends based on this assessment and past history."
+              />
+
+              <DataQualityAlerts alerts={assessment.qualityAlerts} />
 
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
@@ -303,6 +355,17 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 ))}
               </div>
 
+              <Recommendations recommendations={assessment.recommendations} audience="patient" />
+
+              <PathToImprovement assessment={assessment} />
+              <PredictionExplanation explanation={assessment.explanation} view="patient" />
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
+
+              <WhatIfRiskSimulator assessment={assessment} onComparisonFactors={setWhatIfFactors} />
+
+              <ClinicalCopilot assessment={assessment} />
+
               <ExplainabilityPanel
                 factors={factorBreakdown}
                 increasedRiskFactors={increasedRiskFactors}
@@ -315,6 +378,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
               className="space-y-8"
             >
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
@@ -378,6 +442,11 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
               </div>
 
+              <div className="mt-4 space-y-4">
+                <DataQualityAlerts alerts={assessment.qualityAlerts} />
+                <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                   <h3 className="mb-3 flex items-center gap-2 font-bold">
@@ -416,26 +485,33 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               {/* Clinician Chart */}
               <div className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm overflow-hidden">
-                <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-primary" /> Factor Coefficient Impact
-                </h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary" /> Factor Coefficient Impact
+                  </h3>
+                  {whatIfChartData && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 text-xs font-semibold">
+                      What-If Comparison Active
+                    </span>
+                  )}
+                </div>
                 <div className="h-56 sm:h-64 w-full overflow-x-auto">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                      <ReferenceLine x={0} stroke="#cbd5e1" />
+                    <BarChart data={whatIfChartData ?? chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <ReferenceLine x={0} stroke="hsl(var(--border))" />
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: '#64748b', fontSize: 12 }} />
+                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
                       <Tooltip 
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
                               <div className="bg-popover text-popover-foreground border border-border p-3 rounded-lg shadow-xl text-sm max-w-xs">
-                                <p className="font-bold mb-1">{data.name}</p>
+                                <p className="font-bold mb-1">{data.name}{data.isWhatIf ? ' (What-If)' : ''}</p>
                                 <p className="text-muted-foreground">{data.description}</p>
-                                <p className="text-muted-foreground mt-2">{data.plainReason}</p>
+                                {!data.isWhatIf && <p className="text-muted-foreground mt-2">{data.plainReason}</p>}
                                 <p className={`mt-2 font-semibold ${data.impact === 'positive' ? 'text-red-500' : 'text-green-500'}`}>
-                                  Impact: {data.impact === 'positive' ? 'Increases Risk' : 'Decreases Risk'} ({data.strength}% relative strength)
+                                  Impact: {data.impact === 'positive' ? 'Increases Risk' : 'Decreases Risk'}
                                 </p>
                               </div>
                             );
@@ -444,7 +520,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                         }}
                       />
                       <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                        {chartData.map((entry: any, index: number) => (
+                        {(whatIfChartData ?? chartData).map((entry: any, index: number) => (
                           <Cell key={`cell-${index}`} fill={entry.impact === 'positive' ? '#ef4444' : '#22c55e'} />
                         ))}
                       </Bar>
@@ -459,6 +535,10 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 reducedRiskFactors={reducedRiskFactors}
               />
 
+              <PredictionExplanation explanation={assessment.explanation} view="clinician" />
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
+
               <div className="rounded-xl border border-border bg-muted/30 p-5">
                 <h3 className="mb-4 font-bold">Suggested clinical follow-up</h3>
                 <div className="grid gap-3 md:grid-cols-3">
@@ -469,6 +549,11 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   ))}
                 </div>
               </div>
+              <div className="mt-4">
+                <Recommendations recommendations={assessment.recommendations} audience="clinician" />
+              </div>
+
+              <ClinicalCopilot assessment={assessment} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -557,6 +642,60 @@ function ExplainabilityPanel({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function PathToImprovement({ assessment }: { assessment: AssessmentResponse }) {
+  const { mutate, data, isPending } = useWhatIfAuto();
+
+  useEffect(() => {
+    mutate({
+      patientName: assessment.patientName,
+      gender: assessment.gender as "Male" | "Female",
+      age: assessment.age,
+      hypertension: assessment.hypertension,
+      heartDisease: assessment.heartDisease,
+      smokingHistory: assessment.smokingHistory as "current" | "never" | "No Info" | "former",
+      bmi: assessment.bmi ?? 25,
+      hba1cLevel: assessment.hba1cLevel ?? 5.5,
+      bloodGlucoseLevel: assessment.bloodGlucoseLevel ?? 100,
+    });
+  }, [assessment]);
+
+  if (isPending || !data) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-5 shadow-sm animate-pulse flex items-center justify-center min-h-[100px]">
+        <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+        <span className="text-muted-foreground text-sm">Analyzing counterfactual scenarios...</span>
+      </div>
+    );
+  }
+
+  const recommendations = data.recommendations;
+  if (!recommendations || recommendations.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl p-6 shadow-sm relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-4 opacity-10">
+        <TrendingDown className="w-24 h-24 text-green-700" />
+      </div>
+      <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-900 relative z-10">
+        <TrendingDown className="w-5 h-5" /> Path to Improvement
+      </h3>
+      <div className="space-y-4 relative z-10">
+        {recommendations.map((rec: any, idx: number) => (
+          <div key={idx} className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border border-green-200/50 flex gap-3 shadow-sm">
+            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-green-900">{rec.action}</p>
+              <p className="text-green-800/80 text-sm mt-1">{rec.message}</p>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

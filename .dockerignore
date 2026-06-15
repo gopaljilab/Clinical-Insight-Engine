@@ -24,12 +24,7 @@ dist
 .editorconfig
 .prettierrc
 .nvmrc
-components.json
-tsconfig.json
-postcss.config.js
-tailwind.config.ts
-vite.config.ts
-drizzle.config.ts
+
 
 # Environment secrets
 .env

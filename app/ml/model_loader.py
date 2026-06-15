@@ -46,14 +46,22 @@ def load_model(model_path: str = DEFAULT_MODEL_PATH):
             raise FileNotFoundError(f"Model file not found: {abs_path}")
 
         logger.info(f"Loading ML model from: {abs_path}")
+        
+        from app.ml.security import verify_signature
+        if not verify_signature(abs_path):
+            raise PermissionError(
+                f"Model signature verification failed for: {abs_path}. "
+                "Refusing to deserialize untrusted model file to prevent Remote Code Execution."
+            )
+
         try:
             import joblib
             model = joblib.load(abs_path)
         except Exception:
             try:
-                import pickle
+                from app.ml.security import safe_pickle_load
                 with open(abs_path, "rb") as f:
-                    model = pickle.load(f)
+                    model = safe_pickle_load(f)
             except Exception as e:
                 raise RuntimeError(f"Failed to load model: {e}") from e
 

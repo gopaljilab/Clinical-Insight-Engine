@@ -583,6 +583,7 @@ Clinical-Insight-Engine/
 
 | Method | Endpoint | Description |
 |---|---|---|
+| `GET` | `/health` | Application health check endpoint for monitoring |
 | `POST` | `/api/assessments` | Submit a new risk assessment |
 | `GET` | `/api/assessments` | Retrieve assessment history |
 | `GET` | `/api/assessments/:id` | Get a specific assessment by ID |
@@ -590,6 +591,10 @@ Clinical-Insight-Engine/
 ### Example Request
 
 ```bash
+# Health Check
+curl -X GET http://localhost:3000/health
+
+# Submit Assessment
 curl -X POST http://localhost:3000/api/assessments \
   -H "Content-Type: application/json" \
   -d '{
@@ -681,6 +686,7 @@ py analyze.py predict_file patient.json
 | `DEV_CLINICIAN_EMAIL` | `.env.local` | Seeded clinician email (dev only) |
 | `DEV_CLINICIAN_PASSWORD` | `.env.local` | Seeded clinician password (dev only) |
 | `NEXT_PUBLIC_LOCAL_ENCRYPTION_KEY` | `.env.local` | Local encryption key (dev only) |
+| `ENABLE_PHI_REDACTION` | `.env` | Enable privacy-preserving PHI redaction (defaults to `true`) |
 
 > **Security:** `.env.local` is git-ignored and should **never** be committed. Production builds do not expose dev credentials.
 
@@ -733,7 +739,7 @@ py analyze.py predict_file patient.json
 ## 🗺 Roadmap
 
 - [ ] 📈 Longitudinal patient risk tracking across visits
-- [ ] 💡 Counterfactual reasoning — *"What single change reduces risk most?"*
+- [x] 💡 Counterfactual reasoning — *"What single change reduces risk most?"*
 - [ ] 🔬 Cohort discovery and population-level insights
 - [ ] 🏥 Integration with Electronic Health Records (EHR)
 - [ ] ⚖️ Advanced bias detection and ML fairness metrics
@@ -780,3 +786,31 @@ Please read our [**Contributing Guide**](CONTRIBUTING.md) and [**Code of Conduct
 
 ### GSSoC Drizzle Migrations Policy
 - All schema changes must go through drizzle-kit generate.
+
+
+## ✨ README Improvement Notes
+
+### 📌 Formatting Enhancements Needed
+- Improve heading hierarchy for better readability
+- Ensure consistent spacing between sections
+- Use proper Markdown formatting for code blocks and lists
+- Align all installation and usage steps properly
+
+### 🚀 Suggested Structure Upgrade
+- Introduction
+- Features
+- Tech Stack
+- Installation
+- Usage
+- Project Structure
+- Contribution Guidelines
+- License
+
+### 🛠️ Documentation Improvements
+- Add badges (optional): build, license, contributors
+- Add screenshots for better UI understanding
+- Standardize code blocks for commands
+
+### 🎯 Goal
+Improve onboarding experience for new contributors and users by making README more structured, readable, and professional.
+

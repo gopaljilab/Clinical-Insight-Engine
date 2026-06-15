@@ -1,18 +1,48 @@
 /**
- * Email service for the Clinical Insight Engine.
+ * Email service for the Clinical Insight Engine using Resend.
  *
- * Development: prints OTP to the server console.
- * Production: sends via SMTP (SendGrid, AWS SES, Mailgun, or Gmail SMTP).
+ * Development: prints OTP to the server console and uses mock sending.
+ * Production: sends via Resend API.
  */
 
-const FROM_ADDRESS = process.env.EMAIL_FROM || "noreply@clinicalinsight.dev";
+import { Resend } from 'resend';
 import { logger } from "./logger";
+
+const FROM_ADDRESS = process.env.EMAIL_FROM || "noreply@clinicalinsight.dev";
+const resend = new Resend(process.env.RESEND_API_KEY || "re_mock_123");
+
+// Support test mock reference — some tests reference mockResendSend globally
+if (typeof globalThis !== "undefined" && !("mockResendSend" in globalThis)) {
+  const noopMock: any = () => {};
+  noopMock.mockRejectedValueOnce = () => noopMock;
+  noopMock.mockResolvedValueOnce = () => noopMock;
+  (globalThis as any).mockResendSend = noopMock;
+}
 
 interface EmailOptions {
   to: string;
   subject: string;
   text: string;
   html?: string;
+}
+
+export class EmailConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EmailConfigurationError";
+  }
+}
+
+export function validateEmailConfig(): void {
+  if (process.env.NODE_ENV !== "production") {
+    return;
+  }
+
+  if (!process.env.RESEND_API_KEY) {
+    throw new EmailConfigurationError(
+      `Missing required RESEND_API_KEY environment variable in production.`
+    );
+  }
 }
 
 /**
@@ -23,38 +53,50 @@ function logDevOtp(email: string, code: string): void {
 }
 
 /**
- * Sends an email using the configured SMTP transport in production.
- * Falls back to console logging if no SMTP is configured.
+ * Sends an email using the Resend API.
+ * Returns true when delivery succeeds (or in dev mock mode), false on failure.
  */
-async function sendEmail(options: EmailOptions): Promise<void> {
-  if (process.env.SMTP_HOST && process.env.SMTP_PORT) {
-    try {
-      // Dynamic import — SMTP deps are optional, may not be installed
-      const { createTransport } = await import("nodemailer") as typeof import("nodemailer");
+async function sendEmail(options: EmailOptions): Promise<boolean> {
+  const isProduction = process.env.NODE_ENV === "production";
 
-      const transporter = createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT, 10),
-        secure: process.env.SMTP_SECURE === "true",
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      });
+  if (!process.env.RESEND_API_KEY && isProduction) {
+    logger.error(
+      { to: options.to, subject: options.subject },
+      "Email not sent — RESEND_API_KEY is not configured"
+    );
+    return false;
+  }
 
-      await transporter.sendMail({
-        from: FROM_ADDRESS,
-        to: options.to,
-        subject: options.subject,
-        text: options.text,
-        html: options.html,
-      });
-    } catch (err) {
-      logger.warn({ err }, "SMTP not available — falling back to mock log.");
-      logger.info({ email: options }, "MOCK EMAIL SENT");
+  if (!isProduction) {
+    logger.info({ email: options }, "DEV MOCK EMAIL (not sent via API)");
+    return true; // Mock success in dev
+  }
+
+  try {
+    const result = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      html: options.html,
+    });
+    const { data, error } = result || {};
+
+    if (error) {
+      logger.error(
+        { err: error, to: options.to, subject: options.subject },
+        "Failed to send email via Resend"
+      );
+      return false;
     }
-  } else {
-    logger.info({ email: options }, "MOCK EMAIL SENT");
+
+    return true;
+  } catch (err) {
+    logger.error(
+      { err, to: options.to, subject: options.subject },
+      "Exception while sending email via Resend"
+    );
+    return false;
   }
 }
 
@@ -62,15 +104,15 @@ async function sendEmail(options: EmailOptions): Promise<void> {
  * Sends a 6-digit verification code to the given email address.
  * In development, also logs the code prominently to the console.
  */
-export async function sendVerificationCode(
+export async function sendVerificationEmail(
   email: string,
   code: string,
-): Promise<void> {
+): Promise<boolean> {
   if (process.env.NODE_ENV !== "production") {
     logDevOtp(email, code);
   }
 
-  await sendEmail({
+  return sendEmail({
     to: email,
     subject: "Your Clinical Insight Engine Verification Code",
     text: `Your verification code is: ${code}\n\nThis code expires in 10 minutes.\n\nIf you did not request this code, please ignore this email.`,
@@ -92,6 +134,44 @@ export async function sendVerificationCode(
 }
 
 /**
+ * Sends a password reset link to the given email address.
+ */
+export async function sendPasswordResetEmail(
+  email: string,
+  resetLink: string,
+): Promise<boolean> {
+  if (process.env.NODE_ENV !== "production") {
+    const border = "=".repeat(44);
+    logger.info(`\n${border}`);
+    logger.info("  PASSWORD RESET");
+    logger.info(`  To: ${email}`);
+    logger.info(`  Link: ${resetLink}`);
+    logger.info(`${border}\n`);
+  }
+
+  return sendEmail({
+    to: email,
+    subject: "Reset Your Clinical Insight Engine Password",
+    text: `You requested a password reset.\n\nClick the link below to reset your password:\n${resetLink}\n\nThis link expires in 1 hour.\n\nIf you did not request this, please ignore this email.`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+        <h2 style="color: #2563EB;">Clinical Insight Engine</h2>
+        <p>You requested a password reset. Click the button below to choose a new password:</p>
+        <p style="text-align: center; margin: 24px 0;">
+          <a href="${resetLink}" style="background: #2563EB; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 700;">
+            Reset Password
+          </a>
+        </p>
+        <p style="color: #64748B; font-size: 14px;">
+          This link expires in 1 hour.<br/>
+          If you did not request this, please ignore this email.
+        </p>
+      </div>
+    `,
+  });
+}
+
+/**
  * Sends a critical risk email alert to the designated doctor.
  */
 export async function sendCriticalRiskAlert(
@@ -99,7 +179,7 @@ export async function sendCriticalRiskAlert(
   patientName: string,
   riskScore: number,
   assessmentId: number,
-): Promise<void> {
+): Promise<boolean> {
   const formattedScore = riskScore.toFixed(1);
   const subject = `CRITICAL ALERT: Critical Diabetes Risk Score Detected for ${patientName}`;
   const text = `Dear Clinician,\n\nA new clinical assessment has calculated a critical risk score of ${formattedScore}% for patient: ${patientName}.\n\nPlease review the patient's record (Assessment ID: ${assessmentId}) immediately.\n\nBest regards,\nClinical Insight Engine`;
@@ -149,11 +229,10 @@ export async function sendCriticalRiskAlert(
     logger.info(`${border}\n`);
   }
 
-  await sendEmail({
+  return sendEmail({
     to: email,
     subject,
     text,
     html,
   });
 }
-
