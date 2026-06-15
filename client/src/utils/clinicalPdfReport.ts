@@ -331,34 +331,40 @@ function getPatientSummaryFilename(patientName: string): string {
 export class PdfDocument extends jsPDF {
   y: number = MARGIN;
 
-  ensureSpace(requiredHeight: number): void {
+  ensureSpace = (requiredHeight: number): jsPDF => {
     this.y = ensurePageSpace(this, this.y, requiredHeight);
-  }
+    return this;
+  };
 
-  sectionTitle(title: string): void {
+  sectionTitle = (title: string): jsPDF => {
     this.y = addSectionTitle(this, title, this.y);
-  }
+    return this;
+  };
 
-  bullet(text: string): void {
+  bullet = (text: string): jsPDF => {
     this.y = addBulletList(this, [text], MARGIN + 10, this.y, CONTENT_WIDTH - 10);
-  }
+    return this;
+  };
 
-  keyValueRows(rows: Array<[string, string]>): void {
+  keyValueRows = (rows: Array<[string, string]>): jsPDF => {
     this.y = addKeyValueRows(this, rows, this.y);
-  }
+    return this;
+  };
 
-  moveDown(amount: number): void {
+  moveDown = (amount: number): jsPDF => {
     this.y += amount;
-  }
+    return this;
+  };
 
-  textAt(text: string, x: number, y: number, options?: any): void {
+  textAt = (text: string, x: number, y: number, options?: any): jsPDF => {
     if (options) {
       if (options.size) this.setFontSize(options.size);
       if (options.font) this.setFont("helvetica", options.font);
       if (options.color) this.setTextColor(options.color);
     }
     super.text(text, x, y);
-  }
+    return this;
+  };
 
   text(text: string | string[], x: number, y?: number | any, options?: any, transform?: any): jsPDF {
     if (typeof y === "object" && y !== null) {
@@ -384,7 +390,7 @@ export class PdfDocument extends jsPDF {
 
 export function downloadPatientSummaryPdf(assessments: PatientSummaryAssessment[]) {
   const summary = preparePatientSummaryReport(assessments);
-  const pdf = new jsPDF({ unit: "pt", format: "letter" });
+  const pdf = new PdfDocument({ unit: "pt", format: "letter" });
 
 
   pdf.text("Patient Longitudinal Risk Summary", MARGIN, { size: 21, font: "bold", color: SLATE });
