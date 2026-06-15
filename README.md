@@ -587,6 +587,7 @@ Clinical-Insight-Engine/
 | `POST` | `/api/assessments` | Submit a new risk assessment |
 | `GET` | `/api/assessments` | Retrieve assessment history |
 | `GET` | `/api/assessments/:id` | Get a specific assessment by ID |
+| `POST` | `/api/ingest/fhir` | Ingest a FHIR R4 JSON bundle |
 
 ### Example Request
 
@@ -606,6 +607,60 @@ curl -X POST http://localhost:3000/api/assessments \
     "bmi": 30.1,
     "hba1cLevel": 6.4,
     "bloodGlucoseLevel": 148
+  }'
+```
+
+### FHIR Ingestion
+
+Allows submitting standard FHIR R4 JSON bundles containing patient demographic details and clinical vitals/lab values.
+
+#### Supported Resources
+* **Patient**: Extracts `id`, `name`, `gender` (mapped to `Male`/`Female`), and calculates patient `age` from `birthDate`.
+* **Observation**: Extracts clinical values such as `BMI`, `HbA1c`, `Blood Glucose`, and flags `hypertension` and `heartDisease` using LOINC codes and display terms.
+* **DocumentReference**: Scans titles, descriptions, and decoded base64 attachments for cardiovascular and smoking history keywords.
+
+#### Example Request
+```bash
+curl -X POST http://localhost:3000/api/ingest/fhir \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceType": "Bundle",
+    "type": "collection",
+    "entry": [
+      {
+        "resource": {
+          "resourceType": "Patient",
+          "id": "pat-123",
+          "name": [
+            {
+              "use": "official",
+              "given": ["John", "Edward"],
+              "family": "Smith"
+            }
+          ],
+          "gender": "male",
+          "birthDate": "1980-01-01"
+        }
+      },
+      {
+        "resource": {
+          "resourceType": "Observation",
+          "code": {
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "39156-5",
+                "display": "Body Mass Index"
+              }
+            ]
+          },
+          "valueQuantity": {
+            "value": 24.5,
+            "unit": "kg/m2"
+          }
+        }
+      }
+    ]
   }'
 ```
 
