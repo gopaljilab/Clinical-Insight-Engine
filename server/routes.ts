@@ -189,9 +189,6 @@ export async function registerRoutes(
 
   // Mount auth router
   app.use("/api/auth", authRouter);
-  app.use("/api/assessments", mlRouter);
-  app.use("/api/assessments", exportsRouter);
-  app.use("/api", analyticsRouter);
   app.post(
     api.assessments.preview.path,
     requireAuth,
@@ -287,94 +284,6 @@ export async function registerRoutes(
         } catch (e) {
           logger.warn({ e, tempFile }, "Failed to clean up temp file (simulate):");
         }
-      }
-    }
-  );
-
-  app.post(
-    api.assessments.create.path,
-    requireAuth,
-    requireVerified,
-    assessmentLimiter,
-    async (req, res) => {
-      const userId = req.session.user?.email;
-      if (!userId) {
-        return res.status(401).json({
-          message: "Authentication required.",
-        });
-      }
-
-      let requestFingerprint: string | undefined;
-      let didAdd = false;
-      try {
-        const input = api.assessments.create.input.parse(req.body);
-        requestFingerprint = generateRequestFingerprint(input, userId);
-
-        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
-          return res.status(409).json({ message: "Assessment request is already being processed." });
-        }
-        MLService.activeInferenceRequests.add(requestFingerprint);
-        didAdd = true;
-
-        const queue = getAssessmentQueue();
-        if (!queue) {
-          return res.status(503).json({
-            message: "Assessment queue is temporarily unavailable.",
-          });
-        }
-        const job = await queue.add("predict", {
-          input,
-          userId,
-          requestFingerprint
-        });
-
-        return res.status(202).json({
-          message: "Assessment request accepted and is being processed.",
-          jobId: job.id
-        });
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res.status(400).json({
-            message: err.errors[0].message
-          });
-        }
-        logger.error({ err }, "Error queueing assessment");
-        return res
-          .status(500)
-          .json({ message: "Failed to queue clinical assessment." });
-      } finally {
-        if (didAdd) {
-          MLService.activeInferenceRequests.delete(requestFingerprint!);
-        }
-      }
-    }
-  );
-
-  app.get(
-    "/api/assessments/jobs/:id",
-    requireAuth,
-    requireVerified,
-    async (req, res) => {
-      try {
-        const jobId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        const queue = getAssessmentQueue();
-        if (!queue) {
-          return res.status(503).json({ message: "Assessment queue is temporarily unavailable." });
-        }
-        const job = await queue.getJob(jobId as string);
-        if (!job) {
-          return res.status(404).json({ message: "Job not found" });
-        }
-        const state = await job.getState();
-        if (state === "completed") {
-          return res.json({ status: "completed", result: job.returnvalue });
-        } else if (state === "failed") {
-          return res.status(500).json({ status: "failed", error: job.failedReason });
-        } else {
-          return res.json({ status: state });
-        }
-      } catch (err) {
-        return res.status(500).json({ message: "Error fetching job status" });
       }
     }
   );
@@ -686,6 +595,7 @@ export async function registerRoutes(
   // Mount domain-specific routers (after app-level handlers for precedence)
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", analyticsRouter);
   app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   // ─── Admin Routes ────────────────────────────────────────────────

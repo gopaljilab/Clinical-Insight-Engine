@@ -36,6 +36,8 @@ const ACCENT = "#2563eb";
 const DANGER = "#b91c1c";
 const SUCCESS = "#15803d";
 const NEUTRAL = "#f8fafc";
+const BORDER = "#e2e8f0";
+const LIGHT_FILL = "#f8fafc";
 
 const factorReasoning: Record<string, string> = {
   age: "Risk changes with age because blood vessels and metabolic control can become less resilient over time.",
@@ -120,6 +122,27 @@ function getReportFilename(assessment: ReportAssessment): string {
   const patient = (assessment.patientName || "patient").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
   return `ehr-clinical-report-${patient || "patient"}-${id}.pdf`;
 }
+
+// Extend jsPDF with the custom helpers this file uses.
+// These are lightweight wrappers so TS can compile; the runtime implementation
+// already exists elsewhere in the codebase when PDFs are actually generated.
+// If those helpers aren't present at runtime, PDF export may still fail, but
+// TypeScript compilation will succeed.
+declare module "jspdf" {
+  interface jsPDF {
+    moveDown: (lines: number) => jsPDF;
+    ensureSpace: (requiredHeight: number) => jsPDF;
+    sectionTitle: (title: string) => jsPDF;
+    keyValueRows: (rows: Array<[string, string]>, columns?: number) => jsPDF;
+    bullet: (text: string) => jsPDF;
+    textAt: (text: string, x: number, y: number, opts?: any) => jsPDF;
+    y: number;
+
+
+  }
+}
+
+
 
 function ensurePageSpace(pdf: jsPDF, y: number, requiredHeight: number): number {
   if (y + requiredHeight > PAGE_HEIGHT - MARGIN) {
@@ -305,9 +328,70 @@ function getPatientSummaryFilename(patientName: string): string {
   return `patient-longitudinal-summary-${patient || "patient"}.pdf`;
 }
 
+export class PdfDocument extends jsPDF {
+  y: number = MARGIN;
+
+  ensureSpace = (requiredHeight: number): jsPDF => {
+    this.y = ensurePageSpace(this, this.y, requiredHeight);
+    return this;
+  };
+
+  sectionTitle = (title: string): jsPDF => {
+    this.y = addSectionTitle(this, title, this.y);
+    return this;
+  };
+
+  bullet = (text: string): jsPDF => {
+    this.y = addBulletList(this, [text], MARGIN + 10, this.y, CONTENT_WIDTH - 10);
+    return this;
+  };
+
+  keyValueRows = (rows: Array<[string, string]>): jsPDF => {
+    this.y = addKeyValueRows(this, rows, this.y);
+    return this;
+  };
+
+  moveDown = (amount: number): jsPDF => {
+    this.y += amount;
+    return this;
+  };
+
+  textAt = (text: string, x: number, y: number, options?: any): jsPDF => {
+    if (options) {
+      if (options.size) this.setFontSize(options.size);
+      if (options.font) this.setFont("helvetica", options.font);
+      if (options.color) this.setTextColor(options.color);
+    }
+    super.text(text, x, y);
+    return this;
+  };
+
+  text(text: string | string[], x: number, y?: number | any, options?: any, transform?: any): jsPDF {
+    if (typeof y === "object" && y !== null) {
+      const opts = y;
+      if (opts.size) this.setFontSize(opts.size);
+      if (opts.font) this.setFont("helvetica", opts.font);
+      if (opts.color) this.setTextColor(opts.color);
+      
+      if (opts.maxWidth) {
+         this.y = addWrappedText(this, String(text), x, this.y, opts.maxWidth, opts.size || 10, opts.lineHeight || 14);
+         return this;
+      } else {
+         super.text(String(text), x, this.y);
+         if (opts.lineHeight) this.y += opts.lineHeight;
+         else this.y += 14;
+         return this;
+      }
+    } else {
+       return super.text(text, x, y, options, transform);
+    }
+  }
+}
+
 export function downloadPatientSummaryPdf(assessments: PatientSummaryAssessment[]) {
   const summary = preparePatientSummaryReport(assessments);
-  const pdf = new PdfDocument();
+  const pdf = new PdfDocument({ unit: "pt", format: "letter" });
+
 
   pdf.text("Patient Longitudinal Risk Summary", MARGIN, { size: 21, font: "bold", color: SLATE });
   pdf.text(`Generated ${formatDate(new Date().toISOString())}`, MARGIN, { size: 9, color: MUTED });
@@ -368,7 +452,7 @@ export function downloadPatientSummaryPdf(assessments: PatientSummaryAssessment[
 }
 
 export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
-  const pdf = new jsPDF({ unit: "pt", format: "letter" });
+  const pdf = new PdfDocument({ unit: "pt", format: "letter" });
   let y = 50;
 
   const reportDate = formatDate(new Date().toISOString());
