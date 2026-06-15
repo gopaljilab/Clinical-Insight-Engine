@@ -26,7 +26,7 @@ const formSchema = insertAssessmentSchema.pick({
   bloodGlucoseLevel: true,
 });
 
-type FormData = z.infer<typeof formSchema>;
+type AssessmentFormData = z.infer<typeof formSchema>;
 
 const inputClass =
   "w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900 px-4 py-3 text-[#1E293B] dark:text-gray-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-sm outline-none transition-all duration-200 focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-600/20 dark:focus:ring-blue-500/20";
@@ -90,8 +90,8 @@ export default function Dashboard() {
     watch,
     setValue,
     reset,
-  } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+  } = useForm<AssessmentFormData>({
+    resolver: zodResolver(formSchema) as any,
     defaultValues: {
       patientName: "",
       hypertension: false,
@@ -105,7 +105,7 @@ export default function Dashboard() {
     },
   });
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = (data: AssessmentFormData) => {
     createAssessment(data, {
       onSuccess: (data) => {
         setResult(data);
@@ -158,7 +158,7 @@ export default function Dashboard() {
         Object.entries(draft).forEach(([k, v]) => {
           if (!allowedKeys.includes(k)) return;
           try {
-            setValue(k as keyof FormData, v as any, { shouldDirty: true });
+            setValue(k as keyof AssessmentFormData, v as any, { shouldDirty: true });
           } catch (e) {}
         });
       }
