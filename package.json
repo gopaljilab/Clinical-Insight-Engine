@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:python": "test -x .venv/bin/pytest && .venv/bin/pytest || python3 -m pytest",
     "test:all": "npm run test && npm run test:python",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",
@@ -132,6 +133,8 @@
     "autoprefixer": "^10.5.0",
     "drizzle-kit": "^0.31.8",
     "esbuild": "^0.25.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.37.0",
     "jsonwebtoken": "^9.0.3",
     "postcss": "^8.5.15",
     "puppeteer": "^25.1.0",
