@@ -14,7 +14,8 @@
     "test:all": "npm run test && npm run test:python",
     "test:e2e": "playwright test",
     "db:push": "drizzle-kit push",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "docs:generate": "typedoc --options typedoc.json"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",
@@ -147,7 +148,9 @@
     "puppeteer": "^25.1.0",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.3.0",
+    "ts-morph": "^28.0.0",
     "tsx": "^4.22.4",
+    "typedoc": "^0.28.19",
     "typescript": "5.6.3",
     "vite": "^7.3.0",
     "vitest": "^3.2.4"

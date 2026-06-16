@@ -15,6 +15,11 @@ function parseWithLogging<T>(schema: any, data: unknown, label: string): T {
 // The base query key for all assessments list queries.
 const ASSESSMENTS_LIST_QUERY_KEY = api.assessments.list.path;
 
+/**
+ * A React hook to query the assessments list, supporting pagination, sorting, search term, and range filters.
+ * @param params - The params parameter.
+ * @returns The result of the operation.
+ */
 export function useAssessments(params?: {
   page?: number;
   limit?: number;
@@ -118,6 +123,10 @@ export function useClearPatientCache() {
   };
 }
 
+/**
+ * A React hook to remove a specific patient assessment and invalidate associated queries.
+ * @returns The result of the operation.
+ */
 export function useDeleteAssessment() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -157,6 +166,10 @@ export function useDeleteAssessment() {
     },
   });
 }
+/**
+ * A React hook to submit a new patient assessment and automatically refresh the assessments list cache.
+ * @returns The result of the operation.
+ */
 export function useCreateAssessment() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -258,6 +271,10 @@ export function useCreateAssessment() {
   });
 }
 
+/**
+ * A React hook to simulate a diabetes risk score based on what-if updates to patient parameters.
+ * @returns The result of the operation.
+ */
 export function useSimulateAssessment() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
@@ -284,6 +301,10 @@ export function useSimulateAssessment() {
   });
 }
 
+/**
+ * React hook for  what if assessment.
+ * @returns The result of the operation.
+ */
 export function useWhatIfAssessment() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
@@ -310,6 +331,10 @@ export function useWhatIfAssessment() {
   });
 }
 
+/**
+ * React hook for  what if batch.
+ * @returns The result of the operation.
+ */
 export function useWhatIfBatch() {
   return useMutation({
     mutationFn: async (data: {
@@ -339,6 +364,10 @@ export function useWhatIfBatch() {
   });
 }
 
+/**
+ * React hook for  what if auto.
+ * @returns The result of the operation.
+ */
 export function useWhatIfAuto() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {

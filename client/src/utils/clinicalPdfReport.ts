@@ -263,6 +263,11 @@ export interface PatientSummaryReport {
   assessmentCount: number;
 }
 
+/**
+ * Prepare Patient Summary Report.
+ * @param assessments - The assessments parameter.
+ * @returns The result of the operation.
+ */
 export function preparePatientSummaryReport(
   assessments: PatientSummaryAssessment[],
 ): PatientSummaryReport {
@@ -328,6 +333,7 @@ function getPatientSummaryFilename(patientName: string): string {
   return `patient-longitudinal-summary-${patient || "patient"}.pdf`;
 }
 
+/**  Pdf Document. */
 export class PdfDocument extends jsPDF {
   y: number = MARGIN;
 
@@ -366,7 +372,16 @@ export class PdfDocument extends jsPDF {
     return this;
   };
 
-  text(text: string | string[], x: number, y?: number | any, options?: any, transform?: any): jsPDF {
+  /**
+     * Text.
+     * @param text - The text parameter.
+     * @param x - The x parameter.
+     * @param y - The y parameter.
+     * @param options - The options parameter.
+     * @param transform - The transform parameter.
+     * @returns The result of the operation.
+     */
+    text(text: string | string[], x: number, y?: number | any, options?: any, transform?: any): jsPDF {
     if (typeof y === "object" && y !== null) {
       const opts = y;
       if (opts.size) this.setFontSize(opts.size);
@@ -388,6 +403,11 @@ export class PdfDocument extends jsPDF {
   }
 }
 
+/**
+ * Download Patient Summary Pdf.
+ * @param assessments - The assessments parameter.
+ * @returns The result of the operation.
+ */
 export function downloadPatientSummaryPdf(assessments: PatientSummaryAssessment[]) {
   const summary = preparePatientSummaryReport(assessments);
   const pdf = new PdfDocument({ unit: "pt", format: "letter" });
@@ -451,6 +471,11 @@ export function downloadPatientSummaryPdf(assessments: PatientSummaryAssessment[
   pdf.save(getPatientSummaryFilename(summary.patientName));
 }
 
+/**
+ * Download Clinical Assessment Pdf.
+ * @param assessment - The assessment parameter.
+ * @returns The result of the operation.
+ */
 export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
   const pdf = new PdfDocument({ unit: "pt", format: "letter" });
   let y = 50;

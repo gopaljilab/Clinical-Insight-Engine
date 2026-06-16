@@ -30,6 +30,11 @@ function detectConsecutive(series: number[]): { increasing: number; decreasing: 
   return { increasing: inc, decreasing: dec, stable };
 }
 
+/**
+ * Analyzes longitudinal clinical records (lookback window) to determine trajectory directions (increasing/decreasing/stable) for blood glucose, HbA1c, and BMI.
+ * @param { assessments, lookback = 8 } - The { assessments, lookback = 8 } parameter.
+ * @returns The result of the operation.
+ */
 export function analyzeBiomarkerTrends({ assessments, lookback = 8 }: AnalyzerInput): BiomarkerAlert[] {
   const alerts: BiomarkerAlert[] = [];
 

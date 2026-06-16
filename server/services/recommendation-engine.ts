@@ -150,6 +150,11 @@ const rules: Rule[] = [
   },
 ];
 
+/**
+ * Generate Recommendations.
+ * @param input - The input parameter.
+ * @returns The result of the operation.
+ */
 export function generateRecommendations(input: Partial<Assessment> & { riskCategory?: string }): Recommendation[] {
   const seen = new Set<string>();
   const out: Recommendation[] = [];

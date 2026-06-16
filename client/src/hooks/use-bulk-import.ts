@@ -36,6 +36,10 @@ const INITIAL_STATE: BulkImportState = {
   error: null,
 };
 
+/**
+ * A React hook to manage file parsing, CSV validation, batch upload, and progress tracking for patient telemetry imports.
+ * @returns The result of the operation.
+ */
 export function useBulkImport(): BulkImportState & BulkImportActions {
   const [state, setState] = useState<BulkImportState>(INITIAL_STATE);
 
