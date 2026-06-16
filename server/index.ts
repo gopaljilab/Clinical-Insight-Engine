@@ -1,7 +1,6 @@
 import crypto from "crypto";
-import { execFile } from "child_process";
-import { promisify } from "util";
-import express from "express";
+import { safeExecML } from "./utils/exec";
+import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
@@ -31,8 +30,11 @@ import {
 } from "./queue";
 import { EmailConfigurationError, validateEmailConfig } from "./email";
 import { generalLimiter } from "./middleware/rateLimit";
+import { registerOpenApiDocs } from "./openapi";
+import { initAssessmentSocket } from "./socket/assessmentSocket";
+import { rlsContextMiddleware } from "./middleware/rlsContext";
 
-const execFileAsync = promisify(execFile);
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -43,8 +45,7 @@ const allowedOrigins = process.env.CORS_ORIGINS
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    // This is required for the browser to load the initial HTML document
+    // Allow requests with no origin (browser initial load, Vite HMR, curl)
     if (!origin) {
       return callback(null, true);
     }
@@ -136,17 +137,14 @@ const scriptSrcDirective: Array<string | ((req: any, res: any) => string)> = [
   (_req: any, res: any) => `'nonce-${res.locals.cspNonce}'`,
 ];
 
-// Vite HMR requires eval in development mode
-if (process.env.NODE_ENV !== "production") {
-  scriptSrcDirective.push("'unsafe-eval'");
-}
+
 
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: scriptSrcDirective,
+        scriptSrc: process.env.NODE_ENV === "production" ? scriptSrcDirective : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:"],
@@ -198,6 +196,8 @@ app.use((req, res, next) => {
   next();
 });
 
+registerOpenApiDocs(app);
+
 (async () => {
   try {
     await verifyDatabaseConnection();
@@ -245,14 +245,21 @@ app.use((req, res, next) => {
 
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
+  // Apply RLS context middleware to assessment and patient data routes
+  // This ensures PostgreSQL session variables are set for RLS policies
+  app.use("/api/assessments", rlsContextMiddleware);
+  app.use("/api/patients", rlsContextMiddleware);
+  app.use("/api/patient", rlsContextMiddleware);
+  app.use("/api/admin", rlsContextMiddleware);
   // Register protected patient EMR/EHR integration endpoints
   app.use("/api/patients", generalLimiter, patientsRouter);
   app.use("/api/patient", patientPortalRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
-  execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
+  safeExecML(getPythonExecutable(), ["analyze.py", "train"])
     .then(() => logger.info({ source: "ml" }, "ML model ready."))
     .catch((err: any) => logger.warn({ source: "ml" }, `ML warmup warning: ${err.message}`));
+  initAssessmentSocket(httpServer);
   await registerRoutes(httpServer, app);
 
   // Global error handler — must be the LAST middleware.

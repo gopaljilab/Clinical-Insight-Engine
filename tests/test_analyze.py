@@ -392,3 +392,37 @@ def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
     assert migrated_data[5] == os.path.getmtime(test_data_file)
     assert migrated_data[6] == os.path.getsize(test_data_file)
 
+def test_validate_assessment_input_rejects_invalid_age():
+    from analyze import validate_assessment_input
+
+    with pytest.raises(ValueError):
+        validate_assessment_input(
+            {
+                "age": -1,
+                "gender": "Male",
+                "hypertension": False,
+                "heartDisease": False,
+                "bmi": 25,
+                "hba1cLevel": 5.5,
+                "bloodGlucoseLevel": 100,
+                "smokingHistory": "never",
+            }
+        )
+
+
+def test_validate_assessment_input_rejects_invalid_gender():
+    from analyze import validate_assessment_input
+
+    with pytest.raises(ValueError):
+        validate_assessment_input(
+            {
+                "age": 40,
+                "gender": "Robot",
+                "hypertension": False,
+                "heartDisease": False,
+                "bmi": 25,
+                "hba1cLevel": 5.5,
+                "bloodGlucoseLevel": 100,
+                "smokingHistory": "never",
+            }
+        )

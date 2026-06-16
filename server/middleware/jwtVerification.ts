@@ -67,7 +67,7 @@ function extractBearerToken(req: Request): string | null {
  *
  * Never exposes verification failure details to the client.
  */
-export function requireJwtAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireJwtAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const token = extractBearerToken(req);
 
   if (!token) {
@@ -83,24 +83,31 @@ export function requireJwtAuth(req: Request, res: Response, next: NextFunction):
   const result = verifyToken(token);
 
   if (!result.valid) {
-    // Log the failure type internally (no token content, no PHI)
     const eventType = result.reason === "alg_not_allowed"
-      ? "SQL_INJECTION_ATTEMPT"   // Reuse closest available type for alg=none attempts
+      ? "SQL_INJECTION_ATTEMPT"
       : "UNAUTHORIZED_SEARCH_ACCESS";
 
     logSecurityEvent(
       eventType,
       `JWT verification failed: ${result.reason}`,
       req,
-      { userId: undefined } // Do not log claimed user ID from an unverified token
+      { userId: undefined }
     );
 
     res.status(401).json({ message: "Unauthorized" });
     return;
   }
 
-  // Attach the verified payload — routes use this as the authoritative identity
   req.jwtUser = result.payload;
 
+  const { getAuthenticatedUser } = await import("../auth");
+  const authUser = await getAuthenticatedUser(req);
+  if (!authUser) {
+    logSecurityEvent("UNAUTHORIZED_SEARCH_ACCESS", "JWT user account is disabled or not found", req);
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  (req as any).authenticatedUser = authUser;
   next();
 }

@@ -1,51 +1,38 @@
 import { AppLayout } from "@/components/layout/AppLayout";
+import type { Assessment, AssessmentFactor } from "@shared/schema";
 import { useAssessments, usePatientAssessments, useClearPatientCache, useDeleteAssessment } from "@/hooks/use-assessments";
+import { format, isValid } from "date-fns";
 import {
-  format,
-  isValid,
-} from "date-fns";
-import {
-  Loader2,
-  User,
-  Activity,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  ShieldAlert,
-  Upload,
-  Download,
-  FileDown,
+  Loader2, Activity, ChevronLeft, ChevronRight, ChevronDown,
+  Upload, Download, FileDown, FileText, RotateCw, SlidersHorizontal, X
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
 import ConfidenceRange from "@/components/ui/ConfidenceRange";
-import { FileText, RotateCw } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { filterAssessments, type GenderFilterValue, type RiskCategoryFilterValue } from "@/utils/filterAssessments";
-import { advancedFilter } from "@/utils/search_filters";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import RiskTrendChart, { PATIENT_COLORS } from "@/components/RiskTrendChart";
 import { EmptyState } from "@/components/EmptyState";
 import HealthBadges from "@/components/HealthBadges";
+import { formatReadableDate } from "@/utils/dateFormat";
 import { calculateHealthBadges } from "@/utils/healthBadges";
 import { AssessmentSearchBar } from "@/components/AssessmentSearchBar";
 import { AssessmentFilters } from "@/components/AssessmentFilters";
 import { ActiveFilterChips } from "@/components/ActiveFilterChips";
-import { ClearFiltersButton } from "@/components/ClearFiltersButton";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
-import { validateSearchInput } from "@/validation/filterValidation";
 import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
 import { downloadPatientSummaryPdf } from "@/utils/clinicalPdfReport";
 import { downloadBulkAssessmentPdf } from "@/utils/bulkPdfExport";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "react-i18next";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
@@ -79,7 +66,7 @@ export default function History() {
   }, []);
 
   const { toast } = useToast();
-
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
   const [currentPage, setCurrentPage] = useState(1);
@@ -105,6 +92,9 @@ export default function History() {
   // Date filter state
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+
+  // Filter drawer state
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   const { data: assessmentsData, isLoading, error } = useAssessments({
     page: currentPage,
@@ -256,7 +246,7 @@ export default function History() {
   };
 
   const activeFilterChips = useMemo(() => {
-    const chips: any[] = [];
+    const chips: { id: string; label: string; onRemove: () => void }[] = [];
     if (searchTerm) {
       chips.push({ id: 'search', label: `Search: ${searchTerm}`, onRemove: () => setSearchTerm("") });
     }
@@ -272,8 +262,8 @@ export default function History() {
       chips.push({ id: 'age', label: `Age: ${min} - ${max}`, onRemove: () => { setMinAge(undefined); setMaxAge(undefined); } });
     }
     if (startDate || endDate) {
-      const start = startDate ? format(new Date(startDate), "MMM d, yyyy") : "Any";
-      const end = endDate ? format(new Date(endDate), "MMM d, yyyy") : "Any";
+      const start = startDate ? formatReadableDate(startDate, { includeTime: false }) : "Any";
+      const end = endDate ? formatReadableDate(endDate, { includeTime: false }) : "Any";
       chips.push({ id: 'date', label: `Date: ${start} - ${end}`, onRemove: () => { setStartDate(""); setEndDate(""); } });
     }
     return chips;
@@ -294,8 +284,8 @@ export default function History() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to upload");
       toast({ title: "Success", description: data.message });
-    } catch (err: any) {
-      toast({ title: "Upload Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Upload Error", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }
     e.target.value = ''; // Reset input
   };
@@ -332,8 +322,8 @@ export default function History() {
       if (!res.ok) throw new Error("Failed to fetch assessment data");
       const data = await res.json();
       downloadBulkAssessmentPdf(data.data ?? []);
-    } catch (err: any) {
-      toast({ title: "Export Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Export Error", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }
   };
 
@@ -377,7 +367,7 @@ export default function History() {
 
   const [, setLocation] = useLocation();
 
-  function reloadToForm(assessment: any) {
+  function reloadToForm(assessment: Partial<Assessment>) {
     const draft = {
       patientName: assessment.patientName ?? "",
       gender: assessment.gender,
@@ -410,11 +400,11 @@ export default function History() {
       .replace(/'/g, "&#039;");
   }
 
-  function exportAsPdf(assessment: any) {
+  function exportAsPdf(assessment: Assessment) {
     if (!assessment) return;
 
     const patientName = escapeHtml(assessment.patientName || "Unknown Patient");
-    const date = escapeHtml(assessment.createdAt ? new Date(assessment.createdAt).toLocaleString() : "Unknown Date");
+    const date = escapeHtml(formatReadableDate(assessment.createdAt, { fallback: "Unknown Date" }));
     const age = escapeHtml(assessment.age ?? "N/A");
     const bmi = escapeHtml(assessment.bmi ?? "N/A");
     const hba1cLevel = escapeHtml(assessment.hba1cLevel ?? "N/A");
@@ -433,23 +423,47 @@ export default function History() {
       assessment.factors || []
     )
       .slice(0, 5)
-      .map((f: any) => `<li>${escapeHtml(f.name || "Unknown")} — ${escapeHtml(f.description || "")} (${escapeHtml(f.impact || "N/A")})</li>`)
+      .map((f: AssessmentFactor) => `<li>${escapeHtml(f.name || "Unknown")} — ${escapeHtml(f.description || "")} (${escapeHtml(f.impact || "N/A")})</li>`)
       .join("")}</ul></div></div></body></html>`;
 
-    const w = window.open("", "_blank", "noopener,noreferrer");
-    if (!w) {
-      alert("Please allow popups to enable PDF export.");
-      return;
+    // Use Blob URL + anchor download instead of window.open + document.write:
+    // - avoids deprecated document.write()
+    // - works when popups are blocked (default in most modern browsers)
+    // - no window.alert() needed — errors shown as in-app toast
+    try {
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `assessment-${assessment.id ?? "export"}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({
+        title: "Export failed",
+        description: "Could not generate the PDF export. Please try again.",
+        variant: "destructive",
+      });
     }
-
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => {
-      w.print();
-    }, 250);
   }
 
+  const filteredAssessments = useMemo(() => {
+    return filterAssessments(assessments, {
+      searchTerm,
+      riskCategory,
+      gender,
+      ageRange: {
+        min: minAge,
+        max: maxAge,
+      },
+      dateRange: {
+        startDate,
+        endDate,
+      },
+    });
+  }, [assessments, searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate]);
   // Pagination (Server-Side)
   const totalRecords = assessmentsData?.total ?? 0;
   const filteredRecords = assessmentsData?.total ?? 0;
@@ -511,10 +525,10 @@ export default function History() {
     setCurrentPage(1);
   }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate, sortBy]);
 
-  const formatAssessmentDate = (dateVal: any) => {
-    if (!dateVal) return "Unknown";
-    const dateObj = new Date(dateVal);
-    return isValid(dateObj) ? format(dateObj, "MMM d, yyyy") : "Unknown";
+
+
+  const formatAssessmentDate = (dateVal: string | Date | null | undefined) => {
+    return formatReadableDate(dateVal, { fallback: "Unknown", includeTime: false });
   };
 
   const clearDateFilters = () => {
@@ -534,111 +548,72 @@ export default function History() {
     }
   };
 
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (searchTerm) count++;
+    if (riskCategory !== "All") count++;
+    if (gender !== "All") count++;
+    if (minAge !== undefined || maxAge !== undefined) count++;
+    if (startDate || endDate) count++;
+    return count;
+  }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate]);
+
   return (
     <AppLayout>
-      <div className="space-y-8">
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+      <div className="space-y-6">
+        {/* Header Section */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
           <div>
-            <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight flex items-center gap-3">
+            <h1 className="text-3xl md:text-4xl font-black font-display text-foreground tracking-tight">
               Patient History
-              <span className="text-sm font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200">
-                Showing {filteredRecords} of {totalRecords}
-              </span>
             </h1>
-            <p className="text-muted-foreground mt-2 text-lg">
+            <p className="text-muted-foreground mt-1 text-lg">
               Review past preventive risk assessments.
             </p>
           </div>
+          <span className="text-sm font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200 shrink-0 self-start sm:self-auto">
+            {filteredRecords} of {totalRecords} records
+          </span>
+        </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="space-y-4">
-              <AssessmentSearchBar
-                value={searchTerm}
-                onSearch={setSearchTerm}
-                onClear={() => setSearchTerm("")}
-              />
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setRiskCategory("High"); setCurrentPage(1); }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
-                    riskCategory === "High" && gender === "All" && !minAge && !maxAge && !startDate && !endDate && !searchTerm
-                      ? "bg-red-100 border-red-300 text-red-700"
-                      : "bg-card border-border text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  High Risk
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setRiskCategory("Moderate"); setCurrentPage(1); }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
-                    riskCategory === "Moderate" && gender === "All" && !minAge && !maxAge && !startDate && !endDate && !searchTerm
-                      ? "bg-yellow-100 border-yellow-300 text-yellow-700"
-                      : "bg-card border-border text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  Moderate Risk
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setSearchTerm(""); setRiskCategory("All"); setGender("All"); setMinAge(undefined); setMaxAge(undefined); setStartDate(""); setEndDate(""); setCurrentPage(1); }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
-                    !hasActiveFilters
-                      ? "bg-blue-100 border-blue-300 text-blue-700"
-                      : "bg-card border-border text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  All Patients
-                </button>
-              </div>
-              <AssessmentFilters
-                riskCategory={riskCategory}
-                gender={gender}
-                minAge={minAge}
-                maxAge={maxAge}
-                startDate={startDate}
-                endDate={endDate}
-                onRiskChange={setRiskCategory}
-                onGenderChange={setGender}
-                onAgeChange={({ minAge: nextMinAge, maxAge: nextMaxAge }) => {
-                  setMinAge(nextMinAge);
-                  setMaxAge(nextMaxAge);
-                }}
-                onStartDateChange={setStartDate}
-                onEndDateChange={setEndDate}
-                onClearDateRange={clearDateFilters}
-              />
-            </div>
-            <div className="space-y-4 rounded-3xl border border-border bg-card p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Filters active</p>
-                  <p className="text-sm text-muted-foreground">Use these chips to remove filters quickly.</p>
-                </div>
-                <ClearFiltersButton onClear={clearAllFilters} disabled={!hasActiveFilters} />
-              </div>
-              <ActiveFilterChips chips={activeFilterChips} onClearAll={clearAllFilters} />
-            </div>
+        {/* Action Toolbar */}
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <div className="flex-1 min-w-0">
+            <AssessmentSearchBar
+              value={searchTerm}
+              onSearch={setSearchTerm}
+              onClear={() => setSearchTerm("")}
+            />
           </div>
-
-          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
-            {/* Upload Lab Results Button */}
-            <label className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors shadow-sm">
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="default"
+              onClick={() => setFilterSheetOpen(true)}
+              className="gap-2"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Filters
+              {activeFilterCount > 0 && (
+                <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">
+                  {activeFilterCount}
+                </Badge>
+              )}
+            </Button>
+            <label className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors shadow-sm whitespace-nowrap">
               <Upload className="w-4 h-4" />
-              Upload Lab Results
+              Upload
               <input type="file" className="sr-only" accept=".csv" onChange={handleUploadLabResults} />
             </label>
-
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
                   disabled={isLoading || filteredRecords === 0}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm whitespace-nowrap"
                 >
                   <FileDown className="w-4 h-4" />
-                  Export All
+                  Export
                   <ChevronDown className="w-3.5 h-3.5" />
                 </button>
               </DropdownMenuTrigger>
@@ -653,12 +628,10 @@ export default function History() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            {/* Sort Dropdown */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-2.5 rounded-xl border border-border bg-card focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20 transition-all duration-200 ease-in-out w-full sm:w-auto text-sm font-medium"
+              className="px-3 py-2 rounded-lg border border-border bg-card focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20 transition-all duration-200 ease-in-out text-sm font-medium w-auto"
             >
               <option value="date-desc">Newest First</option>
               <option value="date-asc">Oldest First</option>
@@ -670,6 +643,46 @@ export default function History() {
               <option value="bmi-asc">BMI: Low to High</option>
             </select>
           </div>
+        </div>
+
+        {/* Quick Filter Buttons + Active Filter Chips */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { setRiskCategory("High"); setCurrentPage(1); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+              riskCategory === "High" && gender === "All" && !minAge && !maxAge && !startDate && !endDate && !searchTerm
+                ? "bg-red-100 border-red-300 text-red-700"
+                : "bg-card border-border text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            High Risk
+          </button>
+          <button
+            type="button"
+            onClick={() => { setRiskCategory("Moderate"); setCurrentPage(1); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+              riskCategory === "Moderate" && gender === "All" && !minAge && !maxAge && !startDate && !endDate && !searchTerm
+                ? "bg-yellow-100 border-yellow-300 text-yellow-700"
+                : "bg-card border-border text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            Moderate Risk
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSearchTerm(""); setRiskCategory("All"); setGender("All"); setMinAge(undefined); setMaxAge(undefined); setStartDate(""); setEndDate(""); setCurrentPage(1); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+              !hasActiveFilters
+                ? "bg-blue-100 border-blue-300 text-blue-700"
+                : "bg-card border-border text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            All Patients
+          </button>
+          {hasActiveFilters && activeFilterChips.length > 0 && (
+            <ActiveFilterChips chips={activeFilterChips} onClearAll={clearAllFilters} />
+          )}
         </div>
 
         {isLoading ? (
@@ -703,21 +716,21 @@ export default function History() {
         ) : totalRecords === 0 ? (
           <EmptyState
             icon={Activity}
-            title="No Assessments Found"
-            description="There are no patient assessments loaded yet. Create your first assessment to start tracking patient health trajectories."
-            actionLabel="Create First Assessment"
+            title={t('history.emptyState.noAssessments.title')}
+            description={t('history.emptyState.noAssessments.description')}
+            actionLabel={t('history.emptyState.noAssessments.actionLabel')}
             actionHref="/dashboard"
           />
         ) : filteredRecords === 0 ? (
-          <div className="bg-card border border-border border-dashed rounded-2xl p-12 text-center flex flex-col items-center justify-center">
-            <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4 text-muted-foreground">
-              <Activity className="w-8 h-8" />
-            </div>
-            <h3 className="text-xl font-bold text-foreground mb-2">No Matching Records</h3>
-            <p className="text-muted-foreground max-w-md">
-              No patient records matching your current filter limits were found. Try refining or clearing your filters.
-            </p>
-          </div>
+          <EmptyState
+            icon={Activity}
+            title={t('history.emptyState.noMatching.title')}
+            description={t('history.emptyState.noMatching.description')}
+            actionLabel={t('history.emptyState.noMatching.actionLabel')}
+            actionOnClick={clearAllFilters}
+            secondaryActionLabel={t('history.emptyState.noMatching.secondaryActionLabel')}
+            secondaryActionHref="/dashboard"
+          />
         ) : (
           <>
             <div className="grid gap-6">
@@ -953,6 +966,48 @@ export default function History() {
         )}
       </div>
 
+      {/* Filter Drawer */}
+      <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto sm:border-l sm:border-slate-200">
+          <SheetHeader className="mb-6">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-xl font-bold font-display">Filters</SheetTitle>
+              <SheetClose className="rounded-full p-2 hover:bg-muted transition-colors">
+                <X className="h-4 w-4" />
+              </SheetClose>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Narrow down patient records by risk, demographics, and date.
+            </p>
+          </SheetHeader>
+          <AssessmentFilters
+            riskCategory={riskCategory}
+            gender={gender}
+            minAge={minAge}
+            maxAge={maxAge}
+            startDate={startDate}
+            endDate={endDate}
+            onRiskChange={setRiskCategory}
+            onGenderChange={setGender}
+            onAgeChange={({ minAge: nextMinAge, maxAge: nextMaxAge }) => {
+              setMinAge(nextMinAge);
+              setMaxAge(nextMaxAge);
+            }}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
+            onClearDateRange={clearDateFilters}
+          />
+          {hasActiveFilters && (
+            <div className="mt-6 pt-4 border-t border-border">
+              <Button variant="outline" size="sm" onClick={() => { clearAllFilters(); setFilterSheetOpen(false); }} className="w-full gap-2">
+                <X className="h-4 w-4" />
+                Clear all filters
+              </Button>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
       <Sheet open={showCompareSheet} onOpenChange={(open) => !open && setShowCompareSheet(false)}>
         <SheetContent className="w-full sm:max-w-4xl overflow-y-auto sm:border-l sm:border-slate-200">
           <SheetHeader className="mb-6">
@@ -997,15 +1052,15 @@ export default function History() {
                       </thead>
                       <tbody className="divide-y divide-border">
                         {[
-                          { label: "Age", get: (r: any[]) => r[0]?.age ?? "—" },
-                          { label: "BMI", get: (r: any[]) => Number(r[0]?.bmi ?? 0).toFixed(1) },
-                          { label: "HbA1c (%)", get: (r: any[]) => `${Number(r[0]?.hba1cLevel ?? 0).toFixed(1)}%` },
-                          { label: "Blood Glucose", get: (r: any[]) => Number(r[0]?.bloodGlucoseLevel ?? 0).toFixed(0) },
-                          { label: "Hypertension", get: (r: any[]) => (r[0]?.hypertension ? "Yes" : "No") },
-                          { label: "Heart Disease", get: (r: any[]) => (r[0]?.heartDisease ? "Yes" : "No") },
-                          { label: "Smoking", get: (r: any[]) => r[0]?.smokingHistory ?? "—" },
-                          { label: "Risk Score", get: (r: any[]) => `${Number(r[0]?.riskScore ?? 0).toFixed(1)}%` },
-                          { label: "Risk Category", get: (r: any[]) => r[0]?.riskCategory ?? "—" },
+                          { label: "Age", get: (r: Assessment[]) => r[0]?.age ?? "—" },
+                          { label: "BMI", get: (r: Assessment[]) => Number(r[0]?.bmi ?? 0).toFixed(1) },
+                          { label: "HbA1c (%)", get: (r: Assessment[]) => `${Number(r[0]?.hba1cLevel ?? 0).toFixed(1)}%` },
+                          { label: "Blood Glucose", get: (r: Assessment[]) => Number(r[0]?.bloodGlucoseLevel ?? 0).toFixed(0) },
+                          { label: "Hypertension", get: (r: Assessment[]) => (r[0]?.hypertension ? "Yes" : "No") },
+                          { label: "Heart Disease", get: (r: Assessment[]) => (r[0]?.heartDisease ? "Yes" : "No") },
+                          { label: "Smoking", get: (r: Assessment[]) => r[0]?.smokingHistory ?? "—" },
+                          { label: "Risk Score", get: (r: Assessment[]) => `${Number(r[0]?.riskScore ?? 0).toFixed(1)}%` },
+                          { label: "Risk Category", get: (r: Assessment[]) => r[0]?.riskCategory ?? "—" },
                         ].map(row => (
                           <tr key={row.label} className="hover:bg-muted/20 transition-colors">
                             <td className="p-3 font-semibold text-muted-foreground whitespace-nowrap">{row.label}</td>
@@ -1085,7 +1140,7 @@ export default function History() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-{sortedSelectedPatientHistory.map((a) => (
+                    {selectedPatientHistory.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((a) => (
                       <tr key={a.id} className="hover:bg-muted/30 transition-colors">
                         <td className="p-3 whitespace-nowrap">{formatAssessmentDate(a.createdAt)}</td>
                         <td className="p-3 font-bold text-foreground">{Number(a.riskScore).toFixed(1)}%</td>

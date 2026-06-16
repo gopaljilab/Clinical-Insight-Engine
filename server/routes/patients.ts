@@ -1,9 +1,8 @@
 import { Router } from "express";
 import { requireJwtAuth } from "../middleware/jwtVerification";
-import { DatabaseStorage } from "../storage";
+import { storage } from "../storage";
 
 const router = Router();
-const storage = new DatabaseStorage();
 
 // ALL routes in this router require a valid JWT
 router.use(requireJwtAuth);

@@ -1,6 +1,7 @@
 import React from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import type { BiomarkerAlert } from "@shared/routes";
+import { formatCompactDate } from "@/utils/dateFormat";
 
 export function BiomarkerAlerts({ alerts }: { alerts?: BiomarkerAlert[] }) {
   if (!alerts || alerts.length === 0) return null;
@@ -19,7 +20,7 @@ export function BiomarkerAlerts({ alerts }: { alerts?: BiomarkerAlert[] }) {
               </div>
               <div style={{ width: 180, height: 80 }} className="shrink-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={a.values.map((v) => ({ ...v, label: v.ts ? new Date(v.ts).toLocaleDateString() : "" }))}>
+                  <LineChart data={a.values.map((v) => ({ ...v, label: formatCompactDate(v.ts, "") }))}>
                     <XAxis dataKey="label" hide />
                     <YAxis hide domain={["dataMin - 1", "dataMax + 1"]} />
                     <Tooltip />
