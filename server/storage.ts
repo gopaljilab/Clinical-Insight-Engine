@@ -61,6 +61,28 @@ export interface IStorage {
   recordPatientAccess(params: { userId: string; resourceType: string; resourceId?: string; action: string; ipAddress?: string; userAgent?: string; granted: boolean; }): Promise<void>;
   getPatientAccessAuditLogs(page: number, limit: number): Promise<{ data: typeof patientAccessAuditLogs.$inferSelect[]; total: number }>;
   getAnalyticsStats(createdBy?: string): Promise<any>;
+  getCohortStats(params: {
+    minAge?: number; maxAge?: number;
+    minBmi?: number; maxBmi?: number;
+    minHba1c?: number; maxHba1c?: number;
+    minGlucose?: number; maxGlucose?: number;
+    gender?: string; smokingHistory?: string;
+    hypertension?: boolean; heartDisease?: boolean;
+    riskCategory?: string;
+    startDate?: string; endDate?: string;
+    createdBy?: string;
+  }): Promise<{
+    total: number;
+    avgRiskScore: number | null;
+    avgBmi: number | null;
+    avgHba1c: number | null;
+    avgGlucose: number | null;
+    riskDistribution: { category: string; count: number }[];
+    ageDistribution: { range: string; count: number }[];
+    genderDistribution: { gender: string; count: number }[];
+    smokingDistribution: { status: string; count: number }[];
+    comorbidityRate: number;
+  }>;
   getModelVersions(): Promise<ModelVersion[]>;
   getLatestModelVersion(): Promise<ModelVersion | undefined>;
   createModelVersion(data: InsertModelVersion): Promise<ModelVersion>;
@@ -192,6 +214,20 @@ export class DatabaseStorage implements IStorage {
 
   async getAnalyticsStats(createdBy?: string): Promise<any> {
     return this.analyticsRepository.getAnalyticsStats(createdBy);
+  }
+
+  async getCohortStats(params: {
+    minAge?: number; maxAge?: number;
+    minBmi?: number; maxBmi?: number;
+    minHba1c?: number; maxHba1c?: number;
+    minGlucose?: number; maxGlucose?: number;
+    gender?: string; smokingHistory?: string;
+    hypertension?: boolean; heartDisease?: boolean;
+    riskCategory?: string;
+    startDate?: string; endDate?: string;
+    createdBy?: string;
+  }) {
+    return this.assessmentRepository.getCohortStats(params);
   }
 
   async recordPatientAccess(params: { userId: string; resourceType: string; resourceId?: string; action: string; ipAddress?: string; userAgent?: string; granted: boolean; }): Promise<void> {

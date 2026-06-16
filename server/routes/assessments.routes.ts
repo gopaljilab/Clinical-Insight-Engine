@@ -15,7 +15,7 @@ import {
   analyzeSearchInput,
   logSecurityEvent,
 } from "../security/sqlProtection";
-import { searchQuerySchema, assessmentsQuerySchema } from "../validation/searchValidation";
+import { searchQuerySchema, assessmentsQuerySchema, cohortQuerySchema } from "../validation/searchValidation";
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
 import { validateDTO } from "../middleware/validateDTO";
@@ -604,6 +604,28 @@ assessmentsRouter.delete(
       logger.error({ err }, "Assessment delete error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
+    }
+  }
+);
+
+assessmentsRouter.get(
+  "/cohort",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const parsed = cohortQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Invalid query parameters" });
+      }
+
+      const userEmail = req.session.user?.email;
+      const params = { ...parsed.data, createdBy: userEmail };
+
+      const stats = await storage.getCohortStats(params);
+      return res.json(stats);
+    } catch (err) {
+      logger.error({ err }, "Cohort query failed");
+      return res.status(500).json({ message: "Failed to query cohort data." });
     }
   }
 );
