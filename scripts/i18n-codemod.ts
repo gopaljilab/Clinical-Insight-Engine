@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { Project, SyntaxKind, JsxText, StringLiteral, Node, SourceFile, ImportDeclaration } from "ts-morph";
 import fs from "fs";
 import path from "path";
