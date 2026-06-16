@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService, calculateClinicalFallback } from "../services/mlService";
+import { MLService, calculateClinicalFallback, type PredictionResult } from "../services/mlService";
 import { validateDTO } from "../middleware/validateDTO";
 import { mlLimiter } from "../middleware/rateLimit";
 
@@ -50,7 +50,7 @@ mlRouter.post(
           "Python prediction bulk failed or timed out, running clinical rule-based fallback:",
           error
         );
-        predictions = calculateClinicalFallback(input);
+        predictions = calculateClinicalFallback(input) as PredictionResult[];
       }
 
       if (predictions.length !== input.length) {
