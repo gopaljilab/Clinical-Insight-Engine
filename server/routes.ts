@@ -17,7 +17,7 @@ import {
   exportLimiter,
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
-import { MLService, calculateClinicalFallback, generateRequestFingerprint } from "./services/mlService";
+import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
 import { getAssessmentQueue, getPythonExecutable } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
@@ -290,6 +290,21 @@ export async function registerRoutes(
     }
   );
 
+  app.get(
+    "/api/queue/health",
+    requireAuth,
+    requireAdmin,
+    async (_req, res) => {
+      try {
+        const metrics = await getQueueMetrics();
+        res.json(metrics);
+      } catch (err) {
+        logger.error({ err }, "Error fetching queue health");
+        res.status(500).json({ message: "Failed to fetch queue health" });
+      }
+    }
+  );
+
   app.post(
     "/api/assessments/bulk",
     requireAuth,
@@ -329,7 +344,7 @@ export async function registerRoutes(
             throw new Error("Expected array of predictions");
           }
         } catch (error: any) {
-          predictions = calculateClinicalFallback(input);
+          predictions = calculateClinicalFallback(input) as PredictionResult[];
         }
 
         const createdAssessments = await Promise.all(
