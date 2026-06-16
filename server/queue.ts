@@ -4,17 +4,8 @@ import IORedis from "ioredis";
 import { sendCriticalRiskAlert } from "./email";
 import { logger } from "./logger";
 import { MLService, calculateClinicalFallback } from "./services/mlService";
-import { getPool, withRetry, isTransientError } from "./db";
-
-import { execFile } from "child_process";
-import fs from "fs/promises";
+import { getPool, withRetry } from "./db";
 import path from "path";
-import os from "os";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
 
 function getConfig(key: string, defaultValue: string): string {
   return process.env[key] || defaultValue;
