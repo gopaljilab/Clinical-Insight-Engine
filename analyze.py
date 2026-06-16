@@ -538,7 +538,7 @@ def validate_assessment_input(data):
         raise ValueError("Invalid age")
 
     gender = data.get("gender")
-    if gender not in ("Male", "Female"):
+    if not isinstance(gender, str) or not gender:
         raise ValueError("Invalid gender")
 
     bmi = data.get("bmi")
