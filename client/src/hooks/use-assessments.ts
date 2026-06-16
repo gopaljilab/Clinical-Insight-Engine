@@ -338,3 +338,25 @@ export function useWhatIfBatch() {
     },
   });
 }
+
+export function useWhatIfAuto() {
+  return useMutation({
+    mutationFn: async (data: AssessmentInput) => {
+      // Validate input using the base create schema
+      const validated = api.assessments.create.input.parse(data);
+      const res = await fetch("/api/assessments/what-if/auto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to run auto what-if analysis");
+      }
+
+      return await res.json();
+    },
+  });
+}

@@ -113,7 +113,17 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
 
   const handleRunSimulation = async () => {
     try {
-      const response = await whatIfMutation.mutateAsync(buildInput(values));
+      const response = await whatIfMutation.mutateAsync({
+        patientName: assessment.patientName,
+        gender: assessment.gender as "Male" | "Female",
+        age: assessment.age,
+        hypertension: assessment.hypertension,
+        heartDisease: assessment.heartDisease,
+        smokingHistory: values.smokingHistory as "current" | "never" | "No Info" | "former",
+        bmi: values.bmi,
+        hba1cLevel: values.hba1cLevel,
+        bloodGlucoseLevel: values.bloodGlucoseLevel,
+      });
       setSimulationResult(response);
       if (onComparisonFactors) {
         onComparisonFactors(response.factors ?? null);
@@ -312,7 +322,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
             Biggest Impact Changes
           </div>
           <div className="grid gap-3">
-            {batchResult.ranked.slice(0, 5).map((item, i) => {
+            {batchResult.ranked.slice(0, 5).map((item: any, i: number) => {
               const isReduction = item.riskReduction > 0;
               return (
                 <div key={item.delta} className="flex items-center justify-between rounded-2xl border border-border/70 bg-card p-4 text-sm">

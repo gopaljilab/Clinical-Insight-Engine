@@ -15,8 +15,9 @@
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
 
-    "types": ["node", "vite/client"],
+    "types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
     "baseUrl": ".",
+
     "paths": {
       "@/*": ["./client/src/*"],
       "@shared/*": ["./shared/*"],
@@ -24,3 +25,4 @@
     }
   }
 }
+

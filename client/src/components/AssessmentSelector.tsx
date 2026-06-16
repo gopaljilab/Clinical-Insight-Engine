@@ -1,5 +1,5 @@
-import { format } from "date-fns";
 import { type AssessmentResponse } from "@shared/routes";
+import { formatReadableDate } from "@/utils/dateFormat";
 
 interface AssessmentSelectorProps {
   label: string;
@@ -19,12 +19,7 @@ export default function AssessmentSelector({
   disabled,
 }: AssessmentSelectorProps) {
   const formatOption = (assessment: AssessmentResponse) => {
-    const dateValue = assessment.createdAt
-      ? new Date(assessment.createdAt)
-      : new Date();
-    const dateLabel = isNaN(dateValue.getTime())
-      ? "Unknown date"
-      : format(dateValue, "MMM d, yyyy");
+    const dateLabel = formatReadableDate(assessment.createdAt, { includeTime: false });
     const score = Number(assessment.riskScore);
 
     return `${assessment.patientName || "Patient"} • ${dateLabel} • ${

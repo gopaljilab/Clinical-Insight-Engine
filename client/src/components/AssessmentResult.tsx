@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { HealthBadges } from "@/components/HealthBadges";
 import { CopySummaryButton } from "@/components/CopySummaryButton";
-import { useAssessments } from "@/hooks/use-assessments";
+import { useAssessments, useWhatIfAuto } from "@/hooks/use-assessments";
 import { calculateHealthBadges } from "@/utils/healthBadges";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
@@ -13,8 +13,11 @@ import { Recommendations } from "./Recommendations";
 import { DataQualityAlerts } from "./DataQualityAlerts";
 import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
 import { PredictionExplanation } from "./PredictionExplanation";
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
+import { DataQualityAlerts } from "./DataQualityAlerts";
+import { BiomarkerAlerts } from "./BiomarkerAlerts";
+import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
+import { ClinicalCopilot } from "./ClinicalCopilot";
+import { ClinicalNoteViewer } from "./ClinicalNoteViewer";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface AssessmentResultProps {
@@ -65,36 +68,17 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [view, setView] = useState<"patient" | "clinician">("patient");
   const [isPresenting, setIsPresenting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [pdfError, setPdfError] = useState<string>("");
   const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string }[] | null>(null);
 
   const generatePDF = async () => {
+    setPdfError("");
     setIsGeneratingPDF(true);
     try {
-      const element = document.getElementById("assessment-result-wrapper");
-      if (!element) return;
-      
-      const buttons = element.querySelector('.pdf-hide-buttons') as HTMLElement;
-      const originalDisplay = buttons ? buttons.style.display : '';
-      if (buttons) buttons.style.display = 'none';
-
-      const canvas = await html2canvas(element, { 
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-      
-      if (buttons) buttons.style.display = originalDisplay;
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Clinical_Insight_Report_${assessment.patientName?.replace(/\s+/g, '_') ?? 'Patient'}.pdf`);
+      await downloadClinicalAssessmentPdf(assessment);
     } catch (error) {
-      console.error("Error generating PDF:", error);
+      console.error("PDF export failed", error);
+      setPdfError("Unable to export the PDF report. Please try again.");
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -129,10 +113,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   };
 
   const { data: assessmentsResponse } = useAssessments();
-  const assessmentHistory = useMemo(
-    () => assessmentsResponse?.data ?? [],
-    [assessmentsResponse]
-  );
+  const assessmentHistory = assessmentsResponse?.data ?? [];
   const improvementBadges = useMemo(
     () => calculateHealthBadges(assessment, assessmentHistory),
     [assessment, assessmentHistory]
@@ -230,64 +211,72 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             )}
           </button>
         </div>
-        <div className="pdf-hide-buttons flex items-center gap-2 justify-end self-stretch print:hidden">
-          <button
-            type="button"
-            onClick={() => setIsPresenting(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <MonitorPlay className="w-3.5 h-3.5" />
-            Present
-          </button>
-          <button
-            type="button"
-            onClick={generatePDF}
-            disabled={isGeneratingPDF}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 border border-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
-          >
-            {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-            {isGeneratingPDF ? "Generating..." : "Download PDF"}
-          </button>
-          <UiTooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <CopySummaryButton assessment={assessment} iconOnly />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Copy Summary</p>
-            </TooltipContent>
-          </UiTooltip>
-          <UiTooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={exportToJson}
-                className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-                aria-label="Export JSON"
-              >
-                <Download className="w-4 h-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Export JSON</p>
-            </TooltipContent>
-          </UiTooltip>
-          <UiTooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-                aria-label="Print"
-              >
-                <Printer className="w-4 h-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Print Report</p>
-            </TooltipContent>
-          </UiTooltip>
+
+        <div className="pdf-hide-buttons flex flex-col gap-2 justify-end self-stretch print:hidden">
+          <div className="flex flex-wrap gap-2 items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setIsPresenting(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
+            >
+              <MonitorPlay className="w-3.5 h-3.5" />
+              Present
+            </button>
+            <button
+              type="button"
+              onClick={generatePDF}
+              disabled={isGeneratingPDF}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 border border-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+            >
+              {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+              {isGeneratingPDF ? "Generating..." : "Export Official Record"}
+            </button>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <CopySummaryButton assessment={assessment} iconOnly />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Copy Summary</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={exportToJson}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label="Export JSON"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Export JSON</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label="Print"
+                >
+                  <Printer className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Print Report</p>
+              </TooltipContent>
+            </UiTooltip>
+          </div>
+          {pdfError ? (
+            <p role="alert" className="text-sm text-red-600 mt-1">
+              {pdfError}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -333,6 +322,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 description="See improvements and long-term trends based on this assessment and past history."
               />
 
+              <DataQualityAlerts alerts={assessment.qualityAlerts} />
+
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
@@ -368,7 +359,14 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <Recommendations recommendations={assessment.recommendations} audience="patient" />
 
+              <PathToImprovement assessment={assessment} />
+              <PredictionExplanation explanation={assessment.explanation} view="patient" />
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
+
               <WhatIfRiskSimulator assessment={assessment} onComparisonFactors={setWhatIfFactors} />
+
+              <ClinicalCopilot assessment={assessment} />
 
               <ExplainabilityPanel
                 factors={factorBreakdown}
@@ -447,6 +445,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               </div>
 
               <div className="space-y-4">
+              <div className="mt-4 space-y-4">
                 <DataQualityAlerts alerts={assessment.qualityAlerts} />
                 <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
               </div>
@@ -541,6 +540,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <PredictionExplanation explanation={assessment.explanation} view="clinician" />
 
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
+
               <div className="rounded-xl border border-border bg-muted/30 p-5">
                 <h3 className="mb-4 font-bold">Suggested clinical follow-up</h3>
                 <div className="grid gap-3 md:grid-cols-3">
@@ -554,6 +555,17 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               <div className="mt-4">
                 <Recommendations recommendations={assessment.recommendations} audience="clinician" />
               </div>
+
+              <ClinicalCopilot assessment={assessment} />
+
+              {assessment.clinicalNote && assessment.explainableInsights && (
+                <div className="mt-6">
+                  <ClinicalNoteViewer
+                    noteText={assessment.clinicalNote}
+                    insights={assessment.explainableInsights as any}
+                  />
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -634,14 +646,68 @@ function ExplainabilityPanel({
                 </div>
                 <div className="h-2.5 rounded-full bg-muted overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
-                    style={{ width: `${factor.strength}%` }}
+                    className={`h-full rounded-full w-[var(--factor-strength)] ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
+                    style={{ '--factor-strength': `${factor.strength}%` } as React.CSSProperties}
                   />
                 </div>
               </div>
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function PathToImprovement({ assessment }: { assessment: AssessmentResponse }) {
+  const { mutate, data, isPending } = useWhatIfAuto();
+
+  useEffect(() => {
+    mutate({
+      patientName: assessment.patientName,
+      gender: assessment.gender as "Male" | "Female",
+      age: assessment.age,
+      hypertension: assessment.hypertension,
+      heartDisease: assessment.heartDisease,
+      smokingHistory: assessment.smokingHistory as "current" | "never" | "No Info" | "former",
+      bmi: assessment.bmi ?? 25,
+      hba1cLevel: assessment.hba1cLevel ?? 5.5,
+      bloodGlucoseLevel: assessment.bloodGlucoseLevel ?? 100,
+    });
+  }, [assessment]);
+
+  if (isPending || !data) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-5 shadow-sm animate-pulse flex items-center justify-center min-h-[100px]">
+        <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+        <span className="text-muted-foreground text-sm">Analyzing counterfactual scenarios...</span>
+      </div>
+    );
+  }
+
+  const recommendations = data.recommendations;
+  if (!recommendations || recommendations.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl p-6 shadow-sm relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-4 opacity-10">
+        <TrendingDown className="w-24 h-24 text-green-700" />
+      </div>
+      <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-900 relative z-10">
+        <TrendingDown className="w-5 h-5" /> Path to Improvement
+      </h3>
+      <div className="space-y-4 relative z-10">
+        {recommendations.map((rec: any, idx: number) => (
+          <div key={idx} className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border border-green-200/50 flex gap-3 shadow-sm">
+            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-green-900">{rec.action}</p>
+              <p className="text-green-800/80 text-sm mt-1">{rec.message}</p>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

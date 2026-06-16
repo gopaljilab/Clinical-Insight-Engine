@@ -49,7 +49,7 @@
     "ctaSubtitle": "Únase a los profesionales de la salud que usan Clinical Insight para ofrecer prevención proactiva de la diabetes basada en datos.",
     "ctaButton": "Comenzar Gratis",
     "faqTitle": "Preguntas Frecuentes",
-    "faq1Q": "¿Qué tan preciso es el评估 de riesgo?",
+    "faq1Q": "¿Qué tan preciso es el análisis de riesgo?",
     "faq1A": "Nuestro modelo utiliza regresión logística entrenada con datos de diabetes de los CDC con alta precisión. Los resultados deben ser revisados por un profesional de la salud calificado.",
     "faq2Q": "¿Están seguros los datos de mis pacientes?",
     "faq2A": "Sí. Todos los datos están cifrados en tránsito y en reposo. Usamos 2FA simulada, tiempos de espera de sesión y nunca compartimos sus datos con terceros.",
@@ -126,23 +126,6 @@
     "exportCsv": "Exportar CSV",
     "disclaimer": "Esta evaluación es solo para fines informativos y no reemplaza el consejo médico profesional."
   },
-  "history": {
-    "title": "Historial del Paciente",
-    "searchPlaceholder": "Buscar por nombre del paciente...",
-    "filterRisk": "Filtrar por Riesgo",
-    "all": "Todos",
-    "exportSelected": "Exportar Seleccionados",
-    "compare": "Comparar",
-    "noResults": "No se encontraron evaluaciones",
-    "noResultsDesc": "Intente ajustar sus criterios de búsqueda o filtro.",
-    "table": {
-      "patientName": "Paciente",
-      "riskScore": "Puntuación",
-      "riskCategory": "Categoría",
-      "date": "Fecha",
-      "actions": "Acciones"
-    }
-  },
   "analytics": {
     "title": "Analíticas",
     "totalAssessments": "Evaluaciones Totales",
@@ -209,6 +192,58 @@
     "age": {
       "clinician": "Considerar los cambios metabólicos relacionados con la edad en el plan de manejo.",
       "patient": "A medida que envejece, es más importante mantenerse activo y monitorear su salud."
+    }
+  },
+  "history": {
+    "title": "Historial del Paciente",
+    "searchPlaceholder": "Buscar por nombre del paciente...",
+    "filterRisk": "Filtrar por Riesgo",
+    "all": "Todos",
+    "exportSelected": "Exportar Seleccionados",
+    "compare": "Comparar",
+    "noResults": "No se encontraron evaluaciones",
+    "noResultsDesc": "Intente ajustar sus criterios de búsqueda o filtro.",
+    "table": {
+      "patientName": "Paciente",
+      "riskScore": "Puntuación",
+      "riskCategory": "Categoría",
+      "date": "Fecha",
+      "actions": "Acciones"
+    },
+    "emptyState": {
+      "noAssessments": {
+        "title": "No se Encontraron Evaluaciones",
+        "description": "Aún no hay evaluaciones de pacientes cargadas. Cree su primera evaluación para comenzar a rastrear las trayectorias de salud del paciente.",
+        "actionLabel": "Crear Primera Evaluación"
+      },
+      "noMatching": {
+        "title": "Sin Registros Coincidentes",
+        "description": "Ningún registro de paciente coincide con los filtros actuales. Borre los filtros para volver al historial completo o cree una nueva evaluación.",
+        "actionLabel": "Borrar Filtros",
+        "secondaryActionLabel": "Crear Evaluación"
+      }
+    }
+  },
+  "dashboard": {
+    "emptyState": {
+      "title": "Aún No Hay Evaluaciones",
+      "description": "Sus estadísticas aparecerán aquí una vez que realice su primera evaluación de riesgo.",
+      "actionLabel": "Realizar Primera Evaluación"
+    }
+  },
+  "myHealth": {
+    "emptyAssessments": {
+      "title": "Aún No Hay Evaluaciones",
+      "description": "Sus evaluaciones de riesgo completadas aparecerán aquí después de que su equipo de atención comparta los resultados con esta cuenta de paciente.",
+      "actionLabel": "Actualizar Registros",
+      "secondaryActionLabel": "Volver al Inicio de Sesión"
+    },
+    "emptyTrends": {
+      "titleOne": "Un Resultado Registrado",
+      "titleNone": "Aún No Hay Datos de Tendencia",
+      "descriptionOne": "Se necesitan al menos dos evaluaciones completadas para mostrar un gráfico de tendencia de riesgo.",
+      "descriptionNone": "Los gráficos de tendencia aparecerán aquí una vez que haya resultados de evaluación disponibles para esta cuenta.",
+      "actionLabel": "Actualizar Tendencias"
     }
   }
 }
