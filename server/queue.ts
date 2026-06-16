@@ -6,6 +6,7 @@ import { logger } from "./logger";
 import { MLService, calculateClinicalFallback } from "./services/mlService";
 
 import { execFile } from "child_process";
+import { emitAssessmentProgress, emitAssessmentCompleted, emitAssessmentFailed } from "./socket/assessmentSocket";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -114,7 +115,12 @@ export function startAssessmentWorker(): void {
       const requestId = (job.data as any).requestFingerprint ?? job.id;
 
       try {
-        const { prediction } = await MLService.runAssessmentInference(input);
+        emitAssessmentProgress(job.id ?? "", 10, "Data Validation");
+      await new Promise((r) => setTimeout(r, 0)); // yield event loop
+
+      emitAssessmentProgress(job.id ?? "", 30, "Feature Preparation");
+      const { prediction } = await MLService.runAssessmentInference(input);
+      emitAssessmentProgress(job.id ?? "", 60, "Running Prediction Model");
         let resolvedPrediction: any = prediction;
 
         if (!resolvedPrediction || resolvedPrediction.error) {
@@ -165,11 +171,15 @@ export function startAssessmentWorker(): void {
           }
         }
 
-        return {
+        emitAssessmentProgress(job.id ?? "", 90, "Generating Results");
+        const result = {
           ...assessment,
           prediction: resolvedPrediction,
           requestId,
         };
+        emitAssessmentProgress(job.id ?? "", 100, "Assessment Complete");
+        emitAssessmentCompleted(job.id ?? "", result);
+        return result;
       } catch (err: any) {
         logger.error(
           {

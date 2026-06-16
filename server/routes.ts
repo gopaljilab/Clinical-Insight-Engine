@@ -7,6 +7,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 
 import assessmentsRouter from "./routes/assessments.routes";
+import fhirRouter from "./routes/fhir.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { logger } from "./logger";
@@ -189,6 +190,7 @@ export async function registerRoutes(
 
   // Mount auth router
   app.use("/api/auth", authRouter);
+  app.use("/api/ingest", fhirRouter);
   app.post(
     api.assessments.preview.path,
     requireAuth,
