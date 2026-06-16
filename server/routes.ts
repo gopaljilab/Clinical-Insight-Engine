@@ -488,7 +488,7 @@ export async function registerRoutes(
       try {
         const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
         const userEmail = req.session.user?.email;
-        const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+        const result = await storage.getAssessmentsByPatientName(patientName, 100, 0, userEmail);
         return res.json(result);
       } catch (err) {
         logger.error({ err }, "Patient trends fetch error:");
