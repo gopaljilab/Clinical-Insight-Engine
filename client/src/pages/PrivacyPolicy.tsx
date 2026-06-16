@@ -8,48 +8,48 @@ export default function PrivacyPolicy() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/60 to-white px-5 py-16 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/60 to-white dark:from-gray-900 dark:via-gray-950 dark:to-gray-900 px-5 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl">
         <div className="mb-10 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#2563EB] text-white shadow-lg shadow-blue-600/20">
             <ShieldCheck className="h-6 w-6" aria-hidden="true" />
           </div>
           <div>
-            <p className="text-lg font-black tracking-tight text-[#1E293B]">Clinical Insight</p>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Clinical AI</p>
+            <p className="text-lg font-black tracking-tight text-[#1E293B] dark:text-gray-100">Clinical Insight</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Clinical AI</p>
           </div>
         </div>
 
-        <h1 className="text-4xl font-black tracking-tight text-[#1E293B]">Privacy Policy</h1>
-        <p className="mt-4 text-sm text-slate-500">Last updated: 2026</p>
+        <h1 className="text-4xl font-black tracking-tight text-[#1E293B] dark:text-gray-100">Privacy Policy</h1>
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Last updated: 2026</p>
 
-        <div className="mt-10 space-y-8 text-base leading-7 text-slate-600">
+        <div className="mt-10 space-y-8 text-base leading-7 text-slate-600 dark:text-slate-400">
           <section>
-            <h2 className="text-xl font-black text-[#1E293B]">1. Overview</h2>
+            <h2 className="text-xl font-black text-[#1E293B] dark:text-gray-100">1. Overview</h2>
             <p className="mt-3">
               Clinical Insight is a clinical decision support demo tool. This privacy policy describes how data entered into the application is handled during a session.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-black text-[#1E293B]">2. Data Collection</h2>
+            <h2 className="text-xl font-black text-[#1E293B] dark:text-gray-100">2. Data Collection</h2>
             <p className="mt-3">
               Clinical Insight collects clinical inputs (age, BMI, HbA1c, blood glucose, smoking history, and related vitals) solely to generate risk assessments. No data is shared with third parties.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-black text-[#1E293B]">3. Demo Environment</h2>
+            <h2 className="text-xl font-black text-[#1E293B] dark:text-gray-100">3. Demo Environment</h2>
             <p className="mt-3">
               This application is a demonstration environment. It is not intended for use with real patient data and does not meet HIPAA or GDPR compliance requirements in its current form.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-black text-[#1E293B]">4. Contact</h2>
+            <h2 className="text-xl font-black text-[#1E293B] dark:text-gray-100">4. Contact</h2>
             <p className="mt-3">
               For privacy-related enquiries, contact us at{" "}
-              <a href="mailto:support@clinicalinsight.org" className="font-bold text-[#2563EB] hover:text-blue-700">
+              <a href="mailto:support@clinicalinsight.org" className="font-bold text-[#2563EB] hover:text-blue-700 dark:hover:text-blue-400">
                 support@clinicalinsight.org
               </a>.
             </p>

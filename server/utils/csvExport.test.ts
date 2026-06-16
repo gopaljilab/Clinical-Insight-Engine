@@ -38,7 +38,7 @@ describe("assessmentsToCsv", () => {
     );
   });
 
-  it("serializes objects and arrays as JSON stringified values", () => {
+  it("flattens nested objects and arrays into human-readable format", () => {
     const csv = assessmentsToCsv([
       {
         patientName: "Jane, Doe",
@@ -49,7 +49,7 @@ describe("assessmentsToCsv", () => {
     ]);
 
     expect(csv).toBe(
-      'patientName,factors\n"Jane, Doe","[{""name"":""Age"",""impact"":""negative"",""description"":""Age over 65""}]"'
+      'patientName,factors\n"Jane, Doe","name: Age, impact: negative, description: Age over 65"'
     );
   });
 });

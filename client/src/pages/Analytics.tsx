@@ -1,9 +1,11 @@
+import { useMemo } from "react";
 import { useAnalytics, type CriticalAlert } from "@/hooks/use-analytics";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Activity, Users, AlertTriangle, BarChart3 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { EmptyState } from "@/components/EmptyState";
+import { formatReadableDate } from "@/utils/dateFormat";
 
 const COLORS = {
   LOW: "#10b981", // Emerald 500
@@ -14,16 +16,26 @@ const COLORS = {
 export default function Analytics() {
   const { data: stats, isLoading, error } = useAnalytics();
 
-  const distData = stats?.distribution.map(d => ({
-    name: d.category,
-    value: d.count,
-    color: COLORS[d.category as keyof typeof COLORS] || "#94a3b8"
-  })) || [];
+  const distData = useMemo(
+    () =>
+      stats?.distribution.map((d) => ({
+        name: d.category,
+        value: d.count,
+        color: COLORS[d.category as keyof typeof COLORS] ?? "#94a3b8",
+      })) ?? [],
+    [stats?.distribution]
+  );
 
-  const avgData = stats ? [
-    { name: "Average BMI", value: stats.averages.bmi.toFixed(1) },
-    { name: "Average HbA1c", value: stats.averages.hba1c.toFixed(1) }
-  ] : [];
+  const avgData = useMemo(
+    () =>
+      stats
+        ? [
+            { name: "Average BMI", value: stats.averages.bmi.toFixed(1) },
+            { name: "Average HbA1c", value: stats.averages.hba1c.toFixed(1) },
+          ]
+        : [],
+    [stats]
+  );
 
   return (
     <AppLayout>
@@ -32,8 +44,17 @@ export default function Analytics() {
           <div className="text-lg text-muted-foreground animate-pulse">Loading analytics...</div>
         </div>
       ) : error || !stats ? (
-        <div className="flex h-[50vh] items-center justify-center">
-          <div className="text-lg text-destructive">Failed to load analytics data.</div>
+        <div className="flex h-[50vh] flex-col items-center justify-center gap-4">
+          <div className="text-lg text-destructive">Unable to load analytics data.</div>
+          <p className="max-w-md text-center text-sm text-muted-foreground">
+            {error instanceof Error ? error.message : "Please check your connection and try again."}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Retry
+          </button>
         </div>
       ) : stats.totalPatients === 0 ? (
         <div className="space-y-6">
@@ -141,7 +162,7 @@ export default function Analytics() {
                           <div>
                             <p className="font-bold text-foreground">{alert.patientName}</p>
                             <p className="text-xs font-semibold text-muted-foreground">
-                              {alert.gender}, {alert.age} yrs • Assessed: {alert.createdAt ? new Date(alert.createdAt).toLocaleDateString() : "Unknown"}
+                              {alert.gender}, {alert.age} yrs • Assessed: {formatReadableDate(alert.createdAt, { fallback: "Unknown", includeTime: false })}
                             </p>
                           </div>
                         </div>

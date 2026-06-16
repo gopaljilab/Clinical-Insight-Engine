@@ -7,12 +7,21 @@ import type {
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
+const TOAST_DURATIONS = {
+  success: 3000,
+  warning: 5000,
+  error: 7000,
+  info: 5000,
+} as const
+
+type ToastSeverity = keyof typeof TOAST_DURATIONS
 
 type ToasterToast = ToastProps & {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
   action?: ToastActionElement
+  severity?: ToastSeverity
 }
 
 const actionTypes = {
@@ -139,8 +148,25 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
+function getToastDuration(props: Toast) {
+  if (typeof props.duration === "number") {
+    return props.duration
+  }
+
+  if (props.severity) {
+    return TOAST_DURATIONS[props.severity]
+  }
+
+  if (props.variant === "destructive") {
+    return TOAST_DURATIONS.error
+  }
+
+  return TOAST_DURATIONS.success
+}
+
 function toast({ ...props }: Toast) {
   const id = genId()
+  const duration = getToastDuration(props)
 
   const update = (props: ToasterToast) =>
     dispatch({
@@ -153,6 +179,7 @@ function toast({ ...props }: Toast) {
     type: "ADD_TOAST",
     toast: {
       ...props,
+      duration,
       id,
       open: true,
       onOpenChange: (open) => {
@@ -188,4 +215,4 @@ function useToast() {
   }
 }
 
-export { useToast, toast }
+export { useToast, toast, getToastDuration }

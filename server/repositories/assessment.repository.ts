@@ -71,10 +71,10 @@ export class AssessmentRepository {
 
     if (gender && gender !== "All") {
       if (gender === "Other") {
-        const binaryGenderFilter = or(eq(assessments.gender, "Male"), eq(assessments.gender, "Female"));
-        if (binaryGenderFilter) {
-          filters.push(not(binaryGenderFilter));
-        }
+        filters.push(and(
+          not(eq(assessments.gender, "Male")),
+          not(eq(assessments.gender, "Female"))
+        ));
       } else {
         filters.push(eq(assessments.gender, gender));
       }
@@ -184,6 +184,8 @@ export class AssessmentRepository {
           createdBy: (assessments as any).createdBy ?? (assessments as any).created_by,
           userId: (assessments as any).userId ?? (assessments as any).user_id,
           ownerId: assessments.ownerId,
+          clinicalNote: assessments.clinicalNote,
+          explainableInsights: assessments.explainableInsights,
         })
         .from(assessments)
         .orderBy(desc(assessments.id))
@@ -229,6 +231,8 @@ export class AssessmentRepository {
         createdBy: (assessments as any).createdBy ?? (assessments as any).created_by,
         userId: (assessments as any).userId ?? (assessments as any).user_id,
         ownerId: assessments.ownerId,
+        clinicalNote: assessments.clinicalNote,
+        explainableInsights: assessments.explainableInsights,
       })
       .from(assessments)
       .orderBy(orderByClause, desc(assessments.id))
@@ -279,8 +283,7 @@ export class AssessmentRepository {
           ilike(assessments.patientName, pattern),
           ilike(assessments.gender, pattern),
           ilike(assessments.smokingHistory, pattern),
-          ilike(assessments.riskCategory, pattern),
-          ilike(assessments.patientName, pattern)
+          ilike(assessments.riskCategory, pattern)
         ) as ReturnType<typeof eq>
       );
     }

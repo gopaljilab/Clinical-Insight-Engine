@@ -2,11 +2,13 @@ import { logger } from "../logger";
 import { getAssessmentQueue } from "../queue";
 import { Router } from "express";
 import { z } from "zod";
-import { rateLimit } from "express-rate-limit";
+import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService } from "../services/mlService";
+import { MLService, isPythonAvailable, calculateClinicalFallback, type PredictionResult } from "../services/mlService";
+
+
 import { generateRecommendations } from "../services/recommendation-engine";
 import { generatePredictionExplanation } from "../services/prediction-explainer";
 import { generateQualityAlerts } from "../services/assessment-quality-checker";
@@ -20,9 +22,7 @@ import { searchQuerySchema, assessmentsQuerySchema } from "../validation/searchV
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
 import { validateDTO } from "../middleware/validateDTO";
-import { writeFile, unlink } from "fs/promises";
 import { existsSync } from "fs";
-import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -37,15 +37,18 @@ function getPythonExecutable() {
     process.platform === "win32"
       ? [ path.resolve(".venv", "Scripts", "python.exe"), path.resolve("venv", "Scripts", "python.exe") ]
       : [ path.resolve(".venv", "bin", "python"), path.resolve("venv", "bin", "python") ];
-  return candidates.find((candidate) => existsSync(candidate)) ?? "python3";
+  return candidates.find((candidate) => existsSync(candidate)) ?? (process.platform === "win32" ? "python" : "python3");
 }
 
 const assessmentsRouter = Router();
+
+
 
 assessmentsRouter.post(
   "/preview",
   requireAuth,
   requireVerified,
+  previewLimiter,
   validateDTO(api.assessments.preview.input),
   async (req, res) => {
     try {
@@ -78,7 +81,8 @@ assessmentsRouter.post(
   "/what-if",
   requireAuth,
   requireVerified,
-  validateDTO(api.assessments.whatIf.input),
+  previewLimiter,
+  validateDTO(api.assessments.simulate.input),
   async (req, res) => {
     try {
       const input = req.body;
@@ -108,24 +112,56 @@ assessmentsRouter.post(
   requireAuth,
   requireVerified,
   async (req, res) => {
-    const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
     try {
       const parsed = api.assessments.whatIfBatch.input.parse(req.body);
       const { original, perturbations } = parsed;
 
+      if (!isPythonAvailable) {
+        const originalResult = calculateClinicalFallback(original) as PredictionResult;
+        const perturbationResults = perturbations.map((p: any) => {
+          const variant = { ...original, ...p };
+          const variantResult = calculateClinicalFallback(variant) as PredictionResult;
+          const riskReduction = originalResult.riskScore - variantResult.riskScore;
+          const desc = Object.keys(p).map(k => `${k}:${(original as any)[k] ?? '?'}->${(p as any)[k]}`).join("; ");
+          return {
+            delta: desc,
+            riskScore: variantResult.riskScore,
+            riskCategory: variantResult.riskCategory,
+            factors: variantResult.factors ?? [],
+            riskReduction: Number(riskReduction.toFixed(1)),
+            confidenceInterval: variantResult.confidenceInterval,
+            modelConfidence: variantResult.modelConfidence,
+          };
+        }).sort((a: any, b: any) => b.riskReduction - a.riskReduction);
+        
+        return res.json({
+          original: originalResult,
+          perturbations: perturbationResults,
+          ranked: perturbationResults,
+          isFallback: true
+        });
+      }
+
       const payload = { original, perturbations };
-      await writeFile(tempFile, JSON.stringify(payload));
 
       const stdout = await new Promise<string>((resolve, reject) => {
         const child = execFile(
           getPythonExecutable(),
-          [analyzePyPath, "counterfactual", tempFile],
+          [analyzePyPath, "counterfactual"],
           { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
           (error, stdout, stderr) => {
             if (error) reject(error);
             else resolve(stdout);
           }
         );
+
+        if (child.stdin) {
+          child.stdin.on("error", (err) => {
+            logger.error({ err }, "Error writing to python stdin");
+          });
+          child.stdin.write(JSON.stringify(payload));
+          child.stdin.end();
+        }
       });
 
       const result = JSON.parse(stdout.trim());
@@ -140,8 +176,54 @@ assessmentsRouter.post(
       }
       logger.error({ err }, "What-if batch analysis failed");
       return res.status(500).json({ message: "What-if batch analysis failed. Please try again." });
-    } finally {
-      try { await unlink(tempFile); } catch {}
+    }
+  }
+);
+
+assessmentsRouter.post(
+  "/what-if/auto",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const input = api.assessments.create.input.parse(req.body);
+
+      if (!isPythonAvailable) {
+        return res.status(503).json({ message: "Python service is required for counterfactual auto analysis." });
+      }
+
+      const stdout = await new Promise<string>((resolve, reject) => {
+        const child = execFile(
+          getPythonExecutable(),
+          [analyzePyPath, "counterfactual_auto"],
+          { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
+          (error, stdout, stderr) => {
+            if (error) reject(error);
+            else resolve(stdout);
+          }
+        );
+
+        if (child.stdin) {
+          child.stdin.on("error", (err) => {
+            logger.error({ err }, "Error writing to python stdin");
+          });
+          child.stdin.write(JSON.stringify(input));
+          child.stdin.end();
+        }
+      });
+
+      const result = JSON.parse(stdout.trim());
+      if (result?.error) {
+        return res.status(400).json({ message: result.error });
+      }
+
+      return res.json(result);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      }
+      logger.error({ err }, "What-if auto analysis failed");
+      return res.status(500).json({ message: "What-if auto analysis failed. Please try again." });
     }
   }
 );
@@ -150,6 +232,7 @@ assessmentsRouter.post(
   "/",
   requireAuth,
   requireVerified,
+  assessmentLimiter,
   validateDTO(api.assessments.create.input),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
@@ -161,6 +244,7 @@ assessmentsRouter.post(
     let requestFingerprint: string | undefined;
     try {
       const input = req.body;
+      const requestId = (req as any).id as string | undefined;
 
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
@@ -180,12 +264,14 @@ assessmentsRouter.post(
       const job = await queue.add("predict", {
         input,
         userId,
-        userEmail
+        userEmail,
+        requestId,
       });
 
       return res.status(202).json({
         message: "Assessment request accepted and is being processed.",
-        jobId: job.id
+        jobId: job.id,
+        requestId,
       });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
@@ -205,29 +291,90 @@ assessmentsRouter.post(
   }
 );
 
+assessmentsRouter.post(
+  "/simulate",
+  requireAuth,
+  requireVerified,
+  previewLimiter,
+  validateDTO(api.assessments.simulate.input),
+  async (req, res) => {
+    try {
+      const input = req.body;
+      let prediction: any;
+
+      try {
+        const result = await MLService.runAssessmentInference(input);
+        prediction = result.prediction;
+      } catch (error: any) {
+        if (error.message?.includes("timed out")) {
+          return res.status(408).json({ message: "Clinical assessment simulation timed out." });
+        }
+
+        logger.warn(
+          "Python prediction simulation failed, falling back to clinical rule-based model:",
+          error
+        );
+        prediction = calculateClinicalFallback(input);
+      }
+
+      logger.info(
+        `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+      );
+
+      return res.json({
+        simulatedRisk: prediction.riskScore,
+        riskCategory: prediction.riskCategory,
+        confidence: prediction.modelConfidence ?? null,
+        factorContributions: prediction.factors ?? [],
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      }
+      logger.error({ err }, "Error creating assessment simulation");
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+assessmentsRouter.get(
+  "/patient/:patientName/trends",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
+      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+      return res.json(result);
+    } catch (err) {
+      logger.error({ err }, "Patient trends fetch error:");
+      return res.status(500).json({ message: "Failed to fetch patient trends." });
+    }
+  }
+);
+
 assessmentsRouter.get("/jobs/:id", requireAuth, requireVerified, async (req, res) => {
   try {
     const queue = getAssessmentQueue();
     if (!queue) {
-      return res.status(503).json({
-        message: "Assessment queue is temporarily unavailable.",
-      });
+      return res.json({ status: "failed", error: "Assessment queue is temporarily unavailable." });
     }
 
     const job = await queue.getJob(req.params.id as string);
     if (!job) {
-      return res.status(404).json({ message: "Job not found" });
+      return res.json({ status: "failed", error: "Job not found" });
     }
     const state = await job.getState();
     if (state === "completed") {
       return res.json({ status: "completed", result: job.returnvalue });
     } else if (state === "failed") {
-      return res.status(500).json({ status: "failed", error: job.failedReason });
+      return res.json({ status: "failed", error: job.failedReason || "Unknown failure" });
     } else {
       return res.json({ status: state });
     }
   } catch (err) {
-    return res.status(500).json({ message: "Error fetching job status" });
+    logger.error({ err }, "Error fetching job status");
+    return res.json({ status: "failed", error: "Error fetching job status" });
   }
 });
 
