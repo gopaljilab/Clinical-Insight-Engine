@@ -331,7 +331,7 @@ export default function MyHealth() {
                     <TableBody>
                       {assessments.map((a) => (
                         <TableRow key={a.id} className="cursor-pointer hover:bg-gray-50" onClick={() => setSelectedAssessment(a)}>
-                          <TableCell className="text-sm sticky left-0 bg-white z-10">{formatReadableDate(a.createdAt, { includeTime: false })}</TableCell>
+                          <TableCell className="text-sm sticky left-0 bg-white dark:bg-card z-10">{formatReadableDate(a.createdAt, { includeTime: false })}</TableCell>
                           <TableCell className="font-medium">{a.riskScore.toFixed(1)}%</TableCell>
                           <TableCell>
                             <Badge className={riskColor(a.riskCategory)}>{a.riskCategory}</Badge>
