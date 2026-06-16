@@ -206,14 +206,65 @@ export const api = {
       method: "POST" as const,
       path: "/api/assessments/what-if/batch" as const,
       input: z.object({
+        assessmentId: z.number().optional(),
         original: insertAssessmentSchema,
-        perturbations: z.array(z.record(z.any())),
+        perturbations: z.array(
+          z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+        ).max(50, "Maximum of 50 perturbations allowed per request"),
       }),
       responses: {
         200: z.object({
-          original: z.any(),
-          perturbations: z.array(z.any()),
-          ranked: z.array(z.any()).optional(),
+          original: z.object({
+            riskScore: z.number(),
+            riskCategory: z.string(),
+            factors: z
+              .array(
+                z.object({
+                  name: z.string(),
+                  impact: z.enum(["positive", "negative"]),
+                  description: z.string(),
+                })
+              )
+              .optional(),
+          }),
+          perturbations: z.array(
+            z.object({
+              delta: z.string(),
+              riskScore: z.number(),
+              riskCategory: z.string(),
+              factors: z
+                .array(
+                  z.object({
+                    name: z.string(),
+                    impact: z.enum(["positive", "negative"]),
+                    description: z.string(),
+                  })
+                )
+                .optional(),
+              riskReduction: z.number(),
+              confidenceInterval: z.string().nullable().optional(),
+              modelConfidence: z.number().nullable().optional(),
+            })
+          ),
+          ranked: z.array(
+            z.object({
+              delta: z.string(),
+              riskScore: z.number(),
+              riskCategory: z.string(),
+              factors: z
+                .array(
+                  z.object({
+                    name: z.string(),
+                    impact: z.enum(["positive", "negative"]),
+                    description: z.string(),
+                  })
+                )
+                .optional(),
+              riskReduction: z.number(),
+              confidenceInterval: z.string().nullable().optional(),
+              modelConfidence: z.number().nullable().optional(),
+            })
+          ).optional(),
           isFallback: z.boolean().optional(),
         }),
         400: errorSchemas.validation,

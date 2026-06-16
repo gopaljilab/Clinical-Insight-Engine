@@ -165,42 +165,90 @@ def _compute_dataset_hash(filepath: str) -> str | None:
     return hasher.hexdigest()
 
 
+class FileLock:
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self.fd = None
+
+    def acquire(self, timeout=LOCK_TIMEOUT):
+        if self.fd is not None:
+            return False
+
+        end_time = time.time() + timeout
+        while True:
+            try:
+                # Open the sidecar lock file in append+ mode (creates it if missing)
+                self.fd = open(self.filepath, "a+")
+                
+                # Request a non-blocking exclusive lock
+                if sys.platform == "win32":
+                    import msvcrt
+                    self.fd.seek(0)
+                    msvcrt.locking(self.fd.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self.fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                
+                # Lock acquired successfully! Write PID.
+                self.fd.seek(0)
+                self.fd.truncate()
+                self.fd.write(str(os.getpid()))
+                self.fd.flush()
+                return True
+            except OSError:
+                if self.fd:
+                    try:
+                        self.fd.close()
+                    except OSError:
+                        pass
+                    self.fd = None
+            
+            if time.time() >= end_time:
+                break
+            time.sleep(LOCK_POLL_INTERVAL)
+        return False
+
+    def release(self):
+        if self.fd is not None:
+            try:
+                if sys.platform == "win32":
+                    import msvcrt
+                    self.fd.seek(0)
+                    msvcrt.locking(self.fd.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self.fd.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+            try:
+                self.fd.close()
+            except OSError:
+                pass
+            self.fd = None
+            try:
+                os.remove(self.filepath)
+            except OSError:
+                pass
+
+_global_lock = FileLock(LOCK_FILE)
+
 def _acquire_lock(timeout=LOCK_TIMEOUT):
-    """Acquire an exclusive lock on the model file using a sidecar lock file.
+    """Acquire an exclusive OS-level lock on the model file.
 
     Blocks up to `timeout` seconds, polling every 100ms.
     Returns True if the lock was acquired, False if the timeout was reached.
     """
-    end_time = time.time() + timeout
-    while time.time() < end_time:
-        try:
-            fd = os.open(LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_RDWR)
-            with os.fdopen(fd, 'w') as f:
-                f.write(str(os.getpid()))
-            return True
-        except FileExistsError:
-            _clean_stale_lock()
-            time.sleep(LOCK_POLL_INTERVAL)
-    return False
+    return _global_lock.acquire(timeout)
 
 
 def _release_lock():
-    """Release the exclusive lock."""
-    try:
-        if os.path.exists(LOCK_FILE):
-            os.remove(LOCK_FILE)
-    except OSError:
-        pass
+    """Release the exclusive OS-level lock."""
+    _global_lock.release()
 
 
 def _clean_stale_lock():
-    """Remove the lock file if it is older than 5 minutes (stale from a crash)."""
-    try:
-        mtime = os.path.getmtime(LOCK_FILE)
-        if time.time() - mtime > 300:
-            os.remove(LOCK_FILE)
-    except OSError:
-        pass
+    """OS-level locks clean up automatically on process termination. No manual cleanup needed."""
+    pass
 
 
 def _atomic_write(filepath, data):

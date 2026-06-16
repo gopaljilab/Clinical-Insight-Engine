@@ -26,7 +26,11 @@ const formSchema = insertAssessmentSchema.pick({
   bloodGlucoseLevel: true,
 });
 
+feature/email-otp-verification
 type FormData = z.output<typeof formSchema>;
+=======
+type AssessmentFormData = z.infer<typeof formSchema>;
+main
 
 const inputClass =
   "w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900 px-4 py-3 text-[#1E293B] dark:text-gray-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-sm outline-none transition-all duration-200 focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-600/20 dark:focus:ring-blue-500/20";
@@ -90,8 +94,13 @@ export default function Dashboard() {
     watch,
     setValue,
     reset,
+feature/email-otp-verification
   } = useForm({
       resolver: zodResolver(formSchema),
+=======
+  } = useForm<AssessmentFormData>({
+    resolver: zodResolver(formSchema) as any,
+ main
     defaultValues: {
       patientName: "",
       hypertension: false,
@@ -105,7 +114,7 @@ export default function Dashboard() {
     },
   });
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = (data: AssessmentFormData) => {
     createAssessment(data, {
       onSuccess: (data) => {
         setResult(data);
@@ -158,7 +167,7 @@ export default function Dashboard() {
         Object.entries(draft).forEach(([k, v]) => {
           if (!allowedKeys.includes(k)) return;
           try {
-            setValue(k as keyof FormData, v as any, { shouldDirty: true });
+            setValue(k as keyof AssessmentFormData, v as any, { shouldDirty: true });
           } catch (e) {}
         });
       }
@@ -675,12 +684,11 @@ export default function Dashboard() {
                               cx="50"
                               cy="50"
                               r="42"
-                              className="stroke-blue-500/20 dark:stroke-blue-500/10 fill-none"
+                              className="stroke-blue-500/20 dark:stroke-blue-500/10 fill-none animate-[dash_3s_ease-in-out_infinite]"
                               strokeWidth="8"
                               strokeDasharray="264"
                               strokeDashoffset="180"
                               strokeLinecap="round"
-                              style={{ animation: 'dash 3s ease-in-out infinite' }}
                             />
                           </svg>
                           
@@ -707,8 +715,8 @@ export default function Dashboard() {
                               </div>
                               <div className="h-2 w-full bg-slate-200/50 dark:bg-slate-800/50 rounded-full overflow-hidden">
                                 <div 
-                                  className="h-full bg-slate-300 dark:bg-slate-700/60 rounded-full animate-pulse" 
-                                  style={{ width: `${width}%` }} 
+                                  className="h-full bg-slate-300 dark:bg-slate-700/60 rounded-full animate-pulse w-[var(--width)]" 
+                                  style={{ '--width': `${width}%` } as React.CSSProperties} 
                                 />
                               </div>
                             </div>

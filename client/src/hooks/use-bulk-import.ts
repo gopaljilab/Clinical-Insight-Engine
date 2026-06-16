@@ -119,7 +119,7 @@ export function useBulkImport(): BulkImportState & BulkImportActions {
         });
       }, 300);
 
-      const data = await ApiClient.post("/api/assessments/bulk", { assessments });
+      const data: { assessments?: any[] } = await ApiClient.post("/api/assessments/bulk", { assessments });
 
       clearInterval(progressInterval);
       setState((s) => ({

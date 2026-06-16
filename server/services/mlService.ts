@@ -124,11 +124,11 @@ export interface PredictionResult {
   disclaimer?: string;
 }
 
-export function calculateClinicalFallback(input: unknown): any {
+export function calculateClinicalFallback(input: unknown): PredictionResult | PredictionResult[] {
   if (Array.isArray(input)) {
-    return input.map((item) => calculateClinicalFallback(item));
+    return input.map((item) => calculateClinicalFallback(item)) as PredictionResult[];
   }
-  const anyInput = input as any;
+  const anyInput = input as Record<string, unknown>;
   let points = 0;
 
   const factors: Array<{
@@ -265,8 +265,8 @@ export function calculateClinicalFallback(input: unknown): any {
 }
 
 interface PendingRequest {
-  resolve: (value: any) => void;
-  reject: (reason: any) => void;
+  resolve: (value: PredictionResult | PredictionResult[]) => void;
+  reject: (reason: Error | string) => void;
   timeoutId: NodeJS.Timeout;
 }
 
@@ -383,7 +383,7 @@ class PythonDaemonManager {
         }
       }, ML_TIMEOUT_MS);
 
-      this.pendingRequests.set(requestId, { resolve, reject, timeoutId });
+      this.pendingRequests.set(requestId, { resolve: resolve as (value: PredictionResult | PredictionResult[]) => void, reject, timeoutId });
 
       const payload = JSON.stringify({ requestId, input });
       this.process!.stdin!.write(payload + "\n", (err) => {
@@ -413,7 +413,7 @@ class PythonDaemonManager {
         }
       }, ML_TIMEOUT_MS);
 
-      this.pendingRequests.set(requestId, { resolve, reject, timeoutId });
+      this.pendingRequests.set(requestId, { resolve: resolve as (value: PredictionResult | PredictionResult[]) => void, reject, timeoutId });
 
       const payload = JSON.stringify({ requestId, input: inputs });
       this.process!.stdin!.write(payload + "\n", (err) => {
@@ -443,13 +443,13 @@ export async function runAssessmentInference(input: unknown): Promise<{ predicti
   try {
     const prediction = await pythonDaemon.predict(input);
     return { prediction, isFallback: false };
-  } catch (error: any) {
-    if (error.message?.includes("timed out")) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message?.includes("timed out")) {
       logger.error({ error: "ML prediction timed out", timeout: ML_TIMEOUT_MS });
       throw new Error("Clinical assessment timed out.");
     }
     logger.warn({ err: error }, "ML prediction failed, using clinical fallback");
-    return { prediction: calculateClinicalFallback(input), isFallback: true };
+    return { prediction: calculateClinicalFallback(input) as PredictionResult, isFallback: true };
   } finally {
     release();
   }
@@ -460,14 +460,14 @@ export async function runAssessmentInferenceBatch(inputs: unknown[]): Promise<{ 
   try {
     const predictions = await pythonDaemon.predictBatch(inputs);
     return { predictions, isFallback: false };
-  } catch (error: any) {
-    if (error.message?.includes("timed out")) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message?.includes("timed out")) {
       logger.error({ error: "ML batch prediction timed out", timeout: ML_TIMEOUT_MS });
     } else {
       logger.warn({ err: error }, "ML batch prediction failed, using clinical fallback");
     }
     logger.warn({ err: error }, "ML batch prediction failed, using clinical fallback");
-    const predictions = inputs.map(input => calculateClinicalFallback(input));
+    const predictions = inputs.map(input => calculateClinicalFallback(input)) as PredictionResult[];
     return { predictions, isFallback: true };
   } finally {
     release();

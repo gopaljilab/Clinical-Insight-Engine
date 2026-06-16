@@ -634,8 +634,8 @@ function ExplainabilityPanel({
                 </div>
                 <div className="h-2.5 rounded-full bg-muted overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
-                    style={{ width: `${factor.strength}%` }}
+                    className={`h-full rounded-full w-[var(--factor-strength)] ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
+                    style={{ '--factor-strength': `${factor.strength}%` } as React.CSSProperties}
                   />
                 </div>
               </div>
