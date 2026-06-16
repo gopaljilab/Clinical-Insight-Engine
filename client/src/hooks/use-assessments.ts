@@ -151,7 +151,7 @@ export function useDeleteAssessment() {
     onError: (error: Error) => {
       toast({
         title: "Deletion failed",
-        description: error.message || "An unexpected error occurred while deleting.",
+        description: (error as Error).message || "An unexpected error occurred while deleting.",
         variant: "destructive",
       });
     },
@@ -246,12 +246,12 @@ export function useCreateAssessment() {
       queryClient.invalidateQueries({ queryKey: [ASSESSMENTS_LIST_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ["assessments-patient"] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Assessment Failed",
-        description: error.message?.includes("timed out")
+        description: (error as Error).message?.includes("timed out")
           ? "The analysis took too long. Please try again."
-          : error.message || "An unexpected error occurred during the assessment.",
+          : (error as Error).message || "An unexpected error occurred during the assessment.",
         variant: "destructive",
       });
     },

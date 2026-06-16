@@ -444,7 +444,7 @@ export async function runAssessmentInference(input: unknown): Promise<{ predicti
     const prediction = await pythonDaemon.predict(input);
     return { prediction, isFallback: false };
   } catch (error: unknown) {
-    if (error instanceof Error && error.message?.includes("timed out")) {
+    if (error instanceof Error && (error as Error).message?.includes("timed out")) {
       logger.error({ error: "ML prediction timed out", timeout: ML_TIMEOUT_MS });
       throw new Error("Clinical assessment timed out.");
     }
@@ -461,7 +461,7 @@ export async function runAssessmentInferenceBatch(inputs: unknown[]): Promise<{ 
     const predictions = await pythonDaemon.predictBatch(inputs);
     return { predictions, isFallback: false };
   } catch (error: unknown) {
-    if (error instanceof Error && error.message?.includes("timed out")) {
+    if (error instanceof Error && (error as Error).message?.includes("timed out")) {
       logger.error({ error: "ML batch prediction timed out", timeout: ML_TIMEOUT_MS });
     } else {
       logger.warn({ err: error }, "ML batch prediction failed, using clinical fallback");

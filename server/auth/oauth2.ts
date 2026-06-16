@@ -23,7 +23,7 @@ if (
         clientSecret: OAUTH2_CLIENT_SECRET,
         callbackURL: OAUTH2_CALLBACK_URL,
       },
-      (_accessToken: string, _refreshToken: string, _profile: any, cb: any) => {
+      (_accessToken: string, _refreshToken: string, _profile: any, cb: unknown) => {
         // OAuth2 user lookup is not yet implemented.
         // Do NOT replace this with a hardcoded identity — every OAuth2 user would
         // share the same account and see all other users' patient records.

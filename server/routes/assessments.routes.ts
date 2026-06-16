@@ -60,16 +60,16 @@ assessmentsRouter.post(
         modelConfidence: prediction.modelConfidence ?? null,
         isFallback,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return res
           .status(400)
           .json({ message: err.errors[0]?.message ?? "Invalid input" });
       }
-      if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
+      if ((err as Error).message === "Clinical assessment timed out." || (err as Error).message.includes("timed out")) {
         return res.status(503).json({ message: "Clinical assessment preview timed out." });
       }
-      return res.status(500).json({ message: err.message || "Internal server error" });
+      return res.status(500).json({ message: (err as Error).message || "Internal server error" });
     }
   }
 );
@@ -92,14 +92,14 @@ assessmentsRouter.post(
         modelConfidence: prediction.modelConfidence ?? null,
         isFallback,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
       }
-      if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
+      if ((err as Error).message === "Clinical assessment timed out." || (err as Error).message.includes("timed out")) {
         return res.status(503).json({ message: "What-if assessment timed out." });
       }
-      return res.status(500).json({ message: err.message || "Internal server error" });
+      return res.status(500).json({ message: (err as Error).message || "Internal server error" });
     }
   }
 );
@@ -119,7 +119,7 @@ assessmentsRouter.post(
           const variant = { ...original, ...p };
           const variantResult = calculateClinicalFallback(variant) as PredictionResult;
           const riskReduction = originalResult.riskScore - variantResult.riskScore;
-          const desc = Object.keys(p).map(k => `${k}:${(original as any)[k] ?? '?'}->${(p as any)[k]}`).join("; ");
+          const desc = Object.keys(p).map(k => `${k}:${(original)[k] ?? '?'}->${(p)[k]}`).join("; ");
           return {
             delta: desc,
             riskScore: variantResult.riskScore,
@@ -167,7 +167,7 @@ assessmentsRouter.post(
       }
 
       return res.json(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
       }
@@ -215,7 +215,7 @@ assessmentsRouter.post(
       }
 
       return res.json(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
       }
@@ -232,7 +232,7 @@ assessmentsRouter.post(
   assessmentLimiter,
   validateDTO(api.assessments.create.input),
   async (req, res) => {
-    const userId = (req.session.user as any)?.id;
+    const userId = (req.session.user)?.id;
     const userEmail = req.session.user?.email;
     if (!userId) {
       return res.status(401).json({ message: "Authentication required." });
@@ -241,7 +241,7 @@ assessmentsRouter.post(
     let requestFingerprint: string | undefined;
     try {
       const input = req.body;
-      const requestId = (req as any).id as string | undefined;
+      const requestId = (req).id as string | undefined;
 
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
@@ -270,7 +270,7 @@ assessmentsRouter.post(
         jobId: job.id,
         requestId,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return res
           .status(400)
@@ -302,8 +302,8 @@ assessmentsRouter.post(
       try {
         const result = await MLService.runAssessmentInference(input);
         prediction = result.prediction;
-      } catch (error: any) {
-        if (error.message?.includes("timed out")) {
+      } catch (error: unknown) {
+        if ((error as Error).message?.includes("timed out")) {
           return res.status(408).json({ message: "Clinical assessment simulation timed out." });
         }
 
@@ -324,7 +324,7 @@ assessmentsRouter.post(
         confidence: prediction.modelConfidence ?? null,
         factorContributions: prediction.factors ?? [],
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
       }
@@ -440,18 +440,18 @@ assessmentsRouter.get(
           logSecurityEvent(
             "SQL_INJECTION_ATTEMPT",
             "Injection-like pattern detected in search query parameter",
-            req as any,
+            req,
             {
               matchedPattern: analysis.pattern,
-              userId: (req.session.user as any)?.id,
+              userId: (req.session.user)?.id,
             }
           );
         } else {
           logSecurityEvent(
             "MALFORMED_SEARCH_QUERY",
             "Search query failed validation",
-            req as any,
-            { userId: (req.session.user as any)?.id }
+            req,
+            { userId: (req.session.user)?.id }
           );
         }
 
@@ -472,10 +472,10 @@ assessmentsRouter.get(
           logSecurityEvent(
             "SUSPICIOUS_SEARCH_PATTERN",
             "Validated search term contains a suspicious pattern",
-            req as any,
+            req,
             {
               matchedPattern: analysis.pattern,
-              userId: (req.session.user as any)?.id,
+              userId: (req.session.user)?.id,
             }
           );
         }
@@ -540,9 +540,9 @@ assessmentsRouter.get(
         return res.status(404).json({ message: "Assessment not found." });
       }
 
-      if (!canAccessPatientRecord(user as any, assessment)) {
+      if (!canAccessPatientRecord(user, assessment)) {
         logAccessAttempt(
-          (user as any).id,
+          (user).id,
           "Assessment",
           id,
           false,
@@ -551,7 +551,7 @@ assessmentsRouter.get(
         return res.status(404).json({ message: "Assessment not found." });
       }
 
-      logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
+      logAccessAttempt((user).id, "Assessment", id, true, "Authorized access");
       const recommendations = generateRecommendations({ ...assessment, riskCategory: assessment.riskCategory });
       return res.json({ ...assessment, recommendations });
     } catch (err) {
@@ -585,9 +585,9 @@ assessmentsRouter.delete(
         return res.status(404).json({ message: "Assessment not found." });
       }
 
-      if (!canAccessPatientRecord(user as any, assessment)) {
+      if (!canAccessPatientRecord(user, assessment)) {
         logAccessAttempt(
-          (user as any).id,
+          (user).id,
           "Assessment",
           id,
           false,
@@ -598,7 +598,7 @@ assessmentsRouter.delete(
 
       await storage.deleteAssessment(id);
       
-      logAccessAttempt((user as any).id, "Assessment", id, true, "Assessment deleted successfully");
+      logAccessAttempt((user).id, "Assessment", id, true, "Assessment deleted successfully");
       return res.status(204).send();
     } catch (err) {
       logger.error({ err }, "Assessment delete error:");
