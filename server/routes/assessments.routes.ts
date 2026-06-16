@@ -8,6 +8,9 @@ import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { MLService } from "../services/mlService";
 import { generateRecommendations } from "../services/recommendation-engine";
+import { generatePredictionExplanation } from "../services/prediction-explainer";
+import { generateQualityAlerts } from "../services/assessment-quality-checker";
+import { generateAttentionNavigator } from "../services/clinical-attention-navigator";
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,
@@ -406,7 +409,18 @@ assessmentsRouter.get(
 
       logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
       const recommendations = generateRecommendations({ ...assessment, riskCategory: assessment.riskCategory });
-      return res.json({ ...assessment, recommendations });
+      const qualityAlerts = generateQualityAlerts({ ...assessment, factors: assessment.factors });
+      const explanation = generatePredictionExplanation({
+        ...assessment,
+        riskCategory: assessment.riskCategory,
+        factors: assessment.factors,
+      });
+      const attentionNavigator = generateAttentionNavigator({
+        ...assessment,
+        riskCategory: assessment.riskCategory,
+        factors: assessment.factors,
+      });
+      return res.json({ ...assessment, recommendations, qualityAlerts, explanation, attentionNavigator });
     } catch (err) {
       logger.error({ err }, "Assessment fetch error:");
       const { statusCode, message } = sanitizeDatabaseError(err);

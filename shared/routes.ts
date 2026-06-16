@@ -301,6 +301,7 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
     disclaimer?: string;
     isFallback?: boolean;
   };
+  attentionNavigator?: AttentionNavigator;
   recommendations?: Recommendation[];
   qualityAlerts?: QualityAlert[];
   explanation?: PredictionExplanation;

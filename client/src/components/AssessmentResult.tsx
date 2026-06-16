@@ -7,11 +7,11 @@ import { HealthBadges } from "@/components/HealthBadges";
 import { CopySummaryButton } from "@/components/CopySummaryButton";
 import { useAssessments } from "@/hooks/use-assessments";
 import { calculateHealthBadges } from "@/utils/healthBadges";
-import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { Recommendations } from "./Recommendations";
 import { DataQualityAlerts } from "./DataQualityAlerts";
+import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
 import { PredictionExplanation } from "./PredictionExplanation";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
@@ -446,8 +446,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
               </div>
 
-              <div className="mt-4">
+              <div className="space-y-4">
                 <DataQualityAlerts alerts={assessment.qualityAlerts} />
+                <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
