@@ -20,6 +20,8 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
+import PatientLogin from "./pages/PatientLogin";
+import MyHealth from "./pages/MyHealth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./i18n";
 
@@ -57,17 +59,23 @@ function Router() {
           <ModelMonitoring />
         </ProtectedRoute>
       </Route>
-      <Route path="/progress">
-        <ProtectedRoute>
-          <ProgressTracking />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/login" component={LoginPage} />
+       <Route path="/progress">
+         <ProtectedRoute>
+           <ProgressTracking />
+         </ProtectedRoute>
+       </Route>
+       <Route path="/my-health">
+         <ProtectedRoute>
+           <MyHealth />
+         </ProtectedRoute>
+       </Route>
+       <Route path="/login" component={LoginPage} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
-      <Route path="/terms" component={Terms} />
-      <Route component={NotFound} />
+       <Route path="/terms" component={Terms} />
+       <Route path="/patient-login" component={PatientLogin} />
+       <Route component={NotFound} />
     </Switch>
   );
 }
