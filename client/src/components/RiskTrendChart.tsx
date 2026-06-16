@@ -114,12 +114,12 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
               onClick={() => toggleMetric(key)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                 activeMetrics[key]
-                  ? "text-white border-transparent"
+                  ? "text-white bg-[var(--chart-color)] border-[var(--chart-color)]"
                   : "bg-transparent text-muted-foreground border-border hover:border-foreground/30"
               }`}
-              style={activeMetrics[key] ? { backgroundColor: color, borderColor: color } : {}}
+              style={{ '--chart-color': color } as React.CSSProperties}
             >
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+              <span className="w-2 h-2 rounded-full bg-[var(--chart-color)]" />
               {label}
             </button>
           ))}
