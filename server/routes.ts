@@ -18,7 +18,7 @@ import {
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
 import { MLService, calculateClinicalFallback, generateRequestFingerprint } from "./services/mlService";
-import { getAssessmentQueue, getPythonExecutable } from "./queue";
+import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -286,6 +286,21 @@ export async function registerRoutes(
         } catch (e) {
           logger.warn({ e, tempFile }, "Failed to clean up temp file (simulate):");
         }
+      }
+    }
+  );
+
+  app.get(
+    "/api/queue/health",
+    requireAuth,
+    requireAdmin,
+    async (_req, res) => {
+      try {
+        const metrics = await getQueueMetrics();
+        res.json(metrics);
+      } catch (err) {
+        logger.error({ err }, "Error fetching queue health");
+        res.status(500).json({ message: "Failed to fetch queue health" });
       }
     }
   );
