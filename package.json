@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:python": "test -x .venv/bin/pytest && .venv/bin/pytest || python3 -m pytest",
     "test:all": "npm run test && npm run test:python",
+    "test:e2e": "playwright test",
     "db:push": "drizzle-kit push",
     "lint": "eslint ."
   },
@@ -104,6 +105,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "@replit/vite-plugin-cartographer": "^0.5.21",
     "@replit/vite-plugin-dev-banner": "^0.1.1",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.6",
