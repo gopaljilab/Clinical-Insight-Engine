@@ -18,7 +18,7 @@ import {
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
 import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
-import { getAssessmentQueue, getPythonExecutable } from "./queue";
+import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
