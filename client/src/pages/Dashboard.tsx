@@ -675,12 +675,11 @@ export default function Dashboard() {
                               cx="50"
                               cy="50"
                               r="42"
-                              className="stroke-blue-500/20 dark:stroke-blue-500/10 fill-none"
+                              className="stroke-blue-500/20 dark:stroke-blue-500/10 fill-none animate-[dash_3s_ease-in-out_infinite]"
                               strokeWidth="8"
                               strokeDasharray="264"
                               strokeDashoffset="180"
                               strokeLinecap="round"
-                              style={{ animation: 'dash 3s ease-in-out infinite' }}
                             />
                           </svg>
                           
@@ -707,8 +706,8 @@ export default function Dashboard() {
                               </div>
                               <div className="h-2 w-full bg-slate-200/50 dark:bg-slate-800/50 rounded-full overflow-hidden">
                                 <div 
-                                  className="h-full bg-slate-300 dark:bg-slate-700/60 rounded-full animate-pulse" 
-                                  style={{ width: `${width}%` }} 
+                                  className="h-full bg-slate-300 dark:bg-slate-700/60 rounded-full animate-pulse w-[var(--width)]" 
+                                  style={{ '--width': `${width}%` } as React.CSSProperties} 
                                 />
                               </div>
                             </div>
