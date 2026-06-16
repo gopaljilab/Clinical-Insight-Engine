@@ -6,7 +6,7 @@ import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService, isPythonAvailable, calculateClinicalFallback } from "../services/mlService";
+import { MLService, isPythonAvailable, calculateClinicalFallback, type PredictionResult } from "../services/mlService";
 
 
 import { generateRecommendations } from "../services/recommendation-engine";
@@ -114,10 +114,10 @@ assessmentsRouter.post(
       const { original, perturbations } = parsed;
 
       if (!isPythonAvailable) {
-        const originalResult = calculateClinicalFallback(original);
+        const originalResult = calculateClinicalFallback(original) as PredictionResult;
         const perturbationResults = perturbations.map((p: any) => {
           const variant = { ...original, ...p };
-          const variantResult = calculateClinicalFallback(variant);
+          const variantResult = calculateClinicalFallback(variant) as PredictionResult;
           const riskReduction = originalResult.riskScore - variantResult.riskScore;
           const desc = Object.keys(p).map(k => `${k}:${(original as any)[k] ?? '?'}->${(p as any)[k]}`).join("; ");
           return {
