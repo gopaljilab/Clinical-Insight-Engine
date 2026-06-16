@@ -288,8 +288,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className={`transition-all duration-500 grid grid-cols-1 gap-8 lg:items-start ${result ? "lg:grid-cols-12" : "lg:grid-cols-5"}`}>
-          <div className={`transition-all duration-500 ${result ? "lg:col-span-4 sticky top-8" : "lg:col-span-3"} lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4`}>
+        <div className={`transition-all duration-500 grid grid-cols-1 gap-8 lg:items-start min-w-0 ${result ? "lg:grid-cols-12" : "lg:grid-cols-5"}`}>
+          <div className={`transition-all duration-500 min-w-0 ${result ? "lg:col-span-4 sticky top-8" : "lg:col-span-3"} lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4`}>
             <form
               onSubmit={handleSubmit(onSubmit)}
               className={`rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] transition-all duration-200 md:p-8 ${result ? "opacity-75 pointer-events-none" : ""}`}
@@ -560,7 +560,7 @@ export default function Dashboard() {
               </form>
             </div>
 
-            <aside className={`transition-all duration-500 ${result ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
+            <aside className={`transition-all duration-500 min-w-0 ${result ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
               {result ? (
                 <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">

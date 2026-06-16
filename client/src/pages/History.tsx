@@ -375,6 +375,14 @@ export default function History() {
     );
   };
 
+  const getRiskBadgeClasses = (category: string) => {
+    const key = (category || "").toUpperCase();
+    if (key === "LOW") return "border-green-200 bg-green-50 text-green-700";
+    if (key === "MODERATE") return "border-amber-200 bg-amber-50 text-amber-700";
+    if (key === "HIGH") return "border-red-200 bg-red-50 text-red-700";
+    return "border-slate-200 bg-slate-50 text-slate-600";
+  };
+
   const [, setLocation] = useLocation();
 
   function reloadToForm(assessment: any) {
@@ -550,7 +558,7 @@ export default function History() {
             </p>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-4">
               <AssessmentSearchBar
                 value={searchTerm}
@@ -730,7 +738,87 @@ export default function History() {
                 assessments={sortedAssessments}
               />
             </div>
-            <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+            <div className="space-y-4 sm:hidden">
+              {paginatedAssessments.map((assessment) => (
+                <div key={assessment.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Date</p>
+                      <p className="mt-1 text-base font-semibold text-foreground">{formatAssessmentDate(assessment.createdAt)}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getRiskBadgeClasses(assessment.riskCategory)}`}>
+                        {assessment.riskCategory}
+                      </span>
+                      <span className="text-sm font-bold text-foreground">{Number(assessment.riskScore).toFixed(1)}%</span>
+                    </div>
+                  </div>
+
+                  {compareMode && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedCompareIds.has(assessment.id)}
+                        onCheckedChange={() => toggleCompareId(assessment.id)}
+                        disabled={!selectedCompareIds.has(assessment.id) && selectedCompareIds.size >= 4}
+                        aria-label={`Compare ${assessment.patientName}`}
+                      />
+                      <span className="text-sm font-medium text-muted-foreground">Select for comparison</span>
+                    </div>
+                  )}
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Patient</p>
+                      <p className="font-semibold truncate">{assessment.patientName || "Unknown Patient"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Age</p>
+                      <p className="font-semibold">{assessment.age}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">BMI</p>
+                      <p className="font-semibold">{assessment.bmi}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">HbA1c</p>
+                      <p className="font-semibold">{assessment.hba1cLevel}%</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => reloadToForm(assessment)}
+                        className="inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <RotateCw className="w-4 h-4" /> Reload
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => exportAsPdf(assessment)}
+                        className="inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <FileText className="w-4 h-4" /> Export
+                      </button>
+                    </div>
+                    {assessment.id && (
+                      <div className="w-full">
+                        <ConfirmDeleteDialog
+                          patientName={assessment.patientName || "Unknown Patient"}
+                          assessmentDate={formatAssessmentDate(assessment.createdAt)}
+                          onConfirm={async () => {
+                            await deleteAssessment(assessment.id!);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden sm:block bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
