@@ -16,6 +16,7 @@ import { DataQualityAlerts } from "./DataQualityAlerts";
 import { BiomarkerAlerts } from "./BiomarkerAlerts";
 import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
 import { ClinicalCopilot } from "./ClinicalCopilot";
+import { ClinicalNoteViewer } from "./ClinicalNoteViewer";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface AssessmentResultProps {
@@ -554,6 +555,15 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               </div>
 
               <ClinicalCopilot assessment={assessment} />
+
+              {assessment.clinicalNote && assessment.explainableInsights && (
+                <div className="mt-6">
+                  <ClinicalNoteViewer
+                    noteText={assessment.clinicalNote}
+                    insights={assessment.explainableInsights as any}
+                  />
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
