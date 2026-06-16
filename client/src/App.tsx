@@ -14,6 +14,7 @@ import ImportData from "./pages/ImportData";
 import AdminDashboard from "./pages/AdminDashboard";
 import ModelMonitoring from "./pages/ModelMonitoring";
 import ProgressTracking from "./pages/ProgressTracking";
+import RiskTrends from "./pages/RiskTrends";
 
 import LoginPage from "./pages/LoginPage";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -60,6 +61,11 @@ function Router() {
       <Route path="/progress">
         <ProtectedRoute>
           <ProgressTracking />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/risk-trends">
+        <ProtectedRoute>
+          <RiskTrends />
         </ProtectedRoute>
       </Route>
       <Route path="/login" component={LoginPage} />

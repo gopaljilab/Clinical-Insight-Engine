@@ -355,27 +355,6 @@ export class AssessmentRepository {
     return rows.map((r) => r.patientName).filter(Boolean) as string[];
   }
 
-  async getAssessmentsByPatientName(
-    patientName: string,
-    limit: number = 20,
-    offset: number = 0
-  ): Promise<{ data: Assessment[]; total: number }> {
-    const db = getDb();
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(assessments)
-      .where(eq(assessments.patientName, patientName));
-    const total = Number(countResult?.count ?? 0);
-    const data = await db
-      .select()
-      .from(assessments)
-      .where(eq(assessments.patientName, patientName))
-      .orderBy(desc(assessments.createdAt))
-      .limit(limit)
-      .offset(offset);
-    return { data, total };
-  }
-
   async getPatientTrends(patientName: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]> {
     const db = getDb();
     const rows = await db
@@ -392,6 +371,94 @@ export class AssessmentRepository {
       riskScore: r.riskScore,
       riskCategory: r.riskCategory,
     }));
+  }
+
+  async getAssessmentsByPatientName(
+    patientName: string,
+    limit: number = 100,
+    offset: number = 0,
+    startDate?: string,
+    endDate?: string
+  ): Promise<{ data: Assessment[]; total: number }> {
+    const db = getDb();
+    const filters: any[] = [eq(assessments.patientName, patientName)];
+    if (startDate && !isNaN(Date.parse(startDate))) filters.push(gte(assessments.createdAt, new Date(startDate)));
+    if (endDate && !isNaN(Date.parse(endDate))) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      filters.push(lte(assessments.createdAt, end));
+    }
+    const where = and(...filters);
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(assessments)
+      .where(where);
+    const total = Number(countResult?.count ?? 0);
+    const data = await db
+      .select()
+      .from(assessments)
+      .where(where)
+      .orderBy(desc(assessments.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return { data, total };
+  }
+
+  async getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string) {
+    const db = getDb();
+    const filters: any[] = [eq(assessments.patientName, patientName)];
+    if (startDate && !isNaN(Date.parse(startDate))) filters.push(gte(assessments.createdAt, new Date(startDate)));
+    if (endDate && !isNaN(Date.parse(endDate))) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      filters.push(lte(assessments.createdAt, end));
+    }
+    const where = and(...filters);
+
+    const data = await db
+      .select()
+      .from(assessments)
+      .where(where)
+      .orderBy(asc(assessments.createdAt));
+
+    const latest = data[data.length - 1];
+    const earliest = data.length >= 2 ? data[0] : null;
+
+    let trend: "improving" | "stable" | "worsening" = "stable";
+    if (data.length >= 2 && latest && earliest) {
+      const diff = latest.riskScore - earliest.riskScore;
+      if (diff < -2) trend = "improving";
+      else if (diff > 2) trend = "worsening";
+    }
+
+    const avgRisk = data.length > 0 ? data.reduce((s, a) => s + a.riskScore, 0) / data.length : 0;
+
+    return {
+      assessments: data.map((a) => ({
+        id: a.id,
+        patientName: a.patientName,
+        gender: a.gender,
+        age: a.age,
+        bmi: a.bmi,
+        hba1cLevel: a.hba1cLevel,
+        bloodGlucoseLevel: a.bloodGlucoseLevel,
+        riskScore: a.riskScore,
+        riskCategory: a.riskCategory,
+        hypertension: a.hypertension,
+        heartDisease: a.heartDisease,
+        smokingHistory: a.smokingHistory,
+        createdAt: a.createdAt?.toISOString() ?? "",
+      })),
+      summary: {
+        total: data.length,
+        latestRiskScore: latest?.riskScore ?? null,
+        latestRiskCategory: latest?.riskCategory ?? null,
+        earliestRiskScore: earliest?.riskScore ?? null,
+        trend,
+        avgRiskScore: Number(avgRisk.toFixed(1)),
+        change: latest && earliest ? Number((latest.riskScore - earliest.riskScore).toFixed(1)) : 0,
+      },
+    };
   }
 
   async deleteAssessment(id: number): Promise<void> {

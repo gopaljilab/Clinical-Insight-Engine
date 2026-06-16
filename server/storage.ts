@@ -69,8 +69,12 @@ export interface IStorage {
   getPatientUserByPatientName(patientName: string): Promise<PatientUser | undefined>;
   getPatientUserById(id: string): Promise<PatientUser | undefined>;
   createPatientUser(data: InsertPatientUser): Promise<PatientUser>;
-  getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number): Promise<{ data: Assessment[]; total: number }>;
+  getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, startDate?: string, endDate?: string): Promise<{ data: Assessment[]; total: number }>;
   getPatientTrends(patientName: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]>;
+  getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string): Promise<{
+    assessments: any[];
+    summary: { total: number; latestRiskScore: number | null; latestRiskCategory: string | null; earliestRiskScore: number | null; trend: string; avgRiskScore: number; change: number };
+  }>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
@@ -234,12 +238,16 @@ export class DatabaseStorage implements IStorage {
     return this.patientUserRepository.create(data);
   }
 
-  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number) {
-    return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset);
+  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, startDate?: string, endDate?: string) {
+    return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset, startDate, endDate);
   }
 
   async getPatientTrends(patientName: string) {
     return this.assessmentRepository.getPatientTrends(patientName);
+  }
+
+  async getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string) {
+    return this.assessmentRepository.getTrendsDashboardData(patientName, startDate, endDate);
   }
 }
 

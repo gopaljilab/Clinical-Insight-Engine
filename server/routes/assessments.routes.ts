@@ -341,11 +341,34 @@ assessmentsRouter.get(
   async (req, res) => {
     try {
       const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
-      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+      const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
+      const endDate = typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0, startDate, endDate);
       return res.json(result);
     } catch (err) {
       logger.error({ err }, "Patient trends fetch error:");
       return res.status(500).json({ message: "Failed to fetch patient trends." });
+    }
+  }
+);
+
+assessmentsRouter.get(
+  "/trends/dashboard",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const patientName = typeof req.query.patientName === "string" ? req.query.patientName.trim() : "";
+      if (!patientName) {
+        return res.status(400).json({ message: "patientName query parameter is required." });
+      }
+      const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
+      const endDate = typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+      const result = await storage.getTrendsDashboardData(patientName, startDate, endDate);
+      return res.json(result);
+    } catch (err) {
+      logger.error({ err }, "Trends dashboard error:");
+      return res.status(500).json({ message: "Failed to fetch trends dashboard data." });
     }
   }
 );
