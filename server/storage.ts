@@ -274,8 +274,8 @@ export class DatabaseStorage implements IStorage {
     return this.patientUserRepository.create(data);
   }
 
-  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, startDate?: string, endDate?: string) {
-    return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset, startDate, endDate);
+  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, startDate?: string, endDate?: string, createdBy?: string) {
+    return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset, startDate, endDate, createdBy);
   }
 
   async getPatientTrends(patientName: string) {

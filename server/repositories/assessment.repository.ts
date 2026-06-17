@@ -382,10 +382,12 @@ export class AssessmentRepository {
     limit: number = 100,
     offset: number = 0,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    createdBy?: string,
   ): Promise<{ data: Assessment[]; total: number }> {
     const db = getDb();
     const filters: any[] = [eq(assessments.patientName, patientName)];
+    if (createdBy) filters.push(eq(assessments.createdBy, createdBy));
     if (startDate && !isNaN(Date.parse(startDate))) filters.push(gte(assessments.createdAt, new Date(startDate)));
     if (endDate && !isNaN(Date.parse(endDate))) {
       const end = new Date(endDate);
