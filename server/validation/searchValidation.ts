@@ -249,3 +249,32 @@ export const assessmentExportQuerySchema = assessmentsQuerySchema.extend({
 });
 
 export type AssessmentExportQueryParams = z.infer<typeof assessmentExportQuerySchema>;
+
+export const cohortQuerySchema = z.object({
+  minAge: z.coerce.number().int().min(0).max(120).optional(),
+  maxAge: z.coerce.number().int().min(0).max(120).optional(),
+  minBmi: z.coerce.number().min(10).max(80).optional(),
+  maxBmi: z.coerce.number().min(10).max(80).optional(),
+  minHba1c: z.coerce.number().min(3).max(20).optional(),
+  maxHba1c: z.coerce.number().min(3).max(20).optional(),
+  minGlucose: z.coerce.number().min(30).max(600).optional(),
+  maxGlucose: z.coerce.number().min(30).max(600).optional(),
+  gender: z.string().optional().transform((val) => {
+    if (!val) return undefined;
+    const n = val.trim().toLowerCase();
+    if (n === "male") return "Male";
+    if (n === "female") return "Female";
+    if (n === "other") return "Other";
+    if (n === "all") return undefined;
+    return undefined;
+  }).optional(),
+  smokingHistory: z.enum(["Never", "Former", "Current"]).optional(),
+  hypertension: z.coerce.boolean().optional(),
+  heartDisease: z.coerce.boolean().optional(),
+  riskCategory: z.string().optional().transform((val) => val ? val.trim().toUpperCase() : undefined)
+    .refine((val) => !val || ["LOW", "MODERATE", "HIGH"].includes(val), { message: "Invalid risk category" }),
+  startDate: z.string().optional().refine(isIso8601Date, { message: "startDate must be ISO 8601 (YYYY-MM-DD)" }),
+  endDate: z.string().optional().refine(isIso8601Date, { message: "endDate must be ISO 8601 (YYYY-MM-DD)" }),
+});
+
+export type CohortQueryParams = z.infer<typeof cohortQuerySchema>;

@@ -11,6 +11,11 @@ const formatNumberValue = (value: unknown, suffix = ""): string => {
   return `${numberValue}${suffix}`;
 };
 
+/**
+ * Format Assessment Summary.
+ * @param assessment - The assessment parameter.
+ * @returns The result of the operation.
+ */
 export function formatAssessmentSummary(assessment: AssessmentResponse): string {
   const category = assessment.riskCategory || "Unknown";
   const score = assessment.riskScore !== undefined && assessment.riskScore !== null
