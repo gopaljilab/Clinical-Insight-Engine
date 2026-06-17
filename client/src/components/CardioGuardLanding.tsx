@@ -145,8 +145,8 @@ function DashboardPreview() {
                 {[46, 58, 52, 64, 48, 42].map((height, index) => (
                   <div key={height + index} className="flex flex-1 flex-col items-center gap-2">
                     <div
-                      className="w-full rounded-t-xl bg-gradient-to-t from-[#2563EB] to-cyan-300"
-                      style={{ height: `${height}%` }}
+                      className="w-full rounded-t-xl bg-gradient-to-t from-[#2563EB] to-cyan-300 h-[var(--height)]"
+                      style={{ '--height': `${height}%` } as React.CSSProperties}
                     />
                     <span className="text-[10px] font-semibold text-slate-500">M{index + 1}</span>
                   </div>

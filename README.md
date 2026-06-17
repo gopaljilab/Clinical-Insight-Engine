@@ -587,6 +587,7 @@ Clinical-Insight-Engine/
 | `POST` | `/api/assessments` | Submit a new risk assessment |
 | `GET` | `/api/assessments` | Retrieve assessment history |
 | `GET` | `/api/assessments/:id` | Get a specific assessment by ID |
+| `POST` | `/api/ingest/fhir` | Ingest a FHIR R4 JSON bundle |
 
 ### Example Request
 
@@ -606,6 +607,104 @@ curl -X POST http://localhost:3000/api/assessments \
     "bmi": 30.1,
     "hba1cLevel": 6.4,
     "bloodGlucoseLevel": 148
+  }'
+```
+
+### FHIR Ingestion & Explainable Insights
+
+Allows submitting standard FHIR R4 JSON bundles containing patient demographic details, clinical vitals/lab values, and clinical notes.
+
+#### Supported Resources
+* **Patient**: Extracts `id`, `name`, `gender` (mapped to `Male`/`Female`), and calculates patient `age` from `birthDate`.
+* **Observation**: Extracts clinical values such as `BMI`, `HbA1c`, `Blood Glucose`, and flags `hypertension` and `heartDisease` using LOINC codes and display terms.
+* **DocumentReference**: Extracts note titles, descriptions, and decoded base64 attachments, merging them into a unified clinical note transcript.
+
+#### 💡 Explainable Insights (Source Citation & Highlighting)
+To ensure clinical decisions are traceable and verifiable, the pipeline extracts source citations for key clinical features. When note text is found in **DocumentReference** entries, the parser:
+1. Performs regex/vitals and keyword scanning for **Hypertension** (e.g. BP measurements like `145/90` or keywords like `hypertension`), **Heart Disease** (e.g. `CAD`, `myocardial infarction`), and **Smoking History** (e.g. `former smoker`, `never smoked`).
+2. Extracts the exact sentence snippet enclosing the evidence (`source_snippet`).
+3. Computes the zero-indexed character bounds `[start, end]` within the raw concatenated text (`source_index`).
+4. If no evidence is found, these values are returned as `null`.
+
+#### Example API Response Payload
+A successful FHIR ingestion response returns the extracted clinical note and explainable insights:
+
+```json
+{
+  "status": "success",
+  "id": 42,
+  "clinical_note": "Routine visit. BP reading 145/95 noted. Quit smoking last year.",
+  "explainable_insights": [
+    {
+      "insight": "Patient shows signs of hypertension",
+      "source_snippet": "BP reading 145/95 noted",
+      "source_index": [15, 38]
+    },
+    {
+      "insight": "Patient shows signs of heart disease",
+      "source_snippet": null,
+      "source_index": null
+    },
+    {
+      "insight": "Patient has a smoking history (former)",
+      "source_snippet": "Quit smoking last year",
+      "source_index": [40, 62]
+    }
+  ]
+}
+```
+
+#### 🖥️ Interactive Note Viewer
+On the **Clinician View** tab of the results page, the clinical note is rendered in an interactive viewer:
+* **Interactive Highlights**: Clicking any cited insight automatically highlights the matching text in the note.
+* **Auto-Scroll**: The highlighted source text is scrolled smoothly into view.
+* **Keyboard Navigation**:
+  * Use **Arrow Down** / **Arrow Right** to move to the next cited insight.
+  * Use **Arrow Up** / **Arrow Left** to move to the previous cited insight.
+  * Press **Escape** to clear the selection and highlight.
+
+#### Example Request
+```bash
+curl -X POST http://localhost:3000/api/ingest/fhir \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceType": "Bundle",
+    "type": "collection",
+    "entry": [
+      {
+        "resource": {
+          "resourceType": "Patient",
+          "id": "pat-123",
+          "name": [
+            {
+              "use": "official",
+              "given": ["John", "Edward"],
+              "family": "Smith"
+            }
+          ],
+          "gender": "male",
+          "birthDate": "1980-01-01"
+        }
+      },
+      {
+        "resource": {
+          "resourceType": "Observation",
+          "code": {
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "39156-5",
+                "display": "Body Mass Index"
+              }
+            ]
+          },
+          "valueQuantity": {
+            "value": 24.5,
+            "unit": "kg/m2"
+          }
+        }
+      }
+    ]
   }'
 ```
 
@@ -686,6 +785,7 @@ py analyze.py predict_file patient.json
 | `DEV_CLINICIAN_EMAIL` | `.env.local` | Seeded clinician email (dev only) |
 | `DEV_CLINICIAN_PASSWORD` | `.env.local` | Seeded clinician password (dev only) |
 | `NEXT_PUBLIC_LOCAL_ENCRYPTION_KEY` | `.env.local` | Local encryption key (dev only) |
+| `ENABLE_PHI_REDACTION` | `.env` | Enable privacy-preserving PHI redaction (defaults to `true`) |
 
 > **Security:** `.env.local` is git-ignored and should **never** be committed. Production builds do not expose dev credentials.
 
@@ -738,7 +838,7 @@ py analyze.py predict_file patient.json
 ## 🗺 Roadmap
 
 - [ ] 📈 Longitudinal patient risk tracking across visits
-- [ ] 💡 Counterfactual reasoning — *"What single change reduces risk most?"*
+- [x] 💡 Counterfactual reasoning — *"What single change reduces risk most?"*
 - [ ] 🔬 Cohort discovery and population-level insights
 - [ ] 🏥 Integration with Electronic Health Records (EHR)
 - [ ] ⚖️ Advanced bias detection and ML fairness metrics

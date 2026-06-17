@@ -25,6 +25,6 @@ export type AnalyticsStats = {
 
 export function useAnalytics() {
   return useQuery<AnalyticsStats>({
-    queryKey: ["/api/assessments/analytics"],
+    queryKey: ["/api/analytics"],
   });
 }

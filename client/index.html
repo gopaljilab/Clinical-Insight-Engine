@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,8 +7,17 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" href="/favicon.png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/icon-only.svg" />
-    <meta name="theme-color" content="#2563EB" />
+    <meta name="theme-color" content="#2563EB" id="theme-color-meta" />
+    <script>
+      (function() {
+        var theme = localStorage.getItem('theme');
+        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
     <meta name="description" content="AI-Powered Preventive Diabetes Risk Assessment for Healthcare Providers" />
+    <meta name="csp-nonce" content="" />
     <meta property="og:title" content="Clinical Insight Engine" />
     <meta property="og:description" content="AI-Powered Preventive Care" />
     <meta property="og:type" content="website" />

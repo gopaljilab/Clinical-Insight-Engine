@@ -12,6 +12,14 @@ import { OtpInput } from "./OtpInput";
 export type AuthMode = "login" | "register";
 type Step = "form" | "otp" | "forgot";
 
+interface FieldErrors {
+  fullName?: string;
+  licenseNumber?: string;
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+}
+
 interface AuthFlowProps {
   initialMode?: AuthMode;
   onSuccess?: () => void;
@@ -39,8 +47,17 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
   const [forgotSent, setForgotSent] = useState(false);
 
   // UI States
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem("auth_remember_email"));
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Restore remembered email on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("auth_remember_email");
+    if (saved && !email) setEmail(saved);
+  }, []);
 
   // Timers
   useEffect(() => {
@@ -60,19 +77,56 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     return `${m}:${s}`;
   };
 
+  function setFieldError(field: keyof FieldErrors, message: string) {
+    setFieldErrors((prev) => ({ ...prev, [field]: message }));
+  }
+
+  function clearFieldError(field: keyof FieldErrors) {
+    setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+  }
+
+  function clearAllFieldErrors() {
+    setFieldErrors({});
+  }
+
+  function handleServerErrors(err: any) {
+    clearAllFieldErrors();
+    const fieldErrs = err.fieldErrors as Array<{ field: string; message: string }> | undefined;
+    if (fieldErrs && fieldErrs.length > 0) {
+      const mapped: FieldErrors = {};
+      for (const fe of fieldErrs) {
+        if (fe.field === "fullName") mapped.fullName = fe.message;
+        else if (fe.field === "licenseNumber") mapped.licenseNumber = fe.message;
+        else if (fe.field === "email") mapped.email = fe.message;
+        else if (fe.field === "password") mapped.password = fe.message;
+        else if (fe.field === "confirmPassword") mapped.confirmPassword = fe.message;
+        else if (!error) setError(fe.message);
+      }
+      setFieldErrors(mapped);
+      if (Object.keys(mapped).length === 0) {
+        setError(err.message || "Validation failed.");
+      }
+    } else {
+      setError(err.message || "Authentication failed. Please try again.");
+    }
+  }
+
   const handleAuthSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    clearAllFieldErrors();
 
-    // Validation
-    if (!email) { setError("Email is required."); return; }
-    if (!password) { setError("Password is required."); return; }
+    if (!email) { setFieldError("email", "Email is required."); return; }
+    if (!password) { setFieldError("password", "Password is required."); return; }
     
     if (mode === "register") {
-      if (!fullName) { setError("Full name is required."); return; }
-      if (!licenseNumber) { setError("Medical license number is required."); return; }
-      if (password !== confirmPassword) { setError("Passwords do not match."); return; }
-      if (password.length < 8) { setError("Password is too weak."); return; }
+      let hasError = false;
+      if (!fullName) { setFieldError("fullName", "Full name is required."); hasError = true; }
+      if (!licenseNumber) { setFieldError("licenseNumber", "Medical license number is required."); hasError = true; }
+      if (password !== confirmPassword) { setFieldError("confirmPassword", "Passwords do not match."); hasError = true; }
+      if (password.length < 8) { setFieldError("password", "Password must be at least 8 characters."); hasError = true; }
+      if (!termsAccepted) { setError("Please accept the terms and conditions to continue."); hasError = true; }
+      if (hasError) return;
     }
 
     setIsLoading(true);
@@ -90,7 +144,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       setResendCooldown(60);
       setOtp(responseData?.devOtp || "");
     } catch (err: any) {
-      setError(err.message || "Authentication failed. Please try again.");
+      handleServerErrors(err);
     } finally {
       setIsLoading(false);
     }
@@ -107,6 +161,12 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
         await ApiClient.post("/api/auth/verify-otp", { email, otp });
       } else {
         await ApiClient.post("/api/auth/verify-email", { email, code: otp });
+      }
+      
+      if (rememberMe) {
+        localStorage.setItem("auth_remember_email", email);
+      } else {
+        localStorage.removeItem("auth_remember_email");
       }
       
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
@@ -304,17 +364,22 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
               <FormField
                 label="Full Name"
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                onChange={(e) => { setFullName(e.target.value); clearFieldError("fullName"); }}
                 placeholder="Dr. Maya Patel"
+                error={fieldErrors.fullName}
                 required
               />
               <FormField
                 label="Medical License Number / NPI"
                 value={licenseNumber}
-                onChange={(e) => setLicenseNumber(e.target.value)}
+                onChange={(e) => { setLicenseNumber(e.target.value); clearFieldError("licenseNumber"); }}
                 placeholder="NPI-1234567890"
+                error={fieldErrors.licenseNumber}
                 required
               />
+              <p className="-mt-3 mb-5 text-xs text-slate-400 dark:text-slate-500">
+                Enter your National Provider Identifier (NPI) or medical license number.
+              </p>
             </>
           )}
 
@@ -322,8 +387,9 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
             label="Email Address"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); clearFieldError("email"); }}
             placeholder="clinician@clinic.com"
+            error={fieldErrors.email}
             required
           />
 
@@ -331,8 +397,9 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
             label="Password"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => { setPassword(e.target.value); clearFieldError("password"); }}
             placeholder="••••••••"
+            error={fieldErrors.password}
             required
           />
 
@@ -344,41 +411,82 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
                   label="Confirm Password"
                   type="password"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => { setConfirmPassword(e.target.value); clearFieldError("confirmPassword"); }}
                   placeholder="••••••••"
+                  error={fieldErrors.confirmPassword}
                   required
                   className="!mb-1"
                 />
-                {confirmPassword && (
+                {confirmPassword && !fieldErrors.confirmPassword && (
                   <p className={`text-xs ${password === confirmPassword ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
                     {password === confirmPassword ? "Passwords match" : "Passwords do not match"}
                   </p>
                 )}
               </div>
+              <div className="mt-5">
+                <label className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900"
+                  />
+                  <span>
+                    I accept the{" "}
+                    <a href="#" className="font-semibold text-blue-600 hover:underline dark:text-blue-400" onClick={(e) => e.preventDefault()}>
+                      Terms of Service
+                    </a>{" "}
+                    and{" "}
+                    <a href="#" className="font-semibold text-blue-600 hover:underline dark:text-blue-400" onClick={(e) => e.preventDefault()}>
+                      Privacy Policy
+                    </a>
+                  </span>
+                </label>
+              </div>
             </div>
           )}
 
-          {mode === "login" && (
-            <div className="mb-6 flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <input type="checkbox" className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900" />
-                Remember Me
-              </label>
-              <button
-                type="button"
-                onClick={() => { setError(null); setStep("forgot"); }}
-                className="text-sm font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400"
-              >
-                Forgot Password?
-              </button>
-            </div>
-          )}
+           {/* Google Sign-In Button */}
+           <div className="mb-6">
+             <button
+               onClick={() => {
+                 window.location.href = "/api/auth/oauth2/google";
+               }}
+               className="w-full flex items-center justify-center gap-3 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:ring-red-300"
+             >
+               <svg className="h-5 w-5" fill="#EA4335" viewBox="0 0 24 24">
+                 <path d="M22.56 12.25c0-1.17-.21-2.29-.59-3.34h-1.8c-.27.84-.43 1.79-.43 2.79 0 1.56.39 3.01 1.02 4.1l2.04-2.04c-.97-1.16-1.55-2.69-1.55-4.39zm-9.81-4.41c-2.34 0-4.34 1.91-4.34 4.27 0 2.36 1.7 4.33 3.95 4.78v-3.08h-2.86v-2.29h2.86V16.05h3.56l.46-2.29h-4.02zm7.25 8.5c-2.9 0-5.25-2.35-5.25-5.25s2.35-5.25 5.25-5.25 5.25 2.35 5.25 5.25-2.35 5.25-5.25 5.25z"/>
+               </svg>
+               Sign in with Google
+             </button>
+           </div>
+
+           {mode === "login" && (
+             <div className="mb-6 flex items-center justify-between">
+               <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                 <input
+                   type="checkbox"
+                   checked={rememberMe}
+                   onChange={(e) => setRememberMe(e.target.checked)}
+                   className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900"
+                 />
+                 Remember Me
+               </label>
+               <button
+                 type="button"
+                 onClick={() => { setError(null); setStep("forgot"); }}
+                 className="text-sm font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400"
+               >
+                 Forgot Password?
+               </button>
+             </div>
+           )}
 
           <AuthButton
             type="submit"
             isLoading={isLoading}
             loadingText={mode === "login" ? "Signing In..." : "Creating Account..."}
-            disabled={mode === "register" && (password !== confirmPassword || password.length < 8)}
+            disabled={mode === "register" && (password !== confirmPassword || password.length < 8 || !termsAccepted)}
           >
             {mode === "login" ? "Sign In" : "Create Account"}
           </AuthButton>

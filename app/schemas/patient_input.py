@@ -9,16 +9,39 @@ from typing import Optional
 class PatientInput(BaseModel):
     """Validated patient input for diabetes/disease risk prediction."""
 
-    age: float = Field(..., ge=0, le=130, description="Patient age in years")
-    glucose: float = Field(..., ge=0, le=1000, description="Plasma glucose concentration (mg/dL)")
-    blood_pressure: float = Field(..., ge=0, le=300, description="Diastolic blood pressure (mmHg)")
-    skin_thickness: float = Field(..., ge=0, le=100, description="Triceps skin fold thickness (mm)")
-    insulin: float = Field(..., ge=0, le=1000, description="2-Hour serum insulin (mu U/ml)")
-    bmi: float = Field(..., ge=0, le=100, description="Body mass index (weight/height^2)")
-    diabetes_pedigree: float = Field(..., ge=0, le=10, description="Diabetes pedigree function")
-    pregnancies: Optional[int] = Field(default=0, ge=0, le=20, description="Number of pregnancies")
+    patientName: Optional[str] = Field(default=None, min_length=1, description="Patient name")
+    gender: str = Field(..., description="Gender (Male or Female)")
+    age: int = Field(..., ge=1, le=120, description="Patient age in years")
+    hypertension: bool = Field(default=False, description="Whether the patient has hypertension")
+    heartDisease: bool = Field(default=False, description="Whether the patient has heart disease")
+    smokingHistory: str = Field(..., description="Smoking history")
+    bmi: float = Field(..., ge=10, le=60, description="Body mass index")
+    hba1cLevel: float = Field(..., ge=3, le=15, description="HbA1c level")
+    bloodGlucoseLevel: float = Field(..., ge=50, le=400, description="Blood glucose level")
+    createdBy: Optional[str] = Field(default=None, description="Creator email")
 
-    @field_validator("glucose", "blood_pressure", "skin_thickness", "insulin", "bmi")
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, v):
+        if v not in ["Male", "Female"]:
+            raise ValueError("Gender must be 'Male' or 'Female'")
+        return v
+
+    @field_validator("smokingHistory")
+    @classmethod
+    def validate_smoking_history(cls, v):
+        if v not in ["never", "No Info", "current", "former"]:
+            raise ValueError("Invalid smoking history value")
+        return v
+
+    @field_validator("createdBy")
+    @classmethod
+    def validate_created_by(cls, v):
+        if v is not None and "@" not in v:
+            raise ValueError("createdBy must be a valid email")
+        return v
+
+    @field_validator("bmi", "hba1cLevel", "bloodGlucoseLevel")
     @classmethod
     def reject_zero_clinical_values(cls, v, info):
         """Zero values are clinically invalid for most measurements."""
@@ -31,14 +54,16 @@ class PatientInput(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
+                "patientName": "John Doe",
+                "gender": "Male",
                 "age": 45,
-                "glucose": 120,
-                "blood_pressure": 80,
-                "skin_thickness": 20,
-                "insulin": 85,
+                "hypertension": False,
+                "heartDisease": False,
+                "smokingHistory": "never",
                 "bmi": 28.5,
-                "diabetes_pedigree": 0.5,
-                "pregnancies": 2,
+                "hba1cLevel": 5.5,
+                "bloodGlucoseLevel": 120.0,
+                "createdBy": "provider@example.com",
             }
         }
     }

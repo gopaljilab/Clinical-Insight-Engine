@@ -2,6 +2,18 @@
  * Centralized API Utility Class for Data Fetching
  * Consolidates fetch logic, error handling, credentials, and JSON parsing.
  */
+
+/**
+ * Resolves a relative API path against VITE_API_BASE when configured.
+ * This ensures all ApiClient calls work correctly when the app is deployed
+ * with a separate backend origin or behind a reverse proxy with a path prefix.
+ * Falls back to the relative path when VITE_API_BASE is not set (local dev).
+ */
+function resolveUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/+$/, "") ?? "";
+  return base ? `${base}${path}` : path;
+}
+
 export class ApiClient {
   /**
    * Helper to check the response and throw standardized errors
@@ -21,7 +33,7 @@ export class ApiClient {
         }
       }
       const error = new Error(`${res.status}: ${errorMessage}`);
-      (error as any).status = res.status;
+      (error as Error & { status: number }).status = res.status;
       throw error;
     }
 
@@ -37,8 +49,8 @@ export class ApiClient {
     }
   }
 
-  static async get<T = any>(url: string, options?: RequestInit): Promise<T> {
-    const res = await fetch(url, {
+  static async get<T = unknown>(url: string, options?: RequestInit): Promise<T> {
+    const res = await fetch(resolveUrl(url), {
       method: "GET",
       credentials: "include",
       ...options,
@@ -46,12 +58,12 @@ export class ApiClient {
     return this.handleResponse<T>(res);
   }
 
-  static async post<T = any>(url: string, data?: unknown, options?: RequestInit): Promise<T> {
-    const headers: any = data ? { "Content-Type": "application/json" } : {};
+  static async post<T = unknown>(url: string, data?: unknown, options?: RequestInit): Promise<T> {
+    const headers: HeadersInit = data ? { "Content-Type": "application/json" } : {};
     if (options?.headers) {
       Object.assign(headers, options.headers);
     }
-    const res = await fetch(url, {
+    const res = await fetch(resolveUrl(url), {
       method: "POST",
       credentials: "include",
       ...options,
@@ -61,12 +73,12 @@ export class ApiClient {
     return this.handleResponse<T>(res);
   }
 
-  static async put<T = any>(url: string, data?: unknown, options?: RequestInit): Promise<T> {
-    const headers: any = data ? { "Content-Type": "application/json" } : {};
+  static async put<T = unknown>(url: string, data?: unknown, options?: RequestInit): Promise<T> {
+    const headers: HeadersInit = data ? { "Content-Type": "application/json" } : {};
     if (options?.headers) {
       Object.assign(headers, options.headers);
     }
-    const res = await fetch(url, {
+    const res = await fetch(resolveUrl(url), {
       method: "PUT",
       credentials: "include",
       ...options,
@@ -76,8 +88,8 @@ export class ApiClient {
     return this.handleResponse<T>(res);
   }
 
-  static async delete<T = any>(url: string, options?: RequestInit): Promise<T> {
-    const res = await fetch(url, {
+  static async delete<T = unknown>(url: string, options?: RequestInit): Promise<T> {
+    const res = await fetch(resolveUrl(url), {
       method: "DELETE",
       credentials: "include",
       ...options,
@@ -86,7 +98,7 @@ export class ApiClient {
   }
   
   static async requestRaw(url: string, options?: RequestInit): Promise<Response> {
-    return fetch(url, {
+    return fetch(resolveUrl(url), {
       credentials: "include",
       ...options,
     });

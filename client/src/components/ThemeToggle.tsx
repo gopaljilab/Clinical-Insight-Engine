@@ -36,6 +36,20 @@ export default function ThemeToggle() {
     }
   }, [dark]);
 
+  // Sync theme across browser tabs
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'theme') {
+        setDark(event.newValue === 'dark');
+      }
+    };
+
+    window.addEventListener('storage', event => handleStorageChange(event));
+    return () => {
+      window.removeEventListener('storage', event => handleStorageChange(event));
+    };
+  }, []);
+
   const toggle = () => setDark(!dark);
 
   return (

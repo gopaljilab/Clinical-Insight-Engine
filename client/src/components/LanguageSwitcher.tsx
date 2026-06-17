@@ -6,6 +6,8 @@ const languages = [
   { code: "es", label: "ES" },
   { code: "fr", label: "FR" },
   { code: "hi", label: "HI" },
+  { code: "zh", label: "中文" },
+  { code: "ar", label: "العربية" },
 ];
 
 export function LanguageSwitcher({ variant = "default" }: { variant?: "default" | "minimal" }) {
@@ -13,6 +15,7 @@ export function LanguageSwitcher({ variant = "default" }: { variant?: "default" 
 
   const handleChange = (code: string) => {
     i18n.changeLanguage(code);
+    localStorage.setItem("clinical-insight-language", code);
   };
 
   if (variant === "minimal") {
