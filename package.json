@@ -147,6 +147,7 @@
     "puppeteer": "^25.1.0",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.3.0",
+    "ts-morph": "^28.0.0",
     "tsx": "^4.22.4",
     "typescript": "5.6.3",
     "vite": "^7.3.0",

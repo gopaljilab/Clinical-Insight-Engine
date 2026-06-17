@@ -478,7 +478,13 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
         .slice(0, 6)
     : [];
 
+  const explanation = assessment.explanation;
+
+  pdf.text("Clinical Insight Engine", MARGIN, { size: 10, font: "bold", color: ACCENT });
+  pdf.text("AI-Powered Preventive Care", MARGIN, { size: 8, color: MUTED });
+  pdf.moveDown(6);
   pdf.text("EHR Clinical Assessment Report", MARGIN, { size: 21, font: "bold", color: SLATE });
+  pdf.moveDown(4);
   pdf.text(`Report ID: ${reportId}`, MARGIN, { size: 9, color: MUTED });
   pdf.text(`Generated: ${formatDate(new Date().toISOString())}`, MARGIN, { size: 9, color: MUTED });
   pdf.text("Report Version: 1.0", MARGIN, { size: 9, color: MUTED });
@@ -562,6 +568,40 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
     { size: 10, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 14 },
   );
   pdf.moveDown(8);
+
+  if (explanation?.summary) {
+    pdf.ensureSpace(24);
+    pdf.text("Model Interpretation", MARGIN, { size: 10.5, font: "bold", color: SLATE });
+    pdf.moveDown(4);
+    pdf.text(explanation.summary, MARGIN, { size: 10, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 14 });
+    pdf.moveDown(8);
+
+    if (explanation.topContributors && explanation.topContributors.length > 0) {
+      pdf.ensureSpace(24);
+      pdf.text("Top Contributing Factors (Ranked by Impact)", MARGIN, { size: 10, font: "bold", color: SLATE });
+      pdf.moveDown(4);
+      explanation.topContributors.forEach((factor) => {
+        const impactLabel = factor.impact === "positive" ? "Increases Risk" : "Reduces Risk";
+        pdf.ensureSpace(50);
+        pdf.setFillColor(248, 250, 252);
+        pdf.rect(MARGIN, pdf.y, CONTENT_WIDTH, 44, "F");
+        pdf.text(factor.name, MARGIN + 8, { size: 10, font: "bold", color: SLATE, lineHeight: 14 });
+        pdf.text(factor.description || "", MARGIN + 8, { size: 8.5, color: MUTED, maxWidth: CONTENT_WIDTH - 50, lineHeight: 12 });
+        pdf.textAt(impactLabel, PAGE_WIDTH - MARGIN - 90, pdf.y - 8, { size: 7.5, color: factor.impact === "positive" ? DANGER : SUCCESS });
+        pdf.textAt(`Strength: ${factor.strength}%`, PAGE_WIDTH - MARGIN - 90, pdf.y + 4, { size: 7.5, color: MUTED });
+        pdf.moveDown(12);
+      });
+      pdf.moveDown(4);
+    }
+
+    if (explanation.clinicianSummary) {
+      pdf.ensureSpace(24);
+      pdf.text("Clinical Interpretation", MARGIN, { size: 10.5, font: "bold", color: SLATE });
+      pdf.moveDown(4);
+      pdf.text(explanation.clinicianSummary, MARGIN, { size: 10, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 14 });
+      pdf.moveDown(8);
+    }
+  }
 
   pdf.text("Clinician Recommendations", MARGIN, { size: 10.5, font: "bold", color: SLATE });
   pdf.moveDown(2);

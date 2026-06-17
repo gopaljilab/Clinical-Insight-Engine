@@ -59,12 +59,17 @@ function Router() {
           <ModelMonitoring />
         </ProtectedRoute>
       </Route>
-      <Route path="/progress">
-        <ProtectedRoute>
-          <ProgressTracking />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/login" component={LoginPage} />
+       <Route path="/progress">
+         <ProtectedRoute>
+           <ProgressTracking />
+         </ProtectedRoute>
+       </Route>
+       <Route path="/my-health">
+         <ProtectedRoute>
+           <MyHealth />
+         </ProtectedRoute>
+       </Route>
+       <Route path="/login" component={LoginPage} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
