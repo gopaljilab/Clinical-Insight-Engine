@@ -678,9 +678,14 @@ export async function registerRoutes(
       }
     }
   );
-
+  
   // Mount domain-specific routers (after app-level handlers for precedence)
-  app.use("/api/assessments", mlRouter);
-  app.use("/api/assessments", exportsRouter);
-  app.use("/api/assessments", analyticsRouter);
-  app.use("/api/assessments", generalLimiter, assessmentsRouter);
+app.use("/api/assessments", mlRouter);
+app.use("/api/assessments", exportsRouter);
+app.use("/api/assessments", analyticsRouter);
+app.use("/api/assessments", generalLimiter, assessmentsRouter);
+
+app.use("/api/upload", uploadRouter);
+
+return httpServer;
+}
