@@ -290,6 +290,27 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    cohort: {
+      query: {
+        method: "GET" as const,
+        path: "/api/assessments/cohort" as const,
+        responses: {
+          200: z.object({
+            total: z.number(),
+            avgRiskScore: z.number().nullable(),
+            avgBmi: z.number().nullable(),
+            avgHba1c: z.number().nullable(),
+            avgGlucose: z.number().nullable(),
+            riskDistribution: z.array(z.object({ category: z.string(), count: z.number() })),
+            ageDistribution: z.array(z.object({ range: z.string(), count: z.number() })),
+            genderDistribution: z.array(z.object({ gender: z.string(), count: z.number() })),
+            smokingDistribution: z.array(z.object({ status: z.string(), count: z.number() })),
+            comorbidityRate: z.number(),
+          }),
+          500: errorSchemas.internal,
+        },
+      },
+    },
   },
 };
 

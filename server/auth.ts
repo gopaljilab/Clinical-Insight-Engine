@@ -11,6 +11,7 @@ import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { logger } from "./logger";
 import { validateDTO } from "./middleware/validateDTO";
 import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswordDTOSchema, verifyEmailDTOSchema, verifyOtpDTOSchema } from "./validation/auth.dto";
+import { createOAuth2Router } from "./auth/oauth2";
 
 function hashPassword(password: string): string {
   return bcrypt.hashSync(password, 10);
@@ -32,6 +33,10 @@ declare module "express-session" {
     pendingUser?: {
       id: string;
       email: string;
+    };
+    oauthState?: {
+      value: string;
+      createdAt: number;
     };
   }
 }

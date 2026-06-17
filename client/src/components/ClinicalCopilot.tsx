@@ -6,6 +6,7 @@ import {
   Lightbulb, ExternalLink, RotateCcw
 } from "lucide-react";
 import type { AssessmentResponse } from "@shared/routes";
+import { useTranslation } from "react-i18next";
 
 interface CopilotSuggestion {
   id: string;
@@ -165,17 +166,18 @@ function generateCopilotSuggestions(assessment: AssessmentResponse): CopilotSugg
 }
 
 export function ClinicalCopilot({ assessment }: { assessment: AssessmentResponse }) {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const suggestions = useMemo(() => generateCopilotSuggestions(assessment), [assessment]);
 
   const categories = [
-    { key: "diagnostic_test", label: "Diagnostic Tests", icon: FlaskConical, color: "text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/30 border-purple-200 dark:border-purple-900" },
-    { key: "monitoring", label: "Monitoring", icon: Activity, color: "text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900" },
-    { key: "lifestyle", label: "Lifestyle Interventions", icon: Heart, color: "text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-950/30 border-green-200 dark:border-green-900" },
-    { key: "referral", label: "Specialist Referrals", icon: Stethoscope, color: "text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900" },
-    { key: "follow_up", label: "Follow-Up Schedule", icon: RotateCcw, color: "text-rose-600 bg-rose-50 dark:text-rose-400 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900" },
+    { key: "diagnostic_test", label: t("copilot.catDiagnosticTest"), icon: FlaskConical, color: "text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/30 border-purple-200 dark:border-purple-900" },
+    { key: "monitoring", label: t("copilot.catMonitoring"), icon: Activity, color: "text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900" },
+    { key: "lifestyle", label: t("copilot.catLifestyle"), icon: Heart, color: "text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-950/30 border-green-200 dark:border-green-900" },
+    { key: "referral", label: t("copilot.catReferral"), icon: Stethoscope, color: "text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900" },
+    { key: "follow_up", label: t("copilot.catFollowUp"), icon: RotateCcw, color: "text-rose-600 bg-rose-50 dark:text-rose-400 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900" },
   ];
 
   const grouped = useMemo(() => {
@@ -212,16 +214,16 @@ export function ClinicalCopilot({ assessment }: { assessment: AssessmentResponse
           </div>
           <div className="text-left">
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-foreground">Clinical Copilot</h3>
+              <h3 className="font-bold text-foreground">{t("copilot.title")}</h3>
               {criticalCount > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-red-100 dark:bg-red-950/40 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:text-red-400 border border-red-200 dark:border-red-900">
                   <AlertTriangle className="w-3 h-3" />
-                  {criticalCount} urgent
+                  {t("copilot.urgentCount", { count: criticalCount })}
                 </span>
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {totalCount} evidence-based {totalCount === 1 ? "recommendation" : "recommendations"} generated
+              {t("copilot.recommendationsCount", { count: totalCount })}
             </p>
           </div>
         </div>
@@ -242,22 +244,28 @@ export function ClinicalCopilot({ assessment }: { assessment: AssessmentResponse
             <div className="px-4 md:px-5 pb-5 space-y-4">
               <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${severityColor}`}>
                 <TrendingUp className="w-3.5 h-3.5" />
-                {rc === "HIGH" ? "Intensive management recommended" :
-                 rc === "MODERATE" ? "Preventive measures advised" :
-                 "Maintain current healthy habits"}
+                {rc === "HIGH" ? t("copilot.intensiveManagement") :
+                 rc === "MODERATE" ? t("copilot.preventiveMeasures") :
+                 t("copilot.maintainHabits")}
               </div>
 
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   <FileText className="w-3.5 h-3.5" />
-                  Patient Clinical Summary
+                    {t("copilot.patientSummary")}
                 </p>
                 <div className="text-sm text-foreground leading-relaxed bg-muted/30 rounded-xl p-3 border border-border/50">
-                  {assessment.gender === "Female" ? "Female" : "Male"}, age {assessment.age}, BMI {assessment.bmi}
-                  {hasHypertension ? ", hypertension" : ""}
-                  {hasHeartDisease ? ", heart disease" : ""}
-                  , smoking history: {smoking}
-                  . HbA1c: {hba1c}%, blood glucose: {glucose} mg/dL. Risk category: {rc}.
+                  {t("copilot.summaryLine", {
+                    gender: assessment.gender === "Female" ? t("copilot.female") : t("copilot.male"),
+                    age: assessment.age,
+                    bmi: assessment.bmi,
+                    hypertension: hasHypertension ? t("copilot.hypertension") : "",
+                    heartDisease: hasHeartDisease ? t("copilot.heartDisease") : "",
+                    smoking,
+                    hba1c,
+                    glucose,
+                    rc
+                  })}
                 </div>
               </div>
 
@@ -298,18 +306,18 @@ export function ClinicalCopilot({ assessment }: { assessment: AssessmentResponse
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-semibold text-sm text-foreground">{s.title}</p>
-                                {s.urgency === "high" && (
-                                  <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 dark:bg-red-950/40 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:text-red-400">
-                                    <AlertTriangle className="w-2.5 h-2.5" />
-                                    High
-                                  </span>
-                                )}
-                                {s.urgency === "medium" && (
-                                  <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400">
-                                    <Clock className="w-2.5 h-2.5" />
-                                    Medium
-                                  </span>
-                                )}
+                                  {s.urgency === "high" && (
+                                    <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 dark:bg-red-950/40 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:text-red-400">
+                                      <AlertTriangle className="w-2.5 h-2.5" />
+                                      {t("copilot.high")}
+                                    </span>
+                                  )}
+                                  {s.urgency === "medium" && (
+                                    <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                                      <Clock className="w-2.5 h-2.5" />
+                                      {t("copilot.medium")}
+                                    </span>
+                                  )}
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">{s.description}</p>
                               <div className="mt-2 flex gap-2">
@@ -331,13 +339,13 @@ export function ClinicalCopilot({ assessment }: { assessment: AssessmentResponse
                 );
               })}
 
-              {suggestions.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Brain className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                  <p className="font-semibold">No specific recommendations</p>
-                  <p className="text-sm mt-1">The current assessment profile does not trigger any actionable suggestions.</p>
-                </div>
-              )}
+                {suggestions.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Brain className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                    <p className="font-semibold">{t("copilot.noRecommendations")}</p>
+                    <p className="text-sm mt-1">{t("copilot.noRecommendationsDesc")}</p>
+                  </div>
+                )}
             </div>
           </motion.div>
         )}
