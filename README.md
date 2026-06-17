@@ -683,6 +683,7 @@ py analyze.py predict_file patient.json
 | `DATABASE_URL` | `.env` | PostgreSQL connection string |
 | `NODE_ENV` | `.env.local` | Set to `development` for local dev features |
 | `SESSION_SECRET` | `.env` | Required in production for signed Express sessions |
+| `ENABLE_PHI_REDACTION` | `.env` | Set to `true` to enable PHI redaction for stored and returned assessment data |
 | `DEV_CLINICIAN_EMAIL` | `.env.local` | Seeded clinician email (dev only) |
 | `DEV_CLINICIAN_PASSWORD` | `.env.local` | Seeded clinician password (dev only) |
 | `NEXT_PUBLIC_LOCAL_ENCRYPTION_KEY` | `.env.local` | Local encryption key (dev only) |

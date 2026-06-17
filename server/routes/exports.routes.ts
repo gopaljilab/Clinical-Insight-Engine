@@ -5,6 +5,7 @@ import { storage } from "../storage";
 import { assessmentsToCsv } from "../utils/csvExport";
 import { exportLimiter } from "../middleware/rateLimit";
 import { assessmentExportQuerySchema } from "../validation/searchValidation";
+import { redactForApi } from "../utils/phiRedaction";
 
 const exportsRouter = Router();
 
@@ -29,7 +30,8 @@ exportsRouter.get(
       });
 
       const csv = assessmentsToCsv(
-        assessments.data as unknown as Record<string, unknown>[]
+        assessments.data
+          .map((assessment) => redactForApi(assessment)) as Array<Record<string, unknown>>
       );
 
       res.header("Content-Type", "text/csv");

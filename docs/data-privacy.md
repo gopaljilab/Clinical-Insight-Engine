@@ -20,5 +20,6 @@ Supported environment overrides:
 - `PATIENT_RETENTION_DAYS`
 - `EXPORT_RETENTION_DAYS`
 - `AUDIT_RETENTION_DAYS`
+- `ENABLE_PHI_REDACTION`
 
 PHI-bearing records should be purged once eligible unless a legal or clinical hold is active. Audit records should prefer anonymization so operational accountability can be retained without preserving direct PHI.

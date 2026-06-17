@@ -7,6 +7,7 @@ import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { MLService, isPythonAvailable, calculateClinicalFallback } from "../services/mlService";
+import { redactForApi } from "../utils/phiRedaction";
 
 
 import { generateRecommendations } from "../services/recommendation-engine";
@@ -292,7 +293,10 @@ assessmentsRouter.get(
     try {
       const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
       const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
-      return res.json(result);
+      return res.json({
+        ...result,
+        data: result.data.map((assessment) => redactForApi(assessment)),
+      });
     } catch (err) {
       logger.error({ err }, "Patient trends fetch error:");
       return res.status(500).json({ message: "Failed to fetch patient trends." });

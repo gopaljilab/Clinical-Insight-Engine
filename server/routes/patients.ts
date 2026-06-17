@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireJwtAuth } from "../middleware/jwtVerification";
 import { storage } from "../storage";
+import { redactForApi } from "../utils/phiRedaction";
 
 const router = Router();
 
@@ -21,7 +22,7 @@ router.get("/", async (req, res, next) => {
     const records = await storage.getAssessments(50, undefined, userEmail);
     const sanitizedRecords = records.data.map((record: any) => {
       const { userId, createdBy, ...rest } = record;
-      return rest;
+      return redactForApi(rest as any);
     });
 
     res.json({ data: sanitizedRecords });

@@ -33,6 +33,7 @@ import { searchQuerySchema, assessmentExportQuerySchema } from "./validation/sea
 import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
+import { redactForApi } from "./utils/phiRedaction";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -485,8 +486,12 @@ export async function registerRoutes(
       const limit = limitStr ? parseInt(limitStr, 10) : 50;
 
       const assessments = await storage.getAssessments(limit, cursor, userEmail);
+      const redactedAssessments = {
+        ...assessments,
+        data: assessments.data.map((assessment) => redactForApi(assessment)),
+      };
 
-      res.json(assessments);
+      res.json(redactedAssessments);
 
     } catch (err) {
       res.status(500).json({
@@ -575,7 +580,10 @@ export async function registerRoutes(
           cursor
         );
 
-        return res.json(results);
+        return res.json({
+          ...results,
+          data: results.data.map((assessment) => redactForApi(assessment)),
+        });
 
       } catch (err) {
         logger.error({ err }, "Assessment search error:");
@@ -600,7 +608,10 @@ export async function registerRoutes(
         const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
         const userEmail = req.session.user?.email;
         const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
-        return res.json(result);
+        return res.json({
+          ...result,
+          data: result.data.map((assessment) => redactForApi(assessment)),
+        });
       } catch (err) {
         logger.error({ err }, "Patient trends fetch error:");
         return res.status(500).json({ message: "Failed to fetch patient trends." });
@@ -634,7 +645,8 @@ export async function registerRoutes(
         });
 
         const csv = assessmentsToCsv(
-          assessments.data as unknown as Record<string, unknown>[]
+          assessments.data
+            .map((assessment) => redactForApi(assessment)) as Array<Record<string, unknown>>
         );
 
         res.header("Content-Type", "text/csv");
@@ -694,7 +706,7 @@ export async function registerRoutes(
 
         // Authorized access
         logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
-        return res.json(assessment);
+        return res.json(redactForApi(assessment));
 
       } catch (err) {
         // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces

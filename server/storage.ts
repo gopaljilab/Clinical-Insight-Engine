@@ -11,6 +11,7 @@ import { AuditRepository } from "./repositories/audit.repository";
 import { AnalyticsRepository } from "./repositories/analytics.repository";
 import { ModelVersionRepository } from "./repositories/model-version.repository";
 import { PatientUserRepository } from "./repositories/patient-user.repository";
+import { redactForStorage } from "./utils/phiRedaction";
 
 export interface IStorage {
   getAssessments(
@@ -145,7 +146,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAssessment(assessment: any) {
-    return this.assessmentRepository.createAssessment(assessment);
+    const sanitizedAssessment = redactForStorage(assessment);
+    return this.assessmentRepository.createAssessment(sanitizedAssessment);
   }
 
   async deleteAssessment(id: number) {
