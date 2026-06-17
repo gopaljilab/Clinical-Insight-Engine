@@ -109,7 +109,55 @@ function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
 
-export const pendingOtps = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
+const MAX_PENDING_OTPS = 10000;
+const OTP_CLEANUP_INTERVAL_MS = 60_000;
+
+const _pendingOtps = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
+
+function setPendingOtp(email: string, value: { otp: string; expiresAt: number; attempts?: number }) {
+  if (_pendingOtps.size >= MAX_PENDING_OTPS) {
+    cleanupExpiredOtps();
+    if (_pendingOtps.size >= MAX_PENDING_OTPS) {
+      logger.warn({ email }, "pendingOtps map is full — rejecting new OTP");
+      return;
+    }
+  }
+  _pendingOtps.set(email, { ...value, attempts: value.attempts ?? 0 });
+}
+
+function getPendingOtp(email: string) {
+  const entry = _pendingOtps.get(email);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    _pendingOtps.delete(email);
+    return undefined;
+  }
+  return entry;
+}
+
+function deletePendingOtp(email: string) {
+  _pendingOtps.delete(email);
+}
+
+function cleanupExpiredOtps() {
+  const now = Date.now();
+  for (const [email, entry] of _pendingOtps) {
+    if (now > entry.expiresAt) {
+      _pendingOtps.delete(email);
+    }
+  }
+}
+
+setInterval(cleanupExpiredOtps, OTP_CLEANUP_INTERVAL_MS);
+
+export const pendingOtps = {
+  get: getPendingOtp,
+  set: setPendingOtp,
+  delete: deletePendingOtp,
+  has: (email: string) => getPendingOtp(email) !== undefined,
+  get size() { return _pendingOtps.size; },
+  [Symbol.iterator]() { return _pendingOtps[Symbol.iterator](); },
+} as unknown as Map<string, { otp: string; expiresAt: number; attempts: number }>;
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -850,36 +898,39 @@ out
     try {
       const db = getDb();
 
-      const [resetToken] = await db
-        .select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            eq(passwordResetTokens.used, false),
-            gte(passwordResetTokens.expiresAt, new Date()),
-          ),
-        )
-        .limit(1);
-
-      if (!resetToken) {
-        return res.status(400).json({ message: "Invalid or expired reset token." });
-      }
-
       const passwordHash = hashPassword(newPassword);
 
-      await db.update(users).set({ passwordHash }).where(eq(users.id, resetToken.userId));
-      await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, resetToken.id));
+      await db.transaction(async (tx) => {
+        const [claimed] = await tx
+          .update(passwordResetTokens)
+          .set({ used: true })
+          .where(
+            and(
+              eq(passwordResetTokens.token, token),
+              eq(passwordResetTokens.used, false),
+              gte(passwordResetTokens.expiresAt, new Date()),
+            ),
+          )
+          .returning();
 
-      // Invalidate all active sessions for the user to prevent session hijacking
-      try {
-        await db.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${resetToken.userId}`);
-      } catch (sessErr) {
-        logger.error({ err: sessErr, userId: resetToken.userId }, "Failed to clear user sessions upon password reset");
-      }
+        if (!claimed) {
+          throw Object.assign(new Error("Invalid or expired reset token."), { statusCode: 400 });
+        }
+
+        await tx.update(users).set({ passwordHash }).where(eq(users.id, claimed.userId));
+
+        try {
+          await tx.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${claimed.userId}`);
+        } catch (sessErr) {
+          logger.error({ err: sessErr, userId: claimed.userId }, "Failed to clear user sessions upon password reset");
+        }
+      });
 
       return res.json({ success: true, message: "Password has been reset successfully." });
-    } catch (err) {
+    } catch (err: any) {
+      if (err.statusCode === 400) {
+        return res.status(400).json({ message: err.message });
+      }
       logger.error({ err }, "Reset password error:");
       return res.status(500).json({ message: "Failed to reset password." });
     }
