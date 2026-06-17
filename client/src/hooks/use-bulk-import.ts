@@ -94,11 +94,11 @@ export function useBulkImport(): BulkImportState & BulkImportActions {
       }
 
       setState((s) => ({ ...s, step: "validating", preview, progress: 60 }));
-    } catch (err: any) {
+    } catch (err: unknown) {
       setState((s) => ({
         ...s,
         step: "error",
-        error: err.message || "Failed to parse file.",
+        error: (err as Error).message || "Failed to parse file.",
         progress: 50,
       }));
     }
@@ -128,11 +128,11 @@ export function useBulkImport(): BulkImportState & BulkImportActions {
         progress: 100,
         results: data.assessments || [],
       }));
-    } catch (err: any) {
+    } catch (err: unknown) {
       setState((s) => ({
         ...s,
         step: "error",
-        error: err.message || "Import failed.",
+        error: (err as Error).message || "Import failed.",
         progress: 70,
       }));
     }

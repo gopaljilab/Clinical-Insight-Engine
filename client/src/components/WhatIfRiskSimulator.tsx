@@ -134,10 +134,10 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
         title: t("simulator.simulationComplete"),
         description: t("simulator.simulationReady"),
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
-        title: t("simulator.simulationFailed"),
-        description: error?.message ?? t("simulator.simulationError"),
+        title: "Simulation failed",
+        description: (error as Error).message ?? "Unable to calculate the simulated risk.",
         variant: "destructive",
       });
     }

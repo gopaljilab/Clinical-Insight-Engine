@@ -285,7 +285,7 @@ export default function History() {
       if (!res.ok) throw new Error(data.message || "Failed to upload");
       toast({ title: "Success", description: data.message });
     } catch (err: unknown) {
-      toast({ title: "Upload Error", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+      toast({ title: "Upload Error", description: err instanceof Error ? (err as Error).message : String(err), variant: "destructive" });
     }
     e.target.value = ''; // Reset input
   };
@@ -323,7 +323,7 @@ export default function History() {
       const data = await res.json();
       downloadBulkAssessmentPdf(data.data ?? []);
     } catch (err: unknown) {
-      toast({ title: "Export Error", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+      toast({ title: "Export Error", description: err instanceof Error ? (err as Error).message : String(err), variant: "destructive" });
     }
   };
 

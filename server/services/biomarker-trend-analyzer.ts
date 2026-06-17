@@ -16,7 +16,7 @@ type AnalyzerInput = {
 function extractSeries(assessments: Assessment[], key: keyof Assessment): Array<{ ts?: string; value: number }> {
   return assessments
     .filter((a) => a[key] != null)
-    .map((a) => ({ ts: a.createdAt?.toISOString?.(), value: Number((a as any)[key]) }))
+    .map((a) => ({ ts: a.createdAt?.toISOString?.(), value: Number((a)[key]) }))
     .sort((x, y) => (x.ts || "") > (y.ts || "") ? 1 : -1);
 }
 

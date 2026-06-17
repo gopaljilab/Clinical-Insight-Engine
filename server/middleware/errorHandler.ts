@@ -16,7 +16,7 @@ import { logger } from "../logger";
  * from all preceding route handlers and middleware.
  */
 export function globalErrorHandler(
-  err: any,
+  err: unknown,
   req: Request,
   res: Response,
   next: NextFunction
@@ -26,9 +26,9 @@ export function globalErrorHandler(
   }
 
   // Handle CORS errors specifically (e.g. missing Origin, disallowed origin)
-  if (err.message === "CORS: Origin header is required" || err.message === "Not allowed by CORS") {
-    logger.warn({ err: { message: err.message, method: req.method, path: req.originalUrl } }, "CORS error rejected");
-    return res.status(403).json({ message: err.message });
+  if ((err as Error).message === "CORS: Origin header is required" || (err as Error).message === "Not allowed by CORS") {
+    logger.warn({ err: { message: (err as Error).message, method: req.method, path: req.originalUrl } }, "CORS error rejected");
+    return res.status(403).json({ message: (err as Error).message });
   }
 
   const requestId = generateRequestId();
@@ -61,7 +61,7 @@ export function globalErrorHandler(
       method: req.method,
       path: req.originalUrl,
       statusCode: finalStatus,
-      exceptionType: err?.name ?? typeof err,
+      exceptionType: (err as Error).name ?? typeof err,
       body: req.body, // The logger masks sensitive keys automatically
     },
     err

@@ -37,8 +37,8 @@ export default function ForgotPassword() {
     try {
       await ApiClient.post("/api/auth/forgot-password", { email });
       setSuccess("If an account exists with this email, a password reset link has been sent.");
-    } catch (err: any) {
-      setError(err.message || "Unable to connect to server. Please try again.");
+    } catch (err: unknown) {
+      setError((err as Error).message || "Unable to connect to server. Please try again.");
     } finally {
       setIsLoading(false);
     }

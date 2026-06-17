@@ -264,7 +264,7 @@ export async function requireAnyAuth(req: Request, res: Response, next: NextFunc
     if (!authUser) {
       return res.status(401).json({ message: "Authentication required." });
     }
-    (req as any).authenticatedUser = authUser;
+    (req).authenticatedUser = authUser;
     next();
   } catch {
     return res.status(500).json({ message: "Authentication check failed." });
@@ -885,28 +885,23 @@ out
     }
   });
 
-   /**
-    * GET /api/auth/token
-    * Issues a JWT for an authenticated, verified user.
-    * Used by clients that require a bearer token for API access.
-    */
-   router.get("/token", requireAuth, requireVerified, (req, res) => {
-     const user = req.session.user as any;
- 
-     if (!user?.id || !user?.email) {
-       return res.status(401).json({ message: "Invalid session user data" });
-     }
- 
-     const token = issueToken(user.id, user.email, "provider");
-     res.json({ token });
-   });
+  /**
+   * GET /api/auth/token
+   * Issues a JWT for an authenticated, verified user.
+   * Used by clients that require a bearer token for API access.
+   */
+  router.get("/token", requireAuth, requireVerified, (req, res) => {
+    const user = req.session.user;
 
-   /**
-    * Mount Google OAuth2 routes under /oauth2
-    */
-   router.use("/oauth2", createOAuth2Router());
- 
-   return router;
+    if (!user?.id || !user?.email) {
+      return res.status(401).json({ message: "Invalid session user data" });
+    }
+
+    const token = issueToken(user.id, user.email, "provider");
+    res.json({ token });
+  });
+
+  return router;
 }
 
 /**
