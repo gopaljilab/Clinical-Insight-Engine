@@ -31,6 +31,12 @@ export const assessments = pgTable("assessments", {
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   userId: text("user_id"),
+  clinicalNote: text("clinical_note"),
+  explainableInsights: jsonb("explainable_insights").$type<Array<{
+    insight: string;
+    source_snippet: string | null;
+    source_index: [number, number] | null;
+  }>>(),
 }, (table) => [
   index("created_by_id_idx").on(table.createdBy, table.id),
   index("owner_id_idx").on(table.ownerId),
@@ -104,6 +110,12 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       .max(400, "Blood glucose must be 400 or below"),
   ),
   createdBy: z.string().email("createdBy must be a valid email").optional(),
+  clinicalNote: z.string().optional().nullable(),
+  explainableInsights: z.array(z.object({
+    insight: z.string(),
+    source_snippet: z.string().nullable(),
+    source_index: z.tuple([z.number(), z.number()]).nullable()
+  })).optional().nullable(),
 }).omit({
   id: true,
   userId: true,
