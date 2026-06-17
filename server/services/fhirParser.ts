@@ -503,10 +503,7 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Ins
     .map(d => d.attachmentContent || d.description || "")
     .filter(Boolean)
     .join("\n\n");
-
-  const explainableInsights = clinicalNote
-    ? extractExplainableInsights(clinicalNote)
-    : null;
+  const explainableInsights = clinicalNote ? extractExplainableInsights(clinicalNote) : null;
 
   const assessment: InsertAssessment = {
     patientName: structure.patient.name,

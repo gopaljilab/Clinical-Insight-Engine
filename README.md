@@ -654,9 +654,9 @@ A successful FHIR ingestion response returns the extracted clinical note and exp
 }
 ```
 
-#### 🖥️ ClinicalNoteViewer (Interactive Note Viewer)
-On the **Clinician View** tab of the results page, the clinical note is rendered using the `ClinicalNoteViewer` component, which supports:
-* **Interactive Highlighting**: Clicking any cited insight automatically highlights the matching text in the note.
+#### 🖥️ Interactive Note Viewer
+On the **Clinician View** tab of the results page, the clinical note is rendered in an interactive viewer:
+* **Interactive Highlights**: Clicking any cited insight automatically highlights the matching text in the note.
 * **Auto-Scroll**: The highlighted source text is scrolled smoothly into view.
 * **Keyboard Navigation**:
   * Use **Arrow Down** / **Arrow Right** to move to the next cited insight.

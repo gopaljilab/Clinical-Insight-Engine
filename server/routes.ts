@@ -290,21 +290,6 @@ export async function registerRoutes(
     }
   );
 
-  app.get(
-    "/api/queue/health",
-    requireAuth,
-    requireAdmin,
-    async (_req, res) => {
-      try {
-        const metrics = await getQueueMetrics();
-        res.json(metrics);
-      } catch (err) {
-        logger.error({ err }, "Error fetching queue health");
-        res.status(500).json({ message: "Failed to fetch queue health" });
-      }
-    }
-  );
-
   app.post(
     "/api/assessments/bulk",
     requireAuth,

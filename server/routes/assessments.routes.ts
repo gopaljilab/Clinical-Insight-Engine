@@ -15,7 +15,7 @@ import {
   analyzeSearchInput,
   logSecurityEvent,
 } from "../security/sqlProtection";
-import { searchQuerySchema, assessmentsQuerySchema } from "../validation/searchValidation";
+import { searchQuerySchema, assessmentsQuerySchema, cohortQuerySchema } from "../validation/searchValidation";
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
 import { validateDTO } from "../middleware/validateDTO";
@@ -341,11 +341,34 @@ assessmentsRouter.get(
   async (req, res) => {
     try {
       const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
-      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+      const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
+      const endDate = typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0, startDate, endDate);
       return res.json(result);
     } catch (err) {
       logger.error({ err }, "Patient trends fetch error:");
       return res.status(500).json({ message: "Failed to fetch patient trends." });
+    }
+  }
+);
+
+assessmentsRouter.get(
+  "/trends/dashboard",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const patientName = typeof req.query.patientName === "string" ? req.query.patientName.trim() : "";
+      if (!patientName) {
+        return res.status(400).json({ message: "patientName query parameter is required." });
+      }
+      const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
+      const endDate = typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+      const result = await storage.getTrendsDashboardData(patientName, startDate, endDate);
+      return res.json(result);
+    } catch (err) {
+      logger.error({ err }, "Trends dashboard error:");
+      return res.status(500).json({ message: "Failed to fetch trends dashboard data." });
     }
   }
 );
@@ -604,6 +627,28 @@ assessmentsRouter.delete(
       logger.error({ err }, "Assessment delete error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
+    }
+  }
+);
+
+assessmentsRouter.get(
+  "/cohort",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const parsed = cohortQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Invalid query parameters" });
+      }
+
+      const userEmail = req.session.user?.email;
+      const params = { ...parsed.data, createdBy: userEmail };
+
+      const stats = await storage.getCohortStats(params);
+      return res.json(stats);
+    } catch (err) {
+      logger.error({ err }, "Cohort query failed");
+      return res.status(500).json({ message: "Failed to query cohort data." });
     }
   }
 );
