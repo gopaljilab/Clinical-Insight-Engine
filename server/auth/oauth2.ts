@@ -216,7 +216,7 @@ export function createOAuth2Router(): Router {
           email: user.email,
           name: user.fullName,
           role: user.role ?? "provider",
-          emailVerified: user.emailVerified,
+          emailVerified: user.emailVerified ?? false,
         };
 
         req.session.save((saveErr) => {
