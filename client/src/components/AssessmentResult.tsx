@@ -16,6 +16,7 @@ import { DataQualityAlerts } from "./DataQualityAlerts";
 import { BiomarkerAlerts } from "./BiomarkerAlerts";
 import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
 import { ClinicalCopilot } from "./ClinicalCopilot";
+import { ClinicalNoteViewer } from "./ClinicalNoteViewer";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface AssessmentResultProps {
@@ -554,6 +555,15 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               </div>
 
               <ClinicalCopilot assessment={assessment} />
+
+              {assessment.clinicalNote && assessment.explainableInsights && (
+                <div className="mt-6">
+                  <ClinicalNoteViewer
+                    noteText={assessment.clinicalNote}
+                    insights={assessment.explainableInsights as any}
+                  />
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -634,8 +644,8 @@ function ExplainabilityPanel({
                 </div>
                 <div className="h-2.5 rounded-full bg-muted overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
-                    style={{ width: `${factor.strength}%` }}
+                    className={`h-full rounded-full w-[var(--factor-strength)] ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
+                    style={{ '--factor-strength': `${factor.strength}%` } as React.CSSProperties}
                   />
                 </div>
               </div>

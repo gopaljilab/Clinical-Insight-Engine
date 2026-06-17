@@ -98,6 +98,8 @@ fhirRouter.post(
         observations_processed: parsed.observations.length,
         documents_processed: parsed.documents.length,
         insights,
+        clinical_note: savedAssessment.clinicalNote || null,
+        explainable_insights: savedAssessment.explainableInsights || null,
       });
 
     } catch (err: any) {

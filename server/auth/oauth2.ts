@@ -47,9 +47,8 @@ async function exchangeCodeForTokens(code: string, redirectUri: string) {
     access_token: string;
     refresh_token?: string;
     id_token?: string;
-    expires collecting...
-
-
+    expires_in: number;
+    token_type: string;
   }>;
 }
 
