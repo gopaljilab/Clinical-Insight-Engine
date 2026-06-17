@@ -17,10 +17,14 @@ exportsRouter.get(
   async (req, res) => {
     try {
       const userEmail = req.session.user?.email;
+
       const parseResult = assessmentExportQuerySchema.safeParse(req.query);
+
       if (!parseResult.success) {
-        return res.status(400).json({a
-          message: parseResult.error.errors[0]?.message ?? "Invalid export query parameters.",
+        return res.status(400).json({
+          message:
+            parseResult.error.errors[0]?.message ??
+            "Invalid export query parameters.",
         });
       }
 
@@ -30,17 +34,20 @@ exportsRouter.get(
       });
 
       const csv = assessmentsToCsv(
-        assessments.data
-          .map((assessment) => redactForApi(assessment)) as Array<Record<string, unknown>>
-        assessments.data as unknown as Record<string, unknown>[]
+        assessments.data.map(
+          (assessment) => redactForApi(assessment)
+        ) as Array<Record<string, unknown>>
       );
 
       res.header("Content-Type", "text/csv");
       res.attachment("assessments.csv");
+
       return res.send(csv);
     } catch (err) {
       logger.error({ err }, "Export error");
-      return res.status(500).json({ message: "Failed to export data" });
+      return res.status(500).json({
+        message: "Failed to export data",
+      });
     }
   }
 );
