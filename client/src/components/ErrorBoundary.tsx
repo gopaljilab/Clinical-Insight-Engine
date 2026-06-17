@@ -1,5 +1,6 @@
 import React, { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, RefreshCcw, Mail } from "lucide-react";
+import { ApiClient } from "@/lib/apiClient";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -30,23 +31,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     console.error("[ErrorBoundary] Component stack:", errorInfo.componentStack);
 
     // Send error details to backend logger
-    try {
-      fetch("/api/logs/client-error", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: error.message,
-          stack: error.stack,
-          componentStack: errorInfo.componentStack,
-          url: window.location.href,
-          timestamp: new Date().toISOString(),
-        }),
-      }).catch(err => console.error("Failed to send client error log:", err));
-    } catch (e) {
-      console.error("Error boundary logging failed:", e);
-    }
+    ApiClient.post("/api/logs/client-error", {
+      message: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+      url: window.location.href,
+      timestamp: new Date().toISOString(),
+    }).catch(err => console.error("Failed to send client error log:", err));
   }
 
   render() {

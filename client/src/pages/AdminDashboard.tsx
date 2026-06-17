@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { useToast } from "@/hooks/use-toast";
 import { formatReadableDate } from "@/utils/dateFormat";
+import { ApiClient } from "@/lib/apiClient";
 
 type Tab = "users" | "audit" | "stats";
 
@@ -67,9 +68,7 @@ function UsersTab({ active }: { active: boolean }) {
     queryKey: ["/api/admin/users"],
     enabled: active,
     queryFn: async () => {
-      const res = await fetch("/api/admin/users", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch users");
-      return res.json();
+      return ApiClient.get("/api/admin/users");
     },
     // Cache for 2 minutes — prevents redundant refetches when switching
     // back to a previously visited tab within the same session.
@@ -79,29 +78,17 @@ function UsersTab({ active }: { active: boolean }) {
 
   const handleToggleActive = async (userId: string, currentActive: boolean) => {
     try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
+      await ApiClient.requestRaw(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ isActive: !currentActive }),
       });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast({
-          title: "Update failed",
-          description: body?.message || `Server returned ${res.status}`,
-          variant: "destructive",
-        });
-        return;
-      }
-
       toast({ title: "User updated", description: "User status changed successfully." });
       refetch();
-    } catch (err) {
+    } catch (err: any) {
       toast({
-        title: "Network error",
-        description: err instanceof Error ? err.message : "Failed to reach server",
+        title: "Update failed",
+        description: err?.message || "Failed to reach server",
         variant: "destructive",
       });
     }
@@ -176,9 +163,7 @@ function AuditLogsTab({ active }: { active: boolean }) {
     queryKey: ["/api/admin/audit-logs"],
     enabled: active,
     queryFn: async () => {
-      const res = await fetch("/api/admin/audit-logs", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch audit logs");
-      return res.json();
+      return ApiClient.get("/api/admin/audit-logs");
     },
     staleTime: 2 * 60 * 1000,
   });
@@ -247,9 +232,7 @@ function StatsTab({ active }: { active: boolean }) {
     queryKey: ["/api/admin/stats"],
     enabled: active,
     queryFn: async () => {
-      const res = await fetch("/api/admin/stats", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch stats");
-      return res.json();
+      return ApiClient.get("/api/admin/stats");
     },
     staleTime: 2 * 60 * 1000,
   });
