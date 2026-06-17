@@ -26,6 +26,7 @@ export const api = {
       input: insertAssessmentSchema,
       responses: {
         201: z.custom<typeof assessments.$inferSelect>(),
+        202: z.object({ jobId: z.string(), message: z.string() }),
         400: errorSchemas.validation,
         500: errorSchemas.internal,
       },
@@ -33,22 +34,32 @@ export const api = {
     list: {
       method: "GET" as const,
       path: "/api/assessments" as const,
-      /** Query params: limit, offset */
+      /** Query params: limit, cursor */
       responses: {
         200: z.object({
           data: z.array(z.custom<typeof assessments.$inferSelect>()),
-          total: z.number(),
-          page: z.number(),
-          totalPages: z.number(),
+          nextCursor: z.number().nullable(),
+          // Some UI components expect pagination metadata.
+          // Backend may omit these; they are optional for type-safety.
+          total: z.number().optional(),
+          page: z.number().optional(),
+          limit: z.number().optional(),
+          totalPages: z.number().optional(),
         }),
       },
     },
     search: {
       method: "GET" as const,
       path: "/api/assessments/search" as const,
-      /** Query params: q, riskCategory, page, limit */
+      /** Query params: q, riskCategory, cursor, limit */
       responses: {
-        200: z.array(z.custom<typeof assessments.$inferSelect>()),
+        200: z.object({
+          data: z.array(z.custom<typeof assessments.$inferSelect>()),
+          nextCursor: z.number().nullable(),
+          // Optional pagination metadata
+          total: z.number().optional(),
+          totalPages: z.number().optional(),
+        }),
         400: errorSchemas.validation,
         401: errorSchemas.validation,
         500: errorSchemas.internal,
@@ -81,9 +92,223 @@ export const api = {
           ),
           confidenceInterval: z.string().nullable().optional(),
           modelConfidence: z.number().nullable().optional(),
+          // present in some responses
+          isFallback: z.boolean().optional(),
+          recommendations: z
+            .array(
+              z.object({
+                id: z.string(),
+                title: z.string(),
+                description: z.string(),
+                urgency: z.enum(["low", "medium", "high"]).optional(),
+                audience: z.enum(["clinician", "patient", "both"]).optional(),
+                checklist: z.boolean().optional(),
+              })
+            )
+            .optional(),
+          qualityAlerts: z
+            .array(
+              z.object({
+                severity: z.enum(["warning", "info"]),
+                message: z.string(),
+                code: z.string().optional(),
+              })
+            )
+            .optional(),
+          explanation: z
+            .object({
+              summary: z.string(),
+              patientSummary: z.string(),
+              clinicianSummary: z.string(),
+              topContributors: z.array(
+                z.object({
+                  name: z.string(),
+                  impact: z.enum(["positive", "negative"]),
+                  strength: z.number(),
+                  description: z.string(),
+                  why: z.string(),
+                })
+              ),
+              strongestPositive: z.array(
+                z.object({
+                  name: z.string(),
+                  impact: z.enum(["positive", "negative"]),
+                  strength: z.number(),
+                  description: z.string(),
+                  why: z.string(),
+                })
+              ),
+              strongestNegative: z.array(
+                z.object({
+                  name: z.string(),
+                  impact: z.enum(["positive", "negative"]),
+                  strength: z.number(),
+                  description: z.string(),
+                  why: z.string(),
+                })
+              ),
+            })
+            .optional(),
         }),
         400: errorSchemas.validation,
         500: errorSchemas.internal,
+      },
+    },
+    simulate: {
+      method: "POST" as const,
+      path: "/api/assessments/simulate" as const,
+      input: insertAssessmentSchema,
+      responses: {
+        200: z.object({
+          simulatedRisk: z.number(),
+          riskCategory: z.enum(["LOW", "MODERATE", "HIGH"]),
+          confidence: z.number().nullable().optional(),
+          factorContributions: z
+            .array(
+              z.object({
+                name: z.string(),
+                impact: z.enum(["positive", "negative"]),
+                description: z.string(),
+              })
+            )
+            .optional(),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    whatIf: {
+      method: "POST" as const,
+      path: "/api/assessments/what-if" as const,
+      input: insertAssessmentSchema,
+      responses: {
+        200: z.object({
+          simulatedRisk: z.number(),
+          riskCategory: z.enum(["LOW", "MODERATE", "HIGH"]),
+          factors: z
+            .array(
+              z.object({
+                name: z.string(),
+                impact: z.enum(["positive", "negative"]),
+                description: z.string(),
+              })
+            )
+            .optional(),
+          confidenceInterval: z.string().nullable().optional(),
+          modelConfidence: z.number().nullable().optional(),
+          isFallback: z.boolean().optional(),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    whatIfBatch: {
+      method: "POST" as const,
+      path: "/api/assessments/what-if/batch" as const,
+      input: z.object({
+        assessmentId: z.number().optional(),
+        original: insertAssessmentSchema,
+        perturbations: z.array(
+          z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+        ).max(50, "Maximum of 50 perturbations allowed per request"),
+      }),
+      responses: {
+        200: z.object({
+          original: z.object({
+            riskScore: z.number(),
+            riskCategory: z.string(),
+            factors: z
+              .array(
+                z.object({
+                  name: z.string(),
+                  impact: z.enum(["positive", "negative"]),
+                  description: z.string(),
+                })
+              )
+              .optional(),
+          }),
+          perturbations: z.array(
+            z.object({
+              delta: z.string(),
+              riskScore: z.number(),
+              riskCategory: z.string(),
+              factors: z
+                .array(
+                  z.object({
+                    name: z.string(),
+                    impact: z.enum(["positive", "negative"]),
+                    description: z.string(),
+                  })
+                )
+                .optional(),
+              riskReduction: z.number(),
+              confidenceInterval: z.string().nullable().optional(),
+              modelConfidence: z.number().nullable().optional(),
+            })
+          ),
+          ranked: z.array(
+            z.object({
+              delta: z.string(),
+              riskScore: z.number(),
+              riskCategory: z.string(),
+              factors: z
+                .array(
+                  z.object({
+                    name: z.string(),
+                    impact: z.enum(["positive", "negative"]),
+                    description: z.string(),
+                  })
+                )
+                .optional(),
+              riskReduction: z.number(),
+              confidenceInterval: z.string().nullable().optional(),
+              modelConfidence: z.number().nullable().optional(),
+            })
+          ).optional(),
+          isFallback: z.boolean().optional(),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    biomarkerAlerts: {
+      method: "GET" as const,
+      path: "/api/assessments/biomarker-alerts" as const,
+      responses: {
+        200: z.object({
+          alerts: z.array(
+            z.object({
+              biomarker: z.enum(["HbA1c", "Blood Glucose", "BMI"]),
+              trend: z.enum(["increasing", "decreasing", "stable"]),
+              severity: z.enum(["warning", "info"]),
+              message: z.string(),
+              values: z.array(z.object({ ts: z.string().optional(), value: z.number() })),
+            })
+          ),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    cohort: {
+      query: {
+        method: "GET" as const,
+        path: "/api/assessments/cohort" as const,
+        responses: {
+          200: z.object({
+            total: z.number(),
+            avgRiskScore: z.number().nullable(),
+            avgBmi: z.number().nullable(),
+            avgHba1c: z.number().nullable(),
+            avgGlucose: z.number().nullable(),
+            riskDistribution: z.array(z.object({ category: z.string(), count: z.number() })),
+            ageDistribution: z.array(z.object({ range: z.string(), count: z.number() })),
+            genderDistribution: z.array(z.object({ gender: z.string(), count: z.number() })),
+            smokingDistribution: z.array(z.object({ status: z.string(), count: z.number() })),
+            comorbidityRate: z.number(),
+          }),
+          500: errorSchemas.internal,
+        },
       },
     },
   },
@@ -102,9 +327,60 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
 }
 
 export type AssessmentInput = z.infer<typeof api.assessments.create.input>;
+
 export type PredictionAdvice = {
   clinicianAdvice?: string[];
   patientAdvice?: string[];
+};
+
+export type BiomarkerAlert = z.infer<
+  (typeof api.assessments.biomarkerAlerts.responses)[200]
+>["alerts"][number];
+
+export type AssessmentWhatIfResponse = z.infer<typeof api.assessments.whatIf.responses[200]>;
+export type AssessmentWhatIfBatchResponse = z.infer<typeof api.assessments.whatIfBatch.responses[200]>;
+
+export type QualityAlert = {
+  severity: "warning" | "info";
+  message: string;
+  code?: string;
+};
+
+export type ExplanationContributor = {
+  name: string;
+  impact: "positive" | "negative";
+  strength: number;
+  description: string;
+  why: string;
+};
+
+export type PredictionExplanation = {
+  summary: string;
+  patientSummary: string;
+  clinicianSummary: string;
+  topContributors: ExplanationContributor[];
+  strongestPositive: ExplanationContributor[];
+  strongestNegative: ExplanationContributor[];
+};
+
+export type Recommendation = {
+  id: string;
+  title: string;
+  description: string;
+  urgency?: "low" | "medium" | "high";
+  audience?: "clinician" | "patient" | "both";
+  checklist?: boolean;
+};
+
+export type AttentionPriority = {
+  factor: string;
+  priority: "high" | "moderate" | "monitor";
+  reason: string;
+  value?: number;
+};
+
+export type AttentionNavigator = {
+  priorities: AttentionPriority[];
 };
 
 export type AssessmentResponse = z.infer<typeof api.assessments.create.responses[201]> & {
@@ -114,7 +390,15 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
     confidenceInterval?: string | null;
     modelConfidence?: number | null;
     disclaimer?: string;
+    isFallback?: boolean;
   };
+  recommendations?: Recommendation[];
+  explanation?: PredictionExplanation;
+  qualityAlerts?: QualityAlert[];
+  attentionNavigator?: AttentionNavigator;
 };
+
 export type AssessmentsListResponse = z.infer<typeof api.assessments.list.responses[200]>;
 export type AssessmentPreviewResponse = z.infer<typeof api.assessments.preview.responses[200]>;
+export type AssessmentSimulationResponse = z.infer<typeof api.assessments.simulate.responses[200]>;
+

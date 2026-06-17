@@ -1,15 +1,13 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
 import { queryClient } from "@/lib/queryClient";
-import { Activity, ClipboardList, HeartPulse, LogOut, Loader2 } from "lucide-react";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { ApiClient } from "@/lib/apiClient";
+import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, TrendingUp, UploadCloud, User, GitCompare } from "lucide-react";
 import ThemeToggle from "../ThemeToggle";
+import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useToast } from "@/hooks/use-toast";
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { cn } from "@/lib/utils";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -17,61 +15,71 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
   const [checking, setChecking] = useState(true);
   const [networkError, setNetworkError] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me", { credentials: "include" })
-      .then((res) => {
-        if (res.status === 401) { setLocation("/"); return undefined; }
-        if (!res.ok) { setNetworkError(true); return undefined; }
-        return res.json();
+    ApiClient.get("/api/auth/me")
+      .then((data: any) => { if (data) setUser(data.user); })
+      .catch((error) => {
+        if (error.status === 401) {
+          setLocation("/");
+        } else {
+          setNetworkError(true);
+        }
       })
-      .then((data) => { if (data) setUser(data.user); })
-      .catch(() => setNetworkError(true))
       .finally(() => setChecking(false));
   }, [setLocation]);
+
+  const WARNING_TIMEOUT = 14 * 60 * 1000; // 14 minutes
+  const LOGOUT_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+  const warningTimerRef = useRef<number>(0);
+  const logoutTimerRef = useRef<number>(0);
+
+  const resetTimer = useCallback(() => {
+    window.clearTimeout(warningTimerRef.current);
+    window.clearTimeout(logoutTimerRef.current);
+
+    warningTimerRef.current = window.setTimeout(() => {
+      toast({
+        title: t("auth.sessionExpiring"),
+        description: t("auth.sessionExpiringDesc"),
+        variant: "destructive",
+      });
+    }, WARNING_TIMEOUT);
+
+    logoutTimerRef.current = window.setTimeout(() => {
+      fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+        .finally(() => {
+          queryClient.clear();
+          setLocation("/");
+        });
+    }, LOGOUT_TIMEOUT);
+  }, [toast, t, setLocation, WARNING_TIMEOUT, LOGOUT_TIMEOUT]);
 
   useEffect(() => {
     if (!user) return;
 
-    let timeoutId: number;
-    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
-
-    const resetTimer = () => {
-      window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
-        toast({
-          title: "Session Inactivity Warning",
-          description: "You have been inactive. For your security, you will be logged out soon if inactivity continues.",
-          variant: "destructive",
-        });
-      }, INACTIVITY_TIMEOUT);
-    };
-
     const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
-    events.forEach((event) => {
-      window.addEventListener(event, resetTimer);
-    });
-
+    events.forEach((event) => window.addEventListener(event, resetTimer));
     resetTimer();
 
     return () => {
-      window.clearTimeout(timeoutId);
-      events.forEach((event) => {
-        window.removeEventListener(event, resetTimer);
-      });
+      window.clearTimeout(warningTimerRef.current);
+      window.clearTimeout(logoutTimerRef.current);
+      events.forEach((event) => window.removeEventListener(event, resetTimer));
     };
-  }, [user, toast]);
+  }, [user, resetTimer]);
 
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      await ApiClient.post("/api/auth/logout");
       queryClient.clear();
     } finally {
       setIsSigningOut(false);
@@ -80,8 +88,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   };
 
   const navItems = [
-    { href: "/dashboard", label: "New Assessment", icon: Activity },
-    { href: "/history", label: "Patient History", icon: ClipboardList },
+    { href: "/dashboard", label: t("nav.newAssessment"), icon: Activity },
+    { href: "/history", label: t("nav.patientHistory"), icon: ClipboardList },
+    { href: "/analytics", label: t("nav.providerAnalytics"), icon: PieChart },
+    { href: "/import", label: t("nav.bulkImport"), icon: UploadCloud },
+    { href: "/progress", label: t("nav.progressTracking"), icon: TrendingUp },
+    { href: "/counterfactual-analysis", label: "Counterfactual Analysis", icon: GitCompare },
   ];
 
   if (checking) {
@@ -96,13 +108,13 @@ export function AppLayout({ children }: AppLayoutProps) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center p-8 rounded-2xl border border-slate-200 bg-white dark:bg-gray-900 dark:border-gray-800 shadow-sm max-w-md">
-          <p className="text-lg font-bold text-slate-800 dark:text-white">Connection error</p>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Unable to verify your session. Please check your connection and try again.</p>
+          <p className="text-lg font-bold text-slate-800 dark:text-white">{t("auth.connectionError")}</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{t("auth.connectionErrorDesc")}</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-4 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
           >
-            Retry
+            {t("auth.retry")}
           </button>
         </div>
       </div>
@@ -119,16 +131,17 @@ export function AppLayout({ children }: AppLayoutProps) {
               <Link
                 href="/dashboard"
                 className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/15 hover:opacity-95 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                aria-label="Go to main dashboard"
-                title="Go to main dashboard"
+                aria-label={t("auth.dashboardAria")}
+                title={t("auth.dashboardAria")}
               >
                 <HeartPulse className="w-6 h-6" />
                 <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900 bg-emerald-400" />
               </Link>
               <div className="flex-1 min-w-0">
-                <h1 className="text-lg font-black leading-tight text-[#1E293B] dark:text-gray-100 truncate">Clinical Insight</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Preventive Risk Tool</p>
+                <h1 className="text-lg font-black leading-tight text-[#1E293B] dark:text-gray-100 truncate">{t("app.title")}</h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{t("app.subtitle")}</p>
               </div>
+              <LanguageSwitcher variant="minimal" />
               <ThemeToggle />
             </div>
 
@@ -141,12 +154,15 @@ export function AppLayout({ children }: AppLayoutProps) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold",
+                      "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold relative",
                       isActive
                         ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 shadow-md shadow-blue-500/10 dark:shadow-blue-400/10"
                         : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-gray-800 hover:text-[#1E293B] dark:hover:text-gray-200"
                     )}
                   >
+                    {isActive && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 rounded-r-full bg-blue-600 dark:bg-blue-500" />
+                    )}
                     <Icon className="w-5 h-5" />
                     {item.label}
                   </Link>
@@ -156,12 +172,12 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
           <div className="m-4 border-t border-slate-100 dark:border-gray-800 pt-4 space-y-3">
             <div className="flex items-center gap-3 rounded-2xl bg-slate-50 dark:bg-gray-800 p-3">
-              <div className="w-10 h-10 rounded-2xl bg-white dark:bg-gray-700 flex items-center justify-center text-blue-700 dark:text-blue-400 font-black text-sm border border-slate-100 dark:border-gray-600 shadow-sm">
-                {user?.name?.charAt(0) || "Dr"}
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 flex items-center justify-center text-blue-800 dark:text-blue-300 font-black text-sm border-2 border-white dark:border-gray-700 shadow-md ring-2 ring-blue-50 dark:ring-blue-900/50">
+                <User className="w-5 h-5 opacity-80" />
               </div>
               <div className="flex min-w-0 flex-col">
-                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight truncate">{user?.name || "Clinician"}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold truncate">{user?.email || "clinical@insight-engine.dev"}</span>
+                <span className="text-sm font-black text-[#1E293B] dark:text-gray-100 leading-tight truncate">{user?.name || t("user.defaultName")}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold truncate">{user?.email || t("user.defaultEmail")}</span>
               </div>
             </div>
             <button
@@ -169,18 +185,18 @@ export function AppLayout({ children }: AppLayoutProps) {
               onClick={handleSignOut}
               disabled={isSigningOut}
               className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Sign out of Clinical Insight workspace"
-              title="Sign out"
+              aria-label={t("auth.signOutAria")}
+              title={t("nav.signOut")}
             >
               {isSigningOut ? (
                 <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
               ) : (
                 <LogOut className="w-4 h-4" aria-hidden="true" />
               )}
-              {isSigningOut ? "Signing out..." : "Sign Out"}
+              {isSigningOut ? t("nav.signingOut") : t("nav.signOut")}
             </button>
             <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 font-semibold">
-              Local workspace secured with simulated 2FA
+              {t("auth.securityNotice")}
             </p>
           </div>
         </div>
@@ -195,3 +211,4 @@ export function AppLayout({ children }: AppLayoutProps) {
     </div>
   );
 }
+

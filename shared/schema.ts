@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, doublePrecision, uuid, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, doublePrecision, uuid, varchar, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -10,7 +10,7 @@ export type AssessmentFactor = {
 
 export const assessments = pgTable("assessments", {
   id: serial("id").primaryKey(),
-  patientName: text("patient_name"),
+  patientName: text("patient_name").notNull(),
   gender: text("gender").notNull(), // 'Male', 'Female'
   age: integer("age").notNull(),
   hypertension: boolean("hypertension").notNull(),
@@ -27,46 +27,95 @@ export const assessments = pgTable("assessments", {
   confidenceInterval: jsonb("confidence_interval").$type<string | null>(),
   modelConfidence: doublePrecision("model_confidence"),
   
+  ownerId: uuid("owner_id").references(() => users.id),
   createdBy: text("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   userId: text("user_id"),
-});
+  clinicalNote: text("clinical_note"),
+  explainableInsights: jsonb("explainable_insights").$type<Array<{
+    insight: string;
+    source_snippet: string | null;
+    source_index: [number, number] | null;
+  }>>(),
+}, (table) => [
+  index("created_by_id_idx").on(table.createdBy, table.id),
+  index("owner_id_idx").on(table.ownerId),
+]);
 
 export const insertAssessmentSchema = createInsertSchema(assessments, {
   // Restricted to Male/Female — the ML model was trained on binary gender data only.
   // Submitting "Other" would silently encode as Female; we reject it explicitly instead.
   patientName: z
-    .string({ required_error: "Patient name is required", invalid_type_error: "Patient name must be a string" })
+    .string({ invalid_type_error: "Patient name must be a string" })
     .trim()
-    .min(1, "Patient name is required"),
+    .min(1, "Patient name cannot be empty if provided")
+    .optional(),
   gender: z.enum(["Male", "Female"], {
     required_error: "Gender is required",
     invalid_type_error: "Gender must be 'Male' or 'Female'",
   }),
-  age: z.coerce
-    .number({ invalid_type_error: "Age must be a number" })
-    .int("Age must be a whole number")
-    .min(1, "Age must be at least 1")
-    .max(120, "Age must be 120 or below"),
+  age: z.preprocess(
+    (v) => {
+      if (v === "" || v === undefined || v === null) return undefined;
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
+      return Number.isNaN(n) ? v : n;
+    },
+    z
+      .number({ required_error: "Age is required", invalid_type_error: "Age must be a number" })
+      .int("Age must be a whole number")
+      .min(1, "Age must be at least 1")
+      .max(120, "Age must be 120 or below"),
+  ),
   hypertension: z.boolean({ invalid_type_error: "Hypertension must be true or false" }).default(false),
   heartDisease: z.boolean({ invalid_type_error: "Heart disease must be true or false" }).default(false),
   smokingHistory: z.enum(["never", "No Info", "current", "former"], {
     required_error: "Smoking history is required",
     invalid_type_error: "Invalid smoking history value",
   }),
-  bmi: z.coerce
-    .number({ invalid_type_error: "BMI must be a number" })
-    .min(10, "BMI must be at least 10")
-    .max(60, "BMI must be 60 or below"),
-  hba1cLevel: z.coerce
-    .number({ invalid_type_error: "HbA1c level must be a number" })
-    .min(3, "HbA1c must be at least 3")
-    .max(15, "HbA1c must be 15 or below"),
-  bloodGlucoseLevel: z.coerce
-    .number({ invalid_type_error: "Blood glucose must be a number" })
-    .min(50, "Blood glucose must be at least 50")
-    .max(400, "Blood glucose must be 400 or below"),
+  bmi: z.preprocess(
+    (v) => {
+      if (v === "" || v === undefined || v === null) return undefined;
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
+      return Number.isNaN(n) ? v : n;
+    },
+    z
+      .number({ required_error: "BMI is required", invalid_type_error: "BMI must be a number" })
+      .min(10, "BMI must be at least 10")
+      .max(60, "BMI must be 60 or below"),
+  ),
+  hba1cLevel: z.preprocess(
+    (v) => {
+      if (v === "" || v === undefined || v === null) return undefined;
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
+      return Number.isNaN(n) ? v : n;
+    },
+    z
+      .number({ required_error: "HbA1c level is required", invalid_type_error: "HbA1c level must be a number" })
+      .min(3, "HbA1c must be at least 3")
+      .max(15, "HbA1c must be 15 or below"),
+  ),
+  bloodGlucoseLevel: z.preprocess(
+    (v) => {
+      if (v === "" || v === undefined || v === null) return undefined;
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
+      return Number.isNaN(n) ? v : n;
+    },
+    z
+      .number({ required_error: "Blood glucose level is required", invalid_type_error: "Blood glucose must be a number" })
+      .min(50, "Blood glucose must be at least 50")
+      .max(400, "Blood glucose must be 400 or below"),
+  ),
   createdBy: z.string().email("createdBy must be a valid email").optional(),
+  clinicalNote: z.string().optional().nullable(),
+  explainableInsights: z.array(z.object({
+    insight: z.string(),
+    source_snippet: z.string().nullable(),
+    source_index: z.tuple([z.number(), z.number()]).nullable()
+  })).optional().nullable(),
 }).omit({
   id: true,
   userId: true,
@@ -112,6 +161,18 @@ export const loginAuditLogs = pgTable("login_audit_logs", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const patientAccessAuditLogs = pgTable("patient_access_audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  resourceType: text("resource_type").notNull(),
+  resourceId: text("resource_id"),
+  action: text("action").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  granted: boolean("granted").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").notNull().references(() => users.id),
@@ -132,6 +193,43 @@ export const emailVerificationTokens = pgTable("email_verification_tokens", {
   attemptCount: integer("attempt_count").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const modelVersions = pgTable("model_versions", {
+  id: serial("id").primaryKey(),
+  version: integer("version").notNull(),
+  accuracy: doublePrecision("accuracy"),
+  precision: doublePrecision("precision"),
+  recall: doublePrecision("recall"),
+  f1Score: doublePrecision("f1_score"),
+  aucRoc: doublePrecision("auc_roc"),
+  datasetHash: text("dataset_hash"),
+  numSamples: integer("num_samples"),
+  numFeatures: integer("num_features"),
+  classBalance: jsonb("class_balance"),
+  featureDistributions: jsonb("feature_distributions"),
+  trainingDurationMs: integer("training_duration_ms"),
+  status: text("status").default("completed"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const patientUsers = pgTable("patient_users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  patientName: text("patient_name").notNull().unique(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  phone: varchar("phone", { length: 20 }),
+  isActive: boolean("is_active").default(true),
+  emailVerified: boolean("email_verified").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type PatientUser = typeof patientUsers.$inferSelect;
+export type InsertPatientUser = typeof patientUsers.$inferInsert;
+
+export type ModelVersion = typeof modelVersions.$inferSelect;
+export type InsertModelVersion = typeof modelVersions.$inferInsert;
 
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,

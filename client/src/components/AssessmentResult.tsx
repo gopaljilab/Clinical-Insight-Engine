@@ -1,9 +1,24 @@
-import { useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { HealthBadges } from "@/components/HealthBadges";
+import { CopySummaryButton } from "@/components/CopySummaryButton";
+import { useAssessments, useWhatIfAuto } from "@/hooks/use-assessments";
+import { calculateHealthBadges } from "@/utils/healthBadges";
+import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
+import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
+import { Recommendations } from "./Recommendations";
+import { PredictionExplanation } from "./PredictionExplanation";
+import { DataQualityAlerts } from "./DataQualityAlerts";
+import { BiomarkerAlerts } from "./BiomarkerAlerts";
+import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
+import { ClinicalCopilot } from "./ClinicalCopilot";
+import { ClinicalNoteViewer } from "./ClinicalNoteViewer";
+import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { useTranslation } from "react-i18next";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -21,14 +36,14 @@ interface FactorBreakdown extends RiskFactor {
 }
 
 const factorReasoning: Record<string, string> = {
-  age: "Risk changes with age because blood vessels and metabolic control can become less resilient over time.",
-  bmi: "BMI helps estimate weight-related strain that can influence blood pressure, insulin resistance, and heart workload.",
-  "hba1c level": "HbA1c reflects longer-term blood sugar control, so higher values can point to sustained metabolic stress.",
-  "blood glucose level": "Blood glucose shows the current sugar level, which can reinforce or soften the overall diabetes risk signal.",
-  hypertension: "High blood pressure increases cardiovascular strain and can raise the chance of future heart complications.",
-  "heart disease": "Prior heart disease is a strong clinical history marker and usually increases baseline cardiovascular risk.",
-  "smoking history": "Smoking history affects blood vessels and inflammation, so current or past exposure can shift risk upward.",
-  gender: "Sex-linked population patterns can slightly shift the model's baseline risk estimate.",
+  age: "factorReasoning.age",
+  bmi: "factorReasoning.bmi",
+  "hba1c level": "factorReasoning.hba1c",
+  "blood glucose level": "factorReasoning.glucose",
+  hypertension: "factorReasoning.hypertension",
+  "heart disease": "factorReasoning.heartDisease",
+  "smoking history": "factorReasoning.smoking",
+  gender: "factorReasoning.gender",
 };
 
 const normalizeFactors = (rawFactors: AssessmentResponse["factors"]): RiskFactor[] => {
@@ -44,14 +59,32 @@ const normalizeFactors = (rawFactors: AssessmentResponse["factors"]): RiskFactor
   return Array.isArray(rawFactors) ? rawFactors as RiskFactor[] : [];
 };
 
-const getFactorReason = (factor: RiskFactor) => {
+const getFactorReason = (factor: RiskFactor, t: (key: string) => string) => {
   const key = factor.name.trim().toLowerCase();
-  return factorReasoning[key] ?? factor.description;
+  const translatedKey = factorReasoning[key];
+  return translatedKey ? t(translatedKey) : factor.description;
 };
 
 export function AssessmentResult({ assessment }: AssessmentResultProps) {
+  const { t } = useTranslation();
   const [view, setView] = useState<"patient" | "clinician">("patient");
   const [isPresenting, setIsPresenting] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [pdfError, setPdfError] = useState<string>("");
+  const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string }[] | null>(null);
+
+  const generatePDF = async () => {
+    setPdfError("");
+    setIsGeneratingPDF(true);
+    try {
+      await downloadClinicalAssessmentPdf(assessment);
+    } catch (error) {
+      console.error("PDF export failed", error);
+      setPdfError(t("patientResult.pdfError"));
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
 
   const exportToJson = () => {
     const blob = new Blob([JSON.stringify(assessment, null, 2)], { type: "application/json" });
@@ -81,12 +114,19 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     }
   };
 
+  const { data: assessmentsResponse } = useAssessments();
+  const assessmentHistory = assessmentsResponse?.data ?? [];
+  const improvementBadges = useMemo(
+    () => calculateHealthBadges(assessment, assessmentHistory),
+    [assessment, assessmentHistory]
+  );
+
   const factors = normalizeFactors(assessment.factors);
   const totalFactors = Math.max(factors.length, 1);
   const factorBreakdown: FactorBreakdown[] = factors.map((factor, index) => ({
     ...factor,
     strength: Math.max(20, Math.round(((totalFactors - index) / totalFactors) * 100)),
-    plainReason: getFactorReason(factor),
+    plainReason: getFactorReason(factor, t),
   }));
   const increasedRiskFactors = factorBreakdown.filter((factor) => factor.impact === "positive");
   const reducedRiskFactors = factorBreakdown.filter((factor) => factor.impact !== "positive");
@@ -100,25 +140,38 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     strength: f.strength,
   }));
 
+  const whatIfChartData = useMemo(() => {
+    if (!whatIfFactors) return null;
+    const maxStrength = Math.max(whatIfFactors.length, 1);
+    return whatIfFactors.map((f, i) => ({
+      name: f.name,
+      value: f.impact === 'positive' ? Math.round(((maxStrength - i) / maxStrength) * 100) : -Math.round(((maxStrength - i) / maxStrength) * 100),
+      impact: f.impact,
+      description: f.description,
+      isWhatIf: true,
+    }));
+  }, [whatIfFactors]);
+
   const riskScore = Number(assessment.riskScore).toFixed(1);
   const positiveFactors = factors.filter((f: any) => f.impact === "positive");
   const protectiveFactors = factors.filter((f: any) => f.impact !== "positive");
   const patientGuidance = assessment.prediction?.patientAdvice ?? [
-    "Review these results with a qualified clinician before making medical decisions.",
-    "Focus first on the highlighted risk factors that can be changed through care planning.",
-    "Track BMI, HbA1c, and blood glucose over time so future assessments have context.",
+    t("patientResult.guidance1"),
+    t("patientResult.guidance2"),
+    t("patientResult.guidance3"),
   ];
   const clinicianActions = assessment.prediction?.clinicianAdvice ?? [
-    "Confirm risk category against the patient's full history and current medication profile.",
-    "Use the factor breakdown to prioritize follow-up labs, counselling, or referrals.",
-    "Compare this assessment with prior visits to identify meaningful trajectory changes.",
+    t("patientResult.clinicianAction1"),
+    t("patientResult.clinicianAction2"),
+    t("patientResult.clinicianAction3"),
   ];
 
   return (
     <motion.div 
+      id="assessment-result-wrapper"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 overflow-hidden flex flex-col"
+      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 flex flex-col"
     >
       {/* Header/Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 bg-muted/30 p-2.5">
@@ -132,7 +185,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             }`}
           >
             <UserCircle className="w-4 h-4" />
-            Patient View
+            {t("patientResult.patientView")}
             {view === "patient" && (
               <motion.div
                 layoutId="activeTab"
@@ -150,7 +203,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             }`}
           >
             <Stethoscope className="w-4 h-4" />
-            Clinician View
+            {t("patientResult.clinicianView")}
             {view === "clinician" && (
               <motion.div
                 layoutId="activeTab"
@@ -160,31 +213,72 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             )}
           </button>
         </div>
-        <div className="flex items-center gap-2 justify-end self-stretch print:hidden">
-          <button
-            type="button"
-            onClick={() => setIsPresenting(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <MonitorPlay className="w-3.5 h-3.5" />
-            Present
-          </button>
-          <button
-            type="button"
-            onClick={exportToJson}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            Print
-          </button>
+
+        <div className="pdf-hide-buttons flex flex-col gap-2 justify-end self-stretch print:hidden">
+          <div className="flex flex-wrap gap-2 items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setIsPresenting(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
+            >
+              <MonitorPlay className="w-3.5 h-3.5" />
+              {t("patientResult.present")}
+            </button>
+            <button
+              type="button"
+              onClick={generatePDF}
+              disabled={isGeneratingPDF}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 border border-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+            >
+              {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+              {isGeneratingPDF ? t("patientResult.generating") : t("patientResult.exportOfficial")}
+            </button>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <CopySummaryButton assessment={assessment} iconOnly />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{t("patientResult.copySummary")}</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={exportToJson}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label={t("patientResult.exportJson")}
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{t("patientResult.exportJson")}</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label={t("patientResult.printReport")}
+                >
+                  <Printer className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{t("patientResult.printReport")}</p>
+              </TooltipContent>
+            </UiTooltip>
+          </div>
+          {pdfError ? (
+            <p role="alert" className="text-sm text-red-600 mt-1">
+              {pdfError}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -205,28 +299,37 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
               className="space-y-8"
             >
               {/* Patient Hero */}
               <div className="text-center space-y-4 max-w-2xl mx-auto">
                 <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-xs font-bold uppercase tracking-wide text-primary">
                   <UserCircle className="h-4 w-4" />
-                  Plain-language summary
+                  {t("patientResult.plainLanguage")}
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-foreground">Your Health Assessment</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-foreground">{t("patientResult.yourHealthAssessment")}</h2>
                 <div className={`inline-flex flex-col items-center justify-center w-36 h-36 sm:w-48 sm:h-48 rounded-full border-8 shadow-inner ${getRiskColor(assessment.riskCategory)}`}>
-                  <span className="text-sm font-bold uppercase tracking-widest opacity-80 mb-1">Risk Level</span>
+                  <span className="text-sm font-bold uppercase tracking-widest opacity-80 mb-1">{t("patientResult.riskLevel")}</span>
                   <span className="text-3xl sm:text-4xl font-display font-black">{assessment.riskCategory}</span>
                 </div>
                 <p className="text-muted-foreground text-lg">
-                  Based on your provided information, your preventive diabetes risk is considered <strong>{assessment.riskCategory.toLowerCase()}</strong>.
+                  {t("patientResult.basedOnInfo")}<strong>{assessment.riskCategory.toLowerCase()}</strong>.
                 </p>
               </div>
+
+              <HealthBadges
+                badges={improvementBadges}
+                title={t("patientResult.progressBadges")}
+                description={t("patientResult.progressBadgesDesc")}
+              />
+
+              <DataQualityAlerts alerts={assessment.qualityAlerts} />
 
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                  <Info className="w-5 h-5 text-primary" /> What this means for you
+                  <Info className="w-5 h-5 text-primary" /> {t("patientResult.whatThisMeans")}
                 </h3>
                 <div className="grid gap-4 md:grid-cols-2">
                   {factorBreakdown.map((factor, i) => (
@@ -256,6 +359,17 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 ))}
               </div>
 
+              <Recommendations recommendations={assessment.recommendations} audience="patient" />
+
+              <PathToImprovement assessment={assessment} />
+              <PredictionExplanation explanation={assessment.explanation} view="patient" />
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
+
+              <WhatIfRiskSimulator assessment={assessment} onComparisonFactors={setWhatIfFactors} />
+
+              <ClinicalCopilot assessment={assessment} />
+
               <ExplainabilityPanel
                 factors={factorBreakdown}
                 increasedRiskFactors={increasedRiskFactors}
@@ -268,19 +382,20 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
               className="space-y-8"
             >
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-primary">Clinician decision support</p>
-                    <h2 className="mt-1 text-2xl font-bold text-foreground">Detailed risk interpretation</h2>
+                    <p className="text-xs font-bold uppercase tracking-wide text-primary">{t("patientResult.clinicianDecision")}</p>
+                    <h2 className="mt-1 text-2xl font-bold text-foreground">{t("patientResult.detailedInterpretation")}</h2>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                      This view keeps the quantitative score, model confidence, contributing factors, and follow-up actions together for clinical review.
+                      {t("patientResult.clinicianViewDesc")}
                     </p>
                   </div>
                   <div className={`inline-flex w-fit rounded-full border px-3 py-1 text-sm font-bold ${getRiskColor(assessment.riskCategory)}`}>
-                    {assessment.riskCategory} risk
+                    {assessment.riskCategory} {t("patientResult.riskLabel")}
                   </div>
                 </div>
               </div>
@@ -288,12 +403,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               {/* Clinician Top Metrics */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Predicted Risk Score</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">{t("patientResult.predictedRisk")}</p>
                   <p className="text-3xl font-bold font-display flex items-baseline gap-1">
                     {riskScore}<span className="text-xl text-muted-foreground">%</span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Model probability
+                    {t("patientResult.modelProbability")}
                     {assessment.confidenceInterval && (
                       <span className="block text-[10px] mt-0.5 opacity-80">
                         (95% CI: {assessment.confidenceInterval})
@@ -302,18 +417,18 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   </p>
                 </div>
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Risk Category</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">{t("assessment.riskCategory")}</p>
                   <div className={`inline-flex px-3 py-1 rounded-full text-sm font-bold mt-1 ${getRiskColor(assessment.riskCategory)}`}>
                     {assessment.riskCategory}
                   </div>
                   {assessment.modelConfidence && (
                     <p className="text-[10px] text-muted-foreground mt-2 italic">
-                      Model confidence: {Number(assessment.modelConfidence).toFixed(2)}
+                      {t("patientResult.modelConfidenceLabel")}: {Number(assessment.modelConfidence).toFixed(2)}
                     </p>
                   )}
                 </div>
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Patient Vitals summary</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">{t("patientResult.vitalsSummary")}</p>
                   <div className="flex flex-col sm:flex-row gap-4 mt-2">
                     <div>
                       <p className="text-xs text-muted-foreground">BMI</p>
@@ -331,11 +446,16 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
               </div>
 
+              <div className="mt-4 space-y-4">
+                <DataQualityAlerts alerts={assessment.qualityAlerts} />
+                <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                   <h3 className="mb-3 flex items-center gap-2 font-bold">
                     <AlertCircle className="h-5 w-5 text-amber-500" />
-                    Risk-driving factors
+                    {t("patientResult.riskDrivingFactors")}
                   </h3>
                   <div className="space-y-3">
                     {positiveFactors.length > 0 ? positiveFactors.map((factor: any) => (
@@ -344,7 +464,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                         <p className="mt-1 text-amber-900/80">{factor.description}</p>
                       </div>
                     )) : (
-                      <p className="text-sm text-muted-foreground">No risk-driving factors were highlighted by the model.</p>
+                      <p className="text-sm text-muted-foreground">{t("patientResult.noRiskDriving")}</p>
                     )}
                   </div>
                 </div>
@@ -352,7 +472,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                   <h3 className="mb-3 flex items-center gap-2 font-bold">
                     <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    Protective or lower-risk signals
+                    {t("patientResult.protectiveSignals")}
                   </h3>
                   <div className="space-y-3">
                     {protectiveFactors.length > 0 ? protectiveFactors.map((factor: any) => (
@@ -361,7 +481,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                         <p className="mt-1 text-green-900/80">{factor.description}</p>
                       </div>
                     )) : (
-                      <p className="text-sm text-muted-foreground">No lower-risk signals were highlighted by the model.</p>
+                      <p className="text-sm text-muted-foreground">{t("patientResult.noProtectiveSignals")}</p>
                     )}
                   </div>
                 </div>
@@ -369,27 +489,34 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               {/* Clinician Chart */}
               <div className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm overflow-hidden">
-                <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-primary" /> Factor Coefficient Impact
-                </h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary" /> {t("patientResult.factorCoefficient")}
+                  </h3>
+                  {whatIfChartData && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 text-xs font-semibold">
+                      {t("patientResult.whatIfActive")}
+                    </span>
+                  )}
+                </div>
                 <div className="h-56 sm:h-64 w-full overflow-x-auto">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                      <ReferenceLine x={0} stroke="#cbd5e1" />
+                    <BarChart data={whatIfChartData ?? chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <ReferenceLine x={0} stroke="hsl(var(--border))" />
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: '#64748b', fontSize: 12 }} />
+                      <YAxis dataKey="name" type="category" width={130} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
                       <Tooltip 
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
                               <div className="bg-popover text-popover-foreground border border-border p-3 rounded-lg shadow-xl text-sm max-w-xs">
-                                <p className="font-bold mb-1">{data.name}</p>
-                                <p className="text-muted-foreground">{data.description}</p>
-                                <p className="text-muted-foreground mt-2">{data.plainReason}</p>
-                                <p className={`mt-2 font-semibold ${data.impact === 'positive' ? 'text-red-500' : 'text-green-500'}`}>
-                                  Impact: {data.impact === 'positive' ? 'Increases Risk' : 'Decreases Risk'} ({data.strength}% relative strength)
-                                </p>
+                                        <p className="font-bold mb-1">{data.name}</p>
+                                        <p className="text-muted-foreground">{data.description}</p>
+                                        {!data.isWhatIf && <p className="text-muted-foreground mt-2">{data.plainReason}</p>}
+                                        <p className={`mt-2 font-semibold ${data.impact === 'positive' ? 'text-red-500' : 'text-green-500'}`}>
+                                          {t("patientResult.impactLabel")}: {data.impact === 'positive' ? t("patientResult.increasesRisk") : t("patientResult.reducesRisk")}
+                                        </p>
                               </div>
                             );
                           }
@@ -397,7 +524,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                         }}
                       />
                       <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                        {chartData.map((entry: any, index: number) => (
+                        {(whatIfChartData ?? chartData).map((entry: any, index: number) => (
                           <Cell key={`cell-${index}`} fill={entry.impact === 'positive' ? '#ef4444' : '#22c55e'} />
                         ))}
                       </Bar>
@@ -412,8 +539,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 reducedRiskFactors={reducedRiskFactors}
               />
 
+              <PredictionExplanation explanation={assessment.explanation} view="clinician" />
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
+
               <div className="rounded-xl border border-border bg-muted/30 p-5">
-                <h3 className="mb-4 font-bold">Suggested clinical follow-up</h3>
+                <h3 className="mb-4 font-bold">{t("patientResult.suggestedFollowUp")}</h3>
                 <div className="grid gap-3 md:grid-cols-3">
                   {clinicianActions.map((action) => (
                     <div key={action} className="rounded-lg border border-border bg-card p-4 text-sm leading-6 text-muted-foreground">
@@ -422,6 +553,20 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   ))}
                 </div>
               </div>
+              <div className="mt-4">
+                <Recommendations recommendations={assessment.recommendations} audience="clinician" />
+              </div>
+
+              <ClinicalCopilot assessment={assessment} />
+
+              {assessment.clinicalNote && assessment.explainableInsights && (
+                <div className="mt-6">
+                  <ClinicalNoteViewer
+                    noteText={assessment.clinicalNote}
+                    insights={assessment.explainableInsights as any}
+                  />
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -439,6 +584,7 @@ function ExplainabilityPanel({
   increasedRiskFactors: FactorBreakdown[];
   reducedRiskFactors: FactorBreakdown[];
 }) {
+  const { t } = useTranslation();
   if (factors.length === 0) {
     return null;
   }
@@ -448,20 +594,20 @@ function ExplainabilityPanel({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-5">
         <div>
           <h3 className="font-bold text-lg flex items-center gap-2">
-            <Info className="w-5 h-5 text-primary" /> Explainability breakdown
+            <Info className="w-5 h-5 text-primary" /> {t("patientResult.explainability")}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Relative contribution is scaled from the model's returned factor ranking for this assessment.
+            {t("patientResult.explainabilityDesc")}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
           <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-red-700">
             <TrendingUp className="w-3.5 h-3.5" />
-            {increasedRiskFactors.length} raised
+            {increasedRiskFactors.length} {t("patientResult.raised")}
           </span>
           <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-green-700">
             <TrendingDown className="w-3.5 h-3.5" />
-            {reducedRiskFactors.length} reduced
+            {reducedRiskFactors.length} {t("patientResult.reduced")}
           </span>
         </div>
       </div>
@@ -491,25 +637,80 @@ function ExplainabilityPanel({
                   ) : (
                     <TrendingDown className="w-3.5 h-3.5" />
                   )}
-                  {increasesRisk ? "Increases risk" : "Reduces risk"}
+                  {increasesRisk ? t("patientResult.increasesRisk") : t("patientResult.reducesRisk")}
                 </span>
               </div>
 
               <div className="mt-4">
                 <div className="flex items-center justify-between text-xs font-medium text-muted-foreground mb-1.5">
-                  <span>Relative contribution</span>
+                  <span>{t("patientResult.relativeContribution")}</span>
                   <span>{factor.strength}%</span>
                 </div>
                 <div className="h-2.5 rounded-full bg-muted overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
-                    style={{ width: `${factor.strength}%` }}
+                    className={`h-full rounded-full w-[var(--factor-strength)] ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
+                    style={{ '--factor-strength': `${factor.strength}%` } as React.CSSProperties}
                   />
                 </div>
               </div>
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function PathToImprovement({ assessment }: { assessment: AssessmentResponse }) {
+  const { t } = useTranslation();
+  const { mutate, data, isPending } = useWhatIfAuto();
+
+  useEffect(() => {
+    mutate({
+      patientName: assessment.patientName,
+      gender: assessment.gender as "Male" | "Female",
+      age: assessment.age,
+      hypertension: assessment.hypertension,
+      heartDisease: assessment.heartDisease,
+      smokingHistory: assessment.smokingHistory as "current" | "never" | "No Info" | "former",
+      bmi: assessment.bmi ?? 25,
+      hba1cLevel: assessment.hba1cLevel ?? 5.5,
+      bloodGlucoseLevel: assessment.bloodGlucoseLevel ?? 100,
+    });
+  }, [assessment]);
+
+  if (isPending || !data) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-5 shadow-sm animate-pulse flex items-center justify-center min-h-[100px]">
+        <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+        <span className="text-muted-foreground text-sm">{t("patientResult.analyzing")}</span>
+      </div>
+    );
+  }
+
+  const recommendations = data.recommendations;
+  if (!recommendations || recommendations.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl p-6 shadow-sm relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-4 opacity-10">
+        <TrendingDown className="w-24 h-24 text-green-700" />
+      </div>
+      <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-900 relative z-10">
+        <TrendingDown className="w-5 h-5" /> {t("patientResult.pathToImprovement")}
+      </h3>
+      <div className="space-y-4 relative z-10">
+        {recommendations.map((rec: any, idx: number) => (
+          <div key={idx} className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border border-green-200/50 flex gap-3 shadow-sm">
+            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-green-900">{rec.action}</p>
+              <p className="text-green-800/80 text-sm mt-1">{rec.message}</p>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

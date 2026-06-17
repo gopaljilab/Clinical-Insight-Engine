@@ -3,6 +3,7 @@ import exportsRouter from "./routes/exports.routes";
 import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
 import authRouter from "./routes/auth.routes";
+import fhirRouter from "./routes/fhir.routes";
 import type { Express } from "express";
 import type { Server } from "http";
 
@@ -16,8 +17,8 @@ import {
   exportLimiter,
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
-import { MLService, calculateClinicalFallback, generateRequestFingerprint } from "./services/mlService";
-import { getAssessmentQueue, getPythonExecutable } from "./queue";
+import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
+import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -165,12 +166,18 @@ export async function registerRoutes(
     },
   });
 
+  app.use((req, res, next) => {
+    res.on("finish", () => {
+      (globalThis as any).lastStatus = res.statusCode;
+    });
+    next();
+  });
+
   // Seed database on startup — development only to prevent fake data in production
   // Minimal unblock: disable seeding by default to avoid schema mismatch errors.
   if (process.env.NODE_ENV !== "production" && process.env.SEED_DB === "true") {
     seedDatabase().catch((err) => logger.error({ err }, "Database seeding failed"));
   }
-
 
   app.get("/health", (req, res) => {
     res.json({
@@ -182,9 +189,8 @@ export async function registerRoutes(
 
   // Mount auth router
   app.use("/api/auth", authRouter);
-  app.use("/api/assessments", mlRouter);
-  app.use("/api/assessments", exportsRouter);
-  app.use("/api", analyticsRouter);
+  app.use("/api/ingest", fhirRouter);
+
   app.post(
     api.assessments.preview.path,
     requireAuth,
@@ -192,61 +198,33 @@ export async function registerRoutes(
     previewLimiter,
     validateDTO(api.assessments.preview.input),
     async (req, res) => {
-      const input = api.assessments.preview.input.parse(req.body);
-      const tempFile = path.join(
-        os.tmpdir(),
-        `${randomUUID()}.json`
-      );
-
       try {
-        await writeFile(tempFile, JSON.stringify(input));
+        const input = api.assessments.preview.input.parse(req.body);
+        const { prediction } = await MLService.runAssessmentInference(input);
 
-        let prediction;
-        try {
-          const { stdout, stderr } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            {
-              timeout: 30000
-            }
-          );
-          prediction = JSON.parse(stdout.trim());
-          if (prediction.error) {
-            return res.status(400).json({
-              message: prediction.error
-            });
-          }
-        } catch (error: any) {
-          if (error.killed || error.signal === "SIGTERM") {
-            return res.status(503).json({
-              message: "Clinical assessment preview timed out."
-            });
-          }
-          logger.warn("Python prediction preview failed, running clinical rule-based fallback:", error);
-          prediction = calculateClinicalFallback(input);
-        }
-        logger.info(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
+        logger.info(
+          `[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+        );
         return res.json({
           riskScore: prediction.riskScore,
           riskCategory: prediction.riskCategory,
           factors: prediction.factors ?? [],
           confidenceInterval: prediction.confidenceInterval ?? null,
-          modelConfidence: prediction.modelConfidence ?? null
+          modelConfidence: prediction.modelConfidence ?? null,
         });
-      } catch (err) {
+      } catch (err: any) {
         if (err instanceof z.ZodError) {
           return res.status(400).json({
-            message: err.errors[0].message
+            message: err.errors[0].message,
+          });
+        }
+        if (err.message?.includes("timed out")) {
+          return res.status(503).json({
+            message: "Clinical assessment preview timed out.",
           });
         }
         logger.error({ err }, "Error creating assessment preview");
         return res.status(500).json({ message: "Internal server error" });
-      } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {
-          logger.warn({ e, tempFile }, "Failed to clean up temp file (preview):");
-        }
       }
     }
   );
@@ -264,14 +242,13 @@ export async function registerRoutes(
       try {
         await writeFile(tempFile, JSON.stringify(input));
 
-        let prediction: any;
+        let prediction;
         try {
-          const { stdout } = await execFileAsync(
+          const { stdout, stderr } = await execFileAsync(
             getPythonExecutable(),
             [analyzePyPath, "predict_file", tempFile],
             { timeout: 30000 }
           );
-
           prediction = JSON.parse(stdout.trim());
           if (prediction.error) {
             return res.status(400).json({ message: prediction.error });
@@ -348,17 +325,17 @@ export async function registerRoutes(
         const job = await queue.add("predict", {
           input,
           userId,
-          requestFingerprint
+          requestFingerprint,
         });
 
         return res.status(202).json({
           message: "Assessment request accepted and is being processed.",
-          jobId: job.id
+          jobId: job.id,
         });
       } catch (err) {
         if (err instanceof z.ZodError) {
           return res.status(400).json({
-            message: err.errors[0].message
+            message: err.errors[0].message,
           });
         }
         logger.error({ err }, "Error queueing assessment");
@@ -418,7 +395,7 @@ export async function registerRoutes(
 
       try {
         const input = inputSchema.parse(req.body.assessments);
-        
+
         requestFingerprint = generateRequestFingerprint(input, userId);
         if (MLService.activeInferenceRequests.has(requestFingerprint)) {
           return res.status(409).json({ message: "Bulk request already processing." });
@@ -441,7 +418,7 @@ export async function registerRoutes(
             throw new Error("Expected array of predictions");
           }
         } catch (error: any) {
-          predictions = calculateClinicalFallback(input);
+          predictions = calculateClinicalFallback(input) as PredictionResult[];
         }
 
         const createdAssessments = await Promise.all(
@@ -492,14 +469,12 @@ export async function registerRoutes(
       };
 
       res.json(redactedAssessments);
-
     } catch (err) {
       res.status(500).json({
-        message: "Failed to fetch assessments"
+        message: "Failed to fetch assessments",
       });
     }
   });
-
 
   /**
    * GET /api/assessments/search
@@ -584,7 +559,6 @@ export async function registerRoutes(
           ...results,
           data: results.data.map((assessment) => redactForApi(assessment)),
         });
-
       } catch (err) {
         logger.error({ err }, "Assessment search error:");
         const { statusCode, message } = sanitizeDatabaseError(err);
@@ -691,194 +665,22 @@ export async function registerRoutes(
 
         // Object-Level Authorization Check
         if (!canAccessPatientRecord(user as any, assessment)) {
-          // Log unauthorized access attempt (IDOR/Enumeration attempt)
-          logAccessAttempt(
-            user.id,
-            "Assessment",
-            id,
-            false,
-            "IDOR attempt: User not authorized to access this patient record"
-          );
-          
-          // Return 404 to prevent ID enumeration
+          logAccessAttempt(user.id, "Assessment", id, false, "IDOR attempt: User not authorized to access this patient record");
           return res.status(404).json({ message: "Assessment not found." });
         }
 
-        // Authorized access
         logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
         return res.json(redactForApi(assessment));
-
       } catch (err) {
-        // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
         logger.error({ err }, "Assessment search error");
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
       }
     }
   );
-  
+
   // Mount domain-specific routers (after app-level handlers for precedence)
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", analyticsRouter);
   app.use("/api/assessments", generalLimiter, assessmentsRouter);
-
-  // ─── Admin Routes ────────────────────────────────────────────────
-
-  // Apply admin rate limiter to all admin routes
-  app.use("/api/admin", adminLimiter);
-
-  app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const page = Math.max(1, parseInt(req.query.page as string) || 1);
-      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-      const result = await storage.getAllUsers(page, limit);
-      res.json(result);
-    } catch (err) {
-      logger.error({ err }, "Admin users fetch error:");
-      res.status(500).json({ message: "Failed to fetch users." });
-    }
-  });
-
-  app.get("/api/admin/audit-logs", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const page = Math.max(1, parseInt(req.query.page as string) || 1);
-      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-      const result = await storage.getLoginAuditLogs(page, limit);
-      res.json(result);
-    } catch (err) {
-      logger.error({ err }, "Admin audit logs fetch error:");
-      res.status(500).json({ message: "Failed to fetch audit logs." });
-    }
-  });
-
-  app.patch("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const id = req.params.id as string;
-      const { isActive, role } = req.body;
-      const updated = await storage.updateUser(id, { isActive, role });
-      res.json(updated);
-    } catch (err) {
-      logger.error({ err }, "Admin user update error:");
-      res.status(500).json({ message: "Failed to update user." });
-    }
-  });
-
-  app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const stats = await storage.getSystemStats();
-      res.json(stats);
-    } catch (err) {
-      logger.error({ err }, "Admin stats fetch error:");
-      res.status(500).json({ message: "Failed to fetch system stats." });
-    }
-  });
-
-  // ─── Model Monitoring Routes ──────────────────────────────────────
-
-  app.get("/api/admin/model/versions", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const versions = await storage.getModelVersions();
-      res.json(versions);
-    } catch (err) {
-      logger.error({ err }, "Admin model versions fetch error:");
-      res.status(500).json({ message: "Failed to fetch model versions." });
-    }
-  });
-
-  app.get("/api/admin/model/versions/latest", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const latest = await storage.getLatestModelVersion();
-      res.json(latest ?? null);
-    } catch (err) {
-      logger.error({ err }, "Admin latest model version fetch error:");
-      res.status(500).json({ message: "Failed to fetch latest model version." });
-    }
-  });
-
-  app.get("/api/admin/model/dataset-stats", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const stats = await storage.getModelDatasetStats();
-      res.json(stats ?? { classBalance: {}, featureStats: {}, totalSamples: 0 });
-    } catch (err) {
-      logger.error({ err }, "Admin dataset stats fetch error:");
-      res.status(500).json({ message: "Failed to fetch dataset stats." });
-    }
-  });
-
-  app.post("/api/admin/model/retrain", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const { stdout, stderr } = await execFileAsync(
-        getPythonExecutable(),
-        [analyzePyPath, "train_and_evaluate"],
-        { timeout: 120000, env: { ...process.env, PYTHONIOENCODING: "utf-8" } }
-      );
-
-      if (stderr) {
-        logger.warn({ stderr }, "Model retrain stderr:");
-      }
-
-      const lines = stdout.trim().split("\n").filter(Boolean);
-      const jsonLine = lines.find((l: string) => l.startsWith("{"));
-      if (!jsonLine) {
-        logger.error({ stdout, stderr }, "Model retrain no JSON output");
-        return res.status(500).json({ message: "Retrain produced no valid output." });
-      }
-
-      const metrics = JSON.parse(jsonLine);
-
-      if (metrics.error) {
-        return res.status(500).json({ message: metrics.error });
-      }
-
-      const previousVersion = await storage.getLatestModelVersion();
-      const nextVersion = (previousVersion?.version ?? 0) + 1;
-
-      const record = await storage.createModelVersion({
-        version: nextVersion,
-        accuracy: metrics.accuracy,
-        precision: metrics.precision,
-        recall: metrics.recall,
-        f1Score: metrics.f1_score,
-        aucRoc: metrics.auc_roc,
-        datasetHash: metrics.dataset_hash,
-        numSamples: metrics.num_samples,
-        numFeatures: metrics.num_features,
-        classBalance: metrics.class_balance,
-        featureDistributions: metrics.feature_distributions,
-        trainingDurationMs: metrics.training_duration_ms,
-        status: "completed",
-      });
-
-      logger.info(`Model retrained: version ${nextVersion}, accuracy ${metrics.accuracy}`);
-      res.json(record);
-    } catch (err: any) {
-      logger.error({ err }, "Admin model retrain error:");
-      res.status(500).json({ message: err.stderr || "Model retraining failed." });
-    }
-  });
-
-  app.use("/api/upload", uploadRouter);
-
-  // Endpoint to capture and log client-side React errors
-  app.post("/api/logs/client-error", (req, res) => {
-    try {
-      const { message, stack, componentStack, url, timestamp } = req.body;
-      logger.error(
-        {
-          source: "client",
-          url,
-          componentStack,
-          timestamp,
-          stack,
-        },
-        `[Client Error] ${message}`
-      );
-      res.status(200).json({ success: true });
-    } catch (err) {
-      logger.error({ err }, "Failed to parse client error log");
-      res.status(500).json({ success: false });
-    }
-  });
-
-  return httpServer;
-}
