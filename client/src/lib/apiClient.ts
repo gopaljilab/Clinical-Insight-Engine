@@ -33,7 +33,7 @@ export class ApiClient {
         }
       }
       const error = new Error(`${res.status}: ${errorMessage}`);
-      (error as any).status = res.status;
+      (error as Error & { status: number }).status = res.status;
       throw error;
     }
 
@@ -49,7 +49,7 @@ export class ApiClient {
     }
   }
 
-  static async get<T = any>(url: string, options?: RequestInit): Promise<T> {
+  static async get<T = unknown>(url: string, options?: RequestInit): Promise<T> {
     const res = await fetch(resolveUrl(url), {
       method: "GET",
       credentials: "include",
@@ -58,8 +58,8 @@ export class ApiClient {
     return this.handleResponse<T>(res);
   }
 
-  static async post<T = any>(url: string, data?: unknown, options?: RequestInit): Promise<T> {
-    const headers: any = data ? { "Content-Type": "application/json" } : {};
+  static async post<T = unknown>(url: string, data?: unknown, options?: RequestInit): Promise<T> {
+    const headers: HeadersInit = data ? { "Content-Type": "application/json" } : {};
     if (options?.headers) {
       Object.assign(headers, options.headers);
     }
@@ -73,8 +73,8 @@ export class ApiClient {
     return this.handleResponse<T>(res);
   }
 
-  static async put<T = any>(url: string, data?: unknown, options?: RequestInit): Promise<T> {
-    const headers: any = data ? { "Content-Type": "application/json" } : {};
+  static async put<T = unknown>(url: string, data?: unknown, options?: RequestInit): Promise<T> {
+    const headers: HeadersInit = data ? { "Content-Type": "application/json" } : {};
     if (options?.headers) {
       Object.assign(headers, options.headers);
     }
@@ -88,7 +88,7 @@ export class ApiClient {
     return this.handleResponse<T>(res);
   }
 
-  static async delete<T = any>(url: string, options?: RequestInit): Promise<T> {
+  static async delete<T = unknown>(url: string, options?: RequestInit): Promise<T> {
     const res = await fetch(resolveUrl(url), {
       method: "DELETE",
       credentials: "include",

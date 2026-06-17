@@ -6,7 +6,7 @@ import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService, isPythonAvailable, calculateClinicalFallback } from "../services/mlService";
+import { MLService, isPythonAvailable, calculateClinicalFallback, type PredictionResult } from "../services/mlService";
 
 
 import { generateRecommendations } from "../services/recommendation-engine";
@@ -15,13 +15,11 @@ import {
   analyzeSearchInput,
   logSecurityEvent,
 } from "../security/sqlProtection";
-import { searchQuerySchema, assessmentsQuerySchema } from "../validation/searchValidation";
+import { searchQuerySchema, assessmentsQuerySchema, cohortQuerySchema } from "../validation/searchValidation";
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
 import { validateDTO } from "../middleware/validateDTO";
-import { writeFile, unlink } from "fs/promises";
 import { existsSync } from "fs";
-import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -111,20 +109,15 @@ assessmentsRouter.post(
   requireAuth,
   requireVerified,
   async (req, res) => {
-    const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
     try {
-      const whatIfBatchSchema = z.object({
-        original: z.any(),
-        perturbations: z.array(z.record(z.any()))
-      });
-      const parsed = whatIfBatchSchema.parse(req.body);
+      const parsed = api.assessments.whatIfBatch.input.parse(req.body);
       const { original, perturbations } = parsed;
 
       if (!isPythonAvailable) {
-        const originalResult = calculateClinicalFallback(original);
+        const originalResult = calculateClinicalFallback(original) as PredictionResult;
         const perturbationResults = perturbations.map((p: any) => {
           const variant = { ...original, ...p };
-          const variantResult = calculateClinicalFallback(variant);
+          const variantResult = calculateClinicalFallback(variant) as PredictionResult;
           const riskReduction = originalResult.riskScore - variantResult.riskScore;
           const desc = Object.keys(p).map(k => `${k}:${(original as any)[k] ?? '?'}->${(p as any)[k]}`).join("; ");
           return {
@@ -147,18 +140,25 @@ assessmentsRouter.post(
       }
 
       const payload = { original, perturbations };
-      await writeFile(tempFile, JSON.stringify(payload));
 
       const stdout = await new Promise<string>((resolve, reject) => {
         const child = execFile(
           getPythonExecutable(),
-          [analyzePyPath, "counterfactual", tempFile],
+          [analyzePyPath, "counterfactual"],
           { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
           (error, stdout, stderr) => {
             if (error) reject(error);
             else resolve(stdout);
           }
         );
+
+        if (child.stdin) {
+          child.stdin.on("error", (err) => {
+            logger.error({ err }, "Error writing to python stdin");
+          });
+          child.stdin.write(JSON.stringify(payload));
+          child.stdin.end();
+        }
       });
 
       const result = JSON.parse(stdout.trim());
@@ -173,8 +173,6 @@ assessmentsRouter.post(
       }
       logger.error({ err }, "What-if batch analysis failed");
       return res.status(500).json({ message: "What-if batch analysis failed. Please try again." });
-    } finally {
-      try { await unlink(tempFile); } catch {}
     }
   }
 );
@@ -184,7 +182,6 @@ assessmentsRouter.post(
   requireAuth,
   requireVerified,
   async (req, res) => {
-    const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
     try {
       const input = api.assessments.create.input.parse(req.body);
 
@@ -192,18 +189,24 @@ assessmentsRouter.post(
         return res.status(503).json({ message: "Python service is required for counterfactual auto analysis." });
       }
 
-      await writeFile(tempFile, JSON.stringify(input));
-
       const stdout = await new Promise<string>((resolve, reject) => {
         const child = execFile(
           getPythonExecutable(),
-          [analyzePyPath, "counterfactual_auto", tempFile],
+          [analyzePyPath, "counterfactual_auto"],
           { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
           (error, stdout, stderr) => {
             if (error) reject(error);
             else resolve(stdout);
           }
         );
+
+        if (child.stdin) {
+          child.stdin.on("error", (err) => {
+            logger.error({ err }, "Error writing to python stdin");
+          });
+          child.stdin.write(JSON.stringify(input));
+          child.stdin.end();
+        }
       });
 
       const result = JSON.parse(stdout.trim());
@@ -218,8 +221,6 @@ assessmentsRouter.post(
       }
       logger.error({ err }, "What-if auto analysis failed");
       return res.status(500).json({ message: "What-if auto analysis failed. Please try again." });
-    } finally {
-      try { await unlink(tempFile); } catch {}
     }
   }
 );
@@ -340,11 +341,34 @@ assessmentsRouter.get(
   async (req, res) => {
     try {
       const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
-      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+      const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
+      const endDate = typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0, startDate, endDate);
       return res.json(result);
     } catch (err) {
       logger.error({ err }, "Patient trends fetch error:");
       return res.status(500).json({ message: "Failed to fetch patient trends." });
+    }
+  }
+);
+
+assessmentsRouter.get(
+  "/trends/dashboard",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const patientName = typeof req.query.patientName === "string" ? req.query.patientName.trim() : "";
+      if (!patientName) {
+        return res.status(400).json({ message: "patientName query parameter is required." });
+      }
+      const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
+      const endDate = typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+      const result = await storage.getTrendsDashboardData(patientName, startDate, endDate);
+      return res.json(result);
+    } catch (err) {
+      logger.error({ err }, "Trends dashboard error:");
+      return res.status(500).json({ message: "Failed to fetch trends dashboard data." });
     }
   }
 );
@@ -603,6 +627,28 @@ assessmentsRouter.delete(
       logger.error({ err }, "Assessment delete error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
+    }
+  }
+);
+
+assessmentsRouter.get(
+  "/cohort",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const parsed = cohortQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Invalid query parameters" });
+      }
+
+      const userEmail = req.session.user?.email;
+      const params = { ...parsed.data, createdBy: userEmail };
+
+      const stats = await storage.getCohortStats(params);
+      return res.json(stats);
+    } catch (err) {
+      logger.error({ err }, "Cohort query failed");
+      return res.status(500).json({ message: "Failed to query cohort data." });
     }
   }
 );

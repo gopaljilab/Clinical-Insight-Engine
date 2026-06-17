@@ -206,14 +206,65 @@ export const api = {
       method: "POST" as const,
       path: "/api/assessments/what-if/batch" as const,
       input: z.object({
+        assessmentId: z.number().optional(),
         original: insertAssessmentSchema,
-        perturbations: z.array(z.record(z.any())),
+        perturbations: z.array(
+          z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+        ).max(50, "Maximum of 50 perturbations allowed per request"),
       }),
       responses: {
         200: z.object({
-          original: z.any(),
-          perturbations: z.array(z.any()),
-          ranked: z.array(z.any()).optional(),
+          original: z.object({
+            riskScore: z.number(),
+            riskCategory: z.string(),
+            factors: z
+              .array(
+                z.object({
+                  name: z.string(),
+                  impact: z.enum(["positive", "negative"]),
+                  description: z.string(),
+                })
+              )
+              .optional(),
+          }),
+          perturbations: z.array(
+            z.object({
+              delta: z.string(),
+              riskScore: z.number(),
+              riskCategory: z.string(),
+              factors: z
+                .array(
+                  z.object({
+                    name: z.string(),
+                    impact: z.enum(["positive", "negative"]),
+                    description: z.string(),
+                  })
+                )
+                .optional(),
+              riskReduction: z.number(),
+              confidenceInterval: z.string().nullable().optional(),
+              modelConfidence: z.number().nullable().optional(),
+            })
+          ),
+          ranked: z.array(
+            z.object({
+              delta: z.string(),
+              riskScore: z.number(),
+              riskCategory: z.string(),
+              factors: z
+                .array(
+                  z.object({
+                    name: z.string(),
+                    impact: z.enum(["positive", "negative"]),
+                    description: z.string(),
+                  })
+                )
+                .optional(),
+              riskReduction: z.number(),
+              confidenceInterval: z.string().nullable().optional(),
+              modelConfidence: z.number().nullable().optional(),
+            })
+          ).optional(),
           isFallback: z.boolean().optional(),
         }),
         400: errorSchemas.validation,
@@ -237,6 +288,27 @@ export const api = {
         }),
         400: errorSchemas.validation,
         500: errorSchemas.internal,
+      },
+    },
+    cohort: {
+      query: {
+        method: "GET" as const,
+        path: "/api/assessments/cohort" as const,
+        responses: {
+          200: z.object({
+            total: z.number(),
+            avgRiskScore: z.number().nullable(),
+            avgBmi: z.number().nullable(),
+            avgHba1c: z.number().nullable(),
+            avgGlucose: z.number().nullable(),
+            riskDistribution: z.array(z.object({ category: z.string(), count: z.number() })),
+            ageDistribution: z.array(z.object({ range: z.string(), count: z.number() })),
+            genderDistribution: z.array(z.object({ gender: z.string(), count: z.number() })),
+            smokingDistribution: z.array(z.object({ status: z.string(), count: z.number() })),
+            comorbidityRate: z.number(),
+          }),
+          500: errorSchemas.internal,
+        },
       },
     },
   },
