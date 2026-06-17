@@ -35,3 +35,33 @@ export const exportLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: "Too many export requests, please try again later." }
 });
+
+// Preview & simulation endpoints: 10 requests per minute
+export const previewLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many preview requests. Please try again later.", retryAfter: 60 }
+});
+
+// Single assessment creation endpoints: 5 requests per minute
+export const assessmentLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many assessment requests. Please try again later.",
+    retryAfter: 60,
+  }
+});
+
+// Upload endpoints: 5 uploads per minute
+export const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many upload requests. Please try again later.", retryAfter: 60 }
+});

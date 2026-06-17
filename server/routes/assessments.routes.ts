@@ -2,8 +2,8 @@ import { logger } from "../logger";
 import { getAssessmentQueue } from "../queue";
 import { Router } from "express";
 import { z } from "zod";
-import { rateLimit } from "express-rate-limit";
 import { requireAuth, requireVerified } from "../auth";
+import { previewLimiter, assessmentLimiter } from "../middleware/rateLimit";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { MLService } from "../services/mlService";
@@ -46,6 +46,7 @@ assessmentsRouter.post(
   "/preview",
   requireAuth,
   requireVerified,
+  previewLimiter,
   validateDTO(api.assessments.preview.input),
   async (req, res) => {
     try {
@@ -78,6 +79,7 @@ assessmentsRouter.post(
   "/what-if",
   requireAuth,
   requireVerified,
+  previewLimiter,
   validateDTO(api.assessments.whatIf.input),
   async (req, res) => {
     try {
@@ -107,6 +109,7 @@ assessmentsRouter.post(
   "/what-if/batch",
   requireAuth,
   requireVerified,
+  previewLimiter,
   async (req, res) => {
     const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
     try {
@@ -150,6 +153,7 @@ assessmentsRouter.post(
   "/",
   requireAuth,
   requireVerified,
+  assessmentLimiter,
   validateDTO(api.assessments.create.input),
   async (req, res) => {
     const userId = (req.session.user as any)?.id;
@@ -374,6 +378,22 @@ assessmentsRouter.get(
 );
 
 assessmentsRouter.get(
+  "/patient/:patientName/trends",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
+      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+      return res.json(result);
+    } catch (err) {
+      logger.error({ err }, "Patient trends fetch error:");
+      return res.status(500).json({ message: "Failed to fetch patient trends." });
+    }
+  }
+);
+
+assessmentsRouter.get(
   "/:id",
   requireAuth,
   requireVerified,
@@ -471,6 +491,39 @@ assessmentsRouter.delete(
       logger.error({ err }, "Assessment delete error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
       return res.status(statusCode).json({ message });
+    }
+  }
+);
+
+assessmentsRouter.post(
+  "/simulate",
+  requireAuth,
+  requireVerified,
+  previewLimiter,
+  validateDTO(api.assessments.simulate.input),
+  async (req, res) => {
+    try {
+      const input = req.body;
+      const { prediction } = await MLService.runAssessmentInference(input);
+      
+      logger.info(
+        `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+      );
+
+      return res.json({
+        simulatedRisk: prediction.riskScore,
+        riskCategory: prediction.riskCategory as "LOW" | "MODERATE" | "HIGH",
+        confidence: prediction.modelConfidence ?? null,
+        factorContributions: prediction.factors ?? [],
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      }
+      if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
+        return res.status(408).json({ message: "Clinical assessment simulation timed out." });
+      }
+      return res.status(500).json({ message: err.message || "Internal server error" });
     }
   }
 );

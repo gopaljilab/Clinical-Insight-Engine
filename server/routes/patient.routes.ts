@@ -5,6 +5,7 @@ import { z } from "zod";
 import { storage } from "../storage";
 import { logger } from "../logger";
 import { issueToken, verifyToken } from "../services/auth/tokenValidator";
+import { generalLimiter } from "../middleware/rateLimit";
 
 const router = Router();
 
@@ -110,7 +111,7 @@ router.post("/auth/login", patientAuthLimiter, async (req: Request, res: Respons
   }
 });
 
-router.get("/auth/me", requirePatientAuth, async (req: Request, res: Response) => {
+router.get("/auth/me", requirePatientAuth, generalLimiter, async (req: Request, res: Response) => {
   try {
     const user = await storage.getPatientUserById(req.jwtUser!.sub);
     if (!user) {
@@ -125,7 +126,7 @@ router.get("/auth/me", requirePatientAuth, async (req: Request, res: Response) =
   }
 });
 
-router.get("/assessments", requirePatientAuth, async (req: Request, res: Response) => {
+router.get("/assessments", requirePatientAuth, generalLimiter, async (req: Request, res: Response) => {
   try {
     const user = await storage.getPatientUserById(req.jwtUser!.sub);
     if (!user) return res.status(404).json({ message: "User not found." });
@@ -139,7 +140,7 @@ router.get("/assessments", requirePatientAuth, async (req: Request, res: Respons
   }
 });
 
-router.get("/trends", requirePatientAuth, async (req: Request, res: Response) => {
+router.get("/trends", requirePatientAuth, generalLimiter, async (req: Request, res: Response) => {
   try {
     const user = await storage.getPatientUserById(req.jwtUser!.sub);
     if (!user) return res.status(404).json({ message: "User not found." });

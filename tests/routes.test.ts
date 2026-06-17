@@ -3,6 +3,8 @@ import request from "supertest";
 import express from "express";
 import session from "express-session";
 import { createServer } from "http";
+import patientsRouter from "../server/routes/patients";
+import { issueToken } from "../server/services/auth/tokenValidator";
 
 const { mockExecFile, rateLimitCounters, mockCreateAssessment, mockGetAssessments, mockGetAssessmentById } = vi.hoisted(() => ({
   mockExecFile: vi.fn(),
@@ -47,7 +49,7 @@ vi.mock("bullmq", () => {
         riskScore: 12.3,
         riskCategory: "LOW",
         factors: [{ name: "Age", impact: "positive", description: "Increases risk" }],
-        createdBy: "test-user-id",
+        createdBy: "test@example.com",
         createdAt: new Date(),
         attentionNavigator: { priorities: [] },
       },
@@ -67,7 +69,8 @@ vi.mock("express-rate-limit", () => {
       const key = req.ip || "test";
       const count = (rateLimitCounters.get(key) || 0) + 1;
       rateLimitCounters.set(key, count);
-      if (count > (options.limit || 5)) {
+      const limit = options.limit || options.max || 5;
+      if (count > limit) {
         return res.status(429).json({
           error: options.message?.error || "Too many requests",
         });
@@ -240,7 +243,7 @@ describe("Auth gating", () => {
       riskScore: 12.3,
       riskCategory: "LOW",
       factors: [{ name: "Age", impact: "positive", description: "Increases risk" }],
-      createdBy: "test-user-id",
+      createdBy: "test@example.com",
       createdAt: new Date(),
     });
 

@@ -45,6 +45,18 @@ interface RegisteredUser {
 
 // removed duplicated functions
 
+function normalizeRateLimitEmail(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+export function getOtpRateLimitKey(req: { body?: { email?: string }; ip?: string }): string {
+  const email = normalizeRateLimitEmail(req.body?.email);
+  if (email) {
+    return `otp:${email}`;
+  }
+  return `otp:ip:${req.ip ?? "unknown"}`;
+}
+
 
 
 /**

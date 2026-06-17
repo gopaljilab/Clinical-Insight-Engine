@@ -2,33 +2,21 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
 import session from "express-session";
-import { createAuthRouter } from "../server/auth";
 
-// Mock the db module to return our mock user on query
-vi.mock("../server/db", async (importOriginal) => {
-  const original = (await importOriginal()) as any;
+const mockSelect = vi.fn();
+const mockTransaction = vi.fn();
+
+const mockDb = {
+  select: mockSelect,
+  transaction: mockTransaction,
+};
+
+vi.mock("../server/db", () => {
   return {
-    ...original,
-    getDb: () => ({
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: async () => [
-              {
-                id: "test-user-id",
-                fullName: "Test Doctor",
-                email: "doc@example.com",
-                medicalLicenseNumber: "DOC123",
-                passwordHash: "$2b$10$UnqO1D.K2i8e.3yY4/pZkO/rQhZz7xI7TfX6f4r4uYgG0p0p0p0p.",
-                role: "provider",
-                isActive: true,
-                emailVerified: true,
-              }
-            ]
-          })
-        })
-      })
-    })
+    getDb: () => mockDb,
+    getPool: vi.fn(),
+    verifyDatabaseConnection: vi.fn(),
+    closePool: vi.fn(),
   };
 });
 
@@ -58,15 +46,84 @@ vi.mock("bcrypt", () => ({
 
 // Mock email service
 vi.mock("../server/email", () => ({
-  sendVerificationCode: vi.fn().mockResolvedValue(true),
-  validateSmtpConfig: vi.fn(),
+  sendVerificationEmail: vi.fn().mockResolvedValue(true),
+  sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
+  validateEmailConfig: vi.fn(),
 }));
 
 describe("OTP Brute-Force Lockout Integration", () => {
   let app: express.Express;
+  let attemptCount = 0;
+  let isUsed = false;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    attemptCount = 0;
+    isUsed = false;
+
+    // Mock DB select for user lookup
+    const mockLimitUser = vi.fn().mockResolvedValue([{
+      id: "test-user-id",
+      fullName: "Test Doctor",
+      email: "doc@example.com",
+      medicalLicenseNumber: "DOC123",
+      passwordHash: "hashed",
+      role: "provider",
+      isActive: true,
+      emailVerified: true,
+    }]);
+    const mockWhereUser = vi.fn(() => ({ limit: mockLimitUser }));
+    const mockFromUser = vi.fn(() => ({ where: mockWhereUser }));
+    mockSelect.mockImplementation(() => ({ from: mockFromUser }));
+
+    // Mock DB transaction and queries
+    mockTransaction.mockImplementation(async (callback) => {
+      const mockTx = {
+        update: vi.fn(() => ({
+          set: vi.fn((updateData: any) => {
+            if (updateData.attemptCount !== undefined) {
+              attemptCount = updateData.attemptCount;
+            }
+            if (updateData.used !== undefined) {
+              isUsed = updateData.used;
+            }
+            return {
+              where: vi.fn().mockResolvedValue([{}]),
+            };
+          }),
+        })),
+        insert: vi.fn(() => ({
+          values: vi.fn().mockImplementation(() => {
+            isUsed = false;
+            attemptCount = 0;
+            return {
+              returning: vi.fn().mockResolvedValue([{ id: "new-user-id" }]),
+            };
+          }),
+        })),
+        select: vi.fn(() => ({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              orderBy: vi.fn(() => ({
+                limit: vi.fn().mockImplementation(async () => {
+                  return isUsed ? [] : [{
+                    id: "token-id-1",
+                    userId: "test-user-id",
+                    verificationCode: "123456", // Correct verification code is 123456
+                    expiresAt: new Date(Date.now() + 100000),
+                    used: isUsed,
+                    attemptCount,
+                  }];
+                }),
+              })),
+            })),
+          })),
+        })),
+      };
+      return callback(mockTx);
+    });
+
+    const { createAuthRouter } = await import("../server/auth");
     app = express();
     app.use(express.json());
     app.use(
@@ -79,7 +136,7 @@ describe("OTP Brute-Force Lockout Integration", () => {
     app.use("/api/auth", createAuthRouter());
   });
 
-  it("locks out user after 3 failed OTP verification attempts", async () => {
+  it("locks out user after 5 failed OTP verification attempts", async () => {
     // 1. Post to login to trigger OTP creation
     const loginRes = await request(app)
       .post("/api/auth/login")
@@ -88,39 +145,41 @@ describe("OTP Brute-Force Lockout Integration", () => {
     expect(loginRes.status).toBe(200);
     expect(loginRes.body.success).toBe(true);
     expect(loginRes.body.pendingEmail).toBe("doc@example.com");
-    
-    // OTP is never leaked in the response — only sent via email / dev log
 
-    // 2. First failed attempt: should return 401 with 2 attempts remaining
-    const fail1 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
-    
-    expect(fail1.status).toBe(401);
-    expect(fail1.body.message).toContain("2 attempt(s) remaining");
+    const sessionCookie = loginRes.headers["set-cookie"];
 
-    // 3. Second failed attempt: should return 401 with 1 attempt remaining
-    const fail2 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
+    // 2. Failed attempts 1 to 5: should return 401 with remaining attempts
+    for (let i = 1; i <= 5; i++) {
+      const failRes = await request(app)
+        .post("/api/auth/verify-email")
+        .set("Cookie", sessionCookie)
+        .send({ email: "doc@example.com", code: "000000" });
 
-    expect(fail2.status).toBe(401);
-    expect(fail2.body.message).toContain("1 attempt(s) remaining");
+      expect(failRes.status).toBe(401);
+      const expectedRemaining = 5 - i;
+      if (expectedRemaining > 0) {
+        expect(failRes.body.message).toContain(`${expectedRemaining} attempt(s) remaining`);
+      } else {
+        expect(failRes.body.message).toContain("Please request a new code");
+      }
+    }
 
-    // 4. Third failed attempt: should trigger lockout and return 429
-    const fail3 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
+    // 3. 6th failed attempt: lockout and return 429
+    const fail6 = await request(app)
+      .post("/api/auth/verify-email")
+      .set("Cookie", sessionCookie)
+      .send({ email: "doc@example.com", code: "000000" });
 
-    expect(fail3.status).toBe(429);
-    expect(fail3.body.message).toContain("Too many failed attempts");
+    expect(fail6.status).toBe(429);
+    expect(fail6.body.message).toContain("Too many failed attempts");
 
-    // 5. Subsequent attempts: OTP should be deleted, returning 400
-    const fail4 = await request(app)
-      .post("/api/auth/verify-otp")
-      .send({ email: "doc@example.com", otp: "000000" });
+    // 4. Subsequent attempts: token is deactivated, returning 400
+    const failSubsequent = await request(app)
+      .post("/api/auth/verify-email")
+      .set("Cookie", sessionCookie)
+      .send({ email: "doc@example.com", code: "000000" });
 
-    expect(fail4.status).toBe(400);
-    expect(fail4.body.message).toContain("No pending verification found");
+    expect(failSubsequent.status).toBe(400);
+    expect(failSubsequent.body.message).toContain("No valid verification code found");
   });
 });

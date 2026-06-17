@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import { requireAuth, requireVerified } from "../auth";
+import { uploadLimiter } from "../middleware/rateLimit";
 
 const uploadRouter = Router();
 
@@ -31,6 +32,7 @@ uploadRouter.post(
   "/lab-results",
   requireAuth,
   requireVerified,
+  uploadLimiter,
   (req, res) => {
     upload.single("file")(req, res, (err: any) => {
       if (err) {
