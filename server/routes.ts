@@ -16,9 +16,8 @@ import {
   adminLimiter,
   exportLimiter,
 } from "./middleware/rateLimit";
-import { rateLimit } from "express-rate-limit";
 import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
-import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
+import { getPythonExecutable } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -28,12 +27,8 @@ import { z } from "zod";
 import os from "os";
 import { randomUUID } from "crypto";
 import { writeFile, unlink } from "fs/promises";
-import { validateDTO } from "./middleware/validateDTO";
 import { assessmentsToCsv } from "./utils/csvExport";
-import { searchQuerySchema, assessmentExportQuerySchema } from "./validation/searchValidation";
-import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
-import { canAccessPatientRecord } from "./services/authz/patient-access";
-import { logAccessAttempt } from "./security/access-audit";
+import { assessmentExportQuerySchema } from "./validation/searchValidation";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -146,25 +141,6 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  const previewLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    limit: 10,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { error: "Too many preview requests. Please try again later.", retryAfter: 60 },
-  });
-
-  const assessmentLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    limit: 5,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: {
-      error: "Too many assessment requests. Please try again later.",
-      retryAfter: 60,
-    },
-  });
-
   // Support test compatibility — some tests reference lastStatus globally
   app.use((req, res, next) => {
     res.on("finish", () => {
@@ -191,104 +167,6 @@ export async function registerRoutes(
   // Mount auth router
   app.use("/api/auth", authRouter);
   app.use("/api/ingest", fhirRouter);
-  app.post(
-    api.assessments.preview.path,
-    requireAuth,
-    requireVerified,
-    previewLimiter,
-    validateDTO(api.assessments.preview.input),
-    async (req, res) => {
-      try {
-        const input = api.assessments.preview.input.parse(req.body);
-        const { prediction } = await MLService.runAssessmentInference(input);
-
-        logger.info(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
-        return res.json({
-          riskScore: prediction.riskScore,
-          riskCategory: prediction.riskCategory,
-          factors: prediction.factors ?? [],
-          confidenceInterval: prediction.confidenceInterval ?? null,
-          modelConfidence: prediction.modelConfidence ?? null
-        });
-      } catch (err: any) {
-        if (err instanceof z.ZodError) {
-          return res.status(400).json({
-            message: err.errors[0].message
-          });
-        }
-        if (err.message?.includes("timed out")) {
-          return res.status(503).json({
-            message: "Clinical assessment preview timed out."
-          });
-        }
-        logger.error({ err }, "Error creating assessment preview");
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    }
-  );
-
-  app.post(
-    api.assessments.simulate.path,
-    requireAuth,
-    requireVerified,
-    previewLimiter,
-    validateDTO(api.assessments.simulate.input),
-    async (req, res) => {
-      const input = api.assessments.simulate.input.parse(req.body);
-      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
-
-      try {
-        await writeFile(tempFile, JSON.stringify(input));
-
-        let prediction: any;
-        try {
-          const { stdout } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            { timeout: 30000 }
-          );
-
-          prediction = JSON.parse(stdout.trim());
-          if (prediction.error) {
-            return res.status(400).json({ message: prediction.error });
-          }
-        } catch (error: any) {
-          if (error.killed || error.signal === "SIGTERM") {
-            return res.status(408).json({ message: "Clinical assessment simulation timed out." });
-          }
-
-          logger.warn(
-            "Python prediction simulation failed, falling back to clinical rule-based model:",
-            error
-          );
-          prediction = calculateClinicalFallback(input);
-        }
-
-        logger.info(
-          `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
-        );
-
-        return res.json({
-          simulatedRisk: prediction.riskScore,
-          riskCategory: prediction.riskCategory,
-          confidence: prediction.modelConfidence ?? null,
-          factorContributions: prediction.factors ?? [],
-        });
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res.status(400).json({ message: err.errors[0].message });
-        }
-        logger.error({ err }, "Error creating assessment simulation");
-        return res.status(500).json({ message: "Internal server error" });
-      } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {
-          logger.warn({ e, tempFile }, "Failed to clean up temp file (simulate):");
-        }
-      }
-    }
-  );
 
   app.post(
     "/api/assessments/bulk",
@@ -365,137 +243,7 @@ export async function registerRoutes(
     }
   );
 
-  app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
-    try {
-      const userEmail = req.session.user?.email;
-      const cursorStr = req.query.cursor as string;
-      const limitStr = req.query.limit as string;
-      const cursor = cursorStr ? parseInt(cursorStr, 10) : undefined;
-      const limit = limitStr ? parseInt(limitStr, 10) : 50;
 
-      const assessments = await storage.getAssessments(limit, cursor, userEmail);
-
-      res.json(assessments);
-
-    } catch (err) {
-      res.status(500).json({
-        message: "Failed to fetch assessments"
-      });
-    }
-  });
-
-
-  /**
-   * GET /api/assessments/search
-   *
-   * Secure patient/assessment search endpoint.
-   *
-   * Security controls:
-   * 1. PRIMARY: Drizzle ORM ilike()/eq() — query parameters are bound placeholders,
-   *    never interpolated into raw SQL strings.  This prevents SQL injection.
-   * 2. SUPPLEMENTARY: Zod schema validates input length, character set, and rejects
-   *    known injection signatures before the query is even constructed.
-   * 3. Security logging: suspicious patterns are logged (without PHI) for audit.
-   * 4. User scoping: results are always filtered to the authenticated user's records.
-   * 5. Generic errors: DB errors are sanitized — no table names or SQL syntax leaked.
-   *
-   * Query params:
-   *   q            - search term (max 200 chars, safe characters only)
-   *   riskCategory - optional: LOW | MODERATE | HIGH
-   *   page         - page number (default 1)
-   *   limit        - results per page, max 100 (default 20)
-   */
-  app.get(
-    "/api/assessments/search",
-    requireAuth,
-    requireVerified,
-    async (req, res) => {
-      try {
-        const parseResult = searchQuerySchema.safeParse(req.query);
-
-        if (!parseResult.success) {
-          const rawQ = typeof req.query.q === "string" ? req.query.q : "";
-          const analysis = analyzeSearchInput(rawQ);
-
-          if (!analysis.safe) {
-            logSecurityEvent(
-              "SQL_INJECTION_ATTEMPT",
-              "Injection-like pattern detected in search query parameter",
-              req,
-              {
-                matchedPattern: analysis.pattern,
-                userId: req.session.user?.id,
-              }
-            );
-          } else {
-            logSecurityEvent(
-              "MALFORMED_SEARCH_QUERY",
-              "Search query failed validation",
-              req,
-              { userId: req.session.user?.id }
-            );
-          }
-
-          return res.status(400).json({
-            message: parseResult.error.errors[0]?.message ?? "Invalid search parameters.",
-          });
-        }
-
-        const { q, riskCategory, cursor, limit } = parseResult.data;
-        const userEmail = req.session.user?.email;
-
-        if (q) {
-          const analysis = analyzeSearchInput(q);
-          if (!analysis.safe) {
-            logSecurityEvent(
-              "SUSPICIOUS_SEARCH_PATTERN",
-              "Validated search term contains a suspicious pattern",
-              req,
-              { matchedPattern: analysis.pattern, userId: req.session.user?.id }
-            );
-          }
-        }
-
-        const results = await storage.searchAssessments(
-          q ?? "",
-          userEmail,
-          riskCategory,
-          limit,
-          cursor
-        );
-
-        return res.json(results);
-
-      } catch (err) {
-        logger.error({ err }, "Assessment search error:");
-        const { statusCode, message } = sanitizeDatabaseError(err);
-        return res.status(statusCode).json({ message });
-      }
-    }
-  );
-
-  /**
-   * GET /api/assessments/patient/:patientName/trends
-   *
-   * Returns all historical assessments for a given patient, ordered by date.
-   * Used by the Progress Tracking dashboard to plot biomarker trends.
-   */
-  app.get(
-    "/api/assessments/patient/:patientName/trends",
-    requireAuth,
-    requireVerified,
-    async (req, res) => {
-      try {
-        const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
-        const userEmail = req.session.user?.email;
-        const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
-        return res.json(result);
-      } catch (err) {
-        logger.error({ err }, "Patient trends fetch error:");
-        return res.status(500).json({ message: "Failed to fetch patient trends." });
-      }
-    }
-  );
 
   /**
    * GET /api/assessments/export.csv
@@ -536,65 +284,7 @@ export async function registerRoutes(
     }
   );
 
-  /**
-   * GET /api/assessments/:id
-   *
-   * Fetch a single assessment by numeric ID.
-   * Object-level authorization is enforced explicitly before returning records.
-   */
-  app.get(
-    "/api/assessments/:id",
-    requireAuth,
-    requireVerified,
-    async (req, res) => {
-      try {
-        const paramId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        const id = parseInt(paramId as string, 10);
-
-        if (isNaN(id) || id <= 0) {
-          return res.status(400).json({ message: "Invalid assessment ID." });
-        }
-
-        const user = req.session.user;
-        if (!user) {
-          return res.status(401).json({ message: "Unauthorized" });
-        }
-
-        const assessment = await storage.getAssessmentById(id);
-
-        if (!assessment) {
-          return res.status(404).json({ message: "Assessment not found." });
-        }
-
-        // Object-Level Authorization Check
-        if (!canAccessPatientRecord(user as any, assessment)) {
-          // Log unauthorized access attempt (IDOR/Enumeration attempt)
-          logAccessAttempt(
-            user.id,
-            "Assessment",
-            id,
-            false,
-            "IDOR attempt: User not authorized to access this patient record"
-          );
-          
-          // Return 404 to prevent ID enumeration
-          return res.status(404).json({ message: "Assessment not found." });
-        }
-
-        // Authorized access
-        logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
-        return res.json(assessment);
-
-      } catch (err) {
-        // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
-        logger.error({ err }, "Assessment search error");
-        const { statusCode, message } = sanitizeDatabaseError(err);
-        return res.status(statusCode).json({ message });
-      }
-    }
-  );
-  
-  // Mount domain-specific routers (after app-level handlers for precedence)
+  // Mount domain-specific routers
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
   app.use("/api/assessments", analyticsRouter);
