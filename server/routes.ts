@@ -173,8 +173,6 @@ export async function registerRoutes(
     next();
   });
 
-  // Seed database on startup — development only to prevent fake data in production
-  // Minimal unblock: disable seeding by default to avoid schema mismatch errors.
   if (process.env.NODE_ENV !== "production" && process.env.SEED_DB === "true") {
     seedDatabase().catch((err) => logger.error({ err }, "Database seeding failed"));
   }
@@ -187,7 +185,6 @@ export async function registerRoutes(
     });
   });
 
-  // Mount auth router
   app.use("/api/auth", authRouter);
   app.use("/api/ingest", fhirRouter);
 
@@ -212,13 +209,13 @@ export async function registerRoutes(
           confidenceInterval: prediction.confidenceInterval ?? null,
           modelConfidence: prediction.modelConfidence ?? null,
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err instanceof z.ZodError) {
           return res.status(400).json({
             message: err.errors[0].message,
           });
         }
-        if (err.message?.includes("timed out")) {
+        if ((err as Error).message?.includes("timed out")) {
           return res.status(503).json({
             message: "Clinical assessment preview timed out.",
           });
@@ -253,8 +250,8 @@ export async function registerRoutes(
           if (prediction.error) {
             return res.status(400).json({ message: prediction.error });
           }
-        } catch (error: any) {
-          if (error.killed || error.signal === "SIGTERM") {
+        } catch (error: unknown) {
+          if ((error as any).killed || (error as any).signal === "SIGTERM") {
             return res.status(408).json({ message: "Clinical assessment simulation timed out." });
           }
 
@@ -384,7 +381,7 @@ export async function registerRoutes(
     requireAuth,
     requireVerified,
     async (req, res) => {
-      const userId = (req.session.user as any)?.id;
+      const userId = req.session.user?.id;
       if (!userId) {
         return res.status(401).json({ message: "Authentication required." });
       }
@@ -417,7 +414,7 @@ export async function registerRoutes(
           if (!Array.isArray(predictions)) {
             throw new Error("Expected array of predictions");
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           predictions = calculateClinicalFallback(input) as PredictionResult[];
         }
 
@@ -476,26 +473,6 @@ export async function registerRoutes(
     }
   });
 
-  /**
-   * GET /api/assessments/search
-   *
-   * Secure patient/assessment search endpoint.
-   *
-   * Security controls:
-   * 1. PRIMARY: Drizzle ORM ilike()/eq() — query parameters are bound placeholders,
-   *    never interpolated into raw SQL strings.  This prevents SQL injection.
-   * 2. SUPPLEMENTARY: Zod schema validates input length, character set, and rejects
-   *    known injection signatures before the query is even constructed.
-   * 3. Security logging: suspicious patterns are logged (without PHI) for audit.
-   * 4. User scoping: results are always filtered to the authenticated user's records.
-   * 5. Generic errors: DB errors are sanitized — no table names or SQL syntax leaked.
-   *
-   * Query params:
-   *   q            - search term (max 200 chars, safe characters only)
-   *   riskCategory - optional: LOW | MODERATE | HIGH
-   *   page         - page number (default 1)
-   *   limit        - results per page, max 100 (default 20)
-   */
   app.get(
     "/api/assessments/search",
     requireAuth,
@@ -567,12 +544,6 @@ export async function registerRoutes(
     }
   );
 
-  /**
-   * GET /api/assessments/patient/:patientName/trends
-   *
-   * Returns all historical assessments for a given patient, ordered by date.
-   * Used by the Progress Tracking dashboard to plot biomarker trends.
-   */
   app.get(
     "/api/assessments/patient/:patientName/trends",
     requireAuth,
@@ -580,7 +551,6 @@ export async function registerRoutes(
     async (req, res) => {
       try {
         const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
-        const userEmail = req.session.user?.email;
         const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
         return res.json({
           ...result,
@@ -593,11 +563,6 @@ export async function registerRoutes(
     }
   );
 
-  /**
-   * GET /api/assessments/export.csv
-   *
-   * Exports filtered assessments as a CSV file.
-   */
   app.get(
     "/api/assessments/export.csv",
     requireAuth,
@@ -633,12 +598,6 @@ export async function registerRoutes(
     }
   );
 
-  /**
-   * GET /api/assessments/:id
-   *
-   * Fetch a single assessment by numeric ID.
-   * Object-level authorization is enforced explicitly before returning records.
-   */
   app.get(
     "/api/assessments/:id",
     requireAuth,
@@ -663,9 +622,14 @@ export async function registerRoutes(
           return res.status(404).json({ message: "Assessment not found." });
         }
 
-        // Object-Level Authorization Check
-        if (!canAccessPatientRecord(user as any, assessment)) {
-          logAccessAttempt(user.id, "Assessment", id, false, "IDOR attempt: User not authorized to access this patient record");
+        if (!canAccessPatientRecord(user, assessment)) {
+          logAccessAttempt(
+            user.id,
+            "Assessment",
+            id,
+            false,
+            "IDOR attempt: User not authorized to access this patient record"
+          );
           return res.status(404).json({ message: "Assessment not found." });
         }
 
@@ -678,14 +642,136 @@ export async function registerRoutes(
       }
     }
   );
-  
-  // Mount domain-specific routers (after app-level handlers for precedence)
-app.use("/api/assessments", mlRouter);
-app.use("/api/assessments", exportsRouter);
-app.use("/api/assessments", analyticsRouter);
-app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
-app.use("/api/upload", uploadRouter);
+  app.use("/api/assessments", mlRouter);
+  app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", analyticsRouter);
+  app.use("/api/assessments", generalLimiter, assessmentsRouter);
+  app.use("/api/upload", uploadRouter);
 
-return httpServer;
+  app.patch("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const { isActive, role } = req.body;
+      const updated = await storage.updateUser(id, { isActive, role });
+      res.json(updated);
+    } catch (err) {
+      logger.error({ err }, "Admin user update error:");
+      res.status(500).json({ message: "Failed to update user." });
+    }
+  });
+
+  app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = await storage.getSystemStats();
+      res.json(stats);
+    } catch (err) {
+      logger.error({ err }, "Admin stats fetch error:");
+      res.status(500).json({ message: "Failed to fetch system stats." });
+    }
+  });
+
+  app.get("/api/admin/model/versions", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const versions = await storage.getModelVersions();
+      res.json(versions);
+    } catch (err) {
+      logger.error({ err }, "Admin model versions fetch error:");
+      res.status(500).json({ message: "Failed to fetch model versions." });
+    }
+  });
+
+  app.get("/api/admin/model/versions/latest", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const latest = await storage.getLatestModelVersion();
+      res.json(latest ?? null);
+    } catch (err) {
+      logger.error({ err }, "Admin latest model version fetch error:");
+      res.status(500).json({ message: "Failed to fetch latest model version." });
+    }
+  });
+
+  app.get("/api/admin/model/dataset-stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = await storage.getModelDatasetStats();
+      res.json(stats ?? { classBalance: {}, featureStats: {}, totalSamples: 0 });
+    } catch (err) {
+      logger.error({ err }, "Admin dataset stats fetch error:");
+      res.status(500).json({ message: "Failed to fetch model dataset stats." });
+    }
+  });
+
+  app.post("/api/admin/model/retrain", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        getPythonExecutable(),
+        [analyzePyPath, "train_and_evaluate"],
+        { timeout: 120000, env: { ...process.env, PYTHONIOENCODING: "utf-8" } }
+      );
+
+      if (stderr) {
+        logger.warn({ stderr }, "Model retrain stderr:");
+      }
+
+      const lines = stdout.trim().split("\n").filter(Boolean);
+      const jsonLine = lines.find((l: string) => l.startsWith("{"));
+      if (!jsonLine) {
+        logger.error({ stdout, stderr }, "Model retrain no JSON output");
+        return res.status(500).json({ message: "Retrain produced no valid output." });
+      }
+
+      const metrics = JSON.parse(jsonLine);
+
+      if (metrics.error) {
+        return res.status(500).json({ message: metrics.error });
+      }
+
+      const previousVersion = await storage.getLatestModelVersion();
+      const nextVersion = (previousVersion?.version ?? 0) + 1;
+
+      const record = await storage.createModelVersion({
+        version: nextVersion,
+        accuracy: metrics.accuracy,
+        precision: metrics.precision,
+        recall: metrics.recall,
+        f1Score: metrics.f1_score,
+        aucRoc: metrics.auc_roc,
+        datasetHash: metrics.dataset_hash,
+        numSamples: metrics.num_samples,
+        numFeatures: metrics.num_features,
+        classBalance: metrics.class_balance,
+        featureDistributions: metrics.feature_distributions,
+        trainingDurationMs: metrics.training_duration_ms,
+        status: "completed",
+      });
+
+      logger.info(`Model retrained: version ${nextVersion}, accuracy ${metrics.accuracy}`);
+      res.json(record);
+    } catch (err: unknown) {
+      logger.error({ err }, "Admin model retrain error:");
+      res.status(500).json({ message: (err as any).stderr || "Model retraining failed." });
+    }
+  });
+
+  app.post("/api/logs/client-error", (req, res) => {
+    try {
+      const { message, stack, componentStack, url, timestamp } = req.body;
+      logger.error(
+        {
+          source: "client",
+          url,
+          componentStack,
+          timestamp,
+          stack,
+        },
+        `[Client Error] ${message}`
+      );
+      res.status(200).json({ success: true });
+    } catch (err) {
+      logger.error({ err }, "Failed to parse client error log");
+      res.status(500).json({ success: false });
+    }
+  });
+
+  return httpServer;
 }

@@ -106,7 +106,7 @@ export function getAssessmentQueue(): Queue | null {
 
   if (!assessmentQueueInstance) {
     assessmentQueueInstance = new Queue("assessmentQueue", {
-      connection: getRedisConnection() as any,
+      connection: getRedisConnection() as unknown,
       defaultJobOptions: {
         attempts: QUEUE_MAX_RETRIES,
         backoff,
@@ -262,7 +262,7 @@ export function startAssessmentWorker(): void {
         emitAssessmentProgress(job.id ?? "", 100, "Assessment Complete");
         emitAssessmentCompleted(job.id ?? "", result);
         return result;
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error(
           {
             jobId: job.id,
@@ -276,8 +276,8 @@ export function startAssessmentWorker(): void {
         if (
           err.killed ||
           err.signal === "SIGTERM" ||
-          err.message === "Clinical assessment timed out." ||
-          err.message?.includes("timed out")
+          (err as Error).message === "Clinical assessment timed out." ||
+          (err as Error).message?.includes("timed out")
         ) {
           throw new Error("Clinical assessment generation timed out.");
         }
@@ -285,7 +285,7 @@ export function startAssessmentWorker(): void {
       }
     },
     {
-      connection: getRedisConnection() as any,
+      connection: getRedisConnection() as unknown,
       concurrency: 4,
       lockDuration: QUEUE_LOCK_DURATION,
       stalledInterval: QUEUE_STALLED_INTERVAL,

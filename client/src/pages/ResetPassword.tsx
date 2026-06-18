@@ -50,8 +50,8 @@ export default function ResetPassword() {
       await ApiClient.post("/api/auth/reset-password", { token, newPassword: password });
       setSuccess("Password has been reset successfully!");
       setTimeout(() => setLocation("/login"), 2000);
-    } catch (err: any) {
-      setError(err.message || "Unable to connect to server. Please try again.");
+    } catch (err: unknown) {
+      setError((err as Error).message || "Unable to connect to server. Please try again.");
     } finally {
       setIsLoading(false);
     }

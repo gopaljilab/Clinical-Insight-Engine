@@ -89,8 +89,8 @@ export default function ProgressTracking() {
       if (!res.ok) throw new Error("Failed to load patient data");
       const data = await res.json();
       setAssessments(data.data ?? []);
-    } catch (err: any) {
-      setError(err.message || "Failed to load patient data");
+    } catch (err: unknown) {
+      setError((err as Error).message || "Failed to load patient data");
     } finally {
       setLoading(false);
     }

@@ -1,0 +1,35 @@
+
+> rest-express@1.0.0 check
+> tsc
+
+client/src/components/ui/form.tsx(150,32): error TS2352: Conversion of type 'FieldError' to type 'Error' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'name' is missing in type 'FieldError' but required in type 'Error'.
+client/src/lib/queryClient.ts(31,52): error TS18046: 'error' is of type 'unknown'.
+server/middleware/validateDTO.ts(18,23): error TS2352: Conversion of type 'ZodIssue' to type 'Error' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'name' is missing in type 'ZodCustomIssue & { fatal?: boolean | undefined; message: string; }' but required in type 'Error'.
+server/middleware/validateDTO.ts(40,23): error TS2352: Conversion of type 'ZodIssue' to type 'Error' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'name' is missing in type 'ZodCustomIssue & { fatal?: boolean | undefined; message: string; }' but required in type 'Error'.
+server/queue.ts(277,11): error TS18046: 'err' is of type 'unknown'.
+server/queue.ts(278,11): error TS18046: 'err' is of type 'unknown'.
+server/routes.ts(256,15): error TS18046: 'error' is of type 'unknown'.
+server/routes.ts(256,31): error TS18046: 'error' is of type 'unknown'.
+server/routes.ts(262,13): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(obj: "Python prediction simulation failed, falling back to clinical rule-based model:", msg?: undefined): void', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'undefined'.
+  Overload 2 of 3, '(obj: "Python prediction simulation failed, falling back to clinical rule-based model:", msg?: undefined, ...args: unknown[]): void', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'undefined'.
+server/routes.ts(299,31): error TS2304: Cannot find name 'getQueueMetrics'.
+server/routes.ts(749,39): error TS18046: 'err' is of type 'unknown'.
+server/routes/assessments.routes.ts(312,11): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(obj: "Python prediction simulation failed, falling back to clinical rule-based model:", msg?: undefined): void', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'undefined'.
+  Overload 2 of 3, '(obj: "Python prediction simulation failed, falling back to clinical rule-based model:", msg?: undefined, ...args: unknown[]): void', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'undefined'.
+server/routes/ml.routes.ts(51,11): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(obj: "Python prediction bulk failed or timed out, running clinical rule-based fallback:", msg?: undefined): void', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'undefined'.
+  Overload 2 of 3, '(obj: "Python prediction bulk failed or timed out, running clinical rule-based fallback:", msg?: undefined, ...args: unknown[]): void', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'undefined'.
+server/services/fhirParser.ts(373,9): error TS18046: 'err' is of type 'unknown'.
+server/services/fhirParser.ts(373,23): error TS18046: 'err' is of type 'unknown'.
+server/services/fhirParser.ts(374,23): error TS18046: 'err' is of type 'unknown'.
