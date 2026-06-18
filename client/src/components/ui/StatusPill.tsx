@@ -1,5 +1,5 @@
 import React from "react";
-
+import { cn } from "@/lib/utils";
 type Variant = "low" | "moderate" | "high" | "default";
 
 export default function StatusPill({
@@ -26,7 +26,7 @@ export default function StatusPill({
       role="status"
       aria-label={`Risk: ${display}`}
       title={`Risk: ${display}`}
-      className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide ${colorClasses}`}
+      className={cn("px-3 py-1 rounded-full text-xs font-bold tracking-wide", colorClasses)}
     >
       {highlightedLabel ?? display}
     </span>

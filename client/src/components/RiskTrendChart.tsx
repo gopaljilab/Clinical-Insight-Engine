@@ -14,7 +14,7 @@ import type { Assessment } from "@shared/schema";
 import { formatCompactDate } from "@/utils/dateFormat";
 // Vite's specific syntax to import as a web worker
 import ChartWorker from "@/utils/chartWorker?worker";
-
+import { cn } from "@/lib/utils";
 interface PatientGroup {
   patientName: string;
   assessments: Assessment[];
@@ -112,11 +112,12 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
               type="button"
               aria-pressed={activeMetrics[key]}
               onClick={() => toggleMetric(key)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all",
                 activeMetrics[key]
                   ? "text-white bg-[var(--chart-color)] border-[var(--chart-color)]"
                   : "bg-transparent text-muted-foreground border-border hover:border-foreground/30"
-              }`}
+              )}
               style={{ '--chart-color': color } as React.CSSProperties}
             >
               <span className="w-2 h-2 rounded-full bg-[var(--chart-color)]" />

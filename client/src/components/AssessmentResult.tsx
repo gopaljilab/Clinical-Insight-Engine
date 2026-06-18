@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2 } from "lucide-react";
+import { AlertCircle, FileText, CheckCircle2, TrendingUp, TrendingDown, Info, HeartPulse, Activity, UserCircle, Stethoscope, Eye, Share2, Loader2, Printer, Download, MonitorPlay } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { HealthBadges } from "@/components/HealthBadges";
 import { CopySummaryButton } from "@/components/CopySummaryButton";
@@ -178,11 +179,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
         <div className="relative flex flex-1 max-w-md bg-muted/65 p-1 gap-1 rounded-xl">
           <button
             onClick={() => setView("patient")}
-            className={`relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none ${
+            className={cn(
+              "relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none",
               view === "patient" 
                 ? "text-primary" 
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+            )}
           >
             <UserCircle className="w-4 h-4" />
             {t("patientResult.patientView")}
@@ -196,11 +198,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
           </button>
           <button
             onClick={() => setView("clinician")}
-            className={`relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none ${
+            className={cn(
+              "relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none",
               view === "clinician" 
                 ? "text-primary" 
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+            )}
           >
             <Stethoscope className="w-4 h-4" />
             {t("patientResult.clinicianView")}
@@ -309,7 +312,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   {t("patientResult.plainLanguage")}
                 </div>
                 <h2 className="text-xl sm:text-2xl font-bold text-foreground">{t("patientResult.yourHealthAssessment")}</h2>
-                <div className={`inline-flex flex-col items-center justify-center w-36 h-36 sm:w-48 sm:h-48 rounded-full border-8 shadow-inner ${getRiskColor(assessment.riskCategory)}`}>
+                <div className={cn("inline-flex flex-col items-center justify-center w-36 h-36 sm:w-48 sm:h-48 rounded-full border-8 shadow-inner", getRiskColor(assessment.riskCategory))}>
                   <span className="text-sm font-bold uppercase tracking-widest opacity-80 mb-1">{t("patientResult.riskLevel")}</span>
                   <span className="text-3xl sm:text-4xl font-display font-black">{assessment.riskCategory}</span>
                 </div>
@@ -394,7 +397,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                       {t("patientResult.clinicianViewDesc")}
                     </p>
                   </div>
-                  <div className={`inline-flex w-fit rounded-full border px-3 py-1 text-sm font-bold ${getRiskColor(assessment.riskCategory)}`}>
+                  <div className={cn("inline-flex w-fit rounded-full border px-3 py-1 text-sm font-bold", getRiskColor(assessment.riskCategory))}>
                     {assessment.riskCategory} {t("patientResult.riskLabel")}
                   </div>
                 </div>
@@ -418,7 +421,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
                   <p className="text-sm font-medium text-muted-foreground mb-1">{t("assessment.riskCategory")}</p>
-                  <div className={`inline-flex px-3 py-1 rounded-full text-sm font-bold mt-1 ${getRiskColor(assessment.riskCategory)}`}>
+                  <div className={cn("inline-flex px-3 py-1 rounded-full text-sm font-bold mt-1", getRiskColor(assessment.riskCategory))}>
                     {assessment.riskCategory}
                   </div>
                   {assessment.modelConfidence && (
@@ -514,7 +517,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                                         <p className="font-bold mb-1">{data.name}</p>
                                         <p className="text-muted-foreground">{data.description}</p>
                                         {!data.isWhatIf && <p className="text-muted-foreground mt-2">{data.plainReason}</p>}
-                                        <p className={`mt-2 font-semibold ${data.impact === 'positive' ? 'text-red-500' : 'text-green-500'}`}>
+                                        <p className={cn("mt-2 font-semibold", data.impact === 'positive' ? 'text-red-500' : 'text-green-500')}>
                                           {t("patientResult.impactLabel")}: {data.impact === 'positive' ? t("patientResult.increasesRisk") : t("patientResult.reducesRisk")}
                                         </p>
                               </div>
@@ -626,11 +629,12 @@ function ExplainabilityPanel({
                   <p className="text-sm text-muted-foreground mt-1">{factor.plainReason}</p>
                 </div>
                 <span
-                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-bold",
                     increasesRisk
                       ? "bg-red-50 text-red-700 border border-red-200"
                       : "bg-green-50 text-green-700 border border-green-200"
-                  }`}
+                  )}
                 >
                   {increasesRisk ? (
                     <TrendingUp className="w-3.5 h-3.5" />
@@ -648,7 +652,7 @@ function ExplainabilityPanel({
                 </div>
                 <div className="h-2.5 rounded-full bg-muted overflow-hidden">
                   <div
-                    className={`h-full rounded-full w-[var(--factor-strength)] ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
+                    className={cn("h-full rounded-full w-[var(--factor-strength)]", increasesRisk ? "bg-red-500" : "bg-green-500")}
                     style={{ '--factor-strength': `${factor.strength}%` } as React.CSSProperties}
                   />
                 </div>
