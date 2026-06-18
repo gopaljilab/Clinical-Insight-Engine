@@ -47,8 +47,8 @@ mlRouter.post(
         }
       } catch (error: unknown) {
         logger.warn(
-          "Python prediction bulk failed or timed out, running clinical rule-based fallback:",
-          error
+          { err: error },
+          "Python prediction bulk failed or timed out, running clinical rule-based fallback:"
         );
         predictions = calculateClinicalFallback(input) as PredictionResult[];
       }

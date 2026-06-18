@@ -84,7 +84,7 @@ export async function rlsContextMiddleware(
     }
   }
 
-  const authUser = (req).authenticatedUser;
+  const authUser = (req as any).authenticatedUser;
   if (!context && authUser) {
     context = {
       userId: authUser.userId,

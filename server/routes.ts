@@ -252,14 +252,14 @@ export async function registerRoutes(
           if (prediction.error) {
             return res.status(400).json({ message: prediction.error });
           }
-        } catch (error: unknown) {
+        } catch (error: any) {
           if (error.killed || error.signal === "SIGTERM") {
             return res.status(408).json({ message: "Clinical assessment simulation timed out." });
           }
 
           logger.warn(
-            "Python prediction simulation failed, falling back to clinical rule-based model:",
-            error
+            { err: error },
+            "Python prediction simulation failed, falling back to clinical rule-based model:"
           );
           prediction = calculateClinicalFallback(input);
         }
@@ -567,7 +567,7 @@ export async function registerRoutes(
         }
 
         // Object-Level Authorization Check
-        if (!canAccessPatientRecord(user, assessment)) {
+        if (!canAccessPatientRecord(user as any, assessment)) {
           // Log unauthorized access attempt (IDOR/Enumeration attempt)
           logAccessAttempt(
             user.id,
@@ -729,7 +729,7 @@ export async function registerRoutes(
 
       logger.info(`Model retrained: version ${nextVersion}, accuracy ${metrics.accuracy}`);
       res.json(record);
-    } catch (err: unknown) {
+    } catch (err: any) {
       logger.error({ err }, "Admin model retrain error:");
       res.status(500).json({ message: err.stderr || "Model retraining failed." });
     }

@@ -108,6 +108,6 @@ export async function requireJwtAuth(req: Request, res: Response, next: NextFunc
     return;
   }
 
-  (req).authenticatedUser = authUser;
+  (req as any).authenticatedUser = authUser;
   next();
 }

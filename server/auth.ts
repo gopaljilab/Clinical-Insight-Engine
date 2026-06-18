@@ -23,7 +23,7 @@ function verifyPassword(password: string, storedHash: string): boolean {
 // Extend express-session to include user data
 declare module "express-session" {
   interface SessionData {
-    user?: {
+    user: {
       id: string;
       email: string;
       name: string;
@@ -264,7 +264,7 @@ export async function requireAnyAuth(req: Request, res: Response, next: NextFunc
     if (!authUser) {
       return res.status(401).json({ message: "Authentication required." });
     }
-    (req).authenticatedUser = authUser;
+    (req as any).authenticatedUser = authUser;
     next();
   } catch {
     return res.status(500).json({ message: "Authentication check failed." });
