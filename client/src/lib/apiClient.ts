@@ -2,6 +2,7 @@
  * Centralized API Utility Class for Data Fetching
  * Consolidates fetch logic, error handling, credentials, and JSON parsing.
  */
+import { api, AssessmentInput, AssessmentResponse, AssessmentsListResponse, AssessmentPreviewResponse, AssessmentSimulationResponse, AssessmentWhatIfResponse, AssessmentWhatIfBatchResponse, BiomarkerAlert } from "@shared/routes";
 
 /**
  * Resolves a relative API path against VITE_API_BASE when configured.
@@ -137,3 +138,52 @@ export class ApiClient {
     });
   }
 }
+
+/**
+ * Strongly typed API wrappers derived directly from the backend shared schema.
+ * This guarantees synchronization between frontend API calls and the backend data model.
+ */
+export const TypedApi = {
+  assessments: {
+    create: (data: AssessmentInput) => 
+      ApiClient.post<AssessmentResponse>(api.assessments.create.path, data),
+    
+    list: (params?: { limit?: number; cursor?: number }) => {
+      const query = new URLSearchParams();
+      if (params?.limit) query.set("limit", String(params.limit));
+      if (params?.cursor) query.set("cursor", String(params.cursor));
+      const qs = query.toString() ? `?${query.toString()}` : "";
+      return ApiClient.get<AssessmentsListResponse>(`${api.assessments.list.path}${qs}`);
+    },
+
+    search: (params: { q?: string; riskCategory?: string; limit?: number; cursor?: number }) => {
+      const query = new URLSearchParams();
+      if (params.q) query.set("q", params.q);
+      if (params.riskCategory) query.set("riskCategory", params.riskCategory);
+      if (params.limit) query.set("limit", String(params.limit));
+      if (params.cursor) query.set("cursor", String(params.cursor));
+      return ApiClient.get<AssessmentsListResponse>(`${api.assessments.search.path}?${query.toString()}`);
+    },
+
+    getById: (id: string | number) => 
+      ApiClient.get<AssessmentResponse>(api.assessments.getById.path.replace(":id", String(id))),
+
+    preview: (data: AssessmentInput) => 
+      ApiClient.post<AssessmentPreviewResponse>(api.assessments.preview.path, data),
+
+    simulate: (data: AssessmentInput) => 
+      ApiClient.post<AssessmentSimulationResponse>(api.assessments.simulate.path, data),
+
+    whatIf: (data: AssessmentInput) => 
+      ApiClient.post<AssessmentWhatIfResponse>(api.assessments.whatIf.path, data),
+
+    whatIfBatch: (data: any) => 
+      ApiClient.post<AssessmentWhatIfBatchResponse>(api.assessments.whatIfBatch.path, data),
+
+    biomarkerAlerts: () => 
+      ApiClient.get<{ alerts: BiomarkerAlert[] }>(api.assessments.biomarkerAlerts.path),
+
+    cohortQuery: () => 
+      ApiClient.get<any>(api.assessments.cohort.query.path),
+  }
+};

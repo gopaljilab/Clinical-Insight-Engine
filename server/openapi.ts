@@ -17,7 +17,8 @@ try {
 
 import { z } from "zod";
 import { loginDTOSchema } from "./validation/auth.dto";
-
+import { api, errorSchemas } from "../shared/routes";
+import { assessments, insertAssessmentSchema } from "../shared/schema";
 if (extendZodWithOpenApi) {
   extendZodWithOpenApi(z);
 }
@@ -169,6 +170,54 @@ registry?.registerPath({
       },
     },
   },
+});
+
+registry?.registerComponent("schemas", "InsertAssessment", insertAssessmentSchema as any);
+registry?.registerComponent("schemas", "Assessment", z.custom<typeof assessments.$inferSelect>());
+
+Object.entries(api.assessments).forEach(([key, endpoint]: [string, any]) => {
+  if (!endpoint.method || !endpoint.path || !endpoint.responses) return;
+
+  const requestObj: any = {};
+  if (endpoint.input && ["POST", "PUT", "PATCH"].includes(endpoint.method)) {
+    requestObj.body = {
+      required: true,
+      content: {
+        "application/json": {
+          schema: endpoint.input as any,
+        },
+      },
+    };
+  }
+
+  // Handle path parameters
+  const pathParams = [...endpoint.path.matchAll(/:([a-zA-Z0-9_]+)/g)].map((m) => m[1]);
+  if (pathParams.length > 0) {
+    requestObj.params = z.object(
+      pathParams.reduce((acc, param) => ({ ...acc, [param]: z.string() }), {})
+    );
+  }
+
+  const responsesObj: any = {};
+  Object.entries(endpoint.responses).forEach(([statusCode, schema]) => {
+    responsesObj[statusCode] = {
+      description: `Response ${statusCode}`,
+      content: {
+        "application/json": {
+          schema: schema as any,
+        },
+      },
+    };
+  });
+
+  registry?.registerPath({
+    method: endpoint.method.toLowerCase(),
+    path: endpoint.path.replace(/:([a-zA-Z0-9_]+)/g, "{$1}"),
+    tags: ["Assessments"],
+    summary: `${key} Assessment API`,
+    ...(Object.keys(requestObj).length > 0 ? { request: requestObj } : {}),
+    responses: responsesObj,
+  });
 });
 
 const generator = OpenApiGeneratorV3 ? new OpenApiGeneratorV3(registry?.definitions || []) : null;
