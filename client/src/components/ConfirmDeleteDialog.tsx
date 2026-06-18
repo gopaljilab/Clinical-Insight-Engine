@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Trash2 } from "lucide-react";
 import {
   AlertDialog,
@@ -26,6 +27,7 @@ export function ConfirmDeleteDialog({
   onConfirm,
   trigger,
 }: ConfirmDeleteDialogProps) {
+  const { t } = useTranslation();
   const [isDeleting, setIsDeleting] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -49,30 +51,29 @@ export function ConfirmDeleteDialog({
         {trigger || (
           <Button variant="destructive" size="sm" className="gap-2">
             <Trash2 className="h-4 w-4" />
-            Delete
+            {t("Delete")}
           </Button>
         )}
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Assessment</AlertDialogTitle>
+          <AlertDialogTitle>{t("Delete Assessment")}</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete the assessment for{" "}
-            <strong>{patientName}</strong> from <strong>{assessmentDate}</strong>?
-            This action cannot be undone and will permanently remove this data
-            from the system.
+            {t("Are you sure you want to delete the assessment for")}{" "}
+            <strong>{patientName}</strong> {t("from")} <strong>{assessmentDate}</strong>?
+            {t("This action cannot be undone and will permanently remove this data from the system.")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isDeleting}>{t("Cancel")}</AlertDialogCancel>
           <Button
             variant="destructive"
             onClick={handleConfirm}
             isLoading={isDeleting}
-            loadingText="Deleting..."
+            loadingText={t("Deleting...")}
             className="gap-2"
           >
-            Delete
+            {t("Delete")}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

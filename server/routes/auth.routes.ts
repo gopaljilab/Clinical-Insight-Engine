@@ -8,7 +8,7 @@ authRouter.get("/token", requireAuth, requireVerified, (req, res) => {
   const user = req.session.user;
 
   if (!user?.id || !user?.email) {
-    return res.status(401).json({ message: "Invalid session user data" });
+    return res.status(401).json({ message: "api.errors.invalid_session" });
   }
 
   const token = issueToken((user).id, user.email, "provider");

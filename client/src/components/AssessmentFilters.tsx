@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { AgeRangeFilter } from "@/components/AgeRangeFilter";
 import { GenderFilter } from "@/components/GenderFilter";
 import { RiskCategoryFilter } from "@/components/RiskCategoryFilter";
+import { useTranslation } from "react-i18next";
 import type {
   GenderFilterValue,
   RiskCategoryFilterValue,
@@ -37,6 +38,7 @@ export function AssessmentFilters({
   onEndDateChange,
   onClearDateRange,
 }: AssessmentFiltersProps) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <div className="grid gap-4 xl:grid-cols-3">
@@ -48,8 +50,8 @@ export function AssessmentFilters({
       <div className="rounded-3xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-foreground">Assessment date range</p>
-            <p className="text-xs text-muted-foreground">Filter records by created date.</p>
+            <p className="text-sm font-semibold text-foreground">{t("Assessment date range")}</p>
+            <p className="text-xs text-muted-foreground">{t("Filter records by created date.")}</p>
           </div>
           { (startDate || endDate) && (
             <button
@@ -57,13 +59,13 @@ export function AssessmentFilters({
               onClick={onClearDateRange}
               className="text-sm text-muted-foreground hover:text-foreground"
             >
-              Clear dates
+              {t("Clear dates")}
             </button>
           ) }
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-2 text-sm text-foreground">
-            <span>Start date</span>
+            <span>{t("Start date")}</span>
             <div className="relative">
               <Input
                 type="date"
@@ -75,7 +77,7 @@ export function AssessmentFilters({
             </div>
           </label>
           <label className="space-y-2 text-sm text-foreground">
-            <span>End date</span>
+            <span>{t("End date")}</span>
             <div className="relative">
               <Input
                 type="date"

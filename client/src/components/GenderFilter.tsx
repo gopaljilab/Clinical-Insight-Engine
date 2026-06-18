@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 import type { GenderFilterValue } from "@/utils/filterAssessments";
 
 const OPTIONS: Array<{ label: string; value: GenderFilterValue }> = [
@@ -15,11 +16,12 @@ interface GenderFilterProps {
 }
 
 export function GenderFilter({ value, onChange }: GenderFilterProps) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-3xl border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-foreground">Gender</p>
-        <span className="text-xs text-muted-foreground">Filter by patient gender</span>
+        <p className="text-sm font-semibold text-foreground">{t("Gender")}</p>
+        <span className="text-xs text-muted-foreground">{t("Filter by patient gender")}</span>
       </div>
       <div className="flex flex-wrap gap-2">
         {OPTIONS.map((option) => {
@@ -36,7 +38,7 @@ export function GenderFilter({ value, onChange }: GenderFilterProps) {
               onClick={() => onChange(option.value)}
               aria-pressed={selected}
             >
-              {option.label}
+              {t(option.label)}
             </Button>
           );
         })}

@@ -27,7 +27,7 @@ const upload = multer({
     if (allowedMimeTypes.includes(file.mimetype) && allowedExtensions.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type. Only CSV files are allowed."));
+      cb(new Error("api.errors.invalid_file_type"));
     }
   }
 });
@@ -44,12 +44,12 @@ uploadRouter.post(
       
       const file = (req).file;
       if (!file) {
-        return res.status(400).json({ message: "No file uploaded" });
+        return res.status(400).json({ message: "api.errors.no_file" });
       }
 
       const createdBy = req.session.user?.email;
       if (!createdBy) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "api.errors.unauthorized" });
       }
 
       try {
@@ -102,14 +102,14 @@ uploadRouter.post(
         }
 
         return res.status(200).json({
-          message: "Lab results imported successfully",
+          message: "api.success.lab_results_imported",
           processed,
           created,
           failed
         });
       } catch (parseErr: unknown) {
         logger.error({ err: parseErr }, "Error parsing CSV file");
-        return res.status(500).json({ message: "Failed to parse CSV file" });
+        return res.status(500).json({ message: "api.errors.csv_parse_failed" });
       }
     });
   }

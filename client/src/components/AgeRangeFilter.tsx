@@ -1,4 +1,5 @@
 import { Input } from "@/components/ui/input";
+import { useTranslation } from "react-i18next";
 
 interface AgeRangeFilterProps {
   minAge?: number;
@@ -7,15 +8,16 @@ interface AgeRangeFilterProps {
 }
 
 export function AgeRangeFilter({ minAge, maxAge, onChange }: AgeRangeFilterProps) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-3xl border border-border bg-card p-4">
       <div className="mb-3">
-        <p className="text-sm font-semibold text-foreground">Age range</p>
-        <p className="text-xs text-muted-foreground">Show assessments within a specific age window.</p>
+        <p className="text-sm font-semibold text-foreground">{t("Age range")}</p>
+        <p className="text-xs text-muted-foreground">{t("Show assessments within a specific age window.")}</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-2 text-sm text-foreground">
-          <span>Min age</span>
+          <span>{t("Min age")}</span>
           <Input
             value={minAge ?? ""}
             type="number"
@@ -29,7 +31,7 @@ export function AgeRangeFilter({ minAge, maxAge, onChange }: AgeRangeFilterProps
           />
         </label>
         <label className="space-y-2 text-sm text-foreground">
-          <span>Max age</span>
+          <span>{t("Max age")}</span>
           <Input
             value={maxAge ?? ""}
             type="number"

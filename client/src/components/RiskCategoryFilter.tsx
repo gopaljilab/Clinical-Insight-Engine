@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 import type { RiskCategoryFilterValue } from "@/utils/filterAssessments";
 
 const OPTIONS: Array<{ label: string; value: RiskCategoryFilterValue }> = [
@@ -15,11 +16,12 @@ interface RiskCategoryFilterProps {
 }
 
 export function RiskCategoryFilter({ value, onChange }: RiskCategoryFilterProps) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-3xl border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-foreground">Risk category</p>
-        <span className="text-xs text-muted-foreground">Filter by risk labels</span>
+        <p className="text-sm font-semibold text-foreground">{t("Risk category")}</p>
+        <span className="text-xs text-muted-foreground">{t("Filter by risk labels")}</span>
       </div>
       <div className="flex flex-wrap gap-2">
         {OPTIONS.map((option) => {
@@ -36,7 +38,7 @@ export function RiskCategoryFilter({ value, onChange }: RiskCategoryFilterProps)
               onClick={() => onChange(option.value)}
               aria-pressed={selected}
             >
-              {option.label}
+              {t(option.label)}
             </Button>
           );
         })}

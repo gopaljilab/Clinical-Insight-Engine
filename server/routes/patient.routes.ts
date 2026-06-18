@@ -13,7 +13,7 @@ const patientAuthLimiter = rateLimit({
   limit: 10,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  message: { error: "Too many attempts. Please try again later." },
+  message: { error: "api.errors.too_many_attempts" },
 });
 
 const registerSchema = z.object({
@@ -39,12 +39,12 @@ function verifyPassword(password: string, hash: string): boolean {
 function requirePatientAuth(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(401).json({ error: "api.errors.unauthorized" });
   }
   const token = authHeader.slice(7);
   const result = verifyToken(token);
   if (!result.valid) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(401).json({ error: "api.errors.unauthorized" });
   }
   req.jwtUser = result.payload;
   next();
@@ -55,11 +55,11 @@ router.post("/auth/register", patientAuthLimiter, async (req: Request, res: Resp
     const body = registerSchema.parse(req.body);
     const existing = await storage.getPatientUserByEmail(body.email);
     if (existing) {
-      return res.status(409).json({ message: "An account with this email already exists." });
+      return res.status(409).json({ message: "api.errors.email_exists" });
     }
     const existingByName = await storage.getPatientUserByPatientName(body.patientName);
     if (existingByName) {
-      return res.status(409).json({ message: "This patient name is already registered." });
+      return res.status(409).json({ message: "api.errors.patient_exists" });
     }
     const passwordHash = hashPassword(body.password);
     const user = await storage.createPatientUser({
@@ -81,7 +81,7 @@ router.post("/auth/register", patientAuthLimiter, async (req: Request, res: Resp
       return res.status(400).json({ message: err.errors[0].message });
     }
     logger.error({ err }, "Patient registration error");
-    return res.status(500).json({ message: "Registration failed." });
+    return res.status(500).json({ message: "api.errors.registration_failed" });
   }
 });
 
@@ -90,10 +90,10 @@ router.post("/auth/login", patientAuthLimiter, async (req: Request, res: Respons
     const body = loginSchema.parse(req.body);
     const user = await storage.getPatientUserByEmail(body.email);
     if (!user || !verifyPassword(body.password, user.passwordHash)) {
-      return res.status(401).json({ message: "Invalid email or password." });
+      return res.status(401).json({ message: "api.errors.invalid_credentials" });
     }
     if (!user.isActive) {
-      return res.status(403).json({ message: "Account is deactivated." });
+      return res.status(403).json({ message: "api.errors.account_deactivated" });
     }
     const token = issueToken(user.id, user.email, "PATIENT", "24h");
     return res.json({
@@ -106,7 +106,7 @@ router.post("/auth/login", patientAuthLimiter, async (req: Request, res: Respons
       return res.status(400).json({ message: err.errors[0].message });
     }
     logger.error({ err }, "Patient login error");
-    return res.status(500).json({ message: "Login failed." });
+    return res.status(500).json({ message: "api.errors.login_failed" });
   }
 });
 
@@ -114,40 +114,40 @@ router.get("/auth/me", requirePatientAuth, async (req: Request, res: Response) =
   try {
     const user = await storage.getPatientUserById(req.jwtUser!.sub);
     if (!user) {
-      return res.status(404).json({ message: "User not found." });
+      return res.status(404).json({ message: "api.errors.user_not_found" });
     }
     return res.json({
       user: { id: user.id, patientName: user.patientName, email: user.email },
     });
   } catch (err) {
     logger.error({ err }, "Patient me error");
-    return res.status(500).json({ message: "Failed to fetch user." });
+    return res.status(500).json({ message: "api.errors.fetch_user_failed" });
   }
 });
 
 router.get("/assessments", requirePatientAuth, async (req: Request, res: Response) => {
   try {
     const user = await storage.getPatientUserById(req.jwtUser!.sub);
-    if (!user) return res.status(404).json({ message: "User not found." });
+    if (!user) return res.status(404).json({ message: "api.errors.user_not_found" });
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
     const result = await storage.getAssessmentsByPatientName(user.patientName, limit, offset);
     return res.json(result);
   } catch (err) {
     logger.error({ err }, "Patient assessments fetch error");
-    return res.status(500).json({ message: "Failed to fetch assessments." });
+    return res.status(500).json({ message: "api.errors.fetch_assessments_failed" });
   }
 });
 
 router.get("/trends", requirePatientAuth, async (req: Request, res: Response) => {
   try {
     const user = await storage.getPatientUserById(req.jwtUser!.sub);
-    if (!user) return res.status(404).json({ message: "User not found." });
+    if (!user) return res.status(404).json({ message: "api.errors.user_not_found" });
     const trends = await storage.getPatientTrends(user.patientName);
     return res.json(trends);
   } catch (err) {
     logger.error({ err }, "Patient trends fetch error");
-    return res.status(500).json({ message: "Failed to fetch trends." });
+    return res.status(500).json({ message: "api.errors.fetch_trends_failed" });
   }
 });
 

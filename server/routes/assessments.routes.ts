@@ -64,12 +64,12 @@ assessmentsRouter.post(
       if (err instanceof z.ZodError) {
         return res
           .status(400)
-          .json({ message: err.errors[0]?.message ?? "Invalid input" });
+          .json({ message: err.errors[0]?.message ?? "api.errors.invalid_input" });
       }
       if ((err as Error).message === "Clinical assessment timed out." || (err as Error).message.includes("timed out")) {
-        return res.status(503).json({ message: "Clinical assessment preview timed out." });
+        return res.status(503).json({ message: "api.errors.timeout" });
       }
-      return res.status(500).json({ message: (err as Error).message || "Internal server error" });
+      return res.status(500).json({ message: (err as Error).message || "api.errors.internal_error" });
     }
   }
 );
@@ -97,9 +97,9 @@ assessmentsRouter.post(
         return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
       }
       if ((err as Error).message === "Clinical assessment timed out." || (err as Error).message.includes("timed out")) {
-        return res.status(503).json({ message: "What-if assessment timed out." });
+        return res.status(503).json({ message: "api.errors.timeout" });
       }
-      return res.status(500).json({ message: (err as Error).message || "Internal server error" });
+      return res.status(500).json({ message: (err as Error).message || "api.errors.internal_error" });
     }
   }
 );
@@ -169,10 +169,10 @@ assessmentsRouter.post(
       return res.json(result);
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+        return res.status(400).json({ message: err.errors[0]?.message ?? "api.errors.invalid_input" });
       }
       logger.error({ err }, "What-if batch analysis failed");
-      return res.status(500).json({ message: "What-if batch analysis failed. Please try again." });
+      return res.status(500).json({ message: "api.errors.what_if_failed" });
     }
   }
 );
@@ -186,7 +186,7 @@ assessmentsRouter.post(
       const input = api.assessments.create.input.parse(req.body);
 
       if (!isPythonAvailable) {
-        return res.status(503).json({ message: "Python service is required for counterfactual auto analysis." });
+        return res.status(503).json({ message: "api.errors.python_required" });
       }
 
       const stdout = await new Promise<string>((resolve, reject) => {
@@ -217,10 +217,10 @@ assessmentsRouter.post(
       return res.json(result);
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+        return res.status(400).json({ message: err.errors[0]?.message ?? "api.errors.invalid_input" });
       }
       logger.error({ err }, "What-if auto analysis failed");
-      return res.status(500).json({ message: "What-if auto analysis failed. Please try again." });
+      return res.status(500).json({ message: "api.errors.what_if_failed" });
     }
   }
 );
@@ -235,7 +235,7 @@ assessmentsRouter.post(
     const userId = (req.session.user)?.id;
     const userEmail = req.session.user?.email;
     if (!userId) {
-      return res.status(401).json({ message: "Authentication required." });
+      return res.status(401).json({ message: "api.errors.unauthorized" });
     }
 
     let requestFingerprint: string | undefined;
@@ -246,7 +246,7 @@ assessmentsRouter.post(
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
         return res.status(409).json({
-          message: "An identical assessment request is already being processed.",
+          message: "api.errors.request_in_progress",
         });
       }
       MLService.activeInferenceRequests.add(requestFingerprint);
@@ -254,7 +254,7 @@ assessmentsRouter.post(
       const queue = getAssessmentQueue();
       if (!queue) {
         return res.status(503).json({
-          message: "Assessment queue is temporarily unavailable.",
+          message: "api.errors.queue_unavailable",
         });
       }
 
@@ -266,7 +266,7 @@ assessmentsRouter.post(
       });
 
       return res.status(202).json({
-        message: "Assessment request accepted and is being processed.",
+        message: "api.success.assessment_queued",
         jobId: job.id,
         requestId,
       });
@@ -274,12 +274,12 @@ assessmentsRouter.post(
       if (err instanceof z.ZodError) {
         return res
           .status(400)
-          .json({ message: err.errors[0]?.message ?? "Invalid input data" });
+          .json({ message: err.errors[0]?.message ?? "api.errors.invalid_input" });
       }
       logger.error({ err }, "Assessment creation error:");
       return res
         .status(500)
-        .json({ message: "Failed to queue clinical assessment." });
+        .json({ message: "api.errors.queue_assessment_failed" });
     } finally {
       if (requestFingerprint) {
         MLService.activeInferenceRequests.delete(requestFingerprint);
@@ -304,7 +304,7 @@ assessmentsRouter.post(
         prediction = result.prediction;
       } catch (error: unknown) {
         if ((error as Error).message?.includes("timed out")) {
-          return res.status(408).json({ message: "Clinical assessment simulation timed out." });
+          return res.status(408).json({ message: "api.errors.timeout" });
         }
 
         logger.warn(
@@ -326,10 +326,10 @@ assessmentsRouter.post(
       });
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+        return res.status(400).json({ message: err.errors[0]?.message ?? "api.errors.invalid_input" });
       }
       logger.error({ err }, "Error creating assessment simulation");
-      return res.status(500).json({ message: "Internal server error" });
+      return res.status(500).json({ message: "api.errors.internal_error" });
     }
   }
 );
@@ -347,7 +347,7 @@ assessmentsRouter.get(
       return res.json(result);
     } catch (err) {
       logger.error({ err }, "Patient trends fetch error:");
-      return res.status(500).json({ message: "Failed to fetch patient trends." });
+      return res.status(500).json({ message: "api.errors.fetch_trends_failed" });
     }
   }
 );
@@ -360,7 +360,7 @@ assessmentsRouter.get(
     try {
       const patientName = typeof req.query.patientName === "string" ? req.query.patientName.trim() : "";
       if (!patientName) {
-        return res.status(400).json({ message: "patientName query parameter is required." });
+        return res.status(400).json({ message: "api.errors.patientName_required" });
       }
       const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
       const endDate = typeof req.query.endDate === "string" ? req.query.endDate : undefined;
@@ -368,7 +368,7 @@ assessmentsRouter.get(
       return res.json(result);
     } catch (err) {
       logger.error({ err }, "Trends dashboard error:");
-      return res.status(500).json({ message: "Failed to fetch trends dashboard data." });
+      return res.status(500).json({ message: "api.errors.fetch_trends_dashboard_failed" });
     }
   }
 );
@@ -377,24 +377,24 @@ assessmentsRouter.get("/jobs/:id", requireAuth, requireVerified, async (req, res
   try {
     const queue = getAssessmentQueue();
     if (!queue) {
-      return res.json({ status: "failed", error: "Assessment queue is temporarily unavailable." });
+      return res.json({ status: "failed", error: "api.errors.queue_unavailable" });
     }
 
     const job = await queue.getJob(req.params.id as string);
     if (!job) {
-      return res.json({ status: "failed", error: "Job not found" });
+      return res.json({ status: "failed", error: "api.errors.job_not_found" });
     }
     const state = await job.getState();
     if (state === "completed") {
       return res.json({ status: "completed", result: job.returnvalue });
     } else if (state === "failed") {
-      return res.json({ status: "failed", error: job.failedReason || "Unknown failure" });
+      return res.json({ status: "failed", error: job.failedReason || "api.errors.unknown_failure" });
     } else {
       return res.json({ status: state });
     }
   } catch (err) {
     logger.error({ err }, "Error fetching job status");
-    return res.json({ status: "failed", error: "Error fetching job status" });
+    return res.json({ status: "failed", error: "api.errors.fetch_job_status_failed" });
   }
 });
 
@@ -409,7 +409,7 @@ assessmentsRouter.get(
       const parseResult = assessmentsQuerySchema.safeParse(req.query);
       if (!parseResult.success) {
         return res.status(400).json({
-          message: parseResult.error.errors[0]?.message ?? "Invalid query parameters.",
+          message: parseResult.error.errors[0]?.message ?? "api.errors.invalid_query",
         });
       }
 
@@ -422,7 +422,7 @@ assessmentsRouter.get(
       res.json(result);
     } catch (err) {
       logger.error({ err }, "Fetch assessments error:");
-      return res.status(500).json({ message: "Failed to fetch assessments" });
+      return res.status(500).json({ message: "api.errors.fetch_assessments_failed" });
     }
   }
 );
@@ -441,7 +441,7 @@ assessmentsRouter.get(
       return res.json({ alerts });
     } catch (err) {
       logger.error({ err }, "Biomarker alert error:");
-      return res.status(500).json({ message: "Failed to compute biomarker alerts" });
+      return res.status(500).json({ message: "api.errors.biomarker_alert_failed" });
     }
   }
 );
@@ -481,7 +481,7 @@ assessmentsRouter.get(
         return res.status(400).json({
           message:
             parseResult.error.errors[0]?.message ??
-            "Invalid search parameters.",
+            "api.errors.invalid_search_params",
         });
       }
 
@@ -535,7 +535,7 @@ assessmentsRouter.get(
       const names = await storage.autocompletePatientNames(q, userEmail, 10);
       return res.json(names);
     } catch (err) {
-      return res.status(500).json({ message: "Failed to fetch autocomplete suggestions" });
+      return res.status(500).json({ message: "api.errors.autocomplete_failed" });
     }
   }
 );
@@ -549,18 +549,18 @@ assessmentsRouter.get(
       const id = parseInt(req.params.id as string, 10);
 
       if (isNaN(id) || id <= 0) {
-        return res.status(400).json({ message: "Invalid assessment ID." });
+        return res.status(400).json({ message: "api.errors.invalid_id" });
       }
 
       const user = req.session.user;
       if (!user) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "api.errors.unauthorized" });
       }
 
       const assessment = await storage.getAssessmentById(id);
 
       if (!assessment) {
-        return res.status(404).json({ message: "Assessment not found." });
+        return res.status(404).json({ message: "api.errors.not_found" });
       }
 
       if (!canAccessPatientRecord(user, assessment)) {
@@ -571,7 +571,7 @@ assessmentsRouter.get(
           false,
           "IDOR attempt: User not authorized to access this patient record"
         );
-        return res.status(404).json({ message: "Assessment not found." });
+        return res.status(404).json({ message: "api.errors.not_found" });
       }
 
       logAccessAttempt((user).id, "Assessment", id, true, "Authorized access");
@@ -594,18 +594,18 @@ assessmentsRouter.delete(
       const id = parseInt(req.params.id as string, 10);
 
       if (isNaN(id) || id <= 0) {
-        return res.status(400).json({ message: "Invalid assessment ID." });
+        return res.status(400).json({ message: "api.errors.invalid_id" });
       }
 
       const user = req.session.user;
       if (!user) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "api.errors.unauthorized" });
       }
 
       const assessment = await storage.getAssessmentById(id);
 
       if (!assessment) {
-        return res.status(404).json({ message: "Assessment not found." });
+        return res.status(404).json({ message: "api.errors.not_found" });
       }
 
       if (!canAccessPatientRecord(user, assessment)) {
@@ -616,7 +616,7 @@ assessmentsRouter.delete(
           false,
           "IDOR attempt: User not authorized to delete this patient record"
         );
-        return res.status(403).json({ message: "Forbidden" });
+        return res.status(403).json({ message: "api.errors.forbidden" });
       }
 
       await storage.deleteAssessment(id);
@@ -638,7 +638,7 @@ assessmentsRouter.get(
     try {
       const parsed = cohortQuerySchema.safeParse(req.query);
       if (!parsed.success) {
-        return res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Invalid query parameters" });
+        return res.status(400).json({ message: parsed.error.errors[0]?.message ?? "api.errors.invalid_query" });
       }
 
       const userEmail = req.session.user?.email;
@@ -648,7 +648,7 @@ assessmentsRouter.get(
       return res.json(stats);
     } catch (err) {
       logger.error({ err }, "Cohort query failed");
-      return res.status(500).json({ message: "Failed to query cohort data." });
+      return res.status(500).json({ message: "api.errors.cohort_query_failed" });
     }
   }
 );

@@ -46,13 +46,13 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   // Restricted to Male/Female — the ML model was trained on binary gender data only.
   // Submitting "Other" would silently encode as Female; we reject it explicitly instead.
   patientName: z
-    .string({ invalid_type_error: "Patient name must be a string" })
+    .string({ invalid_type_error: "validation.patientName_string" })
     .trim()
-    .min(1, "Patient name cannot be empty if provided")
+    .min(1, "validation.patientName_empty")
     .optional(),
   gender: z.enum(["Male", "Female"], {
-    required_error: "Gender is required",
-    invalid_type_error: "Gender must be 'Male' or 'Female'",
+    required_error: "validation.gender_required",
+    invalid_type_error: "validation.gender_invalid",
   }),
   age: z.preprocess(
     (v) => {
@@ -62,16 +62,16 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "Age is required", invalid_type_error: "Age must be a number" })
-      .int("Age must be a whole number")
-      .min(1, "Age must be at least 1")
-      .max(120, "Age must be 120 or below"),
+      .number({ required_error: "validation.age_required", invalid_type_error: "validation.age_number" })
+      .int("validation.age_int")
+      .min(1, "validation.age_min")
+      .max(120, "validation.age_max"),
   ),
-  hypertension: z.boolean({ invalid_type_error: "Hypertension must be true or false" }).default(false),
-  heartDisease: z.boolean({ invalid_type_error: "Heart disease must be true or false" }).default(false),
+  hypertension: z.boolean({ invalid_type_error: "validation.hypertension_boolean" }).default(false),
+  heartDisease: z.boolean({ invalid_type_error: "validation.heartDisease_boolean" }).default(false),
   smokingHistory: z.enum(["never", "No Info", "current", "former"], {
-    required_error: "Smoking history is required",
-    invalid_type_error: "Invalid smoking history value",
+    required_error: "validation.smokingHistory_required",
+    invalid_type_error: "validation.smokingHistory_invalid",
   }),
   bmi: z.preprocess(
     (v) => {
@@ -81,9 +81,9 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "BMI is required", invalid_type_error: "BMI must be a number" })
-      .min(10, "BMI must be at least 10")
-      .max(60, "BMI must be 60 or below"),
+      .number({ required_error: "validation.bmi_required", invalid_type_error: "validation.bmi_number" })
+      .min(10, "validation.bmi_min")
+      .max(60, "validation.bmi_max"),
   ),
   hba1cLevel: z.preprocess(
     (v) => {
@@ -93,9 +93,9 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "HbA1c level is required", invalid_type_error: "HbA1c level must be a number" })
-      .min(3, "HbA1c must be at least 3")
-      .max(15, "HbA1c must be 15 or below"),
+      .number({ required_error: "validation.hba1c_required", invalid_type_error: "validation.hba1c_number" })
+      .min(3, "validation.hba1c_min")
+      .max(15, "validation.hba1c_max"),
   ),
   bloodGlucoseLevel: z.preprocess(
     (v) => {
@@ -105,11 +105,11 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "Blood glucose level is required", invalid_type_error: "Blood glucose must be a number" })
-      .min(50, "Blood glucose must be at least 50")
-      .max(400, "Blood glucose must be 400 or below"),
+      .number({ required_error: "validation.bloodGlucose_required", invalid_type_error: "validation.bloodGlucose_number" })
+      .min(50, "validation.bloodGlucose_min")
+      .max(400, "validation.bloodGlucose_max"),
   ),
-  createdBy: z.string().email("createdBy must be a valid email").optional(),
+  createdBy: z.string().email("validation.createdBy_email").optional(),
   clinicalNote: z.string().optional().nullable(),
   explainableInsights: z.array(z.object({
     insight: z.string(),

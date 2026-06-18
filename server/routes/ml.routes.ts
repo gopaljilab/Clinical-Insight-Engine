@@ -20,7 +20,7 @@ mlRouter.post(
   async (req, res) => {
     const userId = (req.session.user)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Authentication required." });
+      return res.status(401).json({ message: "api.errors.unauthorized" });
     }
 
     let requestFingerprint: string | null = null;
@@ -29,12 +29,12 @@ mlRouter.post(
     try {
       const input = req.body.assessments;
       if (!Array.isArray(input) || input.length === 0) {
-        return res.status(400).json({ message: "Assessments array is required and must not be empty." });
+        return res.status(400).json({ message: "api.errors.assessments_array_required" });
       }
 
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
-        return res.status(409).json({ message: "Bulk request already processing." });
+        return res.status(409).json({ message: "api.errors.bulk_request_processing" });
       }
       MLService.activeInferenceRequests.add(requestFingerprint);
 
@@ -55,7 +55,7 @@ mlRouter.post(
 
       if (predictions.length !== input.length) {
         return res.status(500).json({
-          message: "Prediction count mismatch: ML service returned a different number of results than expected."
+          message: "api.errors.prediction_mismatch"
         });
       }
 
@@ -77,10 +77,10 @@ mlRouter.post(
       return res.status(201).json({ count: createdAssessments.length, batchId, assessments: createdAssessments });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid bulk input data format." });
+        return res.status(400).json({ message: "api.errors.invalid_bulk_input" });
       }
       logger.error({ err, batchId }, "Bulk create error");
-      return res.status(500).json({ message: "Failed to generate bulk assessments." });
+      return res.status(500).json({ message: "api.errors.generate_bulk_failed" });
     } finally {
       if (requestFingerprint) {
         MLService.activeInferenceRequests.delete(requestFingerprint);
