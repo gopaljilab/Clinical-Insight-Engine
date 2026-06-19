@@ -34,6 +34,9 @@ import { searchQuerySchema, assessmentExportQuerySchema } from "./validation/sea
 import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
+import { getDb } from "./db";
+import { and, eq, or, sql } from "drizzle-orm";
+import { assessments } from "@shared/schema";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -286,6 +289,75 @@ export async function registerRoutes(
         } catch (e) {
           logger.warn({ e, tempFile }, "Failed to clean up temp file (simulate):");
         }
+      }
+    }
+  );
+
+  app.post(
+    "/api/assessments/check-duplicates",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      const checkDuplicatesSchema = z.object({
+        assessments: z.array(
+          z.object({
+            patientName: z.string(),
+            age: z.number(),
+            gender: z.string(),
+          })
+        ),
+      });
+
+      try {
+        const parsed = checkDuplicatesSchema.parse(req.body);
+        const { assessments: items } = parsed;
+
+        if (items.length === 0) {
+          return res.json({ duplicates: [] });
+        }
+
+        const db = getDb();
+        const duplicates: typeof items = [];
+        const CHUNK_SIZE = 200;
+
+        for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+          const chunk = items.slice(i, i + CHUNK_SIZE);
+          const conditions = chunk.map((item) =>
+            and(
+              sql`LOWER(${assessments.patientName}) = LOWER(${item.patientName})`,
+              eq(assessments.age, item.age),
+              eq(assessments.gender, item.gender)
+            )
+          );
+
+          const chunkDuplicates = await db
+            .select({
+              patientName: assessments.patientName,
+              age: assessments.age,
+              gender: assessments.gender,
+            })
+            .from(assessments)
+            .where(or(...conditions));
+
+          duplicates.push(...chunkDuplicates);
+        }
+
+        // Deduplicate the results from db just in case
+        const seen = new Set<string>();
+        const uniqueDuplicates = duplicates.filter((d) => {
+          const key = `${d.patientName.toLowerCase()}::${d.age}::${d.gender}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        return res.json({ duplicates: uniqueDuplicates });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: err.errors[0].message });
+        }
+        logger.error({ err }, "Error checking duplicate assessments");
+        return res.status(500).json({ message: "Internal server error" });
       }
     }
   );

@@ -1,6 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { ApiClient } from "@/lib/apiClient";
 import { buildCsvImportPreview, type ImportPreviewSummary, type ImportAssessmentRow } from "@/utils/csvImportPreview";
+import { useImportSession, type ImportSession } from "./useImportSession";
 
 export type ImportStep =
   | "idle"
@@ -18,11 +19,19 @@ export interface BulkImportState {
   fileName: string;
   fileSize: number;
   error: string | null;
+  completedRows: number;
+  failedRows: number;
+  totalRows: number;
+  eta: number | null;
+  hasInterruptedSession: boolean;
 }
 
 export interface BulkImportActions {
   parseFile: (file: File) => Promise<void>;
-  confirmImport: () => Promise<void>;
+  confirmImport: (skipDuplicatesList?: { patientName: string; age: number; gender: string }[]) => Promise<void>;
+  cancel: () => void;
+  resume: () => Promise<void>;
+  discardSession: () => void;
   reset: () => void;
 }
 
@@ -34,19 +43,55 @@ const INITIAL_STATE: BulkImportState = {
   fileName: "",
   fileSize: 0,
   error: null,
+  completedRows: 0,
+  failedRows: 0,
+  totalRows: 0,
+  eta: null,
+  hasInterruptedSession: false,
 };
 
-/**
- * A React hook to manage file parsing, CSV validation, batch upload, and progress tracking for patient telemetry imports.
- * @returns The result of the operation.
- */
 export function useBulkImport(): BulkImportState & BulkImportActions {
   const [state, setState] = useState<BulkImportState>(INITIAL_STATE);
+  const { saveSession, clearSession, getStoredSession } = useImportSession();
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const reset = useCallback(() => setState(INITIAL_STATE), []);
+  // Detect interrupted session on mount/check
+  useEffect(() => {
+    const stored = getStoredSession();
+    if (
+      stored &&
+      (stored.status === "importing" || stored.status === "cancelled" || stored.status === "error") &&
+      stored.pendingRows.length > 0
+    ) {
+      setState((s) => ({
+        ...s,
+        hasInterruptedSession: true,
+        fileName: stored.fileName,
+        completedRows: stored.completedRows,
+        failedRows: stored.failedRows,
+        totalRows: stored.totalRows,
+        results: stored.results,
+      }));
+    }
+  }, [getStoredSession]);
+
+  const reset = useCallback(() => {
+    setState(INITIAL_STATE);
+    const stored = getStoredSession();
+    if (stored && stored.status === "done") {
+      clearSession();
+    }
+  }, [clearSession, getStoredSession]);
 
   const parseFile = useCallback(async (file: File) => {
-    setState((s) => ({ ...s, step: "parsing", progress: 10, fileName: file.name, fileSize: file.size, error: null }));
+    setState((s) => ({
+      ...s,
+      step: "parsing",
+      progress: 10,
+      fileName: file.name,
+      fileSize: file.size,
+      error: null,
+    }));
 
     try {
       const isExcel = file.name.endsWith(".xlsx") || file.name.endsWith(".xls");
@@ -108,39 +153,190 @@ export function useBulkImport(): BulkImportState & BulkImportActions {
     }
   }, []);
 
-  const confirmImport = useCallback(async () => {
-    if (!state.preview || state.preview.validRows.length === 0) return;
+  const startImportLoop = useCallback(
+    async (
+      sessionData: ImportSession,
+      skipDuplicatesList?: { patientName: string; age: number; gender: string }[]
+    ) => {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
-    setState((s) => ({ ...s, step: "importing", progress: 70, error: null }));
+      let currentSession: ImportSession = { ...sessionData, status: "importing" };
 
-    try {
-      const assessments = state.preview.validRows.map((r) => r.data!) as ImportAssessmentRow[];
-
-      const progressInterval = setInterval(() => {
-        setState((s) => {
-          if (s.progress < 95) return { ...s, progress: s.progress + 2 };
-          return s;
+      if (skipDuplicatesList && skipDuplicatesList.length > 0) {
+        const dupKeys = new Set(
+          skipDuplicatesList.map((d) => `${d.patientName.toLowerCase()}::${d.age}::${d.gender}`)
+        );
+        const filtered = currentSession.pendingRows.filter((row) => {
+          const name = row.patientName || row.name || "Unknown Patient";
+          const key = `${name.toLowerCase()}::${Number(row.age)}::${row.gender}`;
+          return !dupKeys.has(key);
         });
-      }, 300);
+        currentSession.pendingRows = filtered;
+        currentSession.totalRows = currentSession.completedRows + currentSession.failedRows + filtered.length;
+      }
 
-      const data: { assessments?: any[] } = await ApiClient.post("/api/assessments/bulk", { assessments });
-
-      clearInterval(progressInterval);
+      saveSession(currentSession);
       setState((s) => ({
         ...s,
-        step: "done",
-        progress: 100,
-        results: data.assessments || [],
+        step: "importing",
+        progress: 0,
+        fileName: currentSession.fileName,
+        results: currentSession.results,
+        completedRows: currentSession.completedRows,
+        failedRows: currentSession.failedRows,
+        totalRows: currentSession.totalRows,
+        error: null,
+        hasInterruptedSession: false,
       }));
-    } catch (err: unknown) {
-      setState((s) => ({
-        ...s,
-        step: "error",
-        error: (err as Error).message || "Import failed.",
-        progress: 70,
-      }));
+
+      const BATCH_SIZE = 10;
+      const startTime = Date.now();
+
+      try {
+        while (currentSession.pendingRows.length > 0) {
+          if (controller.signal.aborted) {
+            throw new DOMException("Aborted", "AbortError");
+          }
+
+          const batch = currentSession.pendingRows.slice(0, BATCH_SIZE);
+
+          try {
+            const data: { assessments?: any[] } = await ApiClient.post(
+              "/api/assessments/bulk",
+              { assessments: batch },
+              { signal: controller.signal }
+            );
+
+            const newResults = [...currentSession.results, ...(data.assessments || [])];
+            const newCompleted = currentSession.completedRows + batch.length;
+
+            currentSession = {
+              ...currentSession,
+              completedRows: newCompleted,
+              results: newResults,
+              pendingRows: currentSession.pendingRows.slice(BATCH_SIZE),
+            };
+          } catch (batchErr: any) {
+            if (batchErr.name === "AbortError" || controller.signal.aborted) {
+              throw new DOMException("Aborted", "AbortError");
+            }
+            const newFailed = currentSession.failedRows + batch.length;
+            currentSession = {
+              ...currentSession,
+              failedRows: newFailed,
+              pendingRows: currentSession.pendingRows.slice(BATCH_SIZE),
+            };
+          }
+
+          const completedTotal = currentSession.completedRows + currentSession.failedRows;
+          const progress = Math.min(100, Math.round((completedTotal / currentSession.totalRows) * 100));
+
+          const elapsedMs = Date.now() - startTime;
+          const timePerRow = completedTotal > 0 ? elapsedMs / completedTotal : 0;
+          const remainingRows = currentSession.totalRows - completedTotal;
+          const etaSeconds = Math.max(0, Math.round((remainingRows * timePerRow) / 1000));
+
+          currentSession.status = "importing";
+          saveSession(currentSession);
+
+          setState((s) => ({
+            ...s,
+            progress,
+            completedRows: currentSession.completedRows,
+            failedRows: currentSession.failedRows,
+            results: currentSession.results,
+            eta: etaSeconds,
+          }));
+        }
+
+        currentSession.status = "done";
+        saveSession(currentSession);
+        setState((s) => ({
+          ...s,
+          step: "done",
+          progress: 100,
+          completedRows: currentSession.completedRows,
+          failedRows: currentSession.failedRows,
+          results: currentSession.results,
+          eta: null,
+        }));
+        clearSession();
+      } catch (err: any) {
+        if (err.name === "AbortError") {
+          currentSession.status = "cancelled";
+          saveSession(currentSession);
+          setState((s) => ({
+            ...s,
+            step: "error",
+            error: "Import cancelled by user.",
+            eta: null,
+          }));
+        } else {
+          currentSession.status = "error";
+          currentSession.error = err.message || "Import failed.";
+          saveSession(currentSession);
+          setState((s) => ({
+            ...s,
+            step: "error",
+            error: err.message || "Import failed.",
+            eta: null,
+          }));
+        }
+      } finally {
+        abortControllerRef.current = null;
+      }
+    },
+    [saveSession, clearSession]
+  );
+
+  const confirmImport = useCallback(
+    async (skipDuplicatesList?: { patientName: string; age: number; gender: string }[]) => {
+      if (!state.preview || state.preview.validRows.length === 0) return;
+
+      const newSession: ImportSession = {
+        id: Date.now().toString(),
+        fileName: state.fileName,
+        totalRows: state.preview.validRows.length,
+        completedRows: 0,
+        failedRows: 0,
+        status: "importing",
+        error: null,
+        results: [],
+        pendingRows: state.preview.validRows.map((r) => r.data!),
+      };
+
+      await startImportLoop(newSession, skipDuplicatesList);
+    },
+    [state.preview, state.fileName, startImportLoop]
+  );
+
+  const cancel = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
-  }, [state.preview]);
+  }, []);
 
-  return { ...state, parseFile, confirmImport, reset };
+  const resume = useCallback(async () => {
+    const stored = getStoredSession();
+    if (stored) {
+      setState((s) => ({ ...s, hasInterruptedSession: false }));
+      await startImportLoop(stored);
+    }
+  }, [getStoredSession, startImportLoop]);
+
+  const discardSession = useCallback(() => {
+    clearSession();
+    setState(INITIAL_STATE);
+  }, [clearSession]);
+
+  return {
+    ...state,
+    parseFile,
+    confirmImport,
+    cancel,
+    resume,
+    discardSession,
+    reset,
+  };
 }

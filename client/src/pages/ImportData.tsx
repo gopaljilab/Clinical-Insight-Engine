@@ -1,36 +1,45 @@
 import { useState, useRef } from "react";
-import Papa from "papaparse";
-import { ApiClient } from "@/lib/apiClient";
 import { useBulkImport } from "@/hooks/use-bulk-import";
-import { UploadCloud, CheckCircle, AlertCircle, Loader2, FileText, Download, X, XCircle, ShieldCheck } from "lucide-react";
+import {
+  UploadCloud,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  FileText,
+  Download,
+  X,
+  XCircle,
+  AlertTriangle,
+  Play,
+  ShieldCheck,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
-
-
-const ACCEPTED_TYPES = ".csv,.xlsx,.xls";
-
-const STEP_LABELS: Record<string, string> = {
-  idle: "",
-
-  parsing: "Parsing file...",
-  validating: "Validating data...",
-  importing: "Processing ML predictions...",
-  done: "Import complete!",
-  error: "Import failed",
-};
-
-const RISK_COLORS: Record<string, string> = {
-  HIGH: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400",
-  MODERATE: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400",
-  LOW: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
-};
-
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 
 const REQUIRED_HEADERS = [
-  "patientName","gender","age","hypertension",
-  "heartDisease","smokingHistory","bmi","hba1cLevel","bloodGlucoseLevel",
+  "patientName",
+  "gender",
+  "age",
+  "hypertension",
+  "heartDisease",
+  "smokingHistory",
+  "bmi",
+  "hba1cLevel",
+  "bloodGlucoseLevel",
 ];
 
 const SAMPLE_CSV_ROWS = [
@@ -40,220 +49,490 @@ const SAMPLE_CSV_ROWS = [
 ];
 
 function downloadSampleCSV() {
-  const blob = new Blob([SAMPLE_CSV_ROWS.join("\\n")], { type: "text/csv" });
+  const blob = new Blob([SAMPLE_CSV_ROWS.join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = "sample_patient_data.csv"; a.click();
+  a.href = url;
+  a.download = "sample_patient_data.csv";
+  a.click();
   URL.revokeObjectURL(url);
-}
-type ValidationResult =
-  | { ok: true; count: number }
-  | { ok: false; errors: string[] };
-
-function validateParsedData(rows: Record<string, unknown>[]): ValidationResult {
-  const errors: string[] = [];
-  rows.forEach((row, i) => {
-    const rowNum = i + 2;
-    if (!row.patientName && !row.name) errors.push("Row " + rowNum + ": missing patientName");
-    const age = Number(row.age);
-    if (isNaN(age) || age <= 0) errors.push("Row " + rowNum + ": invalid age");
-    const bmi = Number(row.bmi);
-    if (isNaN(bmi) || bmi <= 0) errors.push("Row " + rowNum + ": invalid bmi");
-    const hba1c = Number(row.hba1cLevel || row.HbA1c_level);
-    if (isNaN(hba1c) || hba1c <= 0) errors.push("Row " + rowNum + ": missing hba1cLevel");
-  });
-  if (errors.length > 0) return { ok: false, errors };
-  return { ok: true, count: rows.length };
 }
 
 export default function ImportData() {
-  const { preview, step, parseFile, confirmImport: handleConfirm, reset, fileName } = useBulkImport();
+  const {
+    step,
+    progress,
+    preview,
+    results,
+    fileName,
+    error,
+    completedRows,
+    failedRows,
+    totalRows,
+    eta,
+    hasInterruptedSession,
+    parseFile,
+    confirmImport,
+    cancel,
+    resume,
+    discardSession,
+    reset,
+  } = useBulkImport();
+
   const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [validation, setValidation] = useState<ValidationResult | null>(null);
-  const [results, setResults] = useState<Record<string, unknown>[]>([]);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const [duplicateMatches, setDuplicateMatches] = useState<any[]>([]);
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") setIsDragging(true);
     else if (e.type === "dragleave") setIsDragging(false);
   };
 
-  const startProgress = () => {
-    setProgress(0);
-    let p = 0;
-    const iv = setInterval(() => {
-      p += Math.random() * 15;
-      if (p >= 90) { clearInterval(iv); p = 90; }
-      setProgress(Math.min(p, 90));
-    }, 180);
-    return iv;
-  };
-
-  const clearFile = () => {
-    setSelectedFile(null); setValidation(null); setResults([]); setProgress(0);
-    if (inputRef.current) inputRef.current.value = "";
-  };
-
-  const formatBytes = (b: number) => b < 1024 ? b+" B" : b < 1048576 ? (b/1024).toFixed(1)+" KB" : (b/1048576).toFixed(1)+" MB";
-
-  const processFile = (file: File) => {
-    if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
-      toast({ title: "Invalid file type", description: "Please upload a valid CSV file.", variant: "destructive" });
-      return;
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files?.[0]) {
+      handleFileSelect(e.dataTransfer.files[0]);
     }
-    setSelectedFile(file); setValidation(null); setResults([]);
-    Papa.parse(file, {
-      header: true, skipEmptyLines: true,
-      complete: async (parsed: Papa.ParseResult<Record<string, unknown>>) => {
-        const v = validateParsedData(parsed.data);
-        setValidation(v);
-        if (!v.ok) return;
-        setIsProcessing(true);
-        const iv = startProgress();
-        try {
-          const formattedData = parsed.data.map((row: Record<string, unknown>) => ({
-            patientName: row.patientName || row.name || "Unknown Patient",
-            gender: row.gender, age: Number(row.age),
-            hypertension: row.hypertension === "1" || row.hypertension === "true" || row.hypertension === true,
-            heartDisease: row.heartDisease === "1" || row.heartDisease === "true" || row.heartDisease === true,
-            smokingHistory: row.smokingHistory || row.smoking_history,
-            bmi: Number(row.bmi),
-            hba1cLevel: Number(row.hba1cLevel || row.HbA1c_level),
-            bloodGlucoseLevel: Number(row.bloodGlucoseLevel || row.blood_glucose_level),
-          }));
-          const res = await fetch("/api/assessments/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assessments: formattedData }), credentials: "include" });
-          if (!res.ok) throw new Error("Import failed");
-          const data = await res.json();
-          clearInterval(iv); setProgress(100); setResults(data.assessments);
-          toast({ title: "Success", description: "Successfully imported " + data.count + " patient records." });
-        } catch (error: unknown) {
-          clearInterval(iv); setProgress(0);
-          toast({ title: "Import Error", description: error instanceof Error ? (error as Error).message : String(error), variant: "destructive" });
-        } finally { setIsProcessing(false); }
-      },
-      error: (error: Error) => { toast({ title: "Parsing Error", description: (error as Error).message, variant: "destructive" }); },
-    });
   };
 
-  const handleFile = (file: File | null) => {
-    if (!file) return;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    if (e.target.files?.[0]) {
+      handleFileSelect(e.target.files[0]);
+    }
+  };
+
+  const handleFileSelect = (file: File) => {
     const isCsv = file.name.endsWith(".csv");
     const isExcel = file.name.endsWith(".xlsx") || file.name.endsWith(".xls");
     if (!isCsv && !isExcel) {
-      toast({ title: "Invalid file type", description: "Please upload a CSV or Excel (.xlsx, .xls) file.", variant: "destructive" });
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a CSV or Excel (.xlsx, .xls) file.",
+        variant: "destructive",
+      });
       return;
     }
-    processFile(file);
+    parseFile(file);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation(); setIsDragging(false);
-    if (e.dataTransfer.files?.[0]) processFile(e.dataTransfer.files[0]);
+  const handleProcessData = async () => {
+    if (!preview || preview.validRows.length === 0) return;
+
+    setCheckingDuplicates(true);
+    try {
+      const validRowsData = preview.validRows.map((r) => r.data);
+      const res = await fetch("/api/assessments/check-duplicates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assessments: validRowsData }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to check duplicate records.");
+      }
+
+      const data = await res.json();
+      if (data.duplicates && data.duplicates.length > 0) {
+        setDuplicateMatches(data.duplicates);
+        setShowDuplicateDialog(true);
+      } else {
+        await confirmImport();
+      }
+    } catch (err: any) {
+      toast({
+        title: "Duplicate Check Error",
+        description: err.message || "Could not check duplicates. Proceeding directly.",
+        variant: "destructive",
+      });
+      await confirmImport();
+    } finally {
+      setCheckingDuplicates(false);
+    }
   };
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    if (e.target.files?.[0]) processFile(e.target.files[0]);
+
+  const clearFile = () => {
+    reset();
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const formatBytes = (b: number) =>
+    b < 1024
+      ? b + " B"
+      : b < 1048576
+      ? (b / 1024).toFixed(1) + " KB"
+      : (b / 1048576).toFixed(1) + " MB";
+
+  const formatEta = (seconds: number | null) => {
+    if (seconds === null) return "Calculating...";
+    if (seconds === 0) return "Almost done";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return mins > 0 ? `${mins}m ${secs}s remaining` : `${secs}s remaining`;
   };
 
   return (
     <AppLayout>
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-gray-100">Bulk Import</h1>
-        <p className="text-slate-500 dark:text-slate-400">
-          Upload a CSV or Excel file with patient data. Each row is validated and processed through the ML risk model.
-        </p>
-      </div>
+      <div className="space-y-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-gray-100">
+            Bulk Import
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400">
+            Upload a CSV or Excel file with patient data. Each row is validated and processed in
+            batches through the ML risk model.
+          </p>
+        </div>
 
-      <Card className="border-slate-200 dark:border-gray-700">
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle>Upload Patient Data</CardTitle>
-            <CardDescription className="mt-1">CSV must contain headers: {REQUIRED_HEADERS.join(", ")}.</CardDescription>
-          </div>
-          <Button variant="outline" size="sm" className="shrink-0 gap-2" onClick={downloadSampleCSV}>
-            <Download className="w-4 h-4" /> Download Sample CSV Template
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!selectedFile && (
-            <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
-              onClick={() => inputRef.current?.click()}
-              className={"relative flex flex-col items-center justify-center w-full h-56 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 " + (isDragging ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 scale-[1.01]" : "border-slate-300 dark:border-gray-600 bg-slate-50 dark:bg-gray-800/50 hover:bg-slate-100 dark:hover:bg-gray-800 hover:border-slate-400 dark:hover:border-gray-500")}>
-              <input ref={inputRef} type="file" className="hidden" accept=".csv" onChange={handleChange} disabled={isProcessing} />
-                <div className={"flex flex-col items-center gap-3 transition-transform duration-300 " + (isDragging ? "translate-y-[-4px]" : "")}>
-                  <div className={"p-4 rounded-full shadow-sm transition-colors " + (isDragging ? "bg-blue-100 dark:bg-blue-900" : "bg-white dark:bg-gray-800")}>
-                    <UploadCloud className={"w-10 h-10 transition-colors " + (isDragging ? "text-blue-500" : "text-slate-400 dark:text-slate-500")} />
-                  </div>
-                  <p className="text-lg font-bold text-slate-700 dark:text-gray-200">{isDragging ? "Drop your CSV file here" : "Click or drag CSV file to upload"}</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Max file size: 5 MB</p>
+        {/* Resume Interrupted Session Dialog */}
+        <AlertDialog open={hasInterruptedSession}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+                <AlertTriangle className="w-5 h-5" />
+                Interrupted Import Detected
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                An unfinished import session for <strong>{fileName}</strong> was found in local storage (
+                {completedRows} row(s) completed). Would you like to resume importing the remaining
+                data or discard this session?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <Button variant="outline" className="text-red-600 hover:text-red-700" onClick={discardSession}>
+                Discard Session
+              </Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={resume}>
+                Resume Import
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Duplicate Matches Warning Dialog */}
+        <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+          <AlertDialogContent className="max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+                <AlertTriangle className="w-5 h-5" />
+                Duplicate Records Detected
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                We found {duplicateMatches.length} patient record(s) already in the database with
+                the same name, age, and gender. Choose how to handle duplicates:
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <ScrollArea className="max-h-48 border border-slate-200 dark:border-gray-800 rounded-lg p-3 my-2 bg-slate-50 dark:bg-slate-950/50">
+              {duplicateMatches.map((dup, i) => (
+                <div key={i} className="text-xs text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-gray-900 py-1.5 last:border-0 last:pb-0">
+                  Patient: <span className="font-semibold text-slate-800 dark:text-slate-200">{dup.patientName}</span> ({dup.gender}, Age: {dup.age})
                 </div>
+              ))}
+            </ScrollArea>
+            <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => setShowDuplicateDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                className="border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                onClick={async () => {
+                  setShowDuplicateDialog(false);
+                  await confirmImport(duplicateMatches);
+                }}
+              >
+                Skip Duplicates
+              </Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={async () => {
+                  setShowDuplicateDialog(false);
+                  await confirmImport();
+                }}
+              >
+                Import All Anyway
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <Card className="border-slate-200 dark:border-gray-700 shadow-lg">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="text-xl font-bold dark:text-gray-100">Upload Patient Data</CardTitle>
+              <CardDescription className="mt-1">
+                CSV or Excel must contain headers: {REQUIRED_HEADERS.join(", ")}.
+              </CardDescription>
             </div>
-          )}
-
-          {selectedFile && (
-            <div className="rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg"><FileText className="w-6 h-6 text-blue-500 dark:text-blue-400" /></div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-800 dark:text-gray-200 truncate">{selectedFile.name}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{formatBytes(selectedFile.size)}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-2 hover:bg-slate-50 dark:hover:bg-gray-800"
+              onClick={downloadSampleCSV}
+            >
+              <Download className="w-4 h-4" /> Download Sample CSV
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {step === "idle" && (
+              <div
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+                onClick={() => inputRef.current?.click()}
+                className={
+                  "relative flex flex-col items-center justify-center w-full h-56 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300 " +
+                  (isDragging
+                    ? "border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 scale-[1.01] shadow-md shadow-blue-500/10"
+                    : "border-slate-300 dark:border-gray-600 bg-slate-50/50 dark:bg-gray-800/20 hover:bg-slate-100/50 dark:hover:bg-gray-800/40 hover:border-slate-400 dark:hover:border-gray-500")
+                }
+              >
+                <input
+                  ref={inputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleChange}
+                />
+                <div
+                  className={
+                    "flex flex-col items-center gap-3 transition-transform duration-300 " +
+                    (isDragging ? "scale-[1.03]" : "")
+                  }
+                >
+                  <div className="p-4 rounded-full bg-white dark:bg-gray-800 border border-slate-100 dark:border-gray-700 shadow-sm">
+                    <UploadCloud className="w-10 h-10 text-blue-500 dark:text-blue-400" />
+                  </div>
+                  <p className="text-lg font-bold text-slate-700 dark:text-gray-200">
+                    {isDragging ? "Drop your data file here" : "Click or drag file to upload"}
+                  </p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Supports CSV or Excel up to 5 MB
+                  </p>
                 </div>
-                {!isProcessing && <button onClick={clearFile} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-gray-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"><X className="w-4 h-4" /></button>}
               </div>
-              {(isProcessing || progress > 0) && (
-                <div className="space-y-1">
-                  <div className="w-full bg-slate-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                    <div className="h-2 rounded-full transition-all duration-300" style={{ width: progress+"%", background: progress === 100 ? "linear-gradient(90deg,#10b981,#059669)" : "linear-gradient(90deg,#3b82f6,#6366f1)" }} />
+            )}
+
+            {/* Parsing, Validating or Importing State Details */}
+            {step !== "idle" && (
+              <div className="rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900/50 p-4 shadow-sm space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-50 dark:bg-blue-950/50 rounded-xl border border-blue-100 dark:border-blue-900/50">
+                    <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{isProcessing ? (progress < 90 ? "Parsing and validating recordsâ¦" : "Uploading to serverâ¦") : "Complete"}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-slate-800 dark:text-gray-200 truncate">
+                      {fileName}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {preview?.validRows ? `${preview.validRows.length} valid rows found` : "Analyzing file..."}
+                    </p>
+                  </div>
+                  {step !== "importing" && (
+                    <button
+                      onClick={clearFile}
+                      className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-gray-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                    >
+                      <X className="w-4.5 h-4.5" />
+                    </button>
+                  )}
                 </div>
-              )}
-              {!isProcessing && validation?.ok && progress < 100 && (
-                <Button className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => processFile(selectedFile)}>
-                  <UploadCloud className="w-4 h-4" /> Process Data
-                </Button>
-              )}
-            </div>
-          )}
 
-          {validation && (
-            <div className={"rounded-xl border p-4 " + (validation.ok ? "border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30")}>
-              {validation.ok ? (
-                <div className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /><p className="font-semibold text-emerald-800 dark:text-emerald-400">CSV Validated: {validation.ok ? validation.count : 0} patient records ready for optimization mapping.</p></div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2"><AlertCircle className="w-5 h-5 text-red-500 shrink-0" /><p className="font-semibold text-red-800 dark:text-red-400">Validation Failed: {validation.ok === false ? validation.errors.length : 0} issue(s) found.</p></div>
-                  <ul className="ml-7 space-y-1">{validation.ok === false && validation.errors.slice(0,8).map((err: string, i: number) => <li key={i} className="text-sm text-red-700 dark:text-red-400 list-disc">{err}</li>)}</ul>
-                  <Button variant="outline" size="sm" onClick={clearFile}><X className="w-3 h-3 mr-1" />Clear and re-upload</Button>
+                {/* Progress bar during import */}
+                {step === "importing" && (
+                  <div className="space-y-3 bg-slate-50 dark:bg-slate-950/30 p-4 rounded-xl border border-slate-100 dark:border-gray-800">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                        Importing & analyzing ML models...
+                      </span>
+                      <span className="font-bold text-slate-800 dark:text-gray-100">
+                        {progress}%
+                      </span>
+                    </div>
+
+                    <Progress value={progress} className="h-2.5" />
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+                      <div className="bg-white dark:bg-gray-900 p-2 rounded-lg border border-slate-100 dark:border-gray-800 text-center shadow-sm">
+                        <p className="text-slate-400 dark:text-slate-500 font-medium">Completed</p>
+                        <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{completedRows}</p>
+                      </div>
+                      <div className="bg-white dark:bg-gray-900 p-2 rounded-lg border border-slate-100 dark:border-gray-800 text-center shadow-sm">
+                        <p className="text-slate-400 dark:text-slate-500 font-medium">Failed</p>
+                        <p className="text-base font-bold text-rose-600 dark:text-rose-400 mt-0.5">{failedRows}</p>
+                      </div>
+                      <div className="bg-white dark:bg-gray-900 p-2 rounded-lg border border-slate-100 dark:border-gray-800 text-center shadow-sm">
+                        <p className="text-slate-400 dark:text-slate-500 font-medium">Total Rows</p>
+                        <p className="text-base font-bold text-slate-700 dark:text-slate-300 mt-0.5">{totalRows}</p>
+                      </div>
+                      <div className="bg-white dark:bg-gray-900 p-2 rounded-lg border border-slate-100 dark:border-gray-800 col-span-2 sm:col-span-1 flex flex-col justify-center text-center shadow-sm">
+                        <p className="text-slate-400 dark:text-slate-500 font-medium">ETA</p>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-1 truncate">
+                          {formatEta(eta)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="destructive"
+                      className="w-full gap-2 mt-2"
+                      onClick={cancel}
+                    >
+                      <XCircle className="w-4 h-4" /> Cancel Import
+                    </Button>
+                  </div>
+                )}
+
+                {/* Confirm Import button in validating stage */}
+                {step === "validating" && preview && preview.validRows.length > 0 && (
+                  <Button
+                    className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-5 shadow-lg shadow-blue-500/10 hover:shadow-blue-500/20 active:scale-[0.99] transition-all"
+                    onClick={handleProcessData}
+                    disabled={checkingDuplicates}
+                  >
+                    {checkingDuplicates ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> Checking Duplicates...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 fill-current" /> Process & Import Data
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Validation alerts/errors summary */}
+            {preview && (
+              <div
+                className={
+                  "rounded-xl border p-4 shadow-sm " +
+                  (preview.invalidRows.length === 0
+                    ? "border-emerald-200 dark:border-emerald-950/50 bg-emerald-50/50 dark:bg-emerald-950/15"
+                    : "border-amber-200 dark:border-amber-950/50 bg-amber-50/50 dark:bg-amber-950/15")
+                }
+              >
+                {preview.invalidRows.length === 0 ? (
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle className="w-5.5 h-5.5 text-emerald-500 shrink-0" />
+                    <p className="font-semibold text-emerald-800 dark:text-emerald-400 text-sm sm:text-base">
+                      File Validated: {preview.validRows.length} patient records ready for processing.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2.5">
+                      <AlertTriangle className="w-5.5 h-5.5 text-amber-500 shrink-0" />
+                      <p className="font-semibold text-amber-800 dark:text-amber-400 text-sm sm:text-base">
+                        Validation Review: {preview.invalidRows.length} row(s) contain validation
+                        errors and will be skipped.
+                      </p>
+                    </div>
+                    <ScrollArea className="max-h-40 border border-amber-100 dark:border-amber-950/50 rounded-lg p-3 bg-white dark:bg-slate-900/60">
+                      <ul className="space-y-1.5 list-disc pl-4">
+                        {preview.invalidRows.map((err, i) => (
+                          <li key={i} className="text-xs text-amber-700 dark:text-amber-400">
+                            Row {err.rowNumber}: {err.errors.join(", ")}
+                          </li>
+                        ))}
+                      </ul>
+                    </ScrollArea>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 pl-1">
+                      {preview.validRows.length} valid rows can still be imported.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Error messaging */}
+            {error && (
+              <div className="rounded-xl border border-rose-200 dark:border-rose-950/50 bg-rose-50/50 dark:bg-rose-950/15 p-4 flex gap-2.5">
+                <XCircle className="w-5.5 h-5.5 text-rose-500 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-rose-800 dark:text-rose-400">Import Alert</h4>
+                  <p className="text-sm text-rose-700 dark:text-rose-400 mt-1">{error}</p>
                 </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {results.length > 0 && (
-        <Card className="border-slate-200 dark:border-gray-700">
-          <CardHeader><CardTitle className="flex items-center gap-2 dark:text-gray-100"><CheckCircle className="w-5 h-5 text-emerald-500" />Import Successful -- {results.length} records processed</CardTitle></CardHeader>
-          <CardContent><div className="overflow-x-auto"><table className="w-full text-sm text-left">
-            <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-gray-800 dark:text-slate-400"><tr><th className="px-4 py-3">Patient</th><th className="px-4 py-3">Age / Gender</th><th className="px-4 py-3">Risk Category</th><th className="px-4 py-3">Risk Score</th></tr></thead>
-            <tbody>{results.map((r, i) => (<tr key={i} className="border-b border-slate-100 dark:border-gray-800"><td className="px-4 py-3 font-medium dark:text-gray-200">{String(r.patientName)}</td><td className="px-4 py-3 dark:text-gray-300">{String(r.age)} / {String(r.gender)}</td><td className="px-4 py-3"><span className={"px-2 py-1 rounded text-xs font-bold " + (r.riskCategory === "HIGH" ? "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400" : r.riskCategory === "MODERATE" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400")}>{String(r.riskCategory)}</span></td><td className="px-4 py-3 font-bold dark:text-gray-100">{String(r.riskScore)}%</td></tr>))}</tbody>
-          </table></div></CardContent>
+              </div>
+            )}
+          </CardContent>
         </Card>
-      )}
 
-      {!isProcessing && results.length > 0 && !validation && (
-        <Button variant="outline" onClick={clearFile}>
-          Import Another File
-        </Button>
-      )}
-    </div>
+        {/* Results view after completion */}
+        {step === "done" && results.length > 0 && (
+          <Card className="border-slate-200 dark:border-gray-700 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2.5 dark:text-gray-100">
+                <ShieldCheck className="w-6 h-6 text-emerald-500" />
+                Import Successful — {results.length} Records Processed
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-gray-800">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-gray-800/50 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Patient</th>
+                      <th className="px-4 py-3">Age / Gender</th>
+                      <th className="px-4 py-3">Risk Category</th>
+                      <th className="px-4 py-3 text-right">Risk Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.map((r, i) => (
+                      <tr
+                        key={i}
+                        className="border-b border-slate-100 dark:border-gray-800 hover:bg-slate-50/50 dark:hover:bg-gray-800/20 transition-colors"
+                      >
+                        <td className="px-4 py-3 font-semibold text-slate-800 dark:text-gray-200">
+                          {r.patientName}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                          {r.age} / {r.gender}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={
+                              "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold " +
+                              (r.riskCategory === "HIGH"
+                                ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400"
+                                : r.riskCategory === "MODERATE"
+                                ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
+                                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400")
+                            }
+                          >
+                            {r.riskCategory}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-bold text-right text-slate-850 dark:text-gray-100">
+                          {r.riskScore}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === "done" && (
+          <Button variant="outline" className="hover:bg-slate-50 dark:hover:bg-gray-800 shadow-sm" onClick={clearFile}>
+            Import Another File
+          </Button>
+        )}
+      </div>
     </AppLayout>
   );
 }
