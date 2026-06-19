@@ -359,34 +359,22 @@ export class AssessmentRepository {
     return rows.map((r) => r.patientName).filter(Boolean) as string[];
   }
 
-  async getPatientTrends(patientName: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]> {
-    const db = getDb();
-    const rows = await db
-      .select({
-        date: assessments.createdAt,
-        riskScore: assessments.riskScore,
-        riskCategory: assessments.riskCategory,
-      })
-      .from(assessments)
-      .where(eq(assessments.patientName, patientName))
-      .orderBy(asc(assessments.createdAt));
-    return rows.map((r) => ({
-      date: r.date?.toISOString() ?? "",
-      riskScore: r.riskScore,
-      riskCategory: r.riskCategory,
-    }));
-  }
-
   async getAssessmentsByPatientName(
     patientName: string,
     limit: number = 100,
     offset: number = 0,
+    createdBy?: string,
     startDate?: string,
     endDate?: string
   ): Promise<{ data: Assessment[]; total: number }> {
     const db = getDb();
     const filters: any[] = [eq(assessments.patientName, patientName)];
-    if (startDate && !isNaN(Date.parse(startDate))) filters.push(gte(assessments.createdAt, new Date(startDate)));
+    if (createdBy) {
+      filters.push(eq(assessments.createdBy, createdBy));
+    }
+    if (startDate && !isNaN(Date.parse(startDate))) {
+      filters.push(gte(assessments.createdAt, new Date(startDate)));
+    }
     if (endDate && !isNaN(Date.parse(endDate))) {
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
@@ -406,6 +394,28 @@ export class AssessmentRepository {
       .limit(limit)
       .offset(offset);
     return { data, total };
+  }
+
+  async getPatientTrends(patientName: string, createdBy?: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]> {
+    const db = getDb();
+    const conditions: ReturnType<typeof eq>[] = [eq(assessments.patientName, patientName)];
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy));
+    }
+    const rows = await db
+      .select({
+        date: assessments.createdAt,
+        riskScore: assessments.riskScore,
+        riskCategory: assessments.riskCategory,
+      })
+      .from(assessments)
+      .where(and(...conditions))
+      .orderBy(asc(assessments.createdAt));
+    return rows.map((r) => ({
+      date: r.date?.toISOString() ?? "",
+      riskScore: r.riskScore,
+      riskCategory: r.riskCategory,
+    }));
   }
 
   async getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string) {
