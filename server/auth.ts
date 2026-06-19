@@ -2,15 +2,15 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { randomInt, randomBytes } from "crypto";
 import bcrypt from "bcrypt";
 import { rateLimit } from "express-rate-limit";
-import { eq, and, gte, sql } from "drizzle-orm";
 import { issueToken } from "./services/auth/tokenValidator";
 import { storage } from "./storage";
-import { getDb } from "./db";
-import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
 import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { logger } from "./logger";
 import { validateDTO } from "./middleware/validateDTO";
 import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswordDTOSchema, verifyEmailDTOSchema, verifyOtpDTOSchema } from "./validation/auth.dto";
+import { AuthRepository } from "./repositories/auth.repository";
+
+const authRepository = new AuthRepository();
 
 function hashPassword(password: string): string {
   return bcrypt.hashSync(password, 10);
@@ -32,6 +32,10 @@ declare module "express-session" {
     pendingUser?: {
       id: string;
       email: string;
+    };
+    oauthState?: {
+      value: string;
+      createdAt: number;
     };
   }
 }
@@ -259,7 +263,7 @@ export async function requireAnyAuth(req: Request, res: Response, next: NextFunc
     if (!authUser) {
       return res.status(401).json({ message: "Authentication required." });
     }
-    (req as any).authenticatedUser = authUser;
+    (req).authenticatedUser = authUser;
     next();
   } catch {
     return res.status(500).json({ message: "Authentication check failed." });
@@ -277,12 +281,7 @@ export function createAuthRouter(): Router {
     const { fullName, email, password, licenseNumber } = req.body;
 
     try {
-      const db = getDb();
-      const [existingDbUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const existingDbUser = await authRepository.findUserByEmail(email);
 
       if (existingDbUser) {
         return res.status(409).json({ message: "An account with this email already exists." });
@@ -292,31 +291,19 @@ export function createAuthRouter(): Router {
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      let registeredUserId: string;
-
-      await db.transaction(async (tx) => {
-        const [newUser] = await tx
-          .insert(users)
-          .values({
-            fullName,
-            email,
-            medicalLicenseNumber: licenseNumber,
-            passwordHash,
-            emailVerified: false,
-            role: "DOCTOR",
-          })
-          .returning();
-
-        registeredUserId = newUser.id;
-
-        await tx.insert(emailVerificationTokens).values({
-          userId: newUser.id,
-          verificationCode: otp,
-          expiresAt,
-          used: false,
-          attemptCount: 0,
-        });
-      });
+      const newUser = await authRepository.registerUserWithOtp(
+        {
+          fullName,
+          email,
+          medicalLicenseNumber: licenseNumber,
+          passwordHash,
+          emailVerified: false,
+          role: "DOCTOR",
+        },
+        otp,
+        expiresAt
+      );
+      const registeredUserId = newUser.id;
 
       const emailSent = await sendVerificationEmail(email, otp);
       if (!emailSent) {
@@ -352,12 +339,7 @@ export function createAuthRouter(): Router {
     const { email, password } = req.body;
 
     try {
-      const db = getDb();
-      const [dbUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const dbUser = await authRepository.findUserByEmail(email);
 
       if (!dbUser || !dbUser.isActive) {
         return res.status(401).json({ message: "Invalid credentials." });
@@ -371,26 +353,7 @@ export function createAuthRouter(): Router {
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      await db.transaction(async (tx) => {
-        // Invalidate old unused tokens for this user
-        await tx
-          .update(emailVerificationTokens)
-          .set({ used: true })
-          .where(
-            and(
-              eq(emailVerificationTokens.userId, dbUser.id),
-              eq(emailVerificationTokens.used, false),
-            ),
-          );
-
-        await tx.insert(emailVerificationTokens).values({
-          userId: dbUser.id,
-          verificationCode: otp,
-          expiresAt,
-          used: false,
-          attemptCount: 0,
-        });
-      });
+      await authRepository.replaceVerificationToken(dbUser.id, otp, expiresAt);
 
       const emailSent = await sendVerificationEmail(email, otp);
       if (!emailSent) {
@@ -451,12 +414,7 @@ export function createAuthRouter(): Router {
         return res.json({ success: true, pendingEmail: email });
       }
 
-      const db = getDb();
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const user = await authRepository.findUserByEmail(email);
 
       if (!user) {
         return res.status(404).json({ message: "User not found." });
@@ -464,23 +422,7 @@ export function createAuthRouter(): Router {
 
       // We no longer block resend if user is verified, they might be logging in.
       
-      await db.transaction(async (tx) => {
-        await tx
-          .update(emailVerificationTokens)
-          .set({ used: true })
-          .where(and(
-            eq(emailVerificationTokens.userId, user.id),
-            eq(emailVerificationTokens.used, false),
-          ));
-
-        await tx.insert(emailVerificationTokens).values({
-          userId: user.id,
-          verificationCode: otp,
-          expiresAt,
-          used: false,
-          attemptCount: 0,
-        });
-      });
+      await authRepository.replaceVerificationToken(user.id, otp, expiresAt);
 
       const emailSent = await sendVerificationEmail(email, otp);
       if (!emailSent) {
@@ -566,12 +508,7 @@ export function createAuthRouter(): Router {
       role = "DOCTOR";
       emailVerified = true;
     } else {
-      const db = getDb();
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const user = await authRepository.findUserByEmail(email);
       if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
@@ -581,10 +518,7 @@ export function createAuthRouter(): Router {
 
 
       if (!user.emailVerified) {
-        await db
-          .update(users)
-          .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
-          .where(eq(users.id, user.id));
+        await authRepository.setUserEmailVerified(user.id);
       }
 
       id = user.id;
@@ -627,107 +561,13 @@ export function createAuthRouter(): Router {
          return res.status(403).json({ message: "Session mismatch. Please log in again." });
       }
 
-      const db = getDb();
-
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const user = await authRepository.findUserByEmail(email);
 
       if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
 
-      type VerifyOutcome =
-        | { success: true }
-        | { success: false; status: number; message: string };
-
-      const outcome: VerifyOutcome = await db.transaction(async (tx) => {
-        const [token] = await tx
-          .select()
-          .from(emailVerificationTokens)
-          .where(
-            and(
-              eq(emailVerificationTokens.userId, user.id),
-              eq(emailVerificationTokens.used, false),
-              gte(emailVerificationTokens.expiresAt, new Date()),
-            ),
-          )
-          .orderBy(emailVerificationTokens.createdAt)
-          .limit(1);
-
-        if (!token) {
-          return { success: false as const, status: 400, message: "No valid verification code found. Please request a new code." };
-        }
-
-        const maxAttempts = 3;
-        if ((token.attemptCount ?? 0) >= maxAttempts) {
-          await tx
-            .update(emailVerificationTokens)
-            .set({ used: true })
-            .where(eq(emailVerificationTokens.id, token.id));
-
-          return { success: false as const, status: 429, message: "Too many failed attempts. Please request a new verification code." };
-        }
-
-        if (token.verificationCode !== code) {
-          const newAttemptCount = (token.attemptCount ?? 0) + 1;
-
-          if (newAttemptCount >= maxAttempts) {
-            await tx
-              .update(emailVerificationTokens)
-              .set({ attemptCount: newAttemptCount, used: true })
-              .where(and(
-                eq(emailVerificationTokens.id, token.id),
-                eq(emailVerificationTokens.used, false),
-              ));
-
-            return {
-              success: false as const,
-              status: 429,
-              message: "Too many failed attempts. Please request a new verification code.",
-            };
-          }
-
-          await tx
-            .update(emailVerificationTokens)
-            .set({ attemptCount: newAttemptCount })
-            .where(and(
-              eq(emailVerificationTokens.id, token.id),
-              eq(emailVerificationTokens.used, false),
-            ));
-
-          const remaining = maxAttempts - newAttemptCount;
-          return {
-            success: false as const,
-            status: 401,
-            message: `Invalid code. ${remaining} attempt(s) remaining.`,
-          };
-        }
-
-        const [claimed] = await tx
-          .update(emailVerificationTokens)
-          .set({ used: true })
-          .where(and(
-            eq(emailVerificationTokens.id, token.id),
-            eq(emailVerificationTokens.used, false),
-          ))
-          .returning();
-
-        if (!claimed) {
-          return { success: false as const, status: 409, message: "This code has already been used." };
-        }
-
-        if (!user.emailVerified) {
-          await tx
-            .update(users)
-            .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
-            .where(eq(users.id, user.id));
-        }
-
-        return { success: true as const };
-      });
+      const outcome = await authRepository.verifyDbTokenAndSetVerified(user, code);
 
       if (!outcome.success) {
         return res.status(outcome.status).json({ message: outcome.message });
@@ -798,12 +638,7 @@ out
     const { email } = req.body;
 
     try {
-      const db = getDb();
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const user = await authRepository.findUserByEmail(email);
 
       if (!user) {
         // Always return 200 regardless of whether the email exists — returning
@@ -814,12 +649,7 @@ out
       const token = randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-      await db.insert(passwordResetTokens).values({
-        userId: user.id,
-        token,
-        expiresAt,
-        used: false,
-      });
+      await authRepository.createPasswordResetToken(user.id, token, expiresAt);
 
       const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password?token=${token}`;
 
@@ -843,19 +673,7 @@ out
     const { token, newPassword } = req.body;
 
     try {
-      const db = getDb();
-
-      const [resetToken] = await db
-        .select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            eq(passwordResetTokens.used, false),
-            gte(passwordResetTokens.expiresAt, new Date()),
-          ),
-        )
-        .limit(1);
+      const resetToken = await authRepository.findPasswordResetToken(token);
 
       if (!resetToken) {
         return res.status(400).json({ message: "Invalid or expired reset token." });
@@ -863,15 +681,7 @@ out
 
       const passwordHash = hashPassword(newPassword);
 
-      await db.update(users).set({ passwordHash }).where(eq(users.id, resetToken.userId));
-      await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, resetToken.id));
-
-      // Invalidate all active sessions for the user to prevent session hijacking
-      try {
-        await db.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${resetToken.userId}`);
-      } catch (sessErr) {
-        logger.error({ err: sessErr, userId: resetToken.userId }, "Failed to clear user sessions upon password reset");
-      }
+      await authRepository.consumePasswordResetToken(resetToken.id, resetToken.userId, passwordHash);
 
       return res.json({ success: true, message: "Password has been reset successfully." });
     } catch (err) {
@@ -886,7 +696,7 @@ out
    * Used by clients that require a bearer token for API access.
    */
   router.get("/token", requireAuth, requireVerified, (req, res) => {
-    const user = req.session.user as any;
+    const user = req.session.user;
 
     if (!user?.id || !user?.email) {
       return res.status(401).json({ message: "Invalid session user data" });

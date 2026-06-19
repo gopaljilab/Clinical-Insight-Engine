@@ -201,11 +201,11 @@ export default function Dashboard() {
 
         const parsed = api.assessments.preview.responses[200].parse(data);
         setPreview(parsed);
-      } catch (previewErr: any) {
-        if (previewErr.name === "AbortError") {
+      } catch (previewErr: unknown) {
+        if ((previewErr as Error).name === "AbortError") {
           return;
         }
-        setPreviewError(previewErr.message ?? "Failed to generate preview");
+        setPreviewError((previewErr as Error).message ?? "Failed to generate preview");
       } finally {
         setPreviewPending(false);
       }
@@ -307,7 +307,7 @@ export default function Dashboard() {
                     <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold">Assessment Failed</p>
-                      <p className="text-sm opacity-90">{error.message}</p>
+                      <p className="text-sm opacity-90">{(error as Error).message}</p>
                     </div>
                   </div>
                 )}

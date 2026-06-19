@@ -133,10 +133,10 @@ export default function ImportData() {
           toast({ title: "Success", description: "Successfully imported " + data.count + " patient records." });
         } catch (error: unknown) {
           clearInterval(iv); setProgress(0);
-          toast({ title: "Import Error", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+          toast({ title: "Import Error", description: error instanceof Error ? (error as Error).message : String(error), variant: "destructive" });
         } finally { setIsProcessing(false); }
       },
-      error: (error: Error) => { toast({ title: "Parsing Error", description: error.message, variant: "destructive" }); },
+      error: (error: Error) => { toast({ title: "Parsing Error", description: (error as Error).message, variant: "destructive" }); },
     });
   };
 

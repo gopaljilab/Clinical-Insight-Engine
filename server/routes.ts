@@ -210,13 +210,13 @@ export async function registerRoutes(
           confidenceInterval: prediction.confidenceInterval ?? null,
           modelConfidence: prediction.modelConfidence ?? null
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err instanceof z.ZodError) {
           return res.status(400).json({
             message: err.errors[0].message
           });
         }
-        if (err.message?.includes("timed out")) {
+        if ((err as Error).message?.includes("timed out")) {
           return res.status(503).json({
             message: "Clinical assessment preview timed out."
           });
@@ -443,7 +443,7 @@ export async function registerRoutes(
         }
 
         // Object-Level Authorization Check
-        if (!canAccessPatientRecord(user as any, assessment)) {
+        if (!canAccessPatientRecord(user, assessment)) {
           // Log unauthorized access attempt (IDOR/Enumeration attempt)
           logAccessAttempt(
             user.id,
@@ -605,7 +605,7 @@ export async function registerRoutes(
 
       logger.info(`Model retrained: version ${nextVersion}, accuracy ${metrics.accuracy}`);
       res.json(record);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error({ err }, "Admin model retrain error:");
       res.status(500).json({ message: err.stderr || "Model retraining failed." });
     }
