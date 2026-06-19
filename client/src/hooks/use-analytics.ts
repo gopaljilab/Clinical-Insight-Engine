@@ -23,6 +23,10 @@ export type AnalyticsStats = {
   criticalAlerts: CriticalAlert[];
 };
 
+/**
+ * React hook for  analytics.
+ * @returns The result of the operation.
+ */
 export function useAnalytics() {
   return useQuery<AnalyticsStats>({
     queryKey: ["/api/analytics"],

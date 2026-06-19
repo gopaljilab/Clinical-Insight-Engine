@@ -101,7 +101,7 @@ function UsersTab({ active }: { active: boolean }) {
     } catch (err) {
       toast({
         title: "Network error",
-        description: err instanceof Error ? err.message : "Failed to reach server",
+        description: err instanceof Error ? (err as Error).message : "Failed to reach server",
         variant: "destructive",
       });
     }

@@ -36,9 +36,9 @@ function getDatabaseUrl() {
   return process.env.DATABASE_URL;
 }
 
-export function isTransientError(error: any): boolean {
+export function isTransientError(error: unknown): boolean {
   if (!error) return false;
-  const message = error.message || String(error);
+  const message = (error as Error).message || String(error);
   const code = error.code;
 
   const transientCodes = new Set([
@@ -143,7 +143,7 @@ export function getPool() {
         const callback = lastArg;
         const connectPromise = () =>
           new Promise<{ client: pg.PoolClient; release: any }>((resolve, reject) => {
-            originalConnect((err: any, client: any, done: any) => {
+            originalConnect((err: unknown, client: any, done: any) => {
               if (err) reject(err);
               else resolve({ client, release: done });
             });
@@ -194,7 +194,7 @@ export async function verifyDatabaseConnection() {
   try {
     await getPool().query("select 1");
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = error instanceof Error ? (error as Error).message : String(error);
     throw new DatabaseStartupError(
       formatDatabaseStartupMessage(`PostgreSQL is unreachable. ${detail}`),
     );

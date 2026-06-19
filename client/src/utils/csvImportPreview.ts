@@ -40,6 +40,11 @@ function readField(row: Record<string, unknown>, keys: string[]): unknown {
   return "";
 }
 
+/**
+ * Sanitize Import Cell.
+ * @param value - The value parameter.
+ * @returns The result of the operation.
+ */
 export function sanitizeImportCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   const text = String(value).trim();
@@ -99,6 +104,11 @@ function normalizeSmokingHistory(value: unknown, errors: string[]): ImportAssess
   return smoking as ImportAssessmentRow["smokingHistory"];
 }
 
+/**
+ * Build Csv Import Preview.
+ * @param rows - The rows parameter.
+ * @returns The result of the operation.
+ */
 export function buildCsvImportPreview(rows: Record<string, unknown>[]): ImportPreviewSummary {
   const patientNameCounts = new Map<string, number>();
   rows.forEach((row) => {

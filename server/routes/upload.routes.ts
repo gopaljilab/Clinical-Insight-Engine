@@ -17,7 +17,7 @@ const upload = multer({
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB
   },
-  fileFilter: (req: any, file: any, cb: any) => {
+  fileFilter: (req: Parameters<RequestHandler>[0], file: unknown, cb: unknown) => {
     // HARDENING: Restrict to ONLY CSV files to prevent upload of executable or unwanted MIME types
     const allowedMimeTypes = ["text/csv"];
     const allowedExtensions = [".csv"];
@@ -37,12 +37,12 @@ uploadRouter.post(
   requireAuth,
   requireVerified,
   (req, res) => {
-    upload.single("file")(req, res, async (err: any) => {
+    upload.single("file")(req, res, async (err: unknown) => {
       if (err) {
-        return res.status(400).json({ message: err.message });
+        return res.status(400).json({ message: (err as Error).message });
       }
       
-      const file = (req as any).file;
+      const file = (req).file;
       if (!file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
@@ -107,7 +107,7 @@ uploadRouter.post(
           created,
           failed
         });
-      } catch (parseErr: any) {
+      } catch (parseErr: unknown) {
         logger.error({ err: parseErr }, "Error parsing CSV file");
         return res.status(500).json({ message: "Failed to parse CSV file" });
       }
