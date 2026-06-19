@@ -38,4 +38,17 @@ export class PatientUserRepository {
     const [result] = await db.insert(patientUsers).values(data).returning();
     return result;
   }
+
+  async update(id: string, data: Partial<PatientUser>): Promise<PatientUser> {
+    const db = getDb();
+    const [result] = await db
+      .update(patientUsers)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(patientUsers.id, id))
+      .returning();
+    if (!result) {
+      throw new Error(`Patient user with id ${id} not found`);
+    }
+    return result;
+  }
 }

@@ -221,9 +221,13 @@ export const patientUsers = pgTable("patient_users", {
   phone: varchar("phone", { length: 20 }),
   isActive: boolean("is_active").default(true),
   emailVerified: boolean("email_verified").default(false),
+  verificationCode: varchar("verification_code", { length: 6 }),
+  verificationExpires: timestamp("verification_expires"),
+  verificationAttempts: integer("verification_attempts").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
 
 export type PatientUser = typeof patientUsers.$inferSelect;
 export type InsertPatientUser = typeof patientUsers.$inferInsert;
