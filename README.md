@@ -610,14 +610,58 @@ curl -X POST http://localhost:3000/api/assessments \
   }'
 ```
 
-### FHIR Ingestion
+### FHIR Ingestion & Explainable Insights
 
-Allows submitting standard FHIR R4 JSON bundles containing patient demographic details and clinical vitals/lab values.
+Allows submitting standard FHIR R4 JSON bundles containing patient demographic details, clinical vitals/lab values, and clinical notes.
 
 #### Supported Resources
 * **Patient**: Extracts `id`, `name`, `gender` (mapped to `Male`/`Female`), and calculates patient `age` from `birthDate`.
 * **Observation**: Extracts clinical values such as `BMI`, `HbA1c`, `Blood Glucose`, and flags `hypertension` and `heartDisease` using LOINC codes and display terms.
-* **DocumentReference**: Scans titles, descriptions, and decoded base64 attachments for cardiovascular and smoking history keywords.
+* **DocumentReference**: Extracts note titles, descriptions, and decoded base64 attachments, merging them into a unified clinical note transcript.
+
+#### 💡 Explainable Insights (Source Citation & Highlighting)
+To ensure clinical decisions are traceable and verifiable, the pipeline extracts source citations for key clinical features. When note text is found in **DocumentReference** entries, the parser:
+1. Performs regex/vitals and keyword scanning for **Hypertension** (e.g. BP measurements like `145/90` or keywords like `hypertension`), **Heart Disease** (e.g. `CAD`, `myocardial infarction`), and **Smoking History** (e.g. `former smoker`, `never smoked`).
+2. Extracts the exact sentence snippet enclosing the evidence (`source_snippet`).
+3. Computes the zero-indexed character bounds `[start, end]` within the raw concatenated text (`source_index`).
+4. If no evidence is found, these values are returned as `null`.
+
+#### Example API Response Payload
+A successful FHIR ingestion response returns the extracted clinical note and explainable insights:
+
+```json
+{
+  "status": "success",
+  "id": 42,
+  "clinical_note": "Routine visit. BP reading 145/95 noted. Quit smoking last year.",
+  "explainable_insights": [
+    {
+      "insight": "Patient shows signs of hypertension",
+      "source_snippet": "BP reading 145/95 noted",
+      "source_index": [15, 38]
+    },
+    {
+      "insight": "Patient shows signs of heart disease",
+      "source_snippet": null,
+      "source_index": null
+    },
+    {
+      "insight": "Patient has a smoking history (former)",
+      "source_snippet": "Quit smoking last year",
+      "source_index": [40, 62]
+    }
+  ]
+}
+```
+
+#### 🖥️ Interactive Note Viewer
+On the **Clinician View** tab of the results page, the clinical note is rendered in an interactive viewer:
+* **Interactive Highlights**: Clicking any cited insight automatically highlights the matching text in the note.
+* **Auto-Scroll**: The highlighted source text is scrolled smoothly into view.
+* **Keyboard Navigation**:
+  * Use **Arrow Down** / **Arrow Right** to move to the next cited insight.
+  * Use **Arrow Up** / **Arrow Left** to move to the previous cited insight.
+  * Press **Escape** to clear the selection and highlight.
 
 #### Example Request
 ```bash
@@ -688,7 +732,22 @@ graph LR
 | **Encoding** | Gender → binary; Smoking history → one-hot encoding |
 | **Scaling** | `StandardScaler` on age, BMI, HbA1c, blood glucose |
 | **Model** | `LogisticRegression` with balanced class weights |
-| **Caching** | Trained model + scaler serialized via `pickle` for fast inference |
+
+### 🧹 Robust Text Sanitization Layer
+
+To prevent ingestion, extraction, NLP, and prediction pipelines from crashing or truncating notes when encountering legacy character sets or invalid sequences, a robust text sanitization layer is integrated at all boundaries (dataset imports, API payloads, CLI inputs, and daemon loops).
+
+#### Why Healthcare Data Can Contain Malformed Encodings
+Clinical records are typically aggregated from disparate Electronic Health Records (EHR) systems, legacy laboratory reports, and clinician templates. These exports often use legacy encodings (e.g., Windows CP1252, ISO-8859-1) or copy-pasted smart quotes/dashes from word processors. If these raw streams are processed directly by modern UTF-8 parsers without sanitization, they raise `UnicodeDecodeError` exceptions, crash the daemon, or silently truncate vital note data.
+
+#### Sanitization Steps Applied:
+1. **Safe Byte Decoding**: Gracefully decodes byte streams using UTF-8. If malformed sequences are encountered, they are logged as warnings and replaced rather than throwing fatal exceptions. Fallbacks to CP1252/Latin-1 are triggered dynamically if needed.
+2. **Unicode Normalization**: Normalizes all characters to standard Unicode Normalization Form KC (NFKC).
+3. **Null Bytes Removal**: Strips null bytes (`\x00`) to prevent C-level string truncation bugs in downstream tools.
+4. **Control Characters Cleanup**: Discards non-printable control characters (Unicode category `Cc` and `Cf`) while fully preserving formatting whitespaces (`\t`, `\n`, `\r`).
+5. **Smart Quote & Dash Normalization**: Converts curly quotes (`“`, `”`, `‘`, `’`) and typographic dashes (`–`, `—`) to standard ASCII equivalents.
+6. **Unusual Whitespace Normalization**: Normalizes zero-width spaces (`\u200b`), non-breaking spaces (`\xa0`), and other Unicode spaces into standard ASCII spaces or empty strings.
+7. **Medical Symbol Preservation**: Fully preserves essential medical symbols like degrees (`°`), micro/mu (`μ`), plus-minus (`±`), and percentages (`%`) to maintain data integrity.
 
 ### Train the Model (Optional)
 

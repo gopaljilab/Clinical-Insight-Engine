@@ -169,7 +169,7 @@ export default function ImportData() {
           setIsProcessing(false);
         }
       },
-      error: (error: Error) => { toast({ title: "Parsing Error", description: error.message, variant: "destructive" }); },
+      error: (error: Error) => { toast({ title: "Parsing Error", description: (error as Error).message, variant: "destructive" }); },
     });
   };
 

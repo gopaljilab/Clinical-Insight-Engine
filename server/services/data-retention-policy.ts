@@ -21,6 +21,11 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+/**
+ * Get Retention Policy Config.
+ * @param env - The env parameter.
+ * @returns The result of the operation.
+ */
 export function getRetentionPolicyConfig(env: NodeJS.ProcessEnv = process.env): RetentionPolicyConfig {
   return {
     assessmentRetentionDays: parsePositiveInt(env.ASSESSMENT_RETENTION_DAYS, 365 * 7),
@@ -30,10 +35,23 @@ export function getRetentionPolicyConfig(env: NodeJS.ProcessEnv = process.env): 
   };
 }
 
+/**
+ * Add Days.
+ * @param date - The date parameter.
+ * @param days - The days parameter.
+ * @returns The result of the operation.
+ */
 export function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * DAY_MS);
 }
 
+/**
+ * Checks if  retention eligible.
+ * @param createdAt - The createdAt parameter.
+ * @param retentionDays - The retentionDays parameter.
+ * @param now - The now parameter.
+ * @returns The result of the operation.
+ */
 export function isRetentionEligible(
   createdAt: Date,
   retentionDays: number,
@@ -42,6 +60,13 @@ export function isRetentionEligible(
   return addDays(createdAt, retentionDays).getTime() <= now.getTime();
 }
 
+/**
+ * Get Retention Decision.
+ * @param recordType - The recordType parameter.
+ * @param createdAt - The createdAt parameter.
+ * @param options - The options parameter.
+ * @returns The result of the operation.
+ */
 export function getRetentionDecision(
   recordType: keyof RetentionPolicyConfig,
   createdAt: Date,

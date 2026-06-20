@@ -21,6 +21,8 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
+import MyHealth from "./pages/MyHealth";
+import PatientLogin from "./pages/PatientLogin";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./i18n";
 
@@ -73,6 +75,8 @@ function Router() {
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/terms" component={Terms} />
+      <Route path="/patient-login" component={PatientLogin} />
+      <Route path="/my-health" component={MyHealth} />
       <Route component={NotFound} />
     </Switch>
   );

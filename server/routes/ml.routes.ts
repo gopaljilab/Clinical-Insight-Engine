@@ -18,7 +18,7 @@ mlRouter.post(
   mlLimiter,
   validateDTO(z.object({ assessments: z.array(api.assessments.create.input) })),
   async (req, res) => {
-    const userId = (req.session.user as any)?.id;
+    const userId = (req.session.user)?.id;
     if (!userId) {
       return res.status(401).json({ message: "Authentication required." });
     }

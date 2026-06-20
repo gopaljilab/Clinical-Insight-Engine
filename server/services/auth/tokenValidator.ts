@@ -113,7 +113,7 @@ export function verifyToken(token: string): VerifyResult {
     if (err instanceof jwt.JsonWebTokenError) {
       // JsonWebTokenError covers: invalid signature, alg=none, malformed tokens
       // Check if it's specifically an algorithm rejection
-      if (err.message.includes("invalid algorithm") || err.message.includes("alg") || err.message.includes("jwt signature is required")) {
+      if ((err as Error).message.includes("invalid algorithm") || (err as Error).message.includes("alg") || (err as Error).message.includes("jwt signature is required")) {
         return { valid: false, reason: "alg_not_allowed" };
       }
       return { valid: false, reason: "invalid_signature" };
