@@ -17,7 +17,7 @@ const upload = multer({
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB
   },
-  fileFilter: (req: Parameters<RequestHandler>[0], file: unknown, cb: unknown) => {
+  fileFilter: (req: any, file: any, cb: any) => {
     // HARDENING: Restrict to ONLY CSV files to prevent upload of executable or unwanted MIME types
     const allowedMimeTypes = ["text/csv"];
     const allowedExtensions = [".csv"];
