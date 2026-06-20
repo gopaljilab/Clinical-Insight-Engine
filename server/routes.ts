@@ -253,13 +253,13 @@ export async function registerRoutes(
             return res.status(400).json({ message: prediction.error });
           }
         } catch (error: unknown) {
-          if (error.killed || error.signal === "SIGTERM") {
+          if ((error as any).killed || (error as any).signal === "SIGTERM") {
             return res.status(408).json({ message: "Clinical assessment simulation timed out." });
           }
 
           logger.warn(
-            "Python prediction simulation failed, falling back to clinical rule-based model:",
-            error
+            { err: error as any },
+            "Python prediction simulation failed, falling back to clinical rule-based model:"
           );
           prediction = calculateClinicalFallback(input);
         }
