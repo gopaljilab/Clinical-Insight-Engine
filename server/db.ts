@@ -39,7 +39,7 @@ function getDatabaseUrl() {
 export function isTransientError(error: unknown): boolean {
   if (!error) return false;
   const message = (error as Error).message || String(error);
-  const code = error.code;
+  const code = (error as Record<string, unknown>).code;
 
   const transientCodes = new Set([
     "08000", "08003", "08006", "08001", "08004",
