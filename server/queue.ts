@@ -3,6 +3,7 @@ import { storage } from "./storage";
 import IORedis from "ioredis";
 import { sendCriticalRiskAlert } from "./email";
 import { logger } from "./logger";
+import { generatePredictionExplanation } from "./services/prediction-explainer";
 import { MLService, calculateClinicalFallback } from "./services/mlService";
 
 import { execFile } from "child_process";
@@ -180,6 +181,30 @@ export function startAssessmentWorker(): void {
           resolvedPrediction = calculateClinicalFallback(input);
         }
 
+        prediction.disclaimer =
+            "DISCLAIMER: This is a clinical decision support tool and is not a medical diagnosis. Please consult with a healthcare professional for clinical decisions.";
+
+        const assessment = await storage.createAssessment({
+          ...input,
+          riskScore: Number(prediction.riskScore),
+          riskCategory: prediction.riskCategory,
+          factors: prediction.factors,
+          confidenceInterval: prediction.confidenceInterval ?? null,
+          modelConfidence:
+            prediction.modelConfidence == null
+              ? undefined
+              : Number(prediction.modelConfidence),
+          createdBy: userEmail || userId,
+          userId: userId
+        });
+
+        const explanation = generatePredictionExplanation({
+          ...input,
+          riskCategory: prediction.riskCategory,
+          factors: prediction.factors,
+        });
+
+        if (prediction.riskCategory === "HIGH" && userEmail) {
         logger.info(
           {
             jobId: job.id,
@@ -256,6 +281,8 @@ export function startAssessmentWorker(): void {
         emitAssessmentProgress(job.id ?? "", 90, "Generating Results");
         const result = {
           ...assessment,
+          prediction,
+          explanation,
           prediction: resolvedPrediction,
           requestId,
         };

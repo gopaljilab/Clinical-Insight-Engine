@@ -6,11 +6,12 @@ import { createServer } from "http";
 import patientsRouter from "../server/routes/patients";
 import { issueToken } from "../server/services/auth/tokenValidator";
 
-const { mockExecFile, rateLimitCounters, mockCreateAssessment, mockGetAssessments } = vi.hoisted(() => ({
+const { mockExecFile, rateLimitCounters, mockCreateAssessment, mockGetAssessments, mockGetAssessmentById } = vi.hoisted(() => ({
   mockExecFile: vi.fn(),
   rateLimitCounters: new Map<string, number>(),
   mockCreateAssessment: vi.fn(),
   mockGetAssessments: vi.fn(),
+  mockGetAssessmentById: vi.fn(),
 }));
 
 vi.mock("child_process", () => ({
@@ -83,6 +84,7 @@ vi.mock("../server/storage", () => {
     getAssessments: mockGetAssessments,
     createAssessment: mockCreateAssessment,
     searchAssessments: vi.fn().mockResolvedValue([]),
+    getAssessmentById: mockGetAssessmentById,
     getAssessmentById: vi.fn().mockResolvedValue(undefined),
     deleteAssessment: vi.fn().mockResolvedValue(undefined),
     getUserByEmail: vi.fn().mockResolvedValue({ id: "admin-id" }),
@@ -199,6 +201,7 @@ beforeEach(() => {
     data: [],
     nextCursor: null,
   });
+  mockGetAssessmentById.mockResolvedValue(undefined);
   mockExecFile.mockImplementation((cmd, args, opts, cb) => {
     if (typeof opts === "function") {
       cb = opts;
@@ -256,7 +259,37 @@ describe("Auth gating", () => {
     expect(res.body).toHaveProperty("message");
   });
 });
+describe("Assessment detail explanation", () => {
+  it("returns explanation metadata for authorized assessment fetch", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
 
+    mockGetAssessmentById.mockResolvedValue({
+      id: 1,
+      patientName: "John Doe",
+      gender: "Male",
+      age: 45,
+      hypertension: false,
+      heartDisease: false,
+      smokingHistory: "never",
+      bmi: 24.5,
+      hba1cLevel: 5.2,
+      bloodGlucoseLevel: 95,
+      riskScore: 12.3,
+      riskCategory: "LOW",
+      factors: [{ name: "Age", impact: "positive", description: "Increases risk" }],
+      createdBy: "test-user-id",
+      createdAt: new Date(),
+    });
+
+    const res = await request(app).get("/api/assessments/1");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("explanation");
+    expect(res.body.explanation).toHaveProperty("summary");
+    expect(res.body.explanation.topContributors).toBeInstanceOf(Array);
+  });
+});
 describe("Health Check Endpoint", () => {
   it("returns 200 OK and valid JSON with status, timestamp, and uptime", async () => {
     const app = createUnauthenticatedApp();

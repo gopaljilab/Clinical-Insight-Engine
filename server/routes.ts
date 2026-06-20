@@ -17,6 +17,9 @@ import {
   exportLimiter,
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
+import { MLService } from "./services/mlService";
+import { generatePredictionExplanation } from "./services/prediction-explainer";
+import { getAssessmentQueue, getPythonExecutable } from "./queue";
 import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
 import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
@@ -457,9 +460,15 @@ export async function registerRoutes(
           return res.status(404).json({ message: "Assessment not found." });
         }
 
+        const explanation = generatePredictionExplanation({
+          ...assessment,
+          riskCategory: assessment.riskCategory,
+          factors: assessment.factors,
+        });
+
         // Authorized access
         logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
-        return res.json(assessment);
+        return res.json({ ...assessment, explanation });
 
       } catch (err) {
         // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
