@@ -51,7 +51,7 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
     .min(1, "Patient name cannot be empty if provided")
     .optional(),
   gender: z.enum(["Male", "Female"], {
-    required_error: "Gender is required",
+    required_error: "Gender is required.",
     invalid_type_error: "Gender must be 'Male' or 'Female'",
   }),
   age: z.preprocess(
@@ -62,7 +62,7 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "Age is required", invalid_type_error: "Age must be a number" })
+      .number({ required_error: "Age is required.", invalid_type_error: "Age must be a valid number." })
       .int("Age must be a whole number")
       .min(1, "Age must be at least 1")
       .max(120, "Age must be 120 or below"),
@@ -81,7 +81,7 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "BMI is required", invalid_type_error: "BMI must be a number" })
+      .number({ required_error: "BMI is required.", invalid_type_error: "BMI must be a valid number." })
       .min(10, "BMI must be at least 10")
       .max(60, "BMI must be 60 or below"),
   ),
@@ -93,7 +93,7 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "HbA1c level is required", invalid_type_error: "HbA1c level must be a number" })
+      .number({ required_error: "HbA1c level is required.", invalid_type_error: "HbA1c level must be a valid number." })
       .min(3, "HbA1c must be at least 3")
       .max(15, "HbA1c must be 15 or below"),
   ),
@@ -105,11 +105,11 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "Blood glucose level is required", invalid_type_error: "Blood glucose must be a number" })
+      .number({ required_error: "Blood glucose level is required.", invalid_type_error: "Blood glucose must be a valid number." })
       .min(50, "Blood glucose must be at least 50")
       .max(400, "Blood glucose must be 400 or below"),
   ),
-  createdBy: z.string().email("createdBy must be a valid email").optional(),
+  createdBy: z.string().email("Created by email must be a valid email address.").optional(),
   clinicalNote: z.string().optional().nullable(),
   explainableInsights: z.array(z.object({
     insight: z.string(),
