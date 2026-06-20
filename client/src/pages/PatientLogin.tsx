@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Stethoscope, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Stethoscope, Eye, EyeOff, ShieldCheck, Mail } from "lucide-react";
 import { PasswordStrength } from "@/components/auth/PasswordStrength";
 
 interface FieldErrors {
@@ -29,6 +29,8 @@ export default function PatientLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem("patient_remember_email"));
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
 
   const isPasswordValid = useMemo(() => {
     if (!password) return false;
@@ -78,6 +80,9 @@ export default function PatientLogin() {
       if (!res.ok) {
         if (res.status === 429) {
           setError("Too many login attempts. Please try again later.");
+        } else if (data.needsVerification) {
+          setVerificationEmail(email);
+          return;
         } else {
           setError(data.message || "Login failed. Check your credentials.");
         }
@@ -119,6 +124,30 @@ export default function PatientLogin() {
         }
         return;
       }
+      setVerificationEmail(email);
+      setError(null);
+    } catch {
+      setError("Connection error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/patient/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: verificationEmail, code: verificationCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || "Verification failed.");
+        return;
+      }
       localStorage.setItem("patient_token", data.token);
       navigate("/my-health");
     } catch {
@@ -128,8 +157,74 @@ export default function PatientLogin() {
     }
   }
 
+  async function handleResendCode() {
+    setError(null);
+    try {
+      const res = await fetch("/api/patient/auth/resend-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: verificationEmail }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.message || "Failed to resend code.");
+      }
+    } catch {
+      setError("Connection error. Please try again.");
+    }
+  }
+
   function clearFieldError(field: keyof FieldErrors) {
     setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+  }
+
+  if (verificationEmail) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-950 p-4">
+        <Card className="w-full max-w-md shadow-lg dark:shadow-gray-950/50">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
+              <Mail className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <CardTitle className="text-xl dark:text-gray-100">Verify Your Email</CardTitle>
+            <CardDescription>
+              A 6-digit code was sent to <strong>{verificationEmail}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-4 sm:px-6">
+            {error && (
+              <div className="mb-4 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/50 p-3 text-sm text-red-700 dark:text-red-400">{error}</div>
+            )}
+            <form onSubmit={handleVerifyCode} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="verify-code">Verification Code</Label>
+                <Input
+                  id="verify-code"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="000000"
+                  maxLength={6}
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="text-center text-2xl tracking-widest"
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" isLoading={loading} disabled={verificationCode.length !== 6}>
+                Verify Email
+              </Button>
+              <button
+                type="button"
+                onClick={handleResendCode}
+                className="w-full text-center text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+              >
+                Resend verification code
+              </button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
