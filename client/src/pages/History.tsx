@@ -67,9 +67,26 @@ export default function History() {
 
   const { toast } = useToast();
   const { t } = useTranslation();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<string>("date-desc");
-  const [currentPage, setCurrentPage] = useState(1);
+
+  // Initialize filter state from URL parameters to support persistence on page load
+  const initialParams = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return {
+      searchTerm: params.get("filter") || "",
+      sortBy: params.get("sort") || "date-desc",
+      currentPage: params.get("page") ? Number(params.get("page")) : 1,
+      riskCategory: (params.get("risk") as RiskCategoryFilterValue) || "All",
+      gender: (params.get("gender") as GenderFilterValue) || "All",
+      minAge: params.get("minAge") ? Number(params.get("minAge")) : undefined,
+      maxAge: params.get("maxAge") ? Number(params.get("maxAge")) : undefined,
+      startDate: params.get("startDate") || "",
+      endDate: params.get("endDate") || "",
+    };
+  }, []);
+
+  const [searchTerm, setSearchTerm] = useState(initialParams.searchTerm);
+  const [sortBy, setSortBy] = useState<string>(initialParams.sortBy);
+  const [currentPage, setCurrentPage] = useState(initialParams.currentPage);
 
   // Parse sortBy into field and order for backend query
   const [sortField, sortOrder] = useMemo(() => {
@@ -84,14 +101,14 @@ export default function History() {
   }, [sortBy]);
 
   // New filter state
-  const [riskCategory, setRiskCategory] = useState<RiskCategoryFilterValue>("All");
-  const [gender, setGender] = useState<GenderFilterValue>("All");
-  const [minAge, setMinAge] = useState<number | undefined>(undefined);
-  const [maxAge, setMaxAge] = useState<number | undefined>(undefined);
+  const [riskCategory, setRiskCategory] = useState<RiskCategoryFilterValue>(initialParams.riskCategory);
+  const [gender, setGender] = useState<GenderFilterValue>(initialParams.gender);
+  const [minAge, setMinAge] = useState<number | undefined>(initialParams.minAge);
+  const [maxAge, setMaxAge] = useState<number | undefined>(initialParams.maxAge);
 
   // Date filter state
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>(initialParams.startDate);
+  const [endDate, setEndDate] = useState<string>(initialParams.endDate);
 
   // Filter drawer state
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
@@ -222,9 +239,10 @@ export default function History() {
     setParam("startDate", startDate || null);
     setParam("endDate", endDate || null);
     setParam("sort", sortBy !== "date-desc" ? sortBy : null);
+    setParam("page", currentPage > 1 ? String(currentPage) : null);
     const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
     window.history.replaceState({}, '', newUrl);
-  }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate, sortBy]);
+  }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate, sortBy, currentPage]);
 
   const hasActiveFilters =
     searchTerm !== "" ||

@@ -61,6 +61,76 @@ export function AssessmentFilters({
             </button>
           ) }
         </div>
+
+        {/* Date presets */}
+        {(() => {
+          const now = new Date();
+          const formatDate = (d: Date) => {
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd}`;
+          };
+
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(now.getDate() - 7);
+
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(now.getDate() - 30);
+
+          const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+          const quarterStart = new Date(now.getFullYear(), quarterStartMonth, 1);
+
+          const yearStart = new Date(now.getFullYear(), 0, 1);
+          const todayStr = formatDate(now);
+
+          const presets = {
+            last7: { start: formatDate(sevenDaysAgo), end: todayStr },
+            last30: { start: formatDate(thirtyDaysAgo), end: todayStr },
+            quarter: { start: formatDate(quarterStart), end: todayStr },
+            year: { start: formatDate(yearStart), end: todayStr },
+            all: { start: "", end: "" }
+          };
+
+          let activePreset: "last7" | "last30" | "quarter" | "year" | "all" | null = null;
+          if (startDate === presets.last7.start && endDate === presets.last7.end) activePreset = "last7";
+          else if (startDate === presets.last30.start && endDate === presets.last30.end) activePreset = "last30";
+          else if (startDate === presets.quarter.start && endDate === presets.quarter.end) activePreset = "quarter";
+          else if (startDate === presets.year.start && endDate === presets.year.end) activePreset = "year";
+          else if (startDate === "" && endDate === "") activePreset = "all";
+
+          return (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {[
+                { id: "last7", label: "Last 7 Days", dates: presets.last7 },
+                { id: "last30", label: "Last 30 Days", dates: presets.last30 },
+                { id: "quarter", label: "This Quarter", dates: presets.quarter },
+                { id: "year", label: "This Year", dates: presets.year },
+                { id: "all", label: "All Time", dates: presets.all },
+              ].map((p) => {
+                const isActive = activePreset === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      onStartDateChange(p.dates.start);
+                      onEndDateChange(p.dates.end);
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 ${
+                      isActive
+                        ? "bg-slate-900 border-slate-900 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-950 shadow-sm"
+                        : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/50"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
+
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-2 text-sm text-foreground">
             <span>Start date</span>
