@@ -82,7 +82,8 @@ uploadRouter.post(
             }
 
             const validData = parseResult.data;
-            const { prediction } = await MLService.runAssessmentInference(validData);
+            const rowId = (row as any).id || (row as any).patient_id || (row as any).patientName || processed;
+            const { prediction } = await MLService.runAssessmentInference(validData, rowId, { throwOnFailure: true });
 
             await storage.createAssessment({
               ...validData,

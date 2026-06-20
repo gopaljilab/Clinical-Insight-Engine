@@ -137,7 +137,7 @@ vi.mock("fs/promises", () => ({
 }));
 
 import { registerRoutes } from "../server/routes";
-import { pythonDaemon } from "../server/services/mlService";
+import { pythonDaemon, MLService } from "../server/services/mlService";
 
 const validPayload = {
   patientName: "John Doe",
@@ -192,6 +192,10 @@ function createUnauthenticatedApp() {
 beforeEach(() => {
   vi.clearAllMocks();
   rateLimitCounters.clear();
+  process.env.MAX_RETRIES = "0";
+  if (MLService && MLService.activeInferenceRequests) {
+    MLService.activeInferenceRequests.clear();
+  }
   mockCreateAssessment.mockImplementation((input) =>
     Promise.resolve({ id: 1, ...input, createdAt: new Date() })
   );

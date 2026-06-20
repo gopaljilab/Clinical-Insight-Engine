@@ -172,7 +172,7 @@ export function startAssessmentWorker(): void {
       await new Promise((r) => setTimeout(r, 0)); // yield event loop
 
       emitAssessmentProgress(job.id ?? "", 30, "Feature Preparation");
-      const { prediction } = await MLService.runAssessmentInference(input);
+      const { prediction } = await MLService.runAssessmentInference(input, job.id ?? "", { throwOnFailure: true });
       emitAssessmentProgress(job.id ?? "", 60, "Running Prediction Model");
         let resolvedPrediction: any = prediction;
 
