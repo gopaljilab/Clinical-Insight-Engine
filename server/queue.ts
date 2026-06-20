@@ -95,6 +95,14 @@ export async function verifyRedisConnection(): Promise<boolean> {
   } catch (err) {
     logger.warn({ err }, "Redis unavailable — async assessment queue disabled");
     queueAvailable = false;
+    if (redisConnectionInstance) {
+      try {
+        redisConnectionInstance.disconnect();
+      } catch (disconnectErr) {
+        // ignore
+      }
+      redisConnectionInstance = null;
+    }
     return false;
   }
 }

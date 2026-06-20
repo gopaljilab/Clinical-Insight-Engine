@@ -9,6 +9,7 @@ import { logger } from "./logger";
 import { validateDTO } from "./middleware/validateDTO";
 import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswordDTOSchema, verifyEmailDTOSchema, verifyOtpDTOSchema } from "./validation/auth.dto";
 import { AuthRepository } from "./repositories/auth.repository";
+import { createOAuth2Router } from "./auth/oauth2";
 
 const authRepository = new AuthRepository();
 
@@ -22,7 +23,7 @@ function verifyPassword(password: string, storedHash: string): boolean {
 // Extend express-session to include user data
 declare module "express-session" {
   interface SessionData {
-    user?: {
+    user: {
       id: string;
       email: string;
       name: string;
@@ -272,6 +273,9 @@ export async function requireAnyAuth(req: Request, res: Response, next: NextFunc
 
 export function createAuthRouter(): Router {
   const router = Router();
+
+  // Mount Google OAuth2 authentication sub-router
+  router.use("/oauth2", createOAuth2Router());
 
   /**
    * POST /api/auth/register
