@@ -45,12 +45,15 @@ const allowedOrigins = process.env.CORS_ORIGINS
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (browser initial load, Vite HMR, curl)
+    // Reject requests with no origin (security hardening)
     if (!origin) {
-      return callback(null, true);
+      return callback(new Error("CORS: Origin header is required"), false);
     }
     
     if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else if (process.env.NODE_ENV !== "production") {
+      // In development, allow origins not explicitly listed (for flexibility)
       callback(null, true);
     } else {
       callback(new Error("Not allowed by CORS"), false);
