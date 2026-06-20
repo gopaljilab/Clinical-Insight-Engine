@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { safeExecML } from "./utils/exec";
-import express, { type Request, Response, NextFunction } from "express";
+import express, { type Request, Response, NextFunction, type RequestHandler } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
@@ -127,14 +127,14 @@ app.use(loggingAnomalyMiddleware);
 
 // Nonce middleware - generates a unique cryptographic nonce per request for CSP
 app.use((_req, res, next) => {
-  res.locals.cspNonce = crypto.randomBytes(16).toString("hex");
+  (res.locals as Record<string, string>).cspNonce = crypto.randomBytes(16).toString("hex");
   next();
 });
 
 // Security headers via helmet
-const scriptSrcDirective: Array<string | ((req: Parameters<RequestHandler>[0], res: Parameters<RequestHandler>[0]) => string)> = [
+const scriptSrcDirective: Array<string | ((req: any, res: any) => string)> = [
   "'self'",
-  (_req: any, res: Parameters<RequestHandler>[0]) => `'nonce-${res.locals.cspNonce}'`,
+  (_req: any, res: any) => `'nonce-${(res.locals as Record<string, string>).cspNonce}'`,
 ];
 
 

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { AssessmentResult } from "./AssessmentResult";
+import "../../src/i18n";
 
 vi.mock("@/hooks/use-assessments", () => ({
   useAssessments: () => ({ data: { data: [] } }),

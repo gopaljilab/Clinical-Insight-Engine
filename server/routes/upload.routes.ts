@@ -1,5 +1,5 @@
-import { Router } from "express";
-import multer from "multer";
+import { Router, type RequestHandler } from "express";
+import multer, { type FileFilterCallback } from "multer";
 import path from "path";
 import { requireAuth, requireVerified } from "../auth";
 import Papa from "papaparse";
@@ -17,8 +17,7 @@ const upload = multer({
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB
   },
-  fileFilter: (req: Parameters<RequestHandler>[0], file: unknown, cb: unknown) => {
-    // HARDENING: Restrict to ONLY CSV files to prevent upload of executable or unwanted MIME types
+  fileFilter: (_req: Express.Request, file: Express.Multer.File, cb: FileFilterCallback) => {
     const allowedMimeTypes = ["text/csv"];
     const allowedExtensions = [".csv"];
     

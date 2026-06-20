@@ -523,8 +523,8 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Ins
   try {
     return insertAssessmentSchema.parse(assessment);
   } catch (err: unknown) {
-    if (err.errors && err.errors.length > 0) {
-      throw new Error(err.errors[0].message);
+    if ((err as { errors?: Array<{ message: string }> }).errors?.length) {
+      throw new Error((err as { errors: Array<{ message: string }> }).errors[0].message);
     }
     throw err;
   }
