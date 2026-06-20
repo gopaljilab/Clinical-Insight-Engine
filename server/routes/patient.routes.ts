@@ -28,11 +28,11 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-function hashPassword(password: string): string {
+export function hashPassword(password: string): string {
   return bcrypt.hashSync(password, 10);
 }
 
-function verifyPassword(password: string, hash: string): boolean {
+export function verifyPassword(password: string, hash: string): boolean {
   return bcrypt.compareSync(password, hash);
 }
 
