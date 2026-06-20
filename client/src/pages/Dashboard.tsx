@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { AssessmentResult } from "@/components/AssessmentResult";
 import { BMIClassificationHelper } from "@/components/BMIClassificationHelper";
 import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
-import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UploadCloud, UserCircle, Info, X } from "lucide-react";
+import { Activity, AlertCircle, Clock3, HeartPulse, ShieldCheck, TrendingUp, UploadCloud, UserCircle, Info, X } from "lucide-react";
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
 import { insertAssessmentSchema } from "@shared/schema";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";

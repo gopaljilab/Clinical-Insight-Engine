@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "@/lib/queryClient";
 import { ApiClient } from "@/lib/apiClient";
-import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, TrendingUp, UploadCloud, User, GitCompare } from "lucide-react";
+import { Activity, ClipboardList, HeartPulse, LogOut, PieChart, TrendingUp, UploadCloud, User, GitCompare } from "lucide-react";
 import ThemeToggle from "../ThemeToggle";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useToast } from "@/hooks/use-toast";
