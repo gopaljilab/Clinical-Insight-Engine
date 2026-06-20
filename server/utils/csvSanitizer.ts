@@ -15,6 +15,11 @@ function flattenCellValue(value: unknown): string {
   return String(value ?? "");
 }
 
+/**
+ * Sanitize Csv Cell.
+ * @param value - The value parameter.
+ * @returns The result of the operation.
+ */
 export function sanitizeCsvCell(value: unknown): string {
   if (value === null || value === undefined) {
     return "";
@@ -47,6 +52,11 @@ export function sanitizeCsvCell(value: unknown): string {
   return text;
 }
 
+/**
+ * Escape Csv Cell.
+ * @param value - The value parameter.
+ * @returns The result of the operation.
+ */
 export function escapeCsvCell(value: unknown): string {
   const sanitized = sanitizeCsvCell(value);
 

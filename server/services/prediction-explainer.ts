@@ -96,6 +96,11 @@ function summarizeContributorNames(contributors: Array<PredictionExplanation["to
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
+/**
+ * Generate Prediction Explanation.
+ * @param input - The input parameter.
+ * @returns The result of the operation.
+ */
 export function generatePredictionExplanation(input: ExplainerInput): PredictionExplanation {
   const factors = normalizeFactors(input.factors);
   const weightedFactors = factors.map((factor, index) => ({

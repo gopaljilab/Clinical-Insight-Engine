@@ -536,7 +536,7 @@ describe("Python inference", () => {
     }
   });
 
-  it.skip("bulk route returns 201 on successful python daemon batch inference", async () => {
+  it("bulk route returns 201 on successful python daemon batch inference", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
