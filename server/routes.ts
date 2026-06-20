@@ -567,7 +567,7 @@ export async function registerRoutes(
         }
 
         // Object-Level Authorization Check
-        if (!canAccessPatientRecord(user, assessment)) {
+        if (!canAccessPatientRecord(user as any, assessment)) {
           // Log unauthorized access attempt (IDOR/Enumeration attempt)
           logAccessAttempt(
             user.id,
@@ -729,7 +729,7 @@ export async function registerRoutes(
 
       logger.info(`Model retrained: version ${nextVersion}, accuracy ${metrics.accuracy}`);
       res.json(record);
-    } catch (err: unknown) {
+    } catch (err: any) {
       logger.error({ err }, "Admin model retrain error:");
       res.status(500).json({ message: err.stderr || "Model retraining failed." });
     }

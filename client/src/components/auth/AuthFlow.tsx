@@ -89,7 +89,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     setFieldErrors({});
   }
 
-  function handleServerErrors(err: unknown) {
+  function handleServerErrors(err: any) {
     clearAllFieldErrors();
     const fieldErrs = err.fieldErrors as Array<{ field: string; message: string }> | undefined;
     if (fieldErrs && fieldErrs.length > 0) {
@@ -143,7 +143,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       setCountdown(600);
       setResendCooldown(60);
       setOtp(responseData?.devOtp || "");
-    } catch (err: unknown) {
+    } catch (err: any) {
       handleServerErrors(err);
     } finally {
       setIsLoading(false);
@@ -175,7 +175,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       } else {
         setLocation("/dashboard");
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
       setError((err as Error).message || "Verification failed. Please check the code and try again.");
     } finally {
       setIsLoading(false);
@@ -209,7 +209,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
         setDevOtp(undefined);
         setOtp("");
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
       setError((err as Error).message);
     } finally {
       setIsLoading(false);
@@ -225,7 +225,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     try {
       await ApiClient.post("/api/auth/forgot-password", { email });
       setForgotSent(true);
-    } catch (err: unknown) {
+    } catch (err: any) {
       setError((err as Error).message || "Failed to send reset email.");
     } finally {
       setIsLoading(false);
