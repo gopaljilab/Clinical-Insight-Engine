@@ -29,6 +29,11 @@ if (
         // share the same account and see all other users' patient records.
         // Implement a real DB lookup (e.g. by profile.emails[0].value) before enabling.
         return cb(new Error("OAuth2 authentication is not yet configured for this application."));
+      }
+    )
+  );
+}
+
 import { Router, type Request, type Response } from "express";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
