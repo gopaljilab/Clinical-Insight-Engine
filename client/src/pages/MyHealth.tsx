@@ -47,18 +47,6 @@ interface TrendPoint {
   riskCategory: string;
 }
 
-function getToken(): string | null {
-  return localStorage.getItem("patient_token");
-}
-
-function setToken(token: string) {
-  localStorage.setItem("patient_token", token);
-}
-
-function clearToken() {
-  localStorage.removeItem("patient_token");
-}
-
 function riskColor(category: string): string {
   switch (category) {
     case "HIGH": return "text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-950/50";
@@ -86,34 +74,28 @@ export default function MyHealth() {
   const { t } = useTranslation();
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      navigate("/patient-login");
-      return;
-    }
-    fetchUser(token);
+    fetchUser();
   }, []);
 
-  async function fetchUser(token: string) {
+  async function fetchUser() {
     try {
       const res = await fetch("/api/patient/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Unauthorized");
       const data = await res.json();
       setUser(data.user);
-      fetchAssessments(token);
-      fetchTrends(token);
+      fetchAssessments();
+      fetchTrends();
     } catch {
-      clearToken();
       navigate("/patient-login");
     }
   }
 
-  async function fetchAssessments(token: string) {
+  async function fetchAssessments() {
     try {
       const res = await fetch("/api/patient/assessments?limit=50", {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
@@ -125,10 +107,10 @@ export default function MyHealth() {
     }
   }
 
-  async function fetchTrends(token: string) {
+  async function fetchTrends() {
     try {
       const res = await fetch("/api/patient/trends", {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -136,8 +118,11 @@ export default function MyHealth() {
     } catch {}
   }
 
-  function handleLogout() {
-    clearToken();
+  async function handleLogout() {
+    await fetch("/api/patient/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
     navigate("/patient-login");
   }
 

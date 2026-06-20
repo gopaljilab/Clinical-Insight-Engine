@@ -61,6 +61,7 @@ export default function PatientLogin() {
       const res = await fetch("/api/patient/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
@@ -77,7 +78,6 @@ export default function PatientLogin() {
       } else {
         localStorage.removeItem("patient_remember_email");
       }
-      localStorage.setItem("patient_token", data.token);
       navigate("/my-health");
     } catch {
       setError("Connection error. Please try again.");
@@ -95,6 +95,7 @@ export default function PatientLogin() {
       const res = await fetch("/api/patient/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ patientName, email, password, phone: phone || undefined }),
       });
       const data = await res.json();
@@ -108,7 +109,6 @@ export default function PatientLogin() {
         }
         return;
       }
-      localStorage.setItem("patient_token", data.token);
       navigate("/my-health");
     } catch {
       setError("Connection error. Please try again.");

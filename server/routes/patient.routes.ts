@@ -28,6 +28,9 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+const PATIENT_SESSION_COOKIE = "patient_session";
+const PATIENT_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
 function hashPassword(password: string): string {
   return bcrypt.hashSync(password, 10);
 }
@@ -36,12 +39,45 @@ function verifyPassword(password: string, hash: string): boolean {
   return bcrypt.compareSync(password, hash);
 }
 
-export function requirePatientAuth(req: Request, res: Response, next: NextFunction) {
+function getCookieValue(req: Request, name: string): string | undefined {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return undefined;
+
+  return cookieHeader
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
+}
+
+function getPatientToken(req: Request): string | undefined {
+  const cookieToken = getCookieValue(req, PATIENT_SESSION_COOKIE);
+  if (cookieToken) return decodeURIComponent(cookieToken);
+
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7);
+  }
+
+  return undefined;
+}
+
+function setPatientSessionCookie(res: Response, token: string) {
+  res.cookie(PATIENT_SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: PATIENT_SESSION_MAX_AGE_MS,
+    path: "/",
+  });
+}
+
+export function requirePatientAuth(req: Request, res: Response, next: NextFunction) {
+  const token = getPatientToken(req);
+  if (!token) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  const token = authHeader.slice(7);
+
   const result = verifyToken(token);
   if (!result.valid) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -74,9 +110,9 @@ router.post("/auth/register", patientAuthLimiter, async (req: Request, res: Resp
       emailVerified: true,
     });
     const token = issueToken(user.id, user.email, "PATIENT", "24h");
+    setPatientSessionCookie(res, token);
     return res.status(201).json({
       success: true,
-      token,
       user: { id: user.id, patientName: user.patientName, email: user.email },
     });
   } catch (err) {
@@ -99,9 +135,9 @@ router.post("/auth/login", patientAuthLimiter, async (req: Request, res: Respons
       return res.status(403).json({ message: "Account is deactivated." });
     }
     const token = issueToken(user.id, user.email, "PATIENT", "24h");
+    setPatientSessionCookie(res, token);
     return res.json({
       success: true,
-      token,
       user: { id: user.id, patientName: user.patientName, email: user.email },
     });
   } catch (err) {
@@ -111,6 +147,16 @@ router.post("/auth/login", patientAuthLimiter, async (req: Request, res: Respons
     logger.error({ err }, "Patient login error");
     return res.status(500).json({ message: "Login failed." });
   }
+});
+
+router.post("/auth/logout", (_req: Request, res: Response) => {
+  res.clearCookie(PATIENT_SESSION_COOKIE, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+  });
+  return res.json({ success: true });
 });
 
 router.get("/auth/me", requirePatientAuth, async (req: Request, res: Response) => {
