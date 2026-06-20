@@ -5,8 +5,21 @@ import { z } from "zod";
 import { storage } from "../storage";
 import { logger } from "../logger";
 import { issueToken, verifyToken } from "../services/auth/tokenValidator";
+import fs from "fs";
+import path from "path";
 
 const router = Router();
+
+let commonPasswords = new Set<string>();
+try {
+  const filePath = path.join(process.cwd(), "server", "resources", "common-passwords.txt");
+  if (fs.existsSync(filePath)) {
+    const content = fs.readFileSync(filePath, "utf-8");
+    commonPasswords = new Set(content.split(/\r?\n/).map((p) => p.trim().toLowerCase()).filter(Boolean));
+  }
+} catch (err) {
+  logger.error({ err }, "Failed to load common passwords list");
+}
 
 const patientAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -19,7 +32,12 @@ const patientAuthLimiter = rateLimit({
 const registerSchema = z.object({
   patientName: z.string().trim().min(1, "Patient name is required"),
   email: z.string().email("Valid email is required"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .refine((val) => /[A-Z]/.test(val), "Password must contain at least one uppercase letter")
+    .refine((val) => /[a-z]/.test(val), "Password must contain at least one lowercase letter")
+    .refine((val) => /[0-9]/.test(val), "Password must contain at least one number")
+    .refine((val) => /[^A-Za-z0-9]/.test(val), "Password must contain at least one special character"),
   phone: z.string().optional(),
 });
 
@@ -56,6 +74,9 @@ export function requirePatientAuth(req: Request, res: Response, next: NextFuncti
 router.post("/auth/register", patientAuthLimiter, async (req: Request, res: Response) => {
   try {
     const body = registerSchema.parse(req.body);
+    if (commonPasswords.has(body.password.toLowerCase())) {
+      return res.status(400).json({ message: "Password is too common. Please choose a stronger password." });
+    }
     const existing = await storage.getPatientUserByEmail(body.email);
     if (existing) {
       return res.status(409).json({ message: "An account with this email already exists." });

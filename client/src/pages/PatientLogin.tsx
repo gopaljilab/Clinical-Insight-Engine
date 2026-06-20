@@ -44,8 +44,23 @@ export default function PatientLogin() {
     if (!patientName.trim()) errors.patientName = "Patient name is required.";
     if (!email.trim()) errors.email = "Email is required.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Enter a valid email address.";
-    if (!password) errors.password = "Password is required.";
-    else if (password.length < 8) errors.password = "Password must be at least 8 characters.";
+    
+    if (!password) {
+      errors.password = "Password is required.";
+    } else {
+      if (password.length < 8) {
+        errors.password = "Password must be at least 8 characters.";
+      } else if (!/[A-Z]/.test(password)) {
+        errors.password = "Password must contain at least one uppercase letter.";
+      } else if (!/[a-z]/.test(password)) {
+        errors.password = "Password must contain at least one lowercase letter.";
+      } else if (!/[0-9]/.test(password)) {
+        errors.password = "Password must contain at least one number.";
+      } else if (!/[^A-Za-z0-9]/.test(password)) {
+        errors.password = "Password must contain at least one special character.";
+      }
+    }
+
     if (!confirmPassword) errors.confirmPassword = "Please confirm your password.";
     else if (password !== confirmPassword) errors.confirmPassword = "Passwords do not match.";
     setFieldErrors(errors);
