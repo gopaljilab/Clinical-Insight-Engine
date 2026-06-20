@@ -34,6 +34,9 @@ import { searchQuerySchema, assessmentExportQuerySchema } from "./validation/sea
 import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
+import { getDb } from "./db";
+import { and, eq, or, sql } from "drizzle-orm";
+import { assessments } from "@shared/schema";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -226,6 +229,139 @@ export async function registerRoutes(
       }
     }
   );
+
+  app.post(
+    api.assessments.simulate.path,
+    requireAuth,
+    requireVerified,
+    previewLimiter,
+    validateDTO(api.assessments.simulate.input),
+    async (req, res) => {
+      const input = api.assessments.simulate.input.parse(req.body);
+      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
+
+      try {
+        await writeFile(tempFile, JSON.stringify(input));
+
+        let prediction: any;
+        try {
+          const { stdout } = await execFileAsync(
+            getPythonExecutable(),
+            [analyzePyPath, "predict_file", tempFile],
+            { timeout: 30000 }
+          );
+
+          prediction = JSON.parse(stdout.trim());
+          if (prediction.error) {
+            return res.status(400).json({ message: prediction.error });
+          }
+        } catch (error: unknown) {
+          if ((error as any).killed || (error as any).signal === "SIGTERM") {
+            return res.status(408).json({ message: "Clinical assessment simulation timed out." });
+          }
+
+          logger.warn(
+            { err: error as any },
+            "Python prediction simulation failed, falling back to clinical rule-based model:"
+          );
+          prediction = calculateClinicalFallback(input);
+        }
+
+        logger.info(
+          `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+        );
+
+        return res.json({
+          simulatedRisk: prediction.riskScore,
+          riskCategory: prediction.riskCategory,
+          confidence: prediction.modelConfidence ?? null,
+          factorContributions: prediction.factors ?? [],
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: err.errors[0].message });
+        }
+        logger.error({ err }, "Error creating assessment simulation");
+        return res.status(500).json({ message: "Internal server error" });
+      } finally {
+        try {
+          await unlink(tempFile);
+        } catch (e) {
+          logger.warn({ e, tempFile }, "Failed to clean up temp file (simulate):");
+        }
+      }
+    }
+  );
+
+  app.post(
+    "/api/assessments/check-duplicates",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      const checkDuplicatesSchema = z.object({
+        assessments: z.array(
+          z.object({
+            patientName: z.string(),
+            age: z.number(),
+            gender: z.string(),
+          })
+        ),
+      });
+
+      try {
+        const parsed = checkDuplicatesSchema.parse(req.body);
+        const { assessments: items } = parsed;
+
+        if (items.length === 0) {
+          return res.json({ duplicates: [] });
+        }
+
+        const db = getDb();
+        const duplicates: typeof items = [];
+        const CHUNK_SIZE = 200;
+
+        for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+          const chunk = items.slice(i, i + CHUNK_SIZE);
+          const conditions = chunk.map((item) =>
+            and(
+              sql`LOWER(${assessments.patientName}) = LOWER(${item.patientName})`,
+              eq(assessments.age, item.age),
+              eq(assessments.gender, item.gender)
+            )
+          );
+
+          const chunkDuplicates = await db
+            .select({
+              patientName: assessments.patientName,
+              age: assessments.age,
+              gender: assessments.gender,
+            })
+            .from(assessments)
+            .where(or(...conditions));
+
+          duplicates.push(...chunkDuplicates);
+        }
+
+        // Deduplicate the results from db just in case
+        const seen = new Set<string>();
+        const uniqueDuplicates = duplicates.filter((d) => {
+          const key = `${d.patientName.toLowerCase()}::${d.age}::${d.gender}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        return res.json({ duplicates: uniqueDuplicates });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: err.errors[0].message });
+        }
+        logger.error({ err }, "Error checking duplicate assessments");
+        return res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  );
+
 
   app.get(
     "/api/queue/health",
@@ -443,7 +579,7 @@ export async function registerRoutes(
         }
 
         // Object-Level Authorization Check
-        if (!canAccessPatientRecord(user, assessment)) {
+        if (!canAccessPatientRecord(user as any, assessment)) {
           // Log unauthorized access attempt (IDOR/Enumeration attempt)
           logAccessAttempt(
             user.id,
@@ -605,7 +741,7 @@ export async function registerRoutes(
 
       logger.info(`Model retrained: version ${nextVersion}, accuracy ${metrics.accuracy}`);
       res.json(record);
-    } catch (err: unknown) {
+    } catch (err: any) {
       logger.error({ err }, "Admin model retrain error:");
       res.status(500).json({ message: err.stderr || "Model retraining failed." });
     }
