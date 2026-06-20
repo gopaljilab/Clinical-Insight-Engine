@@ -563,7 +563,7 @@ assessmentsRouter.get(
         return res.status(404).json({ message: "Assessment not found." });
       }
 
-      if (!canAccessPatientRecord(user, assessment)) {
+      if (!canAccessPatientRecord(user as any, assessment)) {
         logAccessAttempt(
           (user).id,
           "Assessment",
@@ -608,7 +608,7 @@ assessmentsRouter.delete(
         return res.status(404).json({ message: "Assessment not found." });
       }
 
-      if (!canAccessPatientRecord(user, assessment)) {
+      if (!canAccessPatientRecord(user as any, assessment)) {
         logAccessAttempt(
           (user).id,
           "Assessment",
