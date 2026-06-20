@@ -295,6 +295,8 @@ export default function Dashboard() {
           </div>
         </div>
 
+        <div className={`transition-all duration-500 grid grid-cols-1 gap-8 lg:items-start min-w-0 ${result ? "lg:grid-cols-12" : "lg:grid-cols-5"}`}>
+          <div className={`transition-all duration-500 min-w-0 ${result ? "lg:col-span-4 sticky top-8" : "lg:col-span-3"} lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4`}>
         <div className={`transition-all duration-500 grid grid-cols-1 gap-8 lg:items-start ${(result || isPending) ? "lg:grid-cols-12" : "lg:grid-cols-5"}`}>
           <div className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-4 sticky top-8" : "lg:col-span-3"} lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4`}>
             <form
@@ -609,6 +611,8 @@ export default function Dashboard() {
               </form>
             </div>
 
+            <aside className={`transition-all duration-500 min-w-0 ${result ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
+              {result ? (
             <aside className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
               {isPending ? (
                 <div className="rounded-2xl border border-slate-100 bg-white p-8 shadow-sm shadow-slate-900/3 flex flex-col items-center justify-center min-h-[500px]" aria-live="polite">
