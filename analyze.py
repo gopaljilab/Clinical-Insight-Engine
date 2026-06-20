@@ -533,17 +533,36 @@ def validate_assessment_input(data):
     if not isinstance(data, dict):
         raise ValueError("Input must be an object")
 
-    age = data.get("age")
-    if age is None or age < 0 or age > 130:
-        raise ValueError("Invalid age")
+    validators = {
+        "age": {"type": (int, float), "min": 0, "max": 130},
+        "gender": {"type": str, "in": ("Male", "Female")},
+        "hypertension": {"type": (bool, int), "in": (False, True, 0, 1)},
+        "heartDisease": {"type": (bool, int), "in": (False, True, 0, 1)},
+        "bmi": {"type": (int, float), "min": 0, "max": 100},
+        "hba1cLevel": {"type": (int, float), "min": 0, "max": 15},
+        "bloodGlucoseLevel": {"type": (int, float), "min": 0, "max": 500},
+        "smokingHistory": {
+            "type": str,
+            "in": ("never", "former", "current", "not specified", "ever", "No Info"),
+        },
+    }
 
-    gender = data.get("gender")
-    if gender not in ("Male", "Female"):
-        raise ValueError("Invalid gender")
+    for field, rules in validators.items():
+        if field not in data or data[field] is None:
+            raise ValueError(f"Missing or null field: {field}")
 
-    bmi = data.get("bmi")
-    if bmi is not None and (bmi < 0 or bmi > 100):
-        raise ValueError("Invalid BMI")
+        value = data[field]
+        if not isinstance(value, rules["type"]):
+            raise ValueError(f"Invalid type for {field}")
+
+        if "in" in rules and value not in rules["in"]:
+            raise ValueError(f"Invalid value for {field}")
+
+        if "min" in rules and value < rules["min"]:
+            raise ValueError(f"Invalid value for {field}")
+
+        if "max" in rules and value > rules["max"]:
+            raise ValueError(f"Invalid value for {field}")
 
     return data
 
