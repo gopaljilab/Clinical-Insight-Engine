@@ -171,6 +171,151 @@ export function parseFhirBundle(payload: any): NormalizedFhirStructure {
   return result;
 }
 
+function getSentenceContaining(text: string, index: number, matchLength: number): { snippet: string; start: number; end: number } {
+  // Look backwards for sentence start
+  let start = index;
+  while (start > 0) {
+    const char = text[start - 1];
+    if (char === '.' || char === '\n' || char === '!' || char === '?') {
+      break;
+    }
+    start--;
+  }
+
+  // Look forwards for sentence end
+  let end = index + matchLength;
+  while (end < text.length) {
+    const char = text[end];
+    if (char === '.' || char === '\n' || char === '!' || char === '?') {
+      break;
+    }
+    end++;
+  }
+
+  // Extract, trim, and adjust start/end accordingly
+  const snippet = text.substring(start, end);
+  const leadingSpaces = snippet.length - snippet.trimStart().length;
+  const trailingSpaces = snippet.length - snippet.trimEnd().length;
+  
+  const finalStart = start + leadingSpaces;
+  const finalEnd = end - trailingSpaces;
+  
+  return {
+    snippet: snippet.trim(),
+    start: finalStart,
+    end: finalEnd,
+  };
+}
+
+export interface ExplainableInsight {
+  insight: string;
+  source_snippet: string | null;
+  source_index: [number, number] | null;
+}
+
+export function extractExplainableInsights(noteText: string): ExplainableInsight[] {
+  const insights: ExplainableInsight[] = [];
+  if (!noteText) {
+    return [
+      { insight: "Patient shows signs of hypertension", source_snippet: null, source_index: null },
+      { insight: "Patient shows signs of heart disease", source_snippet: null, source_index: null },
+      { insight: "Patient has a history of smoking", source_snippet: null, source_index: null }
+    ];
+  }
+
+  const lowerText = noteText.toLowerCase();
+
+  // 1. Hypertension
+  let htInsight: ExplainableInsight = { insight: "Patient shows signs of hypertension", source_snippet: null, source_index: null };
+  const bpRegex = /\b(?:bp|blood pressure|reading|vitals)?\s*(\d{2,3})\s*[/|-]\s*(\d{2,3})\b/i;
+  const bpMatch = noteText.match(bpRegex);
+  if (bpMatch) {
+    const systolic = parseInt(bpMatch[1]);
+    const diastolic = parseInt(bpMatch[2]);
+    if (systolic > 140 || diastolic > 90) {
+      const sentence = getSentenceContaining(noteText, bpMatch.index!, bpMatch[0].length);
+      htInsight = {
+        insight: "Patient shows signs of hypertension",
+        source_snippet: sentence.snippet,
+        source_index: [sentence.start, sentence.end],
+      };
+    }
+  }
+  
+  if (!htInsight.source_snippet) {
+    const htKeywords = ["hypertension", "high blood pressure", "htn"];
+    for (const kw of htKeywords) {
+      const idx = lowerText.indexOf(kw);
+      if (idx !== -1) {
+        const sentence = getSentenceContaining(noteText, idx, kw.length);
+        htInsight = {
+          insight: "Patient shows signs of hypertension",
+          source_snippet: sentence.snippet,
+          source_index: [sentence.start, sentence.end],
+        };
+        break;
+      }
+    }
+  }
+  insights.push(htInsight);
+
+  // 2. Heart Disease
+  let hdInsight: ExplainableInsight = { insight: "Patient shows signs of heart disease", source_snippet: null, source_index: null };
+  const hdKeywords = [
+    "heart disease",
+    "coronary artery",
+    "cad",
+    "myocardial infarction",
+    "mi",
+    "heart failure",
+    "atrial fibrillation"
+  ];
+  for (const kw of hdKeywords) {
+    const idx = lowerText.indexOf(kw);
+    if (idx !== -1) {
+      const sentence = getSentenceContaining(noteText, idx, kw.length);
+      hdInsight = {
+        insight: "Patient shows signs of heart disease",
+        source_snippet: sentence.snippet,
+        source_index: [sentence.start, sentence.end],
+      };
+      break;
+    }
+  }
+  insights.push(hdInsight);
+
+  // 3. Smoking History
+  let shInsight: ExplainableInsight = { insight: "Patient has a history of smoking", source_snippet: null, source_index: null };
+  const shKeywords = [
+    { kw: "current smoker", label: "Patient has a smoking history (current)" },
+    { kw: "active smoker", label: "Patient has a smoking history (current)" },
+    { kw: "smokes tobacco", label: "Patient has a smoking history (current)" },
+    { kw: "smoking daily", label: "Patient has a smoking history (current)" },
+    { kw: "former smoker", label: "Patient has a smoking history (former)" },
+    { kw: "ex-smoker", label: "Patient has a smoking history (former)" },
+    { kw: "quit smoking", label: "Patient has a smoking history (former)" },
+    { kw: "history of smoking", label: "Patient has a smoking history (former)" },
+    { kw: "never smoked", label: "Patient has a smoking history (never)" },
+    { kw: "non-smoker", label: "Patient has a smoking history (never)" },
+    { kw: "never smoker", label: "Patient has a smoking history (never)" }
+  ];
+  for (const item of shKeywords) {
+    const idx = lowerText.indexOf(item.kw);
+    if (idx !== -1) {
+      const sentence = getSentenceContaining(noteText, idx, item.kw.length);
+      shInsight = {
+        insight: item.label,
+        source_snippet: sentence.snippet,
+        source_index: [sentence.start, sentence.end],
+      };
+      break;
+    }
+  }
+  insights.push(shInsight);
+
+  return insights;
+}
+
 /**
  * Maps the normalized FHIR structure to the internal InsertAssessment schema.
  * Performs rigorous validations and throws clean error messages.
@@ -354,6 +499,12 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Ins
     throw new Error("Missing required field: Blood Glucose Level");
   }
 
+  const clinicalNote = structure.documents
+    .map(d => d.attachmentContent || d.description || "")
+    .filter(Boolean)
+    .join("\n\n");
+  const explainableInsights = clinicalNote ? extractExplainableInsights(clinicalNote) : null;
+
   const assessment: InsertAssessment = {
     patientName: structure.patient.name,
     gender: structure.patient.gender,
@@ -364,12 +515,14 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Ins
     bmi,
     hba1cLevel,
     bloodGlucoseLevel,
+    clinicalNote: clinicalNote || null,
+    explainableInsights: explainableInsights || null,
   };
 
   // Zod parsing will validate range values
   try {
     return insertAssessmentSchema.parse(assessment);
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err.errors && err.errors.length > 0) {
       throw new Error(err.errors[0].message);
     }

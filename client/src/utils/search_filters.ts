@@ -13,12 +13,23 @@ function isWithinRange(value: number, range?: { min?: number | null; max?: numbe
   return true;
 }
 
+/**
+ * Checks whether  active metric filters.
+ * @param filters - The filters parameter.
+ * @returns The result of the operation.
+ */
 export function hasActiveMetricFilters(filters: MetricRangeFilters): boolean {
   return Object.values(filters).some(
     (range) => typeof range?.min === "number" || typeof range?.max === "number",
   );
 }
 
+/**
+ * Passes Metric Filters.
+ * @param assessment - The assessment parameter.
+ * @param filters - The filters parameter.
+ * @returns The result of the operation.
+ */
 export function passesMetricFilters(
   assessment: Assessment,
   filters: MetricRangeFilters,

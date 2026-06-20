@@ -6,10 +6,17 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
-    environment: "jsdom",
-    setupFiles: "./client/vitest.setup.ts",
-    include: ["client/src/**/*.test.{ts,tsx}"],
-    exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      thresholds: {
+        statements: 10,
+        branches: 10,
+        functions: 10,
+        lines: 10,
+      },
+      exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**", "**/*.test.*", "**/*.config.*", "**/vitest.setup.ts"],
+    },
   },
   resolve: {
     alias: {

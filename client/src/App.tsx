@@ -14,12 +14,15 @@ import ImportData from "./pages/ImportData";
 import AdminDashboard from "./pages/AdminDashboard";
 import ModelMonitoring from "./pages/ModelMonitoring";
 import ProgressTracking from "./pages/ProgressTracking";
+import CounterfactualAnalysis from "./pages/CounterfactualAnalysis";
 
 import LoginPage from "./pages/LoginPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
+import MyHealth from "./pages/MyHealth";
+import PatientLogin from "./pages/PatientLogin";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./i18n";
 
@@ -62,11 +65,18 @@ function Router() {
           <ProgressTracking />
         </ProtectedRoute>
       </Route>
+      <Route path="/counterfactual-analysis">
+        <ProtectedRoute>
+          <CounterfactualAnalysis />
+        </ProtectedRoute>
+      </Route>
       <Route path="/login" component={LoginPage} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/terms" component={Terms} />
+      <Route path="/patient-login" component={PatientLogin} />
+      <Route path="/my-health" component={MyHealth} />
       <Route component={NotFound} />
     </Switch>
   );

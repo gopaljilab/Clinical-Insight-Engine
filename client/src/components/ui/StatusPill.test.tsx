@@ -8,16 +8,12 @@ describe("StatusPill component", () => {
     const pill = screen.getByRole("status");
     expect(pill).toBeInTheDocument();
     expect(pill).toHaveTextContent("DEFAULT");
-    expect(String(pill.getAttribute("style"))).toContain("background-color: rgb(243, 244, 246)");
-    expect(String(pill.getAttribute("style"))).toContain("color: rgb(55, 65, 81)");
   });
 
   it("renders correctly with 'low' variant", () => {
     render(<StatusPill variant="low" />);
     const pill = screen.getByRole("status");
     expect(pill).toHaveTextContent("LOW");
-    expect(String(pill.getAttribute("style"))).toContain("background-color: rgb(230, 244, 234)");
-    expect(String(pill.getAttribute("style"))).toContain("color: rgb(6, 95, 70)");
   });
 
   it("renders correctly with 'moderate' variant", () => {

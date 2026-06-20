@@ -29,7 +29,7 @@ export function CopySummaryButton({ assessment, iconOnly = false }: CopySummaryB
     } catch (error: unknown) {
       const message =
         error instanceof Error
-          ? error.message
+          ? (error as Error).message
           : "Failed to copy summary. Please try again.";
       setCopyError(message);
     } finally {
