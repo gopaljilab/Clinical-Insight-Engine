@@ -233,6 +233,11 @@ registerOpenApiDocs(app);
     logger.warn({ source: "redis" }, "Redis unavailable — async assessment queue disabled.");
   }
 
+  const { startRetentionSweeper } = await import("./services/data-retention-sweeper");
+  const retentionSweeperInterval = parseInt(process.env.RETENTION_SWEEPER_INTERVAL_MS || "", 10) || 24 * 60 * 60 * 1000;
+  const retentionTimer = startRetentionSweeper(retentionSweeperInterval);
+  logger.info({ intervalMs: retentionSweeperInterval }, "Data retention sweeper started");
+
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // Limit each IP to 100 requests per windowMs
@@ -304,6 +309,7 @@ registerOpenApiDocs(app);
   // Graceful shutdown handler
   function shutdown(signal: string) {
     logger.info({ source: "express" }, `${signal} received — shutting down gracefully`);
+    clearInterval(retentionTimer);
 
     httpServer.close(async () => {
       logger.info({ source: "express" }, "HTTP server closed");

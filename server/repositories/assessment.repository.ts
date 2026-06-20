@@ -480,6 +480,17 @@ export class AssessmentRepository {
     await db.delete(assessments).where(eq(assessments.id, id));
   }
 
+  async findAssessmentsOlderThan(date: Date): Promise<Assessment[]> {
+    const db = getDb();
+    return db.select().from(assessments).where(lt(assessments.createdAt, date));
+  }
+
+  async purgeAssessmentsOlderThan(date: Date): Promise<number> {
+    const db = getDb();
+    const result = await db.delete(assessments).where(lt(assessments.createdAt, date)).returning({ id: assessments.id });
+    return result.length;
+  }
+
   async getCohortStats(params: {
     minAge?: number; maxAge?: number;
     minBmi?: number; maxBmi?: number;

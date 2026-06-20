@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { desc, sql } from "drizzle-orm";
+import { desc, lt, sql } from "drizzle-orm";
 import { loginAuditLogs, patientAccessAuditLogs } from "@shared/schema";
 
 export class AuditRepository {
@@ -53,5 +53,21 @@ export class AuditRepository {
     const data = await db.select().from(patientAccessAuditLogs).orderBy(desc(patientAccessAuditLogs.createdAt)).limit(limit).offset(offset);
     const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(patientAccessAuditLogs);
     return { data, total: Number(count) };
+  }
+
+  async anonymizeLoginAuditLogsOlderThan(date: Date): Promise<number> {
+    const db = getDb();
+    const result = await db
+      .update(loginAuditLogs)
+      .set({ userId: sql`'[anonymized]'` })
+      .where(lt(loginAuditLogs.createdAt, date))
+      .returning({ id: loginAuditLogs.id });
+    return result.length;
+  }
+
+  async purgePatientAccessAuditLogsOlderThan(date: Date): Promise<number> {
+    const db = getDb();
+    const result = await db.delete(patientAccessAuditLogs).where(lt(patientAccessAuditLogs.createdAt, date)).returning({ id: patientAccessAuditLogs.id });
+    return result.length;
   }
 }
