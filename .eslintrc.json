@@ -30,7 +30,8 @@
     "coverage/",
     "node_modules/",
     "*.config.js",
-    "*.config.ts"
+    "*.config.ts",
+    "docs/"
   ],
   "rules": {
     "react/react-in-jsx-scope": "off",
