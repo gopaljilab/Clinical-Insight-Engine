@@ -607,7 +607,7 @@ export async function registerRoutes(
       res.json(record);
     } catch (err: unknown) {
       logger.error({ err }, "Admin model retrain error:");
-      res.status(500).json({ message: err.stderr || "Model retraining failed." });
+      res.status(500).json({ message: (err as { stderr?: string }).stderr || "Model retraining failed." });
     }
   });
 

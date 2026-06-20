@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,17 @@ export default function PatientLogin() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem("patient_remember_email"));
 
+  const isPasswordValid = useMemo(() => {
+    if (!password) return false;
+    return (
+      password.length >= 8 &&
+      /[A-Z]/.test(password) &&
+      /[a-z]/.test(password) &&
+      /[0-9]/.test(password) &&
+      /[^A-Za-z0-9]/.test(password)
+    );
+  }, [password]);
+
   function validateLogin(): boolean {
     const errors: FieldErrors = {};
     if (!email.trim()) errors.email = "Email is required.";
@@ -45,7 +56,7 @@ export default function PatientLogin() {
     if (!email.trim()) errors.email = "Email is required.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Enter a valid email address.";
     if (!password) errors.password = "Password is required.";
-    else if (password.length < 8) errors.password = "Password must be at least 8 characters.";
+    else if (!isPasswordValid) errors.password = "Password does not meet all requirements.";
     if (!confirmPassword) errors.confirmPassword = "Please confirm your password.";
     else if (password !== confirmPassword) errors.confirmPassword = "Passwords do not match.";
     setFieldErrors(errors);
@@ -281,7 +292,7 @@ export default function PatientLogin() {
                   <Label htmlFor="reg-phone" className="text-sm sm:text-base">Phone (optional)</Label>
                   <Input id="reg-phone" type="tel" placeholder="+1-555-0123" value={phone} onChange={(e) => setPhone(e.target.value)} className="min-h-[48px] text-base" />
                 </div>
-                <Button type="submit" className="w-full min-h-[48px] text-base" isLoading={loading}>
+                <Button type="submit" className="w-full min-h-[48px] text-base" isLoading={loading} disabled={!isPasswordValid}>
                   Create Account
                 </Button>
                 <div className="flex items-center justify-center gap-2 text-xs text-gray-400">

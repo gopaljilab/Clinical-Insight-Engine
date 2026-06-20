@@ -16,10 +16,29 @@ const patientAuthLimiter = rateLimit({
   message: { error: "Too many attempts. Please try again later." },
 });
 
+const COMMON_PASSWORDS = new Set([
+  "password", "password1", "password123", "123456", "1234567", "12345678",
+  "123456789", "1234567890", "qwerty", "qwerty123", "abc123", "abcdef",
+  "letmein", "welcome", "monkey", "dragon", "master", "admin", "login",
+  "passw0rd", "trustno1", "sunshine", "princess", "football", "iloveyou",
+  "shadow", "superman", "michael", "ninja", "mustang", "batman", "charlie",
+]);
+
+const passwordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+  .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+  .regex(/[0-9]/, "Password must contain at least one digit")
+  .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character")
+  .refine((val) => !COMMON_PASSWORDS.has(val.toLowerCase()), {
+    message: "This password is too common and easily guessed. Please choose a more unique password.",
+  });
+
 const registerSchema = z.object({
   patientName: z.string().trim().min(1, "Patient name is required"),
   email: z.string().email("Valid email is required"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: passwordSchema,
   phone: z.string().optional(),
 });
 
