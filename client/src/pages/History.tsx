@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import type { Assessment, AssessmentFactor } from "@shared/schema";
 import { useAssessments, usePatientAssessments, useClearPatientCache, useDeleteAssessment } from "@/hooks/use-assessments";
-import { format, isValid } from "date-fns";
+import { format, isValid, subDays, startOfQuarter, startOfYear, endOfQuarter, endOfYear } from "date-fns";
 import {
   Loader2, Activity, ChevronLeft, ChevronRight, ChevronDown,
   Upload, Download, FileDown, FileText, RotateCw, SlidersHorizontal, X
@@ -124,6 +124,90 @@ export default function History() {
   const [compareMode, setCompareMode] = useState(false);
   const [selectedCompareIds, setSelectedCompareIds] = useState<Set<number>>(new Set());
   const [showCompareSheet, setShowCompareSheet] = useState(false);
+
+  // Date preset logic
+  const datePresets = useMemo(() => [
+    {
+      key: "7d",
+      label: "Last 7 days",
+      range: () => {
+        const end = new Date();
+        const start = subDays(end, 7);
+        return {
+          startDate: format(start, "yyyy-MM-dd"),
+          endDate: format(end, "yyyy-MM-dd"),
+        };
+      },
+    },
+    {
+      key: "30d",
+      label: "Last 30 days",
+      range: () => {
+        const end = new Date();
+        const start = subDays(end, 30);
+        return {
+          startDate: format(start, "yyyy-MM-dd"),
+          endDate: format(end, "yyyy-MM-dd"),
+        };
+      },
+    },
+    {
+      key: "quarter",
+      label: "This Quarter",
+      range: () => {
+        const now = new Date();
+        const start = startOfQuarter(now);
+        const end = endOfQuarter(now);
+        return {
+          startDate: format(start, "yyyy-MM-dd"),
+          endDate: format(end, "yyyy-MM-dd"),
+        };
+      },
+    },
+    {
+      key: "year",
+      label: "This Year",
+      range: () => {
+        const now = new Date();
+        const start = startOfYear(now);
+        const end = endOfYear(now);
+        return {
+          startDate: format(start, "yyyy-MM-dd"),
+          endDate: format(end, "yyyy-MM-dd"),
+        };
+      },
+    },
+    {
+      key: "all",
+      label: "All Time",
+      range: () => ({
+        startDate: "",
+        endDate: "",
+      }),
+    },
+  ], []);
+
+  // Initialize filters from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlStartDate = params.get("startDate");
+    const urlEndDate = params.get("endDate");
+    const urlRiskCategory = params.get("risk");
+    const urlGender = params.get("gender");
+    const urlMinAge = params.get("minAge");
+    const urlMaxAge = params.get("maxAge");
+    const urlSearchTerm = params.get("filter");
+    const urlSortBy = params.get("sort");
+
+    if (urlStartDate !== null) setStartDate(urlStartDate);
+    if (urlEndDate !== null) setEndDate(urlEndDate);
+    if (urlRiskCategory !== null && urlRiskCategory !== "All") setRiskCategory(urlRiskCategory as RiskCategoryFilterValue);
+    if (urlGender !== null && urlGender !== "All") setGender(urlGender as GenderFilterValue);
+    if (urlMinAge !== null) setMinAge(parseInt(urlMinAge, 10));
+    if (urlMaxAge !== null) setMaxAge(parseInt(urlMaxAge, 10));
+    if (urlSearchTerm !== null) setSearchTerm(urlSearchTerm);
+    if (urlSortBy !== null) setSortBy(urlSortBy);
+  }, []); // Empty deps - run only on mount
 
   const toggleCompareId = (id: number) => {
     setSelectedCompareIds(prev => {
@@ -647,6 +731,30 @@ export default function History() {
 
         {/* Quick Filter Buttons + Active Filter Chips */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Date Preset Buttons */}
+          <div className="flex flex-wrap gap-1">
+            {datePresets.map((preset) => (
+              <button
+                key={preset.key}
+                type="button"
+                onClick={() => {
+                  const range = preset.range();
+                  setStartDate(range.startDate);
+                  setEndDate(range.endDate);
+                  setCurrentPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                  startDate === preset.range().startDate && endDate === preset.range().endDate
+                    ? "bg-blue-100 border-blue-300 text-blue-700"
+                    : "bg-card border-border text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          
+          {/* Existing Filter Buttons */}
           <button
             type="button"
             onClick={() => { setRiskCategory("High"); setCurrentPage(1); }}
