@@ -92,6 +92,7 @@ export default function Dashboard() {
     reset,
   } = useForm<AssessmentFormData>({
     resolver: zodResolver(formSchema) as any,
+    mode: "onChange",
     defaultValues: {
       patientName: "",
       hypertension: false,

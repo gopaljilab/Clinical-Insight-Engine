@@ -13,6 +13,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import pickle
+from pydantic import BaseModel, Field
+from typing import Literal, Optional
 
 
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
@@ -529,23 +531,23 @@ def get_model():
     finally:
         _release_lock()
 
+class AssessmentInput(BaseModel):
+    age: int = Field(ge=0, le=130, description="Age must be between 0 and 130")
+    gender: Literal["Male", "Female"]
+    hypertension: Optional[bool] = False
+    heartDisease: Optional[bool] = False
+    smokingHistory: Optional[str] = "never"
+    bmi: Optional[float] = Field(None, ge=0, le=100, description="BMI must be between 0 and 100")
+    hba1cLevel: Optional[float] = None
+    bloodGlucoseLevel: Optional[float] = None
+    patientName: Optional[str] = None
+
 def validate_assessment_input(data):
     if not isinstance(data, dict):
         raise ValueError("Input must be an object")
-
-    age = data.get("age")
-    if age is None or age < 0 or age > 130:
-        raise ValueError("Invalid age")
-
-    gender = data.get("gender")
-    if gender not in ("Male", "Female"):
-        raise ValueError("Invalid gender")
-
-    bmi = data.get("bmi")
-    if bmi is not None and (bmi < 0 or bmi > 100):
-        raise ValueError("Invalid BMI")
-
-    return data
+    
+    validated = AssessmentInput.model_validate(data)
+    return validated.model_dump(exclude_unset=True)
 
 @phi_redaction_middleware
 def interpret_predictions_batch(model, scaler, features, input_data_list, cov_beta=None):
