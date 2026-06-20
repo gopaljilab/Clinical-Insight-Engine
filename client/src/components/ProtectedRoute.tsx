@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { Redirect } from "wouter";
-import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { MedicalLoader } from "@/components/ui/medical-loader";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -14,7 +14,7 @@ export function ProtectedRoute({ children, requireAdmin }: ProtectedRouteProps) 
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <MedicalLoader type="heartbeat" size="lg" className="h-8 w-8 text-primary" />
       </div>
     );
   }
