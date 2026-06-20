@@ -19,26 +19,6 @@ function hashPassword(password: string): string {
 function verifyPassword(password: string, storedHash: string): boolean {
   return bcrypt.compareSync(password, storedHash);
 }
-// Extend express-session to include user data
-declare module "express-session" {
-  interface SessionData {
-    user?: {
-      id: string;
-      email: string;
-      name: string;
-      role?: string | null;
-      emailVerified: boolean;
-    };
-    pendingUser?: {
-      id: string;
-      email: string;
-    };
-    oauthState?: {
-      value: string;
-      createdAt: number;
-    };
-  }
-}
 
 interface RegisteredUser {
   fullName: string;
@@ -156,7 +136,7 @@ function saveSession(req: Request): Promise<void> {
 
 async function establishAuthenticatedSession(
   req: Request,
-  user: { id: string; email: string; name: string; role?: string | null; emailVerified: boolean },
+  user: { id: string; email: string; name: string; role: string | null; emailVerified: boolean },
 ): Promise<void> {
   await regenerateSession(req);
   req.session.user = user;
