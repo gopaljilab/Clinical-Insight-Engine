@@ -48,6 +48,7 @@ export interface IStorage {
   ): Promise<{ data: Assessment[]; nextCursor: number | null }>;
   getAssessmentById(id: number): Promise<Assessment | undefined>;
   createAssessment(assessment: any): Promise<Assessment>;
+  updateClinicalNote(id: number, clinicalNote: string): Promise<Assessment | undefined>;
   deleteAssessment(id: number): Promise<void>;
   autocompletePatientNames(query: string, createdBy?: string, limit?: number): Promise<string[]>;
   createUser(data: InsertUser): Promise<User>;
@@ -172,6 +173,10 @@ export class DatabaseStorage implements IStorage {
 
   async createAssessment(assessment: any) {
     return this.assessmentRepository.createAssessment(assessment);
+  }
+
+  async updateClinicalNote(id: number, clinicalNote: string) {
+    return this.assessmentRepository.updateClinicalNote(id, clinicalNote);
   }
 
   async deleteAssessment(id: number) {

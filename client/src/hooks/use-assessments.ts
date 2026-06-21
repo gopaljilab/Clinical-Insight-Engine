@@ -389,3 +389,39 @@ export function useWhatIfAuto() {
     },
   });
 }
+
+export function useUpdateClinicalNote() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      clinicalNote,
+    }: {
+      id: number;
+      clinicalNote: string;
+    }) => {
+      const res = await fetch(`/api/assessments/${id}/note`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clinicalNote }),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to update clinical note");
+      }
+
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [ASSESSMENTS_LIST_QUERY_KEY] });
+      toast({ title: "Clinical note updated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update clinical note", description: error.message, variant: "destructive" });
+    },
+  });
+}

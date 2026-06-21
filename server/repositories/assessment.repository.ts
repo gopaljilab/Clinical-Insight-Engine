@@ -328,6 +328,19 @@ export class AssessmentRepository {
     return created;
   }
 
+  async updateClinicalNote(
+    id: number,
+    clinicalNote: string,
+  ): Promise<Assessment | undefined> {
+    const db = getDb();
+    const [updated] = await db
+      .update(assessments)
+      .set({ clinicalNote } as any)
+      .where(eq(assessments.id, id))
+      .returning();
+    return updated;
+  }
+
   async autocompletePatientNames(
     query: string,
     createdBy?: string,
