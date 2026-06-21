@@ -1,6 +1,7 @@
 import React from "react";
 import type { Recommendation } from "@shared/routes";
 import { CheckCircle2, Clipboard, Heart } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export function Recommendations({
   recommendations,
@@ -9,6 +10,7 @@ export function Recommendations({
   recommendations?: Recommendation[];
   audience?: "patient" | "clinician" | "both";
 }) {
+  const { t } = useTranslation();
   if (!recommendations || recommendations.length === 0) return null;
 
   // Filter by audience
@@ -23,7 +25,7 @@ export function Recommendations({
     <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
       <div className="flex items-center gap-3 mb-4">
         <Heart className="w-5 h-5 text-primary" />
-        <h3 className="font-bold text-lg">Recommendations</h3>
+        <h3 className="font-bold text-lg">{t("recommendations.title")}</h3>
       </div>
       <div className="grid gap-3">
         {filtered.map((rec) => (
@@ -40,10 +42,10 @@ export function Recommendations({
               <div className="flex items-center justify-between">
                 <div className="font-semibold text-foreground">{rec.title}</div>
                 {rec.urgency === "high" && (
-                  <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">High</span>
+                  <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">{t("recommendations.high")}</span>
                 )}
                 {rec.urgency === "medium" && (
-                  <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">Med</span>
+                  <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">{t("recommendations.med")}</span>
                 )}
               </div>
               <p className="text-sm text-muted-foreground mt-1">{rec.description}</p>

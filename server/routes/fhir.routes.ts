@@ -19,10 +19,10 @@ fhirRouter.post(
       // 1. Validate FHIR Bundle Structure
       try {
         validateFhirBundle(payload);
-      } catch (err: any) {
+      } catch (err: unknown) {
         return res.status(400).json({
           status: "error",
-          message: err.message || "Invalid FHIR payload",
+          message: (err as Error).message || "Invalid FHIR payload",
         });
       }
 
@@ -33,10 +33,10 @@ fhirRouter.post(
       let assessmentInput;
       try {
         assessmentInput = convertToInternalSchema(parsed);
-      } catch (err: any) {
+      } catch (err: unknown) {
         return res.status(400).json({
           status: "error",
-          message: err.message || "Validation failed for parsed clinical data",
+          message: (err as Error).message || "Validation failed for parsed clinical data",
         });
       }
 
@@ -51,7 +51,7 @@ fhirRouter.post(
 
       // 6. Persist assessment to DB
       const userEmail = req.session.user?.email || "system@clinical-insight-engine.dev";
-      const userId = (req.session.user as any)?.id;
+      const userId = (req.session.user)?.id;
 
       const savedAssessment = await storage.createAssessment({
         ...assessmentInput,
@@ -102,11 +102,11 @@ fhirRouter.post(
         explainable_insights: savedAssessment.explainableInsights || null,
       });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error({ err }, "FHIR Ingestion failed");
       return res.status(500).json({
         status: "error",
-        message: err.message || "Internal server error during FHIR ingestion",
+        message: (err as Error).message || "Internal server error during FHIR ingestion",
       });
     }
   }

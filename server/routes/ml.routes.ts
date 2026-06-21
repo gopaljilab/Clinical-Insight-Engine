@@ -46,10 +46,10 @@ mlRouter.post(
         if (!Array.isArray(predictions)) {
           throw new Error("Expected array of predictions");
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.warn(
-          "Python prediction bulk failed or timed out, running clinical rule-based fallback:",
-          error
+          { err: error },
+          "Python prediction bulk failed or timed out, running clinical rule-based fallback:"
         );
         predictions = calculateClinicalFallback(input) as PredictionResult[];
       }
@@ -60,10 +60,10 @@ mlRouter.post(
         });
       }
 
-      const createdAssessments = await Promise.all(
+      const createdAssessments = await storage.createAssessmentsBatch(
         input.map((assessment: any, index: number) => {
           const prediction = predictions[index];
-          return storage.createAssessment({
+          return {
             ...assessment,
             riskScore: Number(prediction.riskScore),
             riskCategory: prediction.riskCategory,

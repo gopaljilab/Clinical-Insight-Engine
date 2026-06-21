@@ -654,9 +654,9 @@ A successful FHIR ingestion response returns the extracted clinical note and exp
 }
 ```
 
-#### 🖥️ ClinicalNoteViewer (Interactive Note Viewer)
-On the **Clinician View** tab of the results page, the clinical note is rendered using the `ClinicalNoteViewer` component, which supports:
-* **Interactive Highlighting**: Clicking any cited insight automatically highlights the matching text in the note.
+#### 🖥️ Interactive Note Viewer
+On the **Clinician View** tab of the results page, the clinical note is rendered in an interactive viewer:
+* **Interactive Highlights**: Clicking any cited insight automatically highlights the matching text in the note.
 * **Auto-Scroll**: The highlighted source text is scrolled smoothly into view.
 * **Keyboard Navigation**:
   * Use **Arrow Down** / **Arrow Right** to move to the next cited insight.
@@ -732,7 +732,22 @@ graph LR
 | **Encoding** | Gender → binary; Smoking history → one-hot encoding |
 | **Scaling** | `StandardScaler` on age, BMI, HbA1c, blood glucose |
 | **Model** | `LogisticRegression` with balanced class weights |
-| **Caching** | Trained model + scaler serialized via `pickle` for fast inference |
+
+### 🧹 Robust Text Sanitization Layer
+
+To prevent ingestion, extraction, NLP, and prediction pipelines from crashing or truncating notes when encountering legacy character sets or invalid sequences, a robust text sanitization layer is integrated at all boundaries (dataset imports, API payloads, CLI inputs, and daemon loops).
+
+#### Why Healthcare Data Can Contain Malformed Encodings
+Clinical records are typically aggregated from disparate Electronic Health Records (EHR) systems, legacy laboratory reports, and clinician templates. These exports often use legacy encodings (e.g., Windows CP1252, ISO-8859-1) or copy-pasted smart quotes/dashes from word processors. If these raw streams are processed directly by modern UTF-8 parsers without sanitization, they raise `UnicodeDecodeError` exceptions, crash the daemon, or silently truncate vital note data.
+
+#### Sanitization Steps Applied:
+1. **Safe Byte Decoding**: Gracefully decodes byte streams using UTF-8. If malformed sequences are encountered, they are logged as warnings and replaced rather than throwing fatal exceptions. Fallbacks to CP1252/Latin-1 are triggered dynamically if needed.
+2. **Unicode Normalization**: Normalizes all characters to standard Unicode Normalization Form KC (NFKC).
+3. **Null Bytes Removal**: Strips null bytes (`\x00`) to prevent C-level string truncation bugs in downstream tools.
+4. **Control Characters Cleanup**: Discards non-printable control characters (Unicode category `Cc` and `Cf`) while fully preserving formatting whitespaces (`\t`, `\n`, `\r`).
+5. **Smart Quote & Dash Normalization**: Converts curly quotes (`“`, `”`, `‘`, `’`) and typographic dashes (`–`, `—`) to standard ASCII equivalents.
+6. **Unusual Whitespace Normalization**: Normalizes zero-width spaces (`\u200b`), non-breaking spaces (`\xa0`), and other Unicode spaces into standard ASCII spaces or empty strings.
+7. **Medical Symbol Preservation**: Fully preserves essential medical symbols like degrees (`°`), micro/mu (`μ`), plus-minus (`±`), and percentages (`%`) to maintain data integrity.
 
 ### Train the Model (Optional)
 

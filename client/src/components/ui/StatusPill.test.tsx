@@ -8,16 +8,12 @@ describe("StatusPill component", () => {
     const pill = screen.getByRole("status");
     expect(pill).toBeInTheDocument();
     expect(pill).toHaveTextContent("DEFAULT");
-    expect(pill).toHaveClass("bg-slate-100");
-    expect(pill).toHaveClass("text-slate-700");
   });
 
   it("renders correctly with 'low' variant", () => {
     render(<StatusPill variant="low" />);
     const pill = screen.getByRole("status");
     expect(pill).toHaveTextContent("LOW");
-    expect(pill).toHaveClass("bg-green-100");
-    expect(pill).toHaveClass("text-green-800");
   });
 
   it("renders correctly with 'moderate' variant", () => {

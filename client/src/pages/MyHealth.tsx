@@ -11,6 +11,7 @@ import { Loader2, LogOut, Download, AlertTriangle, Heart, Activity, FileText, Ch
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatReadableDate } from "@/utils/dateFormat";
 import { EmptyState } from "@/components/EmptyState";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
 
 interface PatientUser {
@@ -118,7 +119,7 @@ export default function MyHealth() {
       const data = await res.json();
       setAssessments(data.data ?? []);
     } catch (err) {
-      setError("Failed to load assessments.");
+      setError(t("myHealth.loadError"));
     } finally {
       setLoading(false);
     }
@@ -143,15 +144,15 @@ export default function MyHealth() {
   function handleDownloadPdf(assessment: Assessment) {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text("Patient Health Summary", 14, 22);
+    doc.text(t("myHealth.pdfTitle"), 14, 22);
     doc.setFontSize(11);
-    doc.text(`Patient: ${assessment.patientName}`, 14, 32);
-    doc.text(`Date: ${formatReadableDate(assessment.createdAt, { includeTime: false })}`, 14, 40);
-    doc.text(`Risk Score: ${assessment.riskScore.toFixed(1)}%`, 14, 50);
-    doc.text(`Risk Category: ${assessment.riskCategory}`, 14, 58);
-    doc.text(`Age: ${assessment.age}  |  Gender: ${assessment.gender}`, 14, 66);
-    doc.text(`BMI: ${assessment.bmi}  |  HbA1c: ${assessment.hba1cLevel}%`, 14, 74);
-    doc.text(`Blood Glucose: ${assessment.bloodGlucoseLevel} mg/dL`, 14, 82);
+    doc.text(t("myHealth.pdfPatient", { name: assessment.patientName }), 14, 32);
+    doc.text(t("myHealth.pdfDate", { date: formatReadableDate(assessment.createdAt, { includeTime: false }) }), 14, 40);
+    doc.text(t("myHealth.pdfRiskScore", { score: assessment.riskScore.toFixed(1) }), 14, 50);
+    doc.text(t("myHealth.pdfRiskCategory", { category: assessment.riskCategory }), 14, 58);
+    doc.text(t("myHealth.pdfAgeGender", { age: assessment.age, gender: assessment.gender }), 14, 66);
+    doc.text(t("myHealth.pdfBmi", { bmi: assessment.bmi }) + "  |  " + t("myHealth.pdfHba1c", { hba1c: assessment.hba1cLevel }), 14, 74);
+    doc.text(t("myHealth.pdfGlucose", { glucose: assessment.bloodGlucoseLevel }), 14, 82);
     doc.save(`health-summary-${assessment.id}.pdf`);
   }
 
@@ -160,12 +161,12 @@ export default function MyHealth() {
       return assessment.patientAdvice;
     }
     if (assessment.riskCategory === "HIGH") {
-      return ["Please schedule an appointment with your clinician to check diagnostic lab ranges."];
+      return [t("myHealth.fallbackAdviceHigh")];
     }
     if (assessment.riskCategory === "MODERATE") {
-      return ["Making positive dietary changes and staying active helps lower type 2 diabetes risk."];
+      return [t("myHealth.fallbackAdviceModerate")];
     }
-    return ["Continue maintaining a healthy, balanced lifestyle and regular physical activity."];
+    return [t("myHealth.fallbackAdviceLow")];
   }
 
   if (loading) {
@@ -182,40 +183,40 @@ export default function MyHealth() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
         <div className="mx-auto max-w-4xl px-4 py-4 sm:p-6">
           <Button variant="ghost" onClick={() => setSelectedAssessment(null)} className="mb-4 min-h-[44px] min-w-[44px]">
-            <ChevronLeft className="mr-2 h-5 w-5" /> Back to my health
+            <ChevronLeft className="mr-2 h-5 w-5" /> {t("myHealth.backToHealth")}
           </Button>
           <Card>
             <CardHeader className="px-4 sm:px-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <CardTitle className="text-xl sm:text-2xl">Assessment #{sa.id}</CardTitle>
+                <CardTitle className="text-xl sm:text-2xl">{t("myHealth.assessmentLabel", { id: sa.id })}</CardTitle>
                 <Button variant="outline" size="sm" onClick={() => handleDownloadPdf(sa)} className="min-h-[44px] self-start sm:self-auto">
-                  <Download className="mr-2 h-5 w-5" /> PDF
+                  <Download className="mr-2 h-5 w-5" /> {t("myHealth.pdfDownload")}
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="px-4 sm:px-6 space-y-6">
               <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
                 <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
-                  <p className="text-xs text-gray-500">Date</p>
+                  <p className="text-xs text-gray-500">{t("myHealth.date")}</p>
                   <p className="font-medium text-sm sm:text-base">{formatReadableDate(sa.createdAt, { includeTime: false })}</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
-                  <p className="text-xs text-gray-500">Risk Score</p>
+                  <p className="text-xs text-gray-500">{t("myHealth.riskScore")}</p>
                   <p className="font-medium text-sm sm:text-base">{sa.riskScore.toFixed(1)}%</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
-                  <p className="text-xs text-gray-500">Category</p>
+                  <p className="text-xs text-gray-500">{t("myHealth.category")}</p>
                   <Badge className={riskColor(sa.riskCategory) + " text-xs sm:text-sm"}>{sa.riskCategory}</Badge>
                 </div>
                 <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
-                  <p className="text-xs text-gray-500">Age/Gender</p>
+                  <p className="text-xs text-gray-500">{t("myHealth.ageGender")}</p>
                   <p className="font-medium text-sm sm:text-base">{sa.age} / {sa.gender}</p>
                 </div>
               </div>
 
               <div className="rounded-lg border bg-green-50 p-4 sm:p-5">
                 <h3 className="mb-2 flex items-center gap-2 text-sm sm:text-base font-semibold text-green-800">
-                  <Heart className="h-5 w-5" /> Your Health Advice
+                  <Heart className="h-5 w-5" /> {t("myHealth.yourHealthAdvice")}
                 </h3>
                 <ul className="space-y-1.5">
                   {getPatientAdvice(sa).map((a, i) => (
@@ -228,7 +229,7 @@ export default function MyHealth() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Key Factors</h3>
+                <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">{t("myHealth.keyFactors")}</h3>
                 <div className="space-y-2">
                   {sa.factors.map((f, i) => (
                     <div key={i} className="flex items-start gap-3 rounded-lg border dark:border-gray-700 p-3 dark:bg-gray-800/50">
@@ -248,15 +249,15 @@ export default function MyHealth() {
 
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">BMI</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t("myHealth.bmi")}</p>
                   <p className="font-medium dark:text-gray-100">{sa.bmi}</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">HbA1c</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t("myHealth.hba1c")}</p>
                   <p className="font-medium dark:text-gray-100">{sa.hba1cLevel}%</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Blood Glucose</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t("myHealth.bloodGlucose")}</p>
                   <p className="font-medium dark:text-gray-100">{sa.bloodGlucoseLevel} mg/dL</p>
                 </div>
               </div>
@@ -272,12 +273,15 @@ export default function MyHealth() {
       <header className="border-b bg-white/80 backdrop-blur-sm dark:bg-gray-900/80 dark:border-gray-800">
         <div className="mx-auto flex max-w-6xl items-center justify-between p-4">
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">My Health Portal</h1>
-            {user && <p className="text-sm text-gray-500 dark:text-gray-400">Welcome, {user.patientName}</p>}
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t("myHealth.title")}</h1>
+            {user && <p className="text-sm text-gray-500 dark:text-gray-400">{t("myHealth.welcome", { name: user.patientName })}</p>}
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="min-h-[44px] shrink-0 ml-2">
-            <LogOut className="mr-2 h-5 w-5" /> <span className="hidden sm:inline">Sign Out</span><span className="sm:hidden">Sign Out</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher variant="minimal" />
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="min-h-[44px] shrink-0">
+              <LogOut className="mr-2 h-5 w-5" /> <span>{t("myHealth.signOut")}</span>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -289,15 +293,15 @@ export default function MyHealth() {
         <Tabs defaultValue="assessments" className="space-y-4 sm:space-y-6">
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <TabsList className="w-full sm:w-auto">
-              <TabsTrigger value="assessments" className="min-h-[44px] flex-1 sm:flex-none"><FileText className="mr-2 h-5 w-5" /> My Assessments</TabsTrigger>
-              <TabsTrigger value="trends" className="min-h-[44px] flex-1 sm:flex-none"><Activity className="mr-2 h-5 w-5" /> Risk Trends</TabsTrigger>
+              <TabsTrigger value="assessments" className="min-h-[44px] flex-1 sm:flex-none"><FileText className="mr-2 h-5 w-5" /> {t("myHealth.tabAssessments")}</TabsTrigger>
+              <TabsTrigger value="trends" className="min-h-[44px] flex-1 sm:flex-none"><Activity className="mr-2 h-5 w-5" /> {t("myHealth.tabTrends")}</TabsTrigger>
             </TabsList>
           </div>
 
           <TabsContent value="assessments">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg dark:text-gray-100">Assessment History</CardTitle>
+                <CardTitle className="text-lg dark:text-gray-100">{t("myHealth.assessmentHistory")}</CardTitle>
               </CardHeader>
               <CardContent className="px-0 sm:px-6">
                 {assessments.length === 0 ? (
@@ -321,11 +325,11 @@ export default function MyHealth() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Risk Score</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Age</TableHead>
-                        <TableHead className="text-right">Action</TableHead>
+                        <TableHead>{t("myHealth.date")}</TableHead>
+                        <TableHead>{t("myHealth.riskScore")}</TableHead>
+                        <TableHead>{t("myHealth.category")}</TableHead>
+                        <TableHead>{t("myHealth.age")}</TableHead>
+                        <TableHead className="text-right">{t("myHealth.action")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -354,7 +358,7 @@ export default function MyHealth() {
           <TabsContent value="trends">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg dark:text-gray-100">Risk Score Trends</CardTitle>
+                <CardTitle className="text-lg dark:text-gray-100">{t("myHealth.riskTrends")}</CardTitle>
               </CardHeader>
               <CardContent className="px-4 sm:px-6">
                 {trends.length < 2 ? (
