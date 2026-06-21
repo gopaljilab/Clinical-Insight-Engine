@@ -642,16 +642,7 @@ out
       const tokenHash = createHash("sha256").update(token).digest("hex");
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-<<<<<<< HEAD
-      await authRepository.createPasswordResetToken(user.id, token, expiresAt);
-=======
-      await db.insert(passwordResetTokens).values({
-        userId: user.id,
-        token: tokenHash,
-        expiresAt,
-        used: false,
-      });
->>>>>>> b9563ad5 (fix(security): hash password reset tokens before storing in database)
+      await authRepository.createPasswordResetToken(user.id, tokenHash, expiresAt);
 
       const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password?token=${token}`;
 
@@ -675,23 +666,7 @@ out
     const { token, newPassword } = req.body;
 
     try {
-<<<<<<< HEAD
-      const resetToken = await authRepository.findPasswordResetToken(token);
-=======
-      const db = getDb();
-
-      const [resetToken] = await db
-        .select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, createHash("sha256").update(token).digest("hex")),
-            eq(passwordResetTokens.used, false),
-            gte(passwordResetTokens.expiresAt, new Date()),
-          ),
-        )
-        .limit(1);
->>>>>>> b9563ad5 (fix(security): hash password reset tokens before storing in database)
+      const resetToken = await authRepository.findPasswordResetToken(createHash("sha256").update(token).digest("hex"));
 
       if (!resetToken) {
         return res.status(400).json({ message: "Invalid or expired reset token." });
