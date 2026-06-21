@@ -202,9 +202,9 @@ def test_atomic_write_creates_valid_model(tmp_path):
     _atomic_write(model_file, data)
     assert os.path.exists(model_file)
 
-    import pickle
+    from app.ml.security import safe_pickle_load
     with open(model_file, 'rb') as f:
-        loaded = pickle.load(f)
+        loaded = safe_pickle_load(f)
     assert loaded[3] == "dummyhash"
 
 
@@ -311,8 +311,9 @@ def test_get_model_metadata_caching(tmp_path, monkeypatch):
     assert os.path.exists(test_model_file + ".sig")
     
     # Load model_data to verify it has 7 elements
+    from app.ml.security import safe_pickle_load
     with open(test_model_file, 'rb') as f:
-        model_data = pickle.load(f)
+        model_data = safe_pickle_load(f)
     assert len(model_data) == 7
     assert model_data[5] is not None  # mtime
     assert model_data[6] is not None  # size
@@ -344,8 +345,9 @@ def test_get_model_metadata_caching(tmp_path, monkeypatch):
     assert hash_called, "Cryptographic hash was not computed after metadata changed!"
     
     # The second call should have also updated the model file with the new mtime
+    from app.ml.security import safe_pickle_load
     with open(test_model_file, 'rb') as f:
-        model_data_updated = pickle.load(f)
+        model_data_updated = safe_pickle_load(f)
     new_mtime = os.path.getmtime(test_data_file)
     assert model_data_updated[5] == new_mtime
 
@@ -382,10 +384,84 @@ def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
     res = analyze.get_model()
     assert res[0] is not None
     
+    from app.ml.security import safe_pickle_load
     with open(test_model_file, 'rb') as f:
-        migrated_data = pickle.load(f)
+        migrated_data = safe_pickle_load(f)
     assert len(migrated_data) == 7
     assert migrated_data[3] == dataset_hash
     assert migrated_data[5] == os.path.getmtime(test_data_file)
     assert migrated_data[6] == os.path.getsize(test_data_file)
 
+def test_validate_assessment_input_rejects_invalid_age():
+    from analyze import validate_assessment_input
+
+    with pytest.raises(ValueError):
+        validate_assessment_input(
+            {
+                "age": -1,
+                "gender": "Male",
+                "hypertension": False,
+                "heartDisease": False,
+                "bmi": 25,
+                "hba1cLevel": 5.5,
+                "bloodGlucoseLevel": 100,
+                "smokingHistory": "never",
+            }
+        )
+
+
+def test_validate_assessment_input_rejects_invalid_gender():
+    from analyze import validate_assessment_input
+
+    # Rejects non-string gender
+    with pytest.raises(ValueError):
+        validate_assessment_input(
+            {
+                "age": 40,
+                "gender": 123,
+                "hypertension": False,
+                "heartDisease": False,
+                "bmi": 25,
+                "hba1cLevel": 5.5,
+                "bloodGlucoseLevel": 100,
+                "smokingHistory": "never",
+            }
+        )
+
+    # Rejects empty gender
+    with pytest.raises(ValueError):
+        validate_assessment_input(
+            {
+                "age": 40,
+                "gender": "",
+                "hypertension": False,
+                "heartDisease": False,
+                "bmi": 25,
+                "hba1cLevel": 5.5,
+                "bloodGlucoseLevel": 100,
+                "smokingHistory": "never",
+            }
+        )
+
+
+def test_validate_assessment_input_allows_other_genders_and_warns():
+    from analyze import validate_assessment_input, interpret_predictions_batch, get_model
+
+    # Validates successfully for custom gender
+    input_data = {
+        "age": 40,
+        "gender": "Other",
+        "hypertension": False,
+        "heartDisease": False,
+        "bmi": 25,
+        "hba1cLevel": 5.5,
+        "bloodGlucoseLevel": 100,
+        "smokingHistory": "never",
+    }
+    assert validate_assessment_input(input_data) == input_data
+
+    # Check that interpret_predictions_batch returns warning for custom gender
+    model, scaler, features, cov_beta = get_model()
+    results = interpret_predictions_batch(model, scaler, features, [input_data], cov_beta)
+    assert "warning" in results[0]
+    assert "Gender value 'Other' was not present in the model's training data" in results[0]["warning"]

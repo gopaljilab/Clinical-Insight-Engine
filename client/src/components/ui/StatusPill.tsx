@@ -11,14 +11,14 @@ export default function StatusPill({
   label?: string;
   highlightedLabel?: React.ReactNode;
 }) {
-  const mapping: Record<Variant, { bg: string; text: string }> = {
-    low: { bg: "#E6F4EA", text: "#065f46" }, // soft green bg, dark green text
-    moderate: { bg: "#FEF7E0", text: "#92400e" }, // soft amber bg, dark amber text
-    high: { bg: "#FCE8E6", text: "#7f1d1d" }, // soft red bg, dark red text
-    default: { bg: "#F3F4F6", text: "#374151" },
+  const mapping: Record<Variant, string> = {
+    low: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+    moderate: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+    high: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+    default: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   };
 
-  const { bg, text } = mapping[variant] ?? mapping.default;
+  const colorClasses = mapping[variant] ?? mapping.default;
   const display = label ?? variant.toUpperCase();
 
   return (
@@ -26,8 +26,7 @@ export default function StatusPill({
       role="status"
       aria-label={`Risk: ${display}`}
       title={`Risk: ${display}`}
-      style={{ backgroundColor: bg, color: text }}
-      className="px-3 py-1 rounded-full text-xs font-bold tracking-wide"
+      className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide ${colorClasses}`}
     >
       {highlightedLabel ?? display}
     </span>

@@ -15,7 +15,7 @@ export const validateDTO = (schema: ZodTypeAny) => {
           message: "Validation failed",
           errors: error.errors.map(err => ({
             field: err.path.join('.'),
-            message: err.message
+            message: (err as Error).message
           }))
         });
       }
@@ -37,7 +37,7 @@ export const validateQueryDTO = (schema: ZodTypeAny) => {
           message: "Validation failed for query parameters",
           errors: error.errors.map(err => ({
             field: err.path.join('.'),
-            message: err.message
+            message: (err as Error).message
           }))
         });
       }

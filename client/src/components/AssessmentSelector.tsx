@@ -1,5 +1,5 @@
-import { format } from "date-fns";
 import { type AssessmentResponse } from "@shared/routes";
+import { formatReadableDate } from "@/utils/dateFormat";
 
 interface AssessmentSelectorProps {
   label: string;
@@ -7,6 +7,7 @@ interface AssessmentSelectorProps {
   selectedId: string | number | null;
   onChange: (id: string) => void;
   excludeId?: string | number | null;
+  disabled?: boolean;
 }
 
 export default function AssessmentSelector({
@@ -15,14 +16,10 @@ export default function AssessmentSelector({
   selectedId,
   onChange,
   excludeId,
+  disabled,
 }: AssessmentSelectorProps) {
   const formatOption = (assessment: AssessmentResponse) => {
-    const dateValue = assessment.createdAt
-      ? new Date(assessment.createdAt)
-      : new Date();
-    const dateLabel = isNaN(dateValue.getTime())
-      ? "Unknown date"
-      : format(dateValue, "MMM d, yyyy");
+    const dateLabel = formatReadableDate(assessment.createdAt, { includeTime: false });
     const score = Number(assessment.riskScore);
 
     return `${assessment.patientName || "Patient"} • ${dateLabel} • ${
@@ -36,7 +33,12 @@ export default function AssessmentSelector({
       <select
         value={selectedId ?? ""}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-sm text-foreground focus:border-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-600/20 transition-colors"
+        disabled={disabled}
+        className={`w-full rounded-2xl border px-4 py-3 text-sm transition-colors focus:outline-none focus:ring-4 ${
+          disabled
+            ? "border-dashed border-border bg-muted/30 text-muted-foreground cursor-not-allowed opacity-60"
+            : "border-border bg-card text-foreground focus:border-blue-600 focus:ring-blue-600/20"
+        }`}
       >
         <option value="" disabled>
           Select assessment
