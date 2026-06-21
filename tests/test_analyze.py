@@ -413,11 +413,12 @@ def test_validate_assessment_input_rejects_invalid_age():
 def test_validate_assessment_input_rejects_invalid_gender():
     from analyze import validate_assessment_input
 
+    # Rejects non-string gender
     with pytest.raises(ValueError):
         validate_assessment_input(
             {
                 "age": 40,
-                "gender": "Robot",
+                "gender": 123,
                 "hypertension": False,
                 "heartDisease": False,
                 "bmi": 25,
@@ -474,6 +475,25 @@ def test_validate_assessment_input_rejects_invalid_clinical_fields(field, value)
         validate_assessment_input(payload)
 
 
+def test_validate_assessment_input_rejects_empty_gender():
+    from analyze import validate_assessment_input
+
+    # Rejects empty gender
+    with pytest.raises(ValueError):
+        validate_assessment_input(
+            {
+                "age": 40,
+                "gender": "",
+                "hypertension": False,
+                "heartDisease": False,
+                "bmi": 25,
+                "hba1cLevel": 5.5,
+                "bloodGlucoseLevel": 100,
+                "smokingHistory": "never",
+            }
+        )
+
+
 def test_validate_assessment_input_rejects_missing_clinical_field():
     from analyze import validate_assessment_input
 
@@ -489,3 +509,26 @@ def test_validate_assessment_input_rejects_missing_clinical_field():
 
     with pytest.raises(ValueError, match="hba1cLevel"):
         validate_assessment_input(payload)
+
+
+def test_validate_assessment_input_allows_other_genders_and_warns():
+    from analyze import validate_assessment_input, interpret_predictions_batch, get_model
+
+    # Validates successfully for custom gender
+    input_data = {
+        "age": 40,
+        "gender": "Other",
+        "hypertension": False,
+        "heartDisease": False,
+        "bmi": 25,
+        "hba1cLevel": 5.5,
+        "bloodGlucoseLevel": 100,
+        "smokingHistory": "never",
+    }
+    assert validate_assessment_input(input_data) == input_data
+
+    # Check that interpret_predictions_batch returns warning for custom gender
+    model, scaler, features, cov_beta = get_model()
+    results = interpret_predictions_batch(model, scaler, features, [input_data], cov_beta)
+    assert "warning" in results[0]
+    assert "Gender value 'Other' was not present in the model's training data" in results[0]["warning"]

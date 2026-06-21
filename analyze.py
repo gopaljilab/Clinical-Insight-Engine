@@ -535,7 +535,7 @@ def validate_assessment_input(data):
 
     validators = {
         "age": {"type": (int, float), "min": 0, "max": 130},
-        "gender": {"type": str, "in": ("Male", "Female")},
+        "gender": {"type": str},
         "hypertension": {"type": (bool, int), "in": (False, True, 0, 1)},
         "heartDisease": {"type": (bool, int), "in": (False, True, 0, 1)},
         "bmi": {"type": (int, float), "min": 0, "max": 100},
@@ -554,6 +554,9 @@ def validate_assessment_input(data):
         value = data[field]
         if not isinstance(value, rules["type"]):
             raise ValueError(f"Invalid type for {field}")
+
+        if isinstance(value, str) and not value:
+            raise ValueError(f"Invalid value for {field}")
 
         if "in" in rules and value not in rules["in"]:
             raise ValueError(f"Invalid value for {field}")
