@@ -9,7 +9,7 @@ export function requestIdMiddleware(req: Request, res: Response, next: NextFunct
   res.setHeader("X-Request-ID", reqId);
   
   // Attach it to the request object for convenience
-  (req as any).id = reqId;
+  (req).id = reqId;
 
   // Run the rest of the request within the async context
   requestContext.run(reqId, () => {

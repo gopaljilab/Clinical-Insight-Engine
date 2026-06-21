@@ -14,17 +14,24 @@ def phi_redaction_middleware(func):
     
     Checks ENABLE_PHI_REDACTION settings. If True, redacts PHI from all dict,
     list, and string parameters before calling the decorated function.
+    Always sanitizes inputs to prevent pipeline crashes on encoding issues.
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
+        from app.utils.text_sanitizer import sanitize_data
+
+        # Always sanitize positional and keyword arguments first
+        sanitized_args = tuple(sanitize_data(arg) for arg in args)
+        sanitized_kwargs = {k: sanitize_data(v) for k, v in kwargs.items()}
+
         if not ENABLE_PHI_REDACTION:
-            return func(*args, **kwargs)
+            return func(*sanitized_args, **sanitized_kwargs)
 
         redactor = PHIRedactor()
         
         # Redact positional arguments
         redacted_args = []
-        for arg in args:
+        for arg in sanitized_args:
             # Check for standard parameters (model, scaler, features) that do not require redaction
             # These are typically non-dict, non-list, or structural parameters, but we must be
             # careful not to redact sklearn Model/Scaler classes or list of feature names.
@@ -47,7 +54,7 @@ def phi_redaction_middleware(func):
 
         # Redact keyword arguments
         redacted_kwargs = {}
-        for k, v in kwargs.items():
+        for k, v in sanitized_kwargs.items():
             if k in ["input_data", "input_data_list", "patient_data", "data", "text", "notes"]:
                 redacted_kwargs[k] = redactor.redact_patient_data(v)
             elif isinstance(v, (dict, list, str)) and k not in ["features", "model", "scaler"]:

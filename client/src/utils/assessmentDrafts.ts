@@ -20,10 +20,21 @@ function getStorage(storage?: Storage): Storage | null {
   return window.localStorage;
 }
 
+/**
+ * Get Assessment Draft Key.
+ * @param userIdOrEmail - The userIdOrEmail parameter.
+ * @returns The result of the operation.
+ */
 export function getAssessmentDraftKey(userIdOrEmail?: string | null): string {
   return `clinical-insight:assessment-draft:${userIdOrEmail || "anonymous"}`;
 }
 
+/**
+ * Save Assessment Draft.
+ * @param data - The data parameter.
+ * @param options - The options parameter.
+ * @returns The result of the operation.
+ */
 export function saveAssessmentDraft(
   data: AssessmentInput,
   options: { storage?: Storage; key?: string; ttlMs?: number } = {},
@@ -44,6 +55,11 @@ export function saveAssessmentDraft(
   return record;
 }
 
+/**
+ * Load Assessment Draft.
+ * @param options - The options parameter.
+ * @returns The result of the operation.
+ */
 export function loadAssessmentDraft(
   options: { storage?: Storage; key?: string; currentTimeMs?: number } = {},
 ): AssessmentDraftRecord | null {
@@ -72,6 +88,11 @@ export function loadAssessmentDraft(
   }
 }
 
+/**
+ * Clear Assessment Draft.
+ * @param options - The options parameter.
+ * @returns The result of the operation.
+ */
 export function clearAssessmentDraft(
   options: { storage?: Storage; key?: string } = {},
 ): void {

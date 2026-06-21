@@ -369,6 +369,15 @@ export default function ModelMonitoring() {
   const retrainMutation = useMutation({
     mutationFn: async () => {
       return ApiClient.post("/api/admin/model/retrain");
+      const res = await fetch("/api/admin/model/retrain", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error((err as Error).message || "Retrain failed");
+      }
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/model/versions"] });

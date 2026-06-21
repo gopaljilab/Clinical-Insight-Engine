@@ -38,6 +38,23 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       url: window.location.href,
       timestamp: new Date().toISOString(),
     }).catch(err => console.error("Failed to send client error log:", err));
+    try {
+      fetch("/api/logs/client-error", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: (error as Error).message,
+          stack: (error as Error).stack,
+          componentStack: errorInfo.componentStack,
+          url: window.location.href,
+          timestamp: new Date().toISOString(),
+        }),
+      }).catch(err => console.error("Failed to send client error log:", err));
+    } catch (e) {
+      console.error("Error boundary logging failed:", e);
+    }
   }
 
   render() {

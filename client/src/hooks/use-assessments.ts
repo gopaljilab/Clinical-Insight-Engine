@@ -16,6 +16,11 @@ function parseWithLogging<T>(schema: any, data: unknown, label: string): T {
 // The base query key for all assessments list queries.
 const ASSESSMENTS_LIST_QUERY_KEY = api.assessments.list.path;
 
+/**
+ * A React hook to query the assessments list, supporting pagination, sorting, search term, and range filters.
+ * @param params - The params parameter.
+ * @returns The result of the operation.
+ */
 export function useAssessments(params?: {
   page?: number;
   limit?: number;
@@ -115,6 +120,10 @@ export function useClearPatientCache() {
   };
 }
 
+/**
+ * A React hook to remove a specific patient assessment and invalidate associated queries.
+ * @returns The result of the operation.
+ */
 export function useDeleteAssessment() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -135,12 +144,16 @@ export function useDeleteAssessment() {
     onError: (error: Error) => {
       toast({
         title: "Deletion failed",
-        description: error.message || "An unexpected error occurred while deleting.",
+        description: (error as Error).message || "An unexpected error occurred while deleting.",
         variant: "destructive",
       });
     },
   });
 }
+/**
+ * A React hook to submit a new patient assessment and automatically refresh the assessments list cache.
+ * @returns The result of the operation.
+ */
 export function useCreateAssessment() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -227,18 +240,22 @@ export function useCreateAssessment() {
       queryClient.invalidateQueries({ queryKey: [ASSESSMENTS_LIST_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ["assessments-patient"] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Assessment Failed",
-        description: error.message?.includes("timed out")
+        description: (error as Error).message?.includes("timed out")
           ? "The analysis took too long. Please try again."
-          : error.message || "An unexpected error occurred during the assessment.",
+          : (error as Error).message || "An unexpected error occurred during the assessment.",
         variant: "destructive",
       });
     },
   });
 }
 
+/**
+ * A React hook to simulate a diabetes risk score based on what-if updates to patient parameters.
+ * @returns The result of the operation.
+ */
 export function useSimulateAssessment() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
@@ -256,6 +273,10 @@ export function useSimulateAssessment() {
   });
 }
 
+/**
+ * React hook for  what if assessment.
+ * @returns The result of the operation.
+ */
 export function useWhatIfAssessment() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
@@ -273,6 +294,10 @@ export function useWhatIfAssessment() {
   });
 }
 
+/**
+ * React hook for  what if batch.
+ * @returns The result of the operation.
+ */
 export function useWhatIfBatch() {
   return useMutation({
     mutationFn: async (data: {
@@ -293,11 +318,51 @@ export function useWhatIfBatch() {
   });
 }
 
+/**
+ * React hook for  what if auto.
+ * @returns The result of the operation.
+ */
 export function useWhatIfAuto() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
       const validated = api.assessments.create.input.parse(data);
       return ApiClient.post("/api/assessments/what-if/auto", validated);
+    },
+  });
+}
+
+export function useUpdateClinicalNote() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      clinicalNote,
+    }: {
+      id: number;
+      clinicalNote: string;
+    }) => {
+      const res = await fetch(`/api/assessments/${id}/note`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clinicalNote }),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to update clinical note");
+      }
+
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [ASSESSMENTS_LIST_QUERY_KEY] });
+      toast({ title: "Clinical note updated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update clinical note", description: error.message, variant: "destructive" });
     },
   });
 }

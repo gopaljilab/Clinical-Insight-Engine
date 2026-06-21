@@ -16,6 +16,12 @@ export interface AssessmentProgressState {
   isComplete: boolean;
 }
 
+/**
+ * React hook for  assessment progress.
+ * @param jobId - The jobId parameter.
+ * @param userId - The userId parameter.
+ * @returns The result of the operation.
+ */
 export function useAssessmentProgress(
   jobId: string | null,
   userId: string | null
