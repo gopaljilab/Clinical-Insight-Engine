@@ -29,6 +29,7 @@
     "build/",
     "coverage/",
     "node_modules/",
+    "docs/",
     "*.config.js",
     "*.config.ts"
   ],
