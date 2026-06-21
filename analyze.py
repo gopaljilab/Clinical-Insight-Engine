@@ -533,7 +533,7 @@ def get_model():
 
 class AssessmentInput(BaseModel):
     age: int = Field(ge=0, le=130, description="Age must be between 0 and 130")
-    gender: Literal["Male", "Female"]
+    gender: str = Field(min_length=1)
     hypertension: Optional[bool] = False
     heartDisease: Optional[bool] = False
     smokingHistory: Optional[str] = "never"
