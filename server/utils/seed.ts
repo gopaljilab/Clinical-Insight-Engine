@@ -1,6 +1,10 @@
 import { logger } from "../logger";
 import { storage, type AssessmentCreateInput } from "../storage";
 
+/**
+ * Seed Database.
+ * @returns The result of the operation.
+ */
 export async function seedDatabase() {
   const existing = await storage.getAssessments(1); // just need to check if any exist
   

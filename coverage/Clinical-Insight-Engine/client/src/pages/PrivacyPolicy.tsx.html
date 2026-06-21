@@ -1,0 +1,289 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for Clinical-Insight-Engine/client/src/pages/PrivacyPolicy.tsx</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../../prettify.css" />
+    <link rel="stylesheet" href="../../../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../../../index.html">All files</a> / <a href="index.html">Clinical-Insight-Engine/client/src/pages</a> PrivacyPolicy.tsx</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>0/54</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>0/1</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/1</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>0/54</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >import { Link } from "wouter";<span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" ></span></span></span>
+<span class="cstat-no" title="statement not covered" >import { ShieldCheck } from "lucide-react";</span>
+<span class="cstat-no" title="statement not covered" >import { useEffect } from "react";</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >export default function PrivacyPolicy() {</span>
+<span class="cstat-no" title="statement not covered" >  useEffect(() =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    document.title = "Privacy Policy | Clinical Insight Engine";</span>
+<span class="cstat-no" title="statement not covered" >  }, []);</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  return (</span>
+<span class="cstat-no" title="statement not covered" >    &lt;div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/60 to-white dark:from-gray-900 dark:via-gray-950 dark:to-gray-900 px-5 py-16 sm:px-6 lg:px-8"&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;div className="mx-auto max-w-3xl"&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;div className="mb-10 flex items-center gap-3"&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#2563EB] text-white shadow-lg shadow-blue-600/20"&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;ShieldCheck className="h-6 w-6" aria-hidden="true" /&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;div&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;p className="text-lg font-black tracking-tight text-[#1E293B] dark:text-gray-100"&gt;Clinical Insight&lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400"&gt;Clinical AI&lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;/div&gt;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        &lt;h1 className="text-4xl font-black tracking-tight text-[#1E293B] dark:text-gray-100"&gt;Privacy Policy&lt;/h1&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;p className="mt-4 text-sm text-slate-500 dark:text-slate-400"&gt;Last updated: 2026&lt;/p&gt;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        &lt;div className="mt-10 space-y-8 text-base leading-7 text-slate-600 dark:text-slate-400"&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;section&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;h2 className="text-xl font-black text-[#1E293B] dark:text-gray-100"&gt;1. Overview&lt;/h2&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;p className="mt-3"&gt;</span>
+              Clinical Insight is a clinical decision support demo tool. This privacy policy describes how data entered into the application is handled during a session.
+<span class="cstat-no" title="statement not covered" >            &lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/section&gt;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >          &lt;section&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;h2 className="text-xl font-black text-[#1E293B] dark:text-gray-100"&gt;2. Data Collection&lt;/h2&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;p className="mt-3"&gt;</span>
+              Clinical Insight collects clinical inputs (age, BMI, HbA1c, blood glucose, smoking history, and related vitals) solely to generate risk assessments. No data is shared with third parties.
+<span class="cstat-no" title="statement not covered" >            &lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/section&gt;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >          &lt;section&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;h2 className="text-xl font-black text-[#1E293B] dark:text-gray-100"&gt;3. Demo Environment&lt;/h2&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;p className="mt-3"&gt;</span>
+              This application is a demonstration environment. It is not intended for use with real patient data and does not meet HIPAA or GDPR compliance requirements in its current form.
+<span class="cstat-no" title="statement not covered" >            &lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/section&gt;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >          &lt;section&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;h2 className="text-xl font-black text-[#1E293B] dark:text-gray-100"&gt;4. Contact&lt;/h2&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;p className="mt-3"&gt;</span>
+<span class="cstat-no" title="statement not covered" >              For privacy-related enquiries, contact us at{" "}</span>
+<span class="cstat-no" title="statement not covered" >              &lt;a href="mailto:support@clinicalinsight.org" className="font-bold text-[#2563EB] hover:text-blue-700 dark:hover:text-blue-400"&gt;</span>
+                support@clinicalinsight.org
+<span class="cstat-no" title="statement not covered" >              &lt;/a&gt;.</span>
+<span class="cstat-no" title="statement not covered" >            &lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/section&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;/div&gt;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        &lt;Link</span>
+<span class="cstat-no" title="statement not covered" >          href="/"</span>
+<span class="cstat-no" title="statement not covered" >          className="mt-12 inline-flex items-center justify-center rounded-2xl bg-[#2563EB] px-6 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:bg-blue-700"</span>
+<span class="cstat-no" title="statement not covered" >        &gt;</span>
+          Back to Home
+<span class="cstat-no" title="statement not covered" >        &lt;/Link&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >    &lt;/div&gt;</span>
+  );
+<span class="cstat-no" title="statement not covered" >}</span>
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-06-16T09:39:04.641Z
+            </div>
+        <script src="../../../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../../../sorter.js"></script>
+        <script src="../../../../block-navigation.js"></script>
+    </body>
+</html>
+    

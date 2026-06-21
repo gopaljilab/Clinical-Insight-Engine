@@ -1,0 +1,767 @@
+<!DOCTYPE html><html class="default" lang="en" data-base="./"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>Clinical Insight Engine - Developer Documentation - v1.0.0</title><meta name="description" content="Documentation for Clinical Insight Engine - Developer Documentation"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="assets/style.css"/><link rel="stylesheet" href="assets/highlight.css"/><script defer src="assets/main.js"></script><script async src="assets/icons.js" id="tsd-icons-script"></script><script async src="assets/search.js" id="tsd-search-script"></script><script async src="assets/navigation.js" id="tsd-nav-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar"><div class="tsd-toolbar-contents container"><a href="index.html" class="title">Clinical Insight Engine - Developer Documentation - v1.0.0</a><div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/><ul role="listbox" id="tsd-search-results"></ul><div id="tsd-search-status" aria-live="polite" aria-atomic="true"><div>Preparing search index...</div></div></dialog><a href="#" class="tsd-widget menu" id="tsd-toolbar-menu-trigger" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-menu"></use></svg></a></div></header><div class="container container-main"><div class="col-content"><div class="tsd-page-title"><h1>Clinical Insight Engine - Developer Documentation - v1.0.0</h1></div><div class="tsd-panel tsd-typography"><p align="center">
+  <img src="media/clinical_insight_banner.png" alt="Clinical Insight Engine Banner" width="100%" />
+</p>
+<div align="center">
+<h1 id="🩺-clinical-insight-engine" class="tsd-anchor-link">🩺 Clinical Insight Engine<a href="#🩺-clinical-insight-engine" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<h3 id="clinical-decision-support-for-preventive-diabetes-risk-assessment" class="tsd-anchor-link">Clinical Decision Support for Preventive Diabetes Risk Assessment<a href="#clinical-decision-support-for-preventive-diabetes-risk-assessment" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<blockquote>
+<p><em>Interpretable ML + Modern React — built for clinicians and patients alike</em></p>
+</blockquote>
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/TypeScript-5+-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React" />
+  <img src="https://img.shields.io/badge/Express.js-4+-000000?style=flat-square&logo=express&logoColor=white" alt="Express" />
+  <img src="https://img.shields.io/badge/PostgreSQL-14+-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/scikit--learn-1.8+-F7931E?style=flat-square&logo=scikitlearn&logoColor=white" alt="scikit-learn" />
+  <img src="https://img.shields.io/badge/GSSoC-2026-orange?style=flat-square" alt="GSSoC" />
+</p>
+<p align="center">
+<p><img src="https://img.shields.io/github/stars/gopaljilab/Clinical-Insight-Engine?style=social" alt="Stars">
+<img src="https://img.shields.io/github/forks/gopaljilab/Clinical-Insight-Engine?style=social" alt="Forks">
+<img src="https://img.shields.io/github/issues/gopaljilab/Clinical-Insight-Engine?style=social" alt="Issues">
+<img src="https://img.shields.io/github/contributors/gopaljilab/Clinical-Insight-Engine?style=social" alt="Contributors"></p>
+</p>
+</div>
+<p align="center">
+  A full-stack clinical decision support system that surfaces <strong>early diabetes risk signals</strong> from routine patient data.<br />
+  Combines an <strong>interpretable ML model</strong> with a <strong>modern React frontend</strong>, presenting results tailored for both <strong>clinicians</strong> and <strong>patients</strong>.
+</p>
+<div class="tsd-alert tsd-alert-warning"><div class="tsd-alert-title"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><use href="assets/icons.svg#icon-alertWarning"></use></svg><span>Warning</span></div><p>
+<strong>Medical Disclaimer</strong> — This system is intended for <strong>educational and research purposes only</strong>. It does <strong>not</strong> provide medical diagnoses and should not be used as a substitute for professional medical advice.</p>
+</div>
+<hr>
+<h2 id="📑-table-of-contents" class="tsd-anchor-link">📑 Table of Contents<a href="#📑-table-of-contents" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<ul>
+<li><a href="#-why-clinical-insight-engine">Why Clinical Insight Engine?</a></li>
+<li><a href="#-key-features">Key Features</a></li>
+<li><a href="#-architecture">Architecture</a></li>
+<li><a href="#-tech-stack">Tech Stack</a></li>
+<li><a href="#-getting-started">Getting Started</a>
+<ul>
+<li><a href="#prerequisites">Prerequisites</a></li>
+<li><a href="#1--clone--install">Installation</a></li>
+<li><a href="#3--database-setup">Database Setup</a></li>
+<li><a href="#4--python-environment">Python Environment</a></li>
+<li><a href="#5--dataset-preparation">Prepare Dataset</a></li>
+<li><a href="#6--launch">Run the App</a></li>
+<li><a href="#7--shutting-down">Shutdown</a></li>
+</ul>
+</li>
+<li><a href="#-project-structure">Project Structure</a></li>
+<li><a href="#-api-reference">API Reference</a></li>
+<li><a href="#-ml-pipeline">ML Pipeline</a></li>
+<li><a href="#-single-patient-prediction-cli">Single-Patient Prediction</a></li>
+<li><a href="#-environment-variables">Environment Variables</a></li>
+<li><a href="#-troubleshooting">Troubleshooting</a></li>
+<li><a href="#-roadmap">Roadmap</a></li>
+<li><a href="#-contributing">Contributing</a></li>
+<li><a href="#-contributors">Contributors</a></li>
+</ul>
+<hr>
+<h2 id="💡-why-clinical-insight-engine" class="tsd-anchor-link">💡 Why Clinical Insight Engine?<a href="#💡-why-clinical-insight-engine" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>Diabetes affects over <strong>500 million</strong> adults worldwide, yet early risk signals are often buried in routine clinical data. Clinical Insight Engine bridges that gap:</p>
+<table>
+<thead>
+<tr>
+<th>Problem</th>
+<th>Our Approach</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Risk models are opaque black boxes</td>
+<td><strong>Interpretable</strong> Logistic Regression with per-feature impact scores</td>
+</tr>
+<tr>
+<td>Results are one-size-fits-all</td>
+<td><strong>Dual-view</strong> output — detailed for clinicians, simplified for patients</td>
+</tr>
+<tr>
+<td>Predictions lack context</td>
+<td><strong>Confidence-aware</strong> assessments with actionable follow-up recommendations</td>
+</tr>
+<tr>
+<td>Patient data sits in silos</td>
+<td><strong>Longitudinal tracking</strong> with full assessment history</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="✨-key-features" class="tsd-anchor-link">✨ Key Features<a href="#✨-key-features" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<h3 id="🧾-risk-assessment-form" class="tsd-anchor-link">🧾 Risk Assessment Form<a href="#🧾-risk-assessment-form" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Collects clinically relevant inputs:</p>
+<pre><code><span class="hl-0">Age</span><span class="hl-1"> · </span><span class="hl-0">Gender</span><span class="hl-1"> · </span><span class="hl-0">Hypertension</span><span class="hl-1"> · </span><span class="hl-0">Heart</span><span class="hl-1"> </span><span class="hl-0">Disease</span><span class="hl-1"> · </span><span class="hl-0">Smoking</span><span class="hl-1"> </span><span class="hl-0">History</span><span class="hl-1"> · </span><span class="hl-2">BMI</span><span class="hl-1"> · </span><span class="hl-0">HbA1c</span><span class="hl-1"> · </span><span class="hl-0">Blood</span><span class="hl-1"> </span><span class="hl-0">Glucose</span>
+</code><button>Copy</button></pre>
+
+<h3 id="👥-dual-view-results" class="tsd-anchor-link">👥 Dual-View Results<a href="#👥-dual-view-results" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<table>
+<tr>
+<td width="50%">
+<p><strong>🩻 Clinician View</strong></p>
+<ul>
+<li>Exact risk percentage (0–100%)</li>
+<li>Top contributing factors with impact scores</li>
+<li>Model confidence indicators</li>
+<li>Suggested clinical follow-up actions</li>
+<li>Interactive factor contribution charts</li>
+</ul>
+</td>
+<td width="50%">
+<p><strong>🧑‍⚕️ Patient View</strong></p>
+<ul>
+<li>Simplified category: <code>LOW</code> / <code>MODERATE</code> / <code>HIGH</code></li>
+<li>Plain-language explanation of risk drivers</li>
+<li>Personalized preventive lifestyle guidance</li>
+</ul>
+</td>
+</tr>
+</table>
+<h3 id="🕒-assessment-history" class="tsd-anchor-link">🕒 Assessment History<a href="#🕒-assessment-history" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li>Stores assessments with full timestamps</li>
+<li>Enables longitudinal patient risk tracking over time</li>
+</ul>
+<h3 id="📊-data-visualization" class="tsd-anchor-link">📊 Data Visualization<a href="#📊-data-visualization" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li>Interactive bar charts for factor contributions</li>
+<li>Diabetes correlation heatmap for data exploration</li>
+</ul>
+<hr>
+<h2 id="🏗-architecture" class="tsd-anchor-link">🏗 Architecture<a href="#🏗-architecture" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<pre><code class="mermaid">graph TB
+    subgraph Client["🖥️ Client — React + TypeScript"]
+        UI["Risk Assessment Form"]
+        CV["Clinician View"]
+        PV["Patient View"]
+        VIZ["Data Visualizations"]
+        HIST["Assessment History"]
+    end
+
+    subgraph Server["⚙️ Server — Express.js"]
+        API["REST API Routes"]
+        VAL["Zod Validation"]
+        ORM["Drizzle ORM"]
+        PY["Python Bridge"]
+    end
+
+    subgraph ML["🧠 ML Pipeline — Python"]
+        PROC["Data Preprocessing"]
+        MODEL["Logistic Regression"]
+        INTERP["Feature Interpretation"]
+        CACHE["Model Cache (pickle)"]
+    end
+
+    subgraph DB["🗄️ PostgreSQL"]
+        ASSESS["Assessments Table"]
+    end
+
+    Client -->|"HTTP Requests"| API
+    API --> VAL --> ORM
+    API --> PY -->|"spawn process"| ML
+    ORM --> DB
+    ML -->|"risk scores + factors"| PY
+    CACHE -.->|"load cached model"| MODEL
+</code><button type="button">Copy</button></pre>
+
+<hr>
+<h2 id="🛠-tech-stack" class="tsd-anchor-link">🛠 Tech Stack<a href="#🛠-tech-stack" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<table>
+  <thead>
+    <tr>
+      <th>Layer</th>
+      <th>Technology</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="7"><strong>Frontend</strong></td>
+      <td>React 18 + TypeScript</td>
+      <td>UI framework with type safety</td>
+    </tr>
+    <tr>
+      <td>Vite</td>
+      <td>Lightning-fast dev server & bundler</td>
+    </tr>
+    <tr>
+      <td>Tailwind CSS</td>
+      <td>Utility-first styling with dark mode</td>
+    </tr>
+    <tr>
+      <td>TanStack Query</td>
+      <td>Server state & cache management</td>
+    </tr>
+    <tr>
+      <td>React Hook Form + Zod</td>
+      <td>Form handling with schema validation</td>
+    </tr>
+    <tr>
+      <td>Recharts</td>
+      <td>Interactive data visualizations</td>
+    </tr>
+    <tr>
+      <td>Framer Motion</td>
+      <td>Smooth UI animations</td>
+    </tr>
+    <tr>
+      <td rowspan="4"><strong>Backend</strong></td>
+      <td>Express.js</td>
+      <td>REST API server</td>
+    </tr>
+    <tr>
+      <td>Drizzle ORM</td>
+      <td>Type-safe database queries</td>
+    </tr>
+    <tr>
+      <td>PostgreSQL 14+</td>
+      <td>Relational data storage</td>
+    </tr>
+    <tr>
+      <td>Zod</td>
+      <td>Runtime schema validation</td>
+    </tr>
+    <tr>
+      <td rowspan="4"><strong>ML Pipeline</strong></td>
+      <td>Python 3.10+</td>
+      <td>ML runtime environment</td>
+    </tr>
+    <tr>
+      <td>scikit-learn</td>
+      <td>Logistic Regression model</td>
+    </tr>
+    <tr>
+      <td>pandas / NumPy</td>
+      <td>Data manipulation & preprocessing</td>
+    </tr>
+    <tr>
+      <td>pickle</td>
+      <td>Model & scaler caching</td>
+    </tr>
+  </tbody>
+</table>
+<hr>
+<h2 id="🚀-getting-started" class="tsd-anchor-link">🚀 Getting Started<a href="#🚀-getting-started" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<h3 id="prerequisites" class="tsd-anchor-link">Prerequisites<a href="#prerequisites" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Version</th>
+<th>Check</th>
+<th>Download</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Node.js</td>
+<td>18+ LTS</td>
+<td><code>node -v</code></td>
+<td><a href="https://nodejs.org">nodejs.org</a></td>
+</tr>
+<tr>
+<td>npm</td>
+<td>9+</td>
+<td><code>npm -v</code></td>
+<td>bundled with Node</td>
+</tr>
+<tr>
+<td>Python</td>
+<td>3.10+</td>
+<td><code>python3 --version</code></td>
+<td><a href="https://python.org">python.org</a></td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td>14+</td>
+<td><code>psql --version</code></td>
+<td><a href="https://postgresql.org">postgresql.org</a></td>
+</tr>
+<tr>
+<td>Git</td>
+<td>Any</td>
+<td><code>git --version</code></td>
+<td><a href="https://git-scm.com">git-scm.com</a></td>
+</tr>
+<tr>
+<td>Docker</td>
+<td>20+</td>
+<td><code>docker --version</code></td>
+<td><a href="https://www.docker.com">docker.com</a></td>
+</tr>
+<tr>
+<td>Docker Compose</td>
+<td>2+</td>
+<td><code>docker compose version</code></td>
+<td>bundled with Docker</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="🐳-fast-setup-with-docker-recommended" class="tsd-anchor-link">🐳 Fast Setup with Docker (Recommended)<a href="#🐳-fast-setup-with-docker-recommended" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>If you have Docker installed, you can skip the manual installation of Node.js, Python, and PostgreSQL entirely. Running the application requires just a single command.</p>
+<h3 id="1-launching-the-app" class="tsd-anchor-link">1. Launching the App<a href="#1-launching-the-app" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Simply run the following command in the project root:</p>
+<pre><code class="bash"><span class="hl-3">docker</span><span class="hl-1"> </span><span class="hl-4">compose</span><span class="hl-1"> </span><span class="hl-4">up</span>
+</code><button type="button">Copy</button></pre>
+
+<p>This command will:</p>
+<ul>
+<li>Spin up a PostgreSQL 16 database container with persistent storage.</li>
+<li>Build the app container including Node.js 20 and a Python 3 virtual environment with all scikit-learn/pandas dependencies.</li>
+<li>Wait for the database to be healthy, then run migrations (<code>npm run db:push</code>).</li>
+<li>Automatically seed the database with sample clinical assessments (in development mode).</li>
+<li>Launch the full-stack server with live-reloading (HMR) enabled.</li>
+</ul>
+<p>Once started, open your browser and navigate to:</p>
+<ul>
+<li><strong>Web App &amp; REST API:</strong> <a href="http://localhost:3000">http://localhost:3000</a></li>
+</ul>
+<h3 id="2-stop-the-app" class="tsd-anchor-link">2. Stop the App<a href="#2-stop-the-app" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>To stop the services while preserving your data:</p>
+<pre><code class="bash"><span class="hl-3">docker</span><span class="hl-1"> </span><span class="hl-4">compose</span><span class="hl-1"> </span><span class="hl-4">down</span>
+</code><button type="button">Copy</button></pre>
+
+<p>To stop the services and completely reset the database (deleting persistent volumes):</p>
+<pre><code class="bash"><span class="hl-3">docker</span><span class="hl-1"> </span><span class="hl-4">compose</span><span class="hl-1"> </span><span class="hl-4">down</span><span class="hl-1"> </span><span class="hl-5">-v</span>
+</code><button type="button">Copy</button></pre>
+
+<h3 id="3-rebuilding-after-updates" class="tsd-anchor-link">3. Rebuilding after Updates<a href="#3-rebuilding-after-updates" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>If you update <code>package.json</code> or <code>requirements.txt</code> dependencies, trigger a clean rebuild:</p>
+<pre><code class="bash"><span class="hl-3">docker</span><span class="hl-1"> </span><span class="hl-4">compose</span><span class="hl-1"> </span><span class="hl-4">up</span><span class="hl-1"> </span><span class="hl-5">--build</span>
+</code><button type="button">Copy</button></pre>
+
+<hr>
+<h2 id="⚙️-manual-installation-setup" class="tsd-anchor-link">⚙️ Manual Installation &amp; Setup<a href="#⚙️-manual-installation-setup" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<h3 id="1-📥-clone-install" class="tsd-anchor-link">1. 📥 Clone &amp; Install<a href="#1-📥-clone-install" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<pre><code class="bash"><span class="hl-3">git</span><span class="hl-1"> </span><span class="hl-4">clone</span><span class="hl-1"> </span><span class="hl-4">https://github.com/gopaljilab/Clinical-Insight-Engine.git</span><br/><span class="hl-3">cd</span><span class="hl-1"> </span><span class="hl-4">Clinical-Insight-Engine</span><br/><span class="hl-3">npm</span><span class="hl-1"> </span><span class="hl-4">install</span>
+</code><button type="button">Copy</button></pre>
+
+<h3 id="2-🔐-environment-configuration" class="tsd-anchor-link">2. 🔐 Environment Configuration<a href="#2-🔐-environment-configuration" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p><strong>Linux / macOS</strong></p>
+<pre><code class="bash"><span class="hl-3">cp</span><span class="hl-1"> </span><span class="hl-4">.env.example</span><span class="hl-1"> </span><span class="hl-4">.env</span>
+</code><button type="button">Copy</button></pre>
+
+<p><strong>Windows (PowerShell)</strong></p>
+<pre><code class="powershell">Copy-Item .env.example .env
+</code><button type="button">Copy</button></pre>
+
+<p><strong>Windows (Command Prompt)</strong></p>
+<pre><code class="cmd">copy .env.example .env
+</code><button type="button">Copy</button></pre>
+
+<p>If <code>.env.example</code> doesn't exist, create <code>.env</code> manually and add:</p>
+<pre><code class="env">DATABASE_URL=postgresql://postgres:postgres@localhost:5432/clinical_insight_engine
+</code><button type="button">Copy</button></pre>
+
+<details>
+<summary><strong>🧪 Developer Authentication Setup (optional)</strong></summary>
+<p>For local frontend authentication testing, create a <code>.env.local</code> file (git-ignored):</p>
+<pre><code class="env">NODE_ENV=development
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+DEV_CLINICIAN_EMAIL=developer@cardioguard.local
+DEV_CLINICIAN_PASSWORD=DevSecurePassword123!
+
+NEXT_PUBLIC_LOCAL_ENCRYPTION_KEY=your_local_32_character_secret_key_here
+</code><button type="button">Copy</button></pre>
+
+<blockquote>
+<p><strong>Rules of thumb:</strong></p>
+<ul>
+<li><code>🔒 .env</code> → database &amp; server secrets only</li>
+<li><code>🔒 .env.local</code> → local seeded credentials only (never commit)</li>
+<li>Restart the dev server after editing <code>.env.local</code> so Vite reloads variables</li>
+<li>Never paste demo credentials into UI, docs, screenshots, or PRs</li>
+</ul>
+</blockquote>
+<h4 id="🖥️-local-login-workflow" class="tsd-anchor-link">🖥️ Local Login Workflow<a href="#🖥️-local-login-workflow" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h4>
+<ol>
+<li>Start the app with <code>npm run dev</code></li>
+<li>Open <code>http://localhost:5173</code></li>
+<li>Click <strong>Login</strong> or <strong>Go to App</strong></li>
+<li>Enter your <code>.env.local</code> seeded credentials</li>
+<li>Complete the simulated OTP step</li>
+<li>You'll be redirected to <code>/dashboard</code></li>
+</ol>
+<blockquote>
+<p>In development mode, the login form shows a small amber notice reminding you to use local seeded credentials. This banner and the <code>DEV_*</code> variables are <strong>never exposed in production builds.</strong></p>
+</blockquote>
+</details>
+<h3 id="3-🗄-database-setup" class="tsd-anchor-link">3. 🗄 Database Setup<a href="#3-🗄-database-setup" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<details>
+<summary><strong>🐧 Linux (Ubuntu / Debian)</strong></summary>
+<pre><code class="bash"><span class="hl-6"># Install PostgreSQL</span><br/><span class="hl-3">sudo</span><span class="hl-1"> </span><span class="hl-4">apt</span><span class="hl-1"> </span><span class="hl-4">update</span><span class="hl-1"> &amp;&amp; </span><span class="hl-3">sudo</span><span class="hl-1"> </span><span class="hl-4">apt</span><span class="hl-1"> </span><span class="hl-4">install</span><span class="hl-1"> </span><span class="hl-4">postgresql</span><span class="hl-1"> </span><span class="hl-4">postgresql-contrib</span><br/><br/><span class="hl-6"># Start &amp; enable the service</span><br/><span class="hl-3">sudo</span><span class="hl-1"> </span><span class="hl-4">systemctl</span><span class="hl-1"> </span><span class="hl-4">start</span><span class="hl-1"> </span><span class="hl-4">postgresql</span><br/><span class="hl-3">sudo</span><span class="hl-1"> </span><span class="hl-4">systemctl</span><span class="hl-1"> </span><span class="hl-4">enable</span><span class="hl-1"> </span><span class="hl-4">postgresql</span><br/><br/><span class="hl-6"># Create database &amp; set password</span><br/><span class="hl-3">sudo</span><span class="hl-1"> </span><span class="hl-5">-u</span><span class="hl-1"> </span><span class="hl-4">postgres</span><span class="hl-1"> </span><span class="hl-4">psql</span><span class="hl-1"> </span><span class="hl-5">-c</span><span class="hl-1"> </span><span class="hl-4">&quot;ALTER USER postgres WITH PASSWORD &#39;postgres&#39;;&quot;</span><br/><span class="hl-3">sudo</span><span class="hl-1"> </span><span class="hl-5">-u</span><span class="hl-1"> </span><span class="hl-4">postgres</span><span class="hl-1"> </span><span class="hl-4">psql</span><span class="hl-1"> </span><span class="hl-5">-c</span><span class="hl-1"> </span><span class="hl-4">&quot;CREATE DATABASE clinical_insight_engine;&quot;</span>
+</code><button type="button">Copy</button></pre>
+
+</details>
+<details>
+<summary><strong>🍎 macOS (Homebrew)</strong></summary>
+<pre><code class="bash"><span class="hl-6"># Install PostgreSQL</span><br/><span class="hl-3">brew</span><span class="hl-1"> </span><span class="hl-4">install</span><span class="hl-1"> </span><span class="hl-4">postgresql</span><br/><br/><span class="hl-6"># Start the service</span><br/><span class="hl-3">brew</span><span class="hl-1"> </span><span class="hl-4">services</span><span class="hl-1"> </span><span class="hl-4">start</span><span class="hl-1"> </span><span class="hl-4">postgresql</span><br/><br/><span class="hl-6"># Create database &amp; set password</span><br/><span class="hl-3">psql</span><span class="hl-1"> </span><span class="hl-4">postgres</span><span class="hl-1"> </span><span class="hl-5">-c</span><span class="hl-1"> </span><span class="hl-4">&quot;ALTER USER postgres WITH PASSWORD &#39;postgres&#39;;&quot;</span><br/><span class="hl-3">psql</span><span class="hl-1"> </span><span class="hl-4">postgres</span><span class="hl-1"> </span><span class="hl-5">-c</span><span class="hl-1"> </span><span class="hl-4">&quot;CREATE DATABASE clinical_insight_engine;&quot;</span>
+</code><button type="button">Copy</button></pre>
+
+</details>
+<details>
+<summary><strong>🪟 Windows</strong></summary>
+<ol>
+<li>Download and install PostgreSQL from <a href="https://www.postgresql.org/download/windows/">postgresql.org/download/windows</a></li>
+<li>During installation, use:
+<ul>
+<li><strong>Username:</strong> <code>postgres</code></li>
+<li><strong>Password:</strong> <code>postgres</code></li>
+<li><strong>Port:</strong> <code>5432</code></li>
+</ul>
+</li>
+<li>Create a database named <code>clinical_insight_engine</code> using <strong>pgAdmin</strong> or the PostgreSQL CLI.</li>
+<li>Update your <code>.env</code> file:</li>
+</ol>
+<pre><code class="env">DATABASE_URL=postgresql://postgres:postgres@localhost:5432/clinical_insight_engine
+</code><button type="button">Copy</button></pre>
+
+</details>
+<p>Push the database schema:</p>
+<pre><code class="bash"><span class="hl-3">npm</span><span class="hl-1"> </span><span class="hl-4">run</span><span class="hl-1"> </span><span class="hl-4">db:push</span>
+</code><button type="button">Copy</button></pre>
+
+<blockquote>
+<p>The server runs a <strong>PostgreSQL preflight check</strong> on startup. If you see <code>Database startup check failed</code>, verify that:</p>
+<ul>
+<li>PostgreSQL service is running</li>
+<li><code>DATABASE_URL</code> in <code>.env</code> is correct</li>
+<li>The migration above has been run</li>
+<li>Port <code>5432</code> is not blocked</li>
+</ul>
+</blockquote>
+<h3 id="4-🐍-python-environment" class="tsd-anchor-link">4. 🐍 Python Environment<a href="#4-🐍-python-environment" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<details>
+<summary><strong>🐧 Linux / 🍎 macOS</strong></summary>
+<pre><code class="bash"><span class="hl-6"># Create virtual environment</span><br/><span class="hl-3">python3</span><span class="hl-1"> </span><span class="hl-5">-m</span><span class="hl-1"> </span><span class="hl-4">venv</span><span class="hl-1"> </span><span class="hl-4">.venv</span><br/><br/><span class="hl-6"># Activate</span><br/><span class="hl-3">source</span><span class="hl-1"> </span><span class="hl-4">.venv/bin/activate</span><br/><br/><span class="hl-6"># Install dependencies</span><br/><span class="hl-3">pip</span><span class="hl-1"> </span><span class="hl-4">install</span><span class="hl-1"> </span><span class="hl-5">-r</span><span class="hl-1"> </span><span class="hl-4">requirements.txt</span>
+</code><button type="button">Copy</button></pre>
+
+</details>
+<details>
+<summary><strong>🪟 Windows (PowerShell)</strong></summary>
+<pre><code class="powershell"># Create virtual environment
+py -m venv .venv
+
+# Activate
+.\.venv\Scripts\Activate.ps1
+
+# Install dependencies
+pip install -r requirements.txt
+</code><button type="button">Copy</button></pre>
+
+</details>
+<h3 id="5-📊-dataset-preparation" class="tsd-anchor-link">5. 📊 Dataset Preparation<a href="#5-📊-dataset-preparation" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p><strong>If the dataset already exists in the project:</strong></p>
+<pre><code class="bash"><span class="hl-6"># Linux / macOS</span><br/><span class="hl-3">cp</span><span class="hl-1"> </span><span class="hl-4">attached_assets/diabetes_dataset.csv</span><span class="hl-1"> </span><span class="hl-4">./diabetes_dataset.csv</span><br/><br/><span class="hl-6"># Windows (PowerShell)</span><br/><span class="hl-3">Copy-Item</span><span class="hl-1"> </span><span class="hl-4">attached_assets/diabetes_dataset.csv</span><span class="hl-1"> </span><span class="hl-4">./diabetes_dataset.csv</span>
+</code><button type="button">Copy</button></pre>
+
+<p><strong>If the dataset is missing, generate synthetic data:</strong></p>
+<pre><code class="bash"><span class="hl-6"># Linux / macOS</span><br/><span class="hl-3">python3</span><span class="hl-1"> </span><span class="hl-5">-c</span><span class="hl-1"> </span><span class="hl-4">&quot;from analyze import create_synthetic_data; create_synthetic_data()&quot;</span><br/><br/><span class="hl-6"># Windows</span><br/><span class="hl-3">py</span><span class="hl-1"> </span><span class="hl-5">-c</span><span class="hl-1"> </span><span class="hl-4">&quot;from analyze import create_synthetic_data; create_synthetic_data()&quot;</span>
+</code><button type="button">Copy</button></pre>
+
+<h3 id="6-🚀-launch" class="tsd-anchor-link">6. 🚀 Launch<a href="#6-🚀-launch" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<pre><code class="bash"><span class="hl-6"># Start the full-stack dev server</span><br/><span class="hl-3">npm</span><span class="hl-1"> </span><span class="hl-4">run</span><span class="hl-1"> </span><span class="hl-4">dev</span>
+</code><button type="button">Copy</button></pre>
+
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>URL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Frontend</strong></td>
+<td><a href="http://localhost:5173">http://localhost:5173</a></td>
+</tr>
+<tr>
+<td><strong>Backend API</strong></td>
+<td><a href="http://localhost:3000">http://localhost:3000</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="7-🛑-shutting-down" class="tsd-anchor-link">7. 🛑 Shutting Down<a href="#7-🛑-shutting-down" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p><strong>Stop the dev server:</strong></p>
+<pre><code><span class="hl-0">Ctrl</span><span class="hl-1"> + </span><span class="hl-2">C</span>
+</code><button>Copy</button></pre>
+
+<p><strong>Deactivate the Python environment:</strong></p>
+<pre><code class="bash"><span class="hl-3">deactivate</span>
+</code><button type="button">Copy</button></pre>
+
+<hr>
+<h2 id="📁-project-structure" class="tsd-anchor-link">📁 Project Structure<a href="#📁-project-structure" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<pre><code><span class="hl-0">Clinical</span><span class="hl-1">-</span><span class="hl-0">Insight</span><span class="hl-1">-</span><span class="hl-0">Engine</span><span class="hl-1">/</span><br/><span class="hl-1">│</span><br/><span class="hl-1">├── </span><span class="hl-0">client</span><span class="hl-1">/                        # </span><span class="hl-0">React</span><span class="hl-1"> </span><span class="hl-0">frontend</span><br/><span class="hl-1">│   └── </span><span class="hl-0">src</span><span class="hl-1">/</span><br/><span class="hl-1">│       ├── </span><span class="hl-0">components</span><span class="hl-1">/            # </span><span class="hl-0">Reusable</span><span class="hl-1"> </span><span class="hl-2">UI</span><span class="hl-1"> </span><span class="hl-0">components</span><br/><span class="hl-1">│       ├── </span><span class="hl-0">pages</span><span class="hl-1">/                 # </span><span class="hl-0">Route</span><span class="hl-1">-</span><span class="hl-0">level</span><span class="hl-1"> </span><span class="hl-0">page</span><span class="hl-1"> </span><span class="hl-0">components</span><br/><span class="hl-1">│       ├── </span><span class="hl-0">hooks</span><span class="hl-1">/                 # </span><span class="hl-0">Custom</span><span class="hl-1"> </span><span class="hl-0">React</span><span class="hl-1"> </span><span class="hl-0">hooks</span><br/><span class="hl-1">│       │   ├── </span><span class="hl-0">use</span><span class="hl-1">-</span><span class="hl-0">assessments</span><span class="hl-1">.</span><span class="hl-0">ts</span><span class="hl-1"> # </span><span class="hl-0">TanStack</span><span class="hl-1"> </span><span class="hl-0">Query</span><span class="hl-1"> </span><span class="hl-0">hooks</span><span class="hl-1"> </span><span class="hl-0">for</span><span class="hl-1"> </span><span class="hl-2">API</span><span class="hl-1"> </span><span class="hl-0">calls</span><br/><span class="hl-1">│       │   └── </span><span class="hl-0">use</span><span class="hl-1">-</span><span class="hl-0">toast</span><span class="hl-1">.</span><span class="hl-0">ts</span><span class="hl-1">       # </span><span class="hl-0">Toast</span><span class="hl-1"> </span><span class="hl-0">notification</span><span class="hl-1"> </span><span class="hl-0">state</span><br/><span class="hl-1">│       ├── </span><span class="hl-0">lib</span><span class="hl-1">/                   # </span><span class="hl-0">Utilities</span><span class="hl-1"> &amp; </span><span class="hl-2">API</span><span class="hl-1"> </span><span class="hl-0">client</span><br/><span class="hl-1">│       │   ├── </span><span class="hl-0">queryClient</span><span class="hl-1">.</span><span class="hl-0">ts</span><span class="hl-1">     # </span><span class="hl-0">Global</span><span class="hl-1"> </span><span class="hl-0">fetch</span><span class="hl-1"> </span><span class="hl-0">config</span><span class="hl-1"> + </span><span class="hl-0">React</span><span class="hl-1"> </span><span class="hl-0">Query</span><span class="hl-1"> </span><span class="hl-0">setup</span><br/><span class="hl-1">│       │   └── </span><span class="hl-0">utils</span><span class="hl-1">.</span><span class="hl-0">ts</span><span class="hl-1">           # </span><span class="hl-3">cn</span><span class="hl-1">() </span><span class="hl-0">Tailwind</span><span class="hl-1"> </span><span class="hl-5">class</span><span class="hl-1"> </span><span class="hl-7">merge</span><span class="hl-1"> </span><span class="hl-7">utility</span><br/><span class="hl-1">│       └── </span><span class="hl-7">utils</span><span class="hl-1">/</span><br/><span class="hl-1">│           ├── </span><span class="hl-7">search_filters</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">  # </span><span class="hl-7">Patient</span><span class="hl-1"> </span><span class="hl-7">search</span><span class="hl-1"> &amp; </span><span class="hl-7">filter</span><span class="hl-1"> </span><span class="hl-7">logic</span><br/><span class="hl-1">│           └── </span><span class="hl-7">date_fix</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">        # </span><span class="hl-7">Safe</span><span class="hl-1"> </span><span class="hl-7">date</span><span class="hl-1"> </span><span class="hl-7">parser</span><span class="hl-1"> </span><span class="hl-7">helper</span><br/><span class="hl-1">│</span><br/><span class="hl-1">├── </span><span class="hl-7">server</span><span class="hl-1">/                        # </span><span class="hl-7">Express</span><span class="hl-1">.</span><span class="hl-7">js</span><span class="hl-1"> </span><span class="hl-7">backend</span><br/><span class="hl-1">│   ├── </span><span class="hl-7">index</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">                   # </span><span class="hl-7">Server</span><span class="hl-1"> </span><span class="hl-7">entry</span><span class="hl-1"> </span><span class="hl-7">point</span><span class="hl-1"> &amp; </span><span class="hl-7">startup</span><br/><span class="hl-1">│   ├── </span><span class="hl-7">routes</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">                  # </span><span class="hl-7">API</span><span class="hl-1"> </span><span class="hl-7">route</span><span class="hl-1"> </span><span class="hl-7">definitions</span><br/><span class="hl-1">│   ├── </span><span class="hl-7">storage</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">                 # </span><span class="hl-7">Data</span><span class="hl-1"> </span><span class="hl-7">access</span><span class="hl-1"> </span><span class="hl-7">layer</span><span class="hl-1"> (</span><span class="hl-7">DB</span><span class="hl-1"> </span><span class="hl-7">queries</span><span class="hl-1">)</span><br/><span class="hl-1">│   ├── </span><span class="hl-7">db</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">                      # </span><span class="hl-7">Drizzle</span><span class="hl-1"> </span><span class="hl-7">ORM</span><span class="hl-1"> + </span><span class="hl-7">PostgreSQL</span><span class="hl-1"> </span><span class="hl-7">pool</span><br/><span class="hl-1">│   ├── </span><span class="hl-7">static</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">                  # </span><span class="hl-7">Serves</span><span class="hl-1"> </span><span class="hl-7">built</span><span class="hl-1"> </span><span class="hl-7">React</span><span class="hl-1"> </span><span class="hl-7">frontend</span><br/><span class="hl-1">│   ├── </span><span class="hl-7">vite</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">                    # </span><span class="hl-7">Vite</span><span class="hl-1"> </span><span class="hl-7">dev</span><span class="hl-1"> </span><span class="hl-7">server</span><span class="hl-1"> </span><span class="hl-7">integration</span><span class="hl-1"> (</span><span class="hl-7">HMR</span><span class="hl-1">)</span><br/><span class="hl-1">│   └── </span><span class="hl-7">db_fix</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">                  # </span><span class="hl-7">Clean</span><span class="hl-1"> </span><span class="hl-7">process</span><span class="hl-1"> </span><span class="hl-7">exit</span><span class="hl-1"> </span><span class="hl-7">on</span><span class="hl-1"> </span><span class="hl-7">DB</span><span class="hl-1"> </span><span class="hl-7">errors</span><br/><span class="hl-1">│</span><br/><span class="hl-1">├── </span><span class="hl-7">shared</span><span class="hl-1">/                        # </span><span class="hl-7">Shared</span><span class="hl-1"> </span><span class="hl-7">between</span><span class="hl-1"> </span><span class="hl-7">client</span><span class="hl-1"> &amp; </span><span class="hl-7">server</span><br/><span class="hl-1">│   ├── </span><span class="hl-7">schema</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">                  # </span><span class="hl-7">Drizzle</span><span class="hl-1"> </span><span class="hl-7">DB</span><span class="hl-1"> </span><span class="hl-7">schema</span><span class="hl-1"> + </span><span class="hl-7">Zod</span><span class="hl-1"> </span><span class="hl-7">types</span><br/><span class="hl-1">│   └── </span><span class="hl-7">routes</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">                  # </span><span class="hl-7">Shared</span><span class="hl-1"> </span><span class="hl-7">API</span><span class="hl-1"> </span><span class="hl-7">request</span><span class="hl-1">/</span><span class="hl-7">response</span><span class="hl-1"> </span><span class="hl-7">schemas</span><br/><span class="hl-1">│</span><br/><span class="hl-1">├── </span><span class="hl-7">script</span><span class="hl-1">/</span><br/><span class="hl-1">│   └── </span><span class="hl-7">build</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">                   # </span><span class="hl-7">esbuild</span><span class="hl-1"> + </span><span class="hl-7">Vite</span><span class="hl-1"> </span><span class="hl-7">production</span><span class="hl-1"> </span><span class="hl-7">build</span><span class="hl-1"> </span><span class="hl-7">script</span><br/><span class="hl-1">│</span><br/><span class="hl-1">├── </span><span class="hl-7">attached_assets</span><span class="hl-1">/               # </span><span class="hl-7">Static</span><span class="hl-1"> </span><span class="hl-7">assets</span><span class="hl-1"> (</span><span class="hl-7">dataset</span><span class="hl-1">, </span><span class="hl-7">images</span><span class="hl-1">)</span><br/><span class="hl-1">│   └── </span><span class="hl-7">diabetes_dataset</span><span class="hl-1">.</span><span class="hl-7">csv</span><br/><span class="hl-1">│</span><br/><span class="hl-1">├── </span><span class="hl-7">analyze</span><span class="hl-1">.</span><span class="hl-7">py</span><span class="hl-1">                     # </span><span class="hl-7">ML</span><span class="hl-1"> </span><span class="hl-7">pipeline</span><span class="hl-1"> — </span><span class="hl-7">training</span><span class="hl-1"> &amp; </span><span class="hl-7">inference</span><br/><span class="hl-1">├── </span><span class="hl-7">main</span><span class="hl-1">.</span><span class="hl-7">py</span><span class="hl-1">                        # </span><span class="hl-7">Python</span><span class="hl-1"> </span><span class="hl-7">entry</span><span class="hl-1"> </span><span class="hl-7">point</span><br/><span class="hl-1">├── </span><span class="hl-7">diabetes_dataset</span><span class="hl-1">.</span><span class="hl-7">csv</span><span class="hl-1">           # </span><span class="hl-7">Training</span><span class="hl-1"> </span><span class="hl-7">dataset</span><span class="hl-1"> (</span><span class="hl-7">root</span><span class="hl-1"> </span><span class="hl-7">copy</span><span class="hl-1">)</span><br/><span class="hl-1">├── </span><span class="hl-7">correlation_heatmap</span><span class="hl-1">.</span><span class="hl-7">png</span><span class="hl-1">        # </span><span class="hl-7">Diabetes</span><span class="hl-1"> </span><span class="hl-7">feature</span><span class="hl-1"> </span><span class="hl-7">correlation</span><span class="hl-1"> </span><span class="hl-7">heatmap</span><br/><span class="hl-1">├── </span><span class="hl-7">patient</span><span class="hl-1">.</span><span class="hl-7">json</span><span class="hl-1">                   # </span><span class="hl-7">Sample</span><span class="hl-1"> </span><span class="hl-7">patient</span><span class="hl-1"> </span><span class="hl-7">input</span><span class="hl-1"> </span><span class="hl-7">for</span><span class="hl-1"> </span><span class="hl-7">CLI</span><span class="hl-1"> </span><span class="hl-7">prediction</span><br/><span class="hl-1">│</span><br/><span class="hl-1">├── </span><span class="hl-7">drizzle</span><span class="hl-1">.</span><span class="hl-7">config</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">              # </span><span class="hl-7">Drizzle</span><span class="hl-1"> </span><span class="hl-7">ORM</span><span class="hl-1"> </span><span class="hl-7">configuration</span><br/><span class="hl-1">├── </span><span class="hl-7">vite</span><span class="hl-1">.</span><span class="hl-7">config</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">                 # </span><span class="hl-7">Vite</span><span class="hl-1"> </span><span class="hl-7">bundler</span><span class="hl-1"> </span><span class="hl-7">configuration</span><br/><span class="hl-1">├── </span><span class="hl-7">tailwind</span><span class="hl-1">.</span><span class="hl-7">config</span><span class="hl-1">.</span><span class="hl-7">ts</span><span class="hl-1">             # </span><span class="hl-7">Tailwind</span><span class="hl-1"> </span><span class="hl-7">CSS</span><span class="hl-1"> </span><span class="hl-7">configuration</span><br/><span class="hl-1">├── </span><span class="hl-7">tsconfig</span><span class="hl-1">.</span><span class="hl-7">json</span><span class="hl-1">                  # </span><span class="hl-7">TypeScript</span><span class="hl-1"> </span><span class="hl-7">configuration</span><br/><span class="hl-1">├── </span><span class="hl-7">postcss</span><span class="hl-1">.</span><span class="hl-7">config</span><span class="hl-1">.</span><span class="hl-7">js</span><span class="hl-1">              # </span><span class="hl-7">PostCSS</span><span class="hl-1"> </span><span class="hl-7">configuration</span><br/><span class="hl-1">├── </span><span class="hl-7">components</span><span class="hl-1">.</span><span class="hl-7">json</span><span class="hl-1">                # </span><span class="hl-7">shadcn</span><span class="hl-1">/</span><span class="hl-7">ui</span><span class="hl-1"> </span><span class="hl-7">component</span><span class="hl-1"> </span><span class="hl-7">registry</span><br/><span class="hl-1">├── </span><span class="hl-7">pyproject</span><span class="hl-1">.</span><span class="hl-7">toml</span><span class="hl-1">                 # </span><span class="hl-7">Python</span><span class="hl-1"> </span><span class="hl-7">project</span><span class="hl-1"> </span><span class="hl-7">metadata</span><br/><span class="hl-1">├── </span><span class="hl-7">requirements</span><span class="hl-1">.</span><span class="hl-7">txt</span><span class="hl-1">               # </span><span class="hl-7">Python</span><span class="hl-1"> </span><span class="hl-7">dependencies</span><br/><span class="hl-1">├── </span><span class="hl-7">package</span><span class="hl-1">.</span><span class="hl-7">json</span><span class="hl-1">                   # </span><span class="hl-7">Node</span><span class="hl-1">.</span><span class="hl-7">js</span><span class="hl-1"> </span><span class="hl-7">dependencies</span><span class="hl-1"> &amp; </span><span class="hl-7">scripts</span><br/><span class="hl-1">├── </span><span class="hl-7">package</span><span class="hl-1">-</span><span class="hl-7">lock</span><span class="hl-1">.</span><span class="hl-7">json</span><span class="hl-1">              # </span><span class="hl-7">Locked</span><span class="hl-1"> </span><span class="hl-7">dependency</span><span class="hl-1"> </span><span class="hl-7">versions</span><br/><span class="hl-1">├── </span><span class="hl-7">uv</span><span class="hl-1">.</span><span class="hl-7">lock</span><span class="hl-1">                        # </span><span class="hl-7">uv</span><span class="hl-1"> </span><span class="hl-7">Python</span><span class="hl-1"> </span><span class="hl-7">lock</span><span class="hl-1"> </span><span class="hl-7">file</span><br/><span class="hl-1">│</span><br/><span class="hl-1">├── </span><span class="hl-7">README</span><span class="hl-1">.</span><span class="hl-7">md</span><span class="hl-1">                      # </span><span class="hl-7">Project</span><span class="hl-1"> </span><span class="hl-7">documentation</span><br/><span class="hl-1">├── </span><span class="hl-7">ANALYSIS_README</span><span class="hl-1">.</span><span class="hl-7">md</span><span class="hl-1">             # </span><span class="hl-7">ML</span><span class="hl-1"> </span><span class="hl-7">analysis</span><span class="hl-1"> </span><span class="hl-7">documentation</span><br/><span class="hl-1">├── </span><span class="hl-7">CONTRIBUTING</span><span class="hl-1">.</span><span class="hl-7">md</span><span class="hl-1">                # </span><span class="hl-7">Contribution</span><span class="hl-1"> </span><span class="hl-7">guidelines</span><br/><span class="hl-1">└── </span><span class="hl-7">CODE_OF_CONDUCT</span><span class="hl-1">.</span><span class="hl-7">md</span><span class="hl-1">             # </span><span class="hl-7">Community</span><span class="hl-1"> </span><span class="hl-7">code</span><span class="hl-1"> </span><span class="hl-7">of</span><span class="hl-1"> </span><span class="hl-7">conduct</span>
+</code><button>Copy</button></pre>
+
+<hr>
+<h2 id="📡-api-reference" class="tsd-anchor-link">📡 API Reference<a href="#📡-api-reference" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/health</code></td>
+<td>Application health check endpoint for monitoring</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/assessments</code></td>
+<td>Submit a new risk assessment</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/assessments</code></td>
+<td>Retrieve assessment history</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/assessments/:id</code></td>
+<td>Get a specific assessment by ID</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/ingest/fhir</code></td>
+<td>Ingest a FHIR R4 JSON bundle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-request" class="tsd-anchor-link">Example Request<a href="#example-request" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<pre><code class="bash"><span class="hl-6"># Health Check</span><br/><span class="hl-3">curl</span><span class="hl-1"> </span><span class="hl-5">-X</span><span class="hl-1"> </span><span class="hl-4">GET</span><span class="hl-1"> </span><span class="hl-4">http://localhost:3000/health</span><br/><br/><span class="hl-6"># Submit Assessment</span><br/><span class="hl-3">curl</span><span class="hl-1"> </span><span class="hl-5">-X</span><span class="hl-1"> </span><span class="hl-4">POST</span><span class="hl-1"> </span><span class="hl-4">http://localhost:3000/api/assessments</span><span class="hl-1"> </span><span class="hl-8">\</span><br/><span class="hl-1">  </span><span class="hl-5">-H</span><span class="hl-1"> </span><span class="hl-4">&quot;Content-Type: application/json&quot;</span><span class="hl-1"> </span><span class="hl-8">\</span><br/><span class="hl-1">  </span><span class="hl-5">-d</span><span class="hl-1"> </span><span class="hl-4">&#39;{</span><br/><span class="hl-4">    &quot;gender&quot;: &quot;Female&quot;,</span><br/><span class="hl-4">    &quot;age&quot;: 52,</span><br/><span class="hl-4">    &quot;hypertension&quot;: true,</span><br/><span class="hl-4">    &quot;heartDisease&quot;: false,</span><br/><span class="hl-4">    &quot;smokingHistory&quot;: &quot;former&quot;,</span><br/><span class="hl-4">    &quot;bmi&quot;: 30.1,</span><br/><span class="hl-4">    &quot;hba1cLevel&quot;: 6.4,</span><br/><span class="hl-4">    &quot;bloodGlucoseLevel&quot;: 148</span><br/><span class="hl-4">  }&#39;</span>
+</code><button type="button">Copy</button></pre>
+
+<h3 id="fhir-ingestion" class="tsd-anchor-link">FHIR Ingestion<a href="#fhir-ingestion" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Allows submitting standard FHIR R4 JSON bundles containing patient demographic details and clinical vitals/lab values.</p>
+<h4 id="supported-resources" class="tsd-anchor-link">Supported Resources<a href="#supported-resources" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h4>
+<ul>
+<li><strong>Patient</strong>: Extracts <code>id</code>, <code>name</code>, <code>gender</code> (mapped to <code>Male</code>/<code>Female</code>), and calculates patient <code>age</code> from <code>birthDate</code>.</li>
+<li><strong>Observation</strong>: Extracts clinical values such as <code>BMI</code>, <code>HbA1c</code>, <code>Blood Glucose</code>, and flags <code>hypertension</code> and <code>heartDisease</code> using LOINC codes and display terms.</li>
+<li><strong>DocumentReference</strong>: Scans titles, descriptions, and decoded base64 attachments for cardiovascular and smoking history keywords.</li>
+</ul>
+<h4 id="example-request-1" class="tsd-anchor-link">Example Request<a href="#example-request-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h4>
+<pre><code class="bash"><span class="hl-3">curl</span><span class="hl-1"> </span><span class="hl-5">-X</span><span class="hl-1"> </span><span class="hl-4">POST</span><span class="hl-1"> </span><span class="hl-4">http://localhost:3000/api/ingest/fhir</span><span class="hl-1"> </span><span class="hl-8">\</span><br/><span class="hl-1">  </span><span class="hl-5">-H</span><span class="hl-1"> </span><span class="hl-4">&quot;Content-Type: application/json&quot;</span><span class="hl-1"> </span><span class="hl-8">\</span><br/><span class="hl-1">  </span><span class="hl-5">-d</span><span class="hl-1"> </span><span class="hl-4">&#39;{</span><br/><span class="hl-4">    &quot;resourceType&quot;: &quot;Bundle&quot;,</span><br/><span class="hl-4">    &quot;type&quot;: &quot;collection&quot;,</span><br/><span class="hl-4">    &quot;entry&quot;: [</span><br/><span class="hl-4">      {</span><br/><span class="hl-4">        &quot;resource&quot;: {</span><br/><span class="hl-4">          &quot;resourceType&quot;: &quot;Patient&quot;,</span><br/><span class="hl-4">          &quot;id&quot;: &quot;pat-123&quot;,</span><br/><span class="hl-4">          &quot;name&quot;: [</span><br/><span class="hl-4">            {</span><br/><span class="hl-4">              &quot;use&quot;: &quot;official&quot;,</span><br/><span class="hl-4">              &quot;given&quot;: [&quot;John&quot;, &quot;Edward&quot;],</span><br/><span class="hl-4">              &quot;family&quot;: &quot;Smith&quot;</span><br/><span class="hl-4">            }</span><br/><span class="hl-4">          ],</span><br/><span class="hl-4">          &quot;gender&quot;: &quot;male&quot;,</span><br/><span class="hl-4">          &quot;birthDate&quot;: &quot;1980-01-01&quot;</span><br/><span class="hl-4">        }</span><br/><span class="hl-4">      },</span><br/><span class="hl-4">      {</span><br/><span class="hl-4">        &quot;resource&quot;: {</span><br/><span class="hl-4">          &quot;resourceType&quot;: &quot;Observation&quot;,</span><br/><span class="hl-4">          &quot;code&quot;: {</span><br/><span class="hl-4">            &quot;coding&quot;: [</span><br/><span class="hl-4">              {</span><br/><span class="hl-4">                &quot;system&quot;: &quot;http://loinc.org&quot;,</span><br/><span class="hl-4">                &quot;code&quot;: &quot;39156-5&quot;,</span><br/><span class="hl-4">                &quot;display&quot;: &quot;Body Mass Index&quot;</span><br/><span class="hl-4">              }</span><br/><span class="hl-4">            ]</span><br/><span class="hl-4">          },</span><br/><span class="hl-4">          &quot;valueQuantity&quot;: {</span><br/><span class="hl-4">            &quot;value&quot;: 24.5,</span><br/><span class="hl-4">            &quot;unit&quot;: &quot;kg/m2&quot;</span><br/><span class="hl-4">          }</span><br/><span class="hl-4">        }</span><br/><span class="hl-4">      }</span><br/><span class="hl-4">    ]</span><br/><span class="hl-4">  }&#39;</span>
+</code><button type="button">Copy</button></pre>
+
+<hr>
+<h2 id="🧠-ml-pipeline" class="tsd-anchor-link">🧠 ML Pipeline<a href="#🧠-ml-pipeline" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>The machine learning pipeline (<code>analyze.py</code>) implements an <strong>interpretable</strong> risk assessment model:</p>
+<pre><code class="mermaid">graph LR
+    A["📂 Raw Data"] --> B["🧹 Cleaning & Validation"]
+    B --> C["⚙️ Feature Engineering"]
+    C --> D["📏 StandardScaler"]
+    D --> E["📊 Logistic Regression"]
+    E --> F["🎯 Risk Score 0–100%"]
+    E --> G["📋 Feature Importance"]
+    F --> H["💾 Cached Model"]
+    G --> H
+</code><button type="button">Copy</button></pre>
+
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Data Cleaning</strong></td>
+<td>Filters unrealistic values (BMI &lt; 10, glucose &lt; 50, HbA1c &lt; 3) and replaces with medians</td>
+</tr>
+<tr>
+<td><strong>Encoding</strong></td>
+<td>Gender → binary; Smoking history → one-hot encoding</td>
+</tr>
+<tr>
+<td><strong>Scaling</strong></td>
+<td><code>StandardScaler</code> on age, BMI, HbA1c, blood glucose</td>
+</tr>
+<tr>
+<td><strong>Model</strong></td>
+<td><code>LogisticRegression</code> with balanced class weights</td>
+</tr>
+<tr>
+<td><strong>Caching</strong></td>
+<td>Trained model + scaler serialized via <code>pickle</code> for fast inference</td>
+</tr>
+</tbody>
+</table>
+<h3 id="train-the-model-optional" class="tsd-anchor-link">Train the Model (Optional)<a href="#train-the-model-optional" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<pre><code class="bash"><span class="hl-6"># Linux/macOS</span><br/><span class="hl-3">python3</span><span class="hl-1"> </span><span class="hl-4">analyze.py</span><br/><br/><span class="hl-6"># Windows</span><br/><span class="hl-3">py</span><span class="hl-1"> </span><span class="hl-4">analyze.py</span>
+</code><button type="button">Copy</button></pre>
+
+<hr>
+<h2 id="🔬-single-patient-prediction-cli" class="tsd-anchor-link">🔬 Single-Patient Prediction (CLI)<a href="#🔬-single-patient-prediction-cli" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>Create a patient JSON file:</p>
+<pre><code class="json"><span class="hl-1">{</span><br/><span class="hl-1">  </span><span class="hl-9">&quot;gender&quot;</span><span class="hl-1">: </span><span class="hl-4">&quot;Female&quot;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-9">&quot;age&quot;</span><span class="hl-1">: </span><span class="hl-10">52</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-9">&quot;hypertension&quot;</span><span class="hl-1">: </span><span class="hl-5">true</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-9">&quot;heartDisease&quot;</span><span class="hl-1">: </span><span class="hl-5">false</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-9">&quot;smokingHistory&quot;</span><span class="hl-1">: </span><span class="hl-4">&quot;former&quot;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-9">&quot;bmi&quot;</span><span class="hl-1">: </span><span class="hl-10">30.1</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-9">&quot;hba1cLevel&quot;</span><span class="hl-1">: </span><span class="hl-10">6.4</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-9">&quot;bloodGlucoseLevel&quot;</span><span class="hl-1">: </span><span class="hl-10">148</span><br/><span class="hl-1">}</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Run prediction:</p>
+<pre><code class="bash"><span class="hl-6"># Linux/macOS</span><br/><span class="hl-3">python3</span><span class="hl-1"> </span><span class="hl-4">analyze.py</span><span class="hl-1"> </span><span class="hl-4">predict_file</span><span class="hl-1"> </span><span class="hl-4">patient.json</span><br/><br/><span class="hl-6"># Windows</span><br/><span class="hl-3">py</span><span class="hl-1"> </span><span class="hl-4">analyze.py</span><span class="hl-1"> </span><span class="hl-4">predict_file</span><span class="hl-1"> </span><span class="hl-4">patient.json</span>
+</code><button type="button">Copy</button></pre>
+
+<hr>
+<h2 id="🔑-environment-variables" class="tsd-anchor-link">🔑 Environment Variables<a href="#🔑-environment-variables" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>File</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DATABASE_URL</code></td>
+<td><code>.env</code></td>
+<td>PostgreSQL connection string</td>
+</tr>
+<tr>
+<td><code>NODE_ENV</code></td>
+<td><code>.env.local</code></td>
+<td>Set to <code>development</code> for local dev features</td>
+</tr>
+<tr>
+<td><code>SESSION_SECRET</code></td>
+<td><code>.env</code></td>
+<td>Required in production for signed Express sessions</td>
+</tr>
+<tr>
+<td><code>DEV_CLINICIAN_EMAIL</code></td>
+<td><code>.env.local</code></td>
+<td>Seeded clinician email (dev only)</td>
+</tr>
+<tr>
+<td><code>DEV_CLINICIAN_PASSWORD</code></td>
+<td><code>.env.local</code></td>
+<td>Seeded clinician password (dev only)</td>
+</tr>
+<tr>
+<td><code>NEXT_PUBLIC_LOCAL_ENCRYPTION_KEY</code></td>
+<td><code>.env.local</code></td>
+<td>Local encryption key (dev only)</td>
+</tr>
+<tr>
+<td><code>ENABLE_PHI_REDACTION</code></td>
+<td><code>.env</code></td>
+<td>Enable privacy-preserving PHI redaction (defaults to <code>true</code>)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Security:</strong> <code>.env.local</code> is git-ignored and should <strong>never</strong> be committed. Production builds do not expose dev credentials.</p>
+</blockquote>
+<blockquote>
+<p><strong>Request limits:</strong> JSON and URL-encoded API payloads are limited to <code>256kb</code> by default. Add route-specific upload handling before increasing this global limit.
+<strong>Production sessions:</strong> When the app runs behind a TLS-terminating reverse proxy or load balancer, Express trusts one proxy hop in production so secure session cookies are issued from <code>X-Forwarded-Proto: https</code> requests.</p>
+</blockquote>
+<hr>
+<h2 id="❓-troubleshooting" class="tsd-anchor-link">❓ Troubleshooting<a href="#❓-troubleshooting" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<details>
+<summary><strong>"PostgreSQL is unreachable"</strong></summary>
+<ul>
+<li>Verify PostgreSQL is running: <code>sudo systemctl status postgresql</code> (Linux) or <code>brew services list</code> (macOS)</li>
+<li>Confirm <code>DATABASE_URL</code> in <code>.env</code> matches your local credentials</li>
+<li>Ensure port <code>5432</code> is not blocked by another process</li>
+<li>Check that the <code>clinical_insight_engine</code> database exists</li>
+</ul>
+</details>
+<details>
+<summary><strong>"Database startup check failed"</strong></summary>
+<ul>
+<li>Run <code>npm run db:push</code> to create/update the required tables</li>
+<li>Verify your <code>.env</code> file is in the project root (not inside <code>server/</code> or <code>client/</code>)</li>
+</ul>
+</details>
+<details>
+<summary><strong>Python model errors</strong></summary>
+<ul>
+<li>Ensure the virtual environment is activated: <code>source .venv/bin/activate</code></li>
+<li>Verify dependencies: <code>pip install -r requirements.txt</code></li>
+<li>If <code>diabetes_dataset.csv</code> is missing, copy it: <code>cp attached_assets/diabetes_dataset.csv ./</code></li>
+<li>Or generate synthetic data: <code>python3 -c &quot;from analyze import create_synthetic_data; create_synthetic_data()&quot;</code></li>
+</ul>
+</details>
+<details>
+<summary><strong>Port conflicts</strong></summary>
+<ul>
+<li>The dev server defaults to port <strong>5173</strong> (Vite)</li>
+<li>If occupied, Vite will automatically pick the next available port</li>
+<li>Check for processes: <code>lsof -i :5173</code> (Linux/macOS) or <code>netstat -ano | findstr :5173</code> (Windows)</li>
+</ul>
+</details>
+<hr>
+<h2 id="🗺-roadmap" class="tsd-anchor-link">🗺 Roadmap<a href="#🗺-roadmap" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<ul>
+<li>[ ] 📈 Longitudinal patient risk tracking across visits</li>
+<li>[x] 💡 Counterfactual reasoning — <em>&quot;What single change reduces risk most?&quot;</em></li>
+<li>[ ] 🔬 Cohort discovery and population-level insights</li>
+<li>[ ] 🏥 Integration with Electronic Health Records (EHR)</li>
+<li>[ ] ⚖️ Advanced bias detection and ML fairness metrics</li>
+<li>[ ] ☁️ Cloud deployment (Vercel / Render)</li>
+</ul>
+<hr>
+<h2 id="🤝-contributing" class="tsd-anchor-link">🤝 Contributing<a href="#🤝-contributing" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>We love contributions! Whether it's a bug fix, a new feature, or improved docs — <strong>every PR makes a difference</strong>.</p>
+<ol>
+<li>Fork the repository</li>
+<li>Create your feature branch (<code>git checkout -b feat/amazing-feature</code>)</li>
+<li>Commit your changes (<code>git commit -m 'feat: add amazing feature'</code>)</li>
+<li>Push to the branch (<code>git push origin feat/amazing-feature</code>)</li>
+<li>Open a Pull Request</li>
+</ol>
+<p>Please read our <a href="media/CONTRIBUTING.md"><strong>Contributing Guide</strong></a> and <a href="media/CODE_OF_CONDUCT.md"><strong>Code of Conduct</strong></a> before submitting.</p>
+<hr>
+<h2 id="👥-contributors" class="tsd-anchor-link">👥 Contributors<a href="#👥-contributors" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<a href="https://github.com/gopaljilab/Clinical-Insight-Engine/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=gopaljilab/Clinical-Insight-Engine" alt="Contributors" />
+</a>
+<hr>
+<h2 id="👤-author-github" class="tsd-anchor-link">👤 Author - <a href="https://github.com/gopaljilab"><img src="https://img.shields.io/badge/GitHub-gopaljilab-181717?style=flat-square&amp;logo=github" alt="GitHub"></a><a href="#👤-author-github" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p><strong>Gopal Gupta</strong>
+<em>Computer Science Engineer · Full-Stack Developer · Data Science &amp; ML Enthusiast</em></p>
+<div align="center">
+<p><em>Built with ❤️ for better preventive healthcare</em></p>
+<p>⭐ <strong>Star this repo</strong> if you find it useful — it helps others discover the project!</p>
+</div>
+<h3 id="gssoc-drizzle-migrations-policy" class="tsd-anchor-link">GSSoC Drizzle Migrations Policy<a href="#gssoc-drizzle-migrations-policy" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li>All schema changes must go through drizzle-kit generate.</li>
+</ul>
+<h2 id="✨-readme-improvement-notes" class="tsd-anchor-link">✨ README Improvement Notes<a href="#✨-readme-improvement-notes" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<h3 id="📌-formatting-enhancements-needed" class="tsd-anchor-link">📌 Formatting Enhancements Needed<a href="#📌-formatting-enhancements-needed" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li>Improve heading hierarchy for better readability</li>
+<li>Ensure consistent spacing between sections</li>
+<li>Use proper Markdown formatting for code blocks and lists</li>
+<li>Align all installation and usage steps properly</li>
+</ul>
+<h3 id="🚀-suggested-structure-upgrade" class="tsd-anchor-link">🚀 Suggested Structure Upgrade<a href="#🚀-suggested-structure-upgrade" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li>Introduction</li>
+<li>Features</li>
+<li>Tech Stack</li>
+<li>Installation</li>
+<li>Usage</li>
+<li>Project Structure</li>
+<li>Contribution Guidelines</li>
+<li>License</li>
+</ul>
+<h3 id="🛠️-documentation-improvements" class="tsd-anchor-link">🛠️ Documentation Improvements<a href="#🛠️-documentation-improvements" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li>Add badges (optional): build, license, contributors</li>
+<li>Add screenshots for better UI understanding</li>
+<li>Standardize code blocks for commands</li>
+</ul>
+<h3 id="🎯-goal" class="tsd-anchor-link">🎯 Goal<a href="#🎯-goal" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Improve onboarding experience for new contributors and users by making README more structured, readable, and professional.</p>
+</div></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></div><div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#🩺-clinical-insight-engine"><span>🩺 <wbr/>Clinical <wbr/>Insight <wbr/>Engine</span></a><ul><li><ul><li><a href="#clinical-decision-support-for-preventive-diabetes-risk-assessment"><span>Clinical <wbr/>Decision <wbr/>Support for <wbr/>Preventive <wbr/>Diabetes <wbr/>Risk <wbr/>Assessment</span></a></li></ul></li><li><a href="#📑-table-of-contents"><span>📑 <wbr/>Table of <wbr/>Contents</span></a></li><li><a href="#💡-why-clinical-insight-engine"><span>💡 <wbr/>Why <wbr/>Clinical <wbr/>Insight <wbr/>Engine?</span></a></li><li><a href="#✨-key-features"><span>✨ <wbr/>Key <wbr/>Features</span></a></li><li><ul><li><a href="#🧾-risk-assessment-form"><span>🧾 <wbr/>Risk <wbr/>Assessment <wbr/>Form</span></a></li><li><a href="#👥-dual-view-results"><span>👥 <wbr/>Dual-<wbr/>View <wbr/>Results</span></a></li><li><a href="#🕒-assessment-history"><span>🕒 <wbr/>Assessment <wbr/>History</span></a></li><li><a href="#📊-data-visualization"><span>📊 <wbr/>Data <wbr/>Visualization</span></a></li></ul></li><li><a href="#🏗-architecture"><span>🏗 <wbr/>Architecture</span></a></li><li><a href="#🛠-tech-stack"><span>🛠 <wbr/>Tech <wbr/>Stack</span></a></li><li><a href="#🚀-getting-started"><span>🚀 <wbr/>Getting <wbr/>Started</span></a></li><li><ul><li><a href="#prerequisites"><span>Prerequisites</span></a></li></ul></li><li><a href="#🐳-fast-setup-with-docker-recommended"><span>🐳 <wbr/>Fast <wbr/>Setup with <wbr/>Docker (<wbr/>Recommended)</span></a></li><li><ul><li><a href="#1-launching-the-app"><span>1. <wbr/>Launching the <wbr/>App</span></a></li><li><a href="#2-stop-the-app"><span>2. <wbr/>Stop the <wbr/>App</span></a></li><li><a href="#3-rebuilding-after-updates"><span>3. <wbr/>Rebuilding after <wbr/>Updates</span></a></li></ul></li><li><a href="#⚙️-manual-installation-setup"><span>⚙️ <wbr/>Manual <wbr/>Installation &amp; <wbr/>Setup</span></a></li><li><ul><li><a href="#1-📥-clone-install"><span>1. 📥 <wbr/>Clone &amp; <wbr/>Install</span></a></li><li><a href="#2-🔐-environment-configuration"><span>2. 🔐 <wbr/>Environment <wbr/>Configuration</span></a></li><li><ul><li><a href="#🖥️-local-login-workflow"><span>🖥️ <wbr/>Local <wbr/>Login <wbr/>Workflow</span></a></li></ul></li><li><a href="#3-🗄-database-setup"><span>3. 🗄 <wbr/>Database <wbr/>Setup</span></a></li><li><a href="#4-🐍-python-environment"><span>4. 🐍 <wbr/>Python <wbr/>Environment</span></a></li><li><a href="#5-📊-dataset-preparation"><span>5. 📊 <wbr/>Dataset <wbr/>Preparation</span></a></li><li><a href="#6-🚀-launch"><span>6. 🚀 <wbr/>Launch</span></a></li><li><a href="#7-🛑-shutting-down"><span>7. 🛑 <wbr/>Shutting <wbr/>Down</span></a></li></ul></li><li><a href="#📁-project-structure"><span>📁 <wbr/>Project <wbr/>Structure</span></a></li><li><a href="#📡-api-reference"><span>📡 <wbr/>API <wbr/>Reference</span></a></li><li><ul><li><a href="#example-request"><span>Example <wbr/>Request</span></a></li><li><a href="#fhir-ingestion"><span>FHIR <wbr/>Ingestion</span></a></li><li><ul><li><a href="#supported-resources"><span>Supported <wbr/>Resources</span></a></li><li><a href="#example-request-1"><span>Example <wbr/>Request</span></a></li></ul></li></ul></li><li><a href="#🧠-ml-pipeline"><span>🧠 <wbr/>ML <wbr/>Pipeline</span></a></li><li><ul><li><a href="#train-the-model-optional"><span>Train the <wbr/>Model (<wbr/>Optional)</span></a></li></ul></li><li><a href="#🔬-single-patient-prediction-cli"><span>🔬 <wbr/>Single-<wbr/>Patient <wbr/>Prediction (<wbr/>CLI)</span></a></li><li><a href="#🔑-environment-variables"><span>🔑 <wbr/>Environment <wbr/>Variables</span></a></li><li><a href="#❓-troubleshooting"><span>❓ <wbr/>Troubleshooting</span></a></li><li><a href="#🗺-roadmap"><span>🗺 <wbr/>Roadmap</span></a></li><li><a href="#🤝-contributing"><span>🤝 <wbr/>Contributing</span></a></li><li><a href="#👥-contributors"><span>👥 <wbr/>Contributors</span></a></li><li><a href="#👤-author-github"><span>👤 <wbr/>Author -<wbr/> <wbr/>Git<wbr/>Hub</span></a></li><li><ul><li><a href="#gssoc-drizzle-migrations-policy"><span>GS<wbr/>So<wbr/>C <wbr/>Drizzle <wbr/>Migrations <wbr/>Policy</span></a></li></ul></li><li><a href="#✨-readme-improvement-notes"><span>✨ <wbr/>README <wbr/>Improvement <wbr/>Notes</span></a></li><li><ul><li><a href="#📌-formatting-enhancements-needed"><span>📌 <wbr/>Formatting <wbr/>Enhancements <wbr/>Needed</span></a></li><li><a href="#🚀-suggested-structure-upgrade"><span>🚀 <wbr/>Suggested <wbr/>Structure <wbr/>Upgrade</span></a></li><li><a href="#🛠️-documentation-improvements"><span>🛠️ <wbr/>Documentation <wbr/>Improvements</span></a></li><li><a href="#🎯-goal"><span>🎯 <wbr/>Goal</span></a></li></ul></li></ul></div></details></div><div class="site-menu"><nav class="tsd-navigation"><a href="modules.html">Clinical Insight Engine - Developer Documentation - v1.0.0</a><ul class="tsd-small-nested-navigation" id="tsd-nav-container"><li>Loading...</li></ul></nav></div></div></div><footer><p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer><div class="overlay"></div></body></html>

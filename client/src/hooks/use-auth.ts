@@ -12,6 +12,10 @@ interface AuthState {
   isAuthenticated: boolean;
 }
 
+/**
+ * React hook for  auth.
+ * @returns The result of the operation.
+ */
 export function useAuth(): AuthState {
   const { data, isLoading } = useQuery<{ user: AuthUser } | null>({
     queryKey: ["/api/auth/me"],
