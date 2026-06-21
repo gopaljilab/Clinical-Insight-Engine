@@ -22,19 +22,24 @@ import { isAdmin } from "./rbac";
  */
 export function canAccessPatientRecord(
   user: Pick<User, "id" | "email" | "role">,
-  record: Pick<Assessment, "createdBy" | "userId">
+  record: Pick<Assessment, "createdBy" | "userId" | "ownerId">
 ): boolean {
   // 1. System administrators have global access
   if (isAdmin(user)) {
     return true;
   }
 
-  // 2. Providers have access if they created the record (assignment check)
+  // 2. Check ownerId (UUID foreign key) first — more stable than email
+  if (record.ownerId && record.ownerId === user.id) {
+    return true;
+  }
+
+  // 3. Providers have access if they created the record (assignment check)
   if (record.createdBy && record.createdBy.toLowerCase() === user.email.toLowerCase()) {
     return true;
   }
 
-  // 3. Patients have access if the record belongs directly to them
+  // 4. Patients have access if the record belongs directly to them
   if (record.userId && record.userId === user.id) {
     return true;
   }

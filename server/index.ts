@@ -1,11 +1,11 @@
 import crypto from "crypto";
-import { execFile } from "child_process";
-import { promisify } from "util";
+import { safeExecML } from "./utils/exec";
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import rateLimit from "express-rate-limit";
 import {
   DatabaseStartupError,
   verifyDatabaseConnection,
@@ -16,10 +16,11 @@ import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
 import { getPythonExecutable } from "./services/mlService";
 import patientsRouter from "./routes/patients";
+import patientPortalRouter from "./routes/patient.routes";
 import { serveStatic } from "./static";
-import { sanitizeDatabaseError } from "./security/sqlProtection";
 import { createServer } from "http";
 import { loggingAnomalyMiddleware } from "./middleware/loggingAnomaly";
+import { globalErrorHandler } from "./middleware/errorHandler";
 import { logger } from "./logger";
 import { requestIdMiddleware } from "./middleware/requestId";
 import {
@@ -27,24 +28,26 @@ import {
   startAssessmentWorker,
   closeQueue,
 } from "./queue";
-import { EmailConfigurationError, validateSmtpConfig } from "./email";
+import { EmailConfigurationError, validateEmailConfig } from "./email";
+import { generalLimiter } from "./middleware/rateLimit";
+import { registerOpenApiDocs } from "./openapi";
+import { initAssessmentSocket } from "./socket/assessmentSocket";
+import { rlsContextMiddleware } from "./middleware/rlsContext";
 
 
-const execFileAsync = promisify(execFile);
 const app = express();
 const httpServer = createServer(app);
 
 // CORS configuration - hardened to reject requests missing the Origin header
-const isProd = process.env.NODE_ENV === "production";
 const allowedOrigins = process.env.CORS_ORIGINS 
   ? process.env.CORS_ORIGINS.split(",") 
-  : [process.env.APP_URL, process.env.API_URL, "http://localhost:5000", "http://127.0.0.1:5000"].filter(Boolean) as string[];
+  : [process.env.APP_URL, process.env.API_URL, "http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:3000", "http://127.0.0.1:3000"].filter(Boolean) as string[];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Reject requests missing the Origin header to prevent unintended access
+    // Allow requests with no origin (browser initial load, Vite HMR, curl)
     if (!origin) {
-      return callback(new Error("CORS: Origin header is required"), false);
+      return callback(null, true);
     }
     
     if (allowedOrigins.includes(origin)) {
@@ -56,7 +59,7 @@ app.use(cors({
   credentials: true,
 }));
 
-const REQUEST_BODY_LIMIT = "256kb";
+const REQUEST_BODY_LIMIT = "10kb";
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", true);
 }
@@ -129,22 +132,19 @@ app.use((_req, res, next) => {
 });
 
 // Security headers via helmet
-const scriptSrcDirective: Array<string | ((req: any, res: any) => string)> = [
+const scriptSrcDirective: Array<string | ((req: Parameters<RequestHandler>[0], res: Parameters<RequestHandler>[0]) => string)> = [
   "'self'",
-  (_req: any, res: any) => `'nonce-${res.locals.cspNonce}'`,
+  (_req: any, res: Parameters<RequestHandler>[0]) => `'nonce-${res.locals.cspNonce}'`,
 ];
 
-// Vite HMR requires eval in development mode
-if (process.env.NODE_ENV !== "production") {
-  scriptSrcDirective.push("'unsafe-eval'");
-}
+
 
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: scriptSrcDirective,
+        scriptSrc: process.env.NODE_ENV === "production" ? scriptSrcDirective : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:"],
@@ -182,7 +182,7 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       const logPayload = {
-        requestId: (req as any).id,
+        requestId: (req).id,
         method: req.method,
         path,
         status: res.statusCode,
@@ -196,12 +196,14 @@ app.use((req, res, next) => {
   next();
 });
 
+registerOpenApiDocs(app);
+
 (async () => {
   try {
     await verifyDatabaseConnection();
   } catch (error) {
     if (error instanceof DatabaseStartupError) {
-      logger.error({ err: error }, error.message);
+      logger.error({ err: error }, (error as Error).message);
     } else {
       logger.error({ err: error }, "Unexpected database startup error");
     }
@@ -211,10 +213,10 @@ app.use((req, res, next) => {
   }
 
   try {
-    validateSmtpConfig();
+    validateEmailConfig();
   } catch (error) {
     if (error instanceof EmailConfigurationError) {
-      logger.error({ err: error }, error.message);
+      logger.error({ err: error }, (error as Error).message);
     } else {
       logger.error({ err: error }, "Unexpected email configuration error");
     }
@@ -231,41 +233,39 @@ app.use((req, res, next) => {
     logger.warn({ source: "redis" }, "Redis unavailable — async assessment queue disabled.");
   }
 
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests from this IP, please try again later." }
+  });
+  
+  app.use("/api", apiLimiter);
+
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
+  // Apply RLS context middleware to assessment and patient data routes
+  // This ensures PostgreSQL session variables are set for RLS policies
+  app.use("/api/assessments", rlsContextMiddleware);
+  app.use("/api/patients", rlsContextMiddleware);
+  app.use("/api/patient", rlsContextMiddleware);
+  app.use("/api/admin", rlsContextMiddleware);
   // Register protected patient EMR/EHR integration endpoints
-  app.use("/api/patients", patientsRouter);
+  app.use("/api/patients", generalLimiter, patientsRouter);
+  app.use("/api/patient", patientPortalRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
-  execFileAsync(getPythonExecutable(), ["analyze.py", "train"])
+  safeExecML(getPythonExecutable(), ["analyze.py", "train"])
     .then(() => logger.info({ source: "ml" }, "ML model ready."))
-    .catch((err: any) => logger.warn({ source: "ml" }, `ML warmup warning: ${err.message}`));
+    .catch((err: unknown) => logger.warn({ source: "ml" }, `ML warmup warning: ${(err as Error).message}`));
+  initAssessmentSocket(httpServer);
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    if (res.headersSent) {
-      return next(err);
-    }
-
-    // Log the full error internally for debugging, but never send internals to clients
-    logger.error({ err }, "Unhandled server error");
-
-    // Handle CORS errors specifically
-    if (err.message === "CORS: Origin header is required" || err.message === "Not allowed by CORS") {
-      return res.status(403).json({ message: err.message });
-    }
-
-    // Sanitize database errors — prevents table names, SQL syntax, and pg error codes
-    // from reaching the client response body
-    const { statusCode, message } = sanitizeDatabaseError(err);
-
-    // For non-DB errors (e.g. express body-parser), fall back to err.status
-    const finalStatus = (err?.code && typeof err.code === "string" && err.code.length === 5)
-      ? statusCode                            // PostgreSQL error code (5-char alphanumeric)
-      : (err?.status ?? err?.statusCode ?? statusCode);
-
-    return res.status(finalStatus).json({ message });
-  });
+  // Global error handler — must be the LAST middleware.
+  // Handles CORS errors, database errors, unhandled exceptions, and returns
+  // a consistent { message, requestId } shape for all error responses.
+  app.use(globalErrorHandler);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

@@ -3,6 +3,7 @@ import { logger } from "../logger";
 import { requireAuth, requireVerified } from "../auth";
 import { storage } from "../storage";
 import { assessmentsToCsv } from "../utils/csvExport";
+import { exportLimiter } from "../middleware/rateLimit";
 import { assessmentExportQuerySchema } from "../validation/searchValidation";
 
 const exportsRouter = Router();
@@ -11,6 +12,7 @@ exportsRouter.get(
   "/export.csv",
   requireAuth,
   requireVerified,
+  exportLimiter,
   async (req, res) => {
     try {
       const userEmail = req.session.user?.email;

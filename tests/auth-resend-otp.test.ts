@@ -1,26 +1,36 @@
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
 import session from "express-session";
+import { eq } from "drizzle-orm";
+import { users } from "../server/db/schema";
 
-const { mockSendVerificationCode } = vi.hoisted(() => ({
-  mockSendVerificationCode: vi.fn().mockResolvedValue(true),
+vi.mock("express-rate-limit", () => {
+  const rateLimit = () => (req: any, res: any, next: any) => next();
+  return { rateLimit, default: rateLimit };
+});
+
+const { mockSendVerificationEmail } = vi.hoisted(() => ({
+  mockSendVerificationEmail: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock("../server/email", () => ({
-  sendVerificationCode: mockSendVerificationCode,
+  sendVerificationEmail: mockSendVerificationEmail,
   sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
 }));
 
+const mockDb = {
+  select: vi.fn(),
+  transaction: vi.fn(),
+};
+
 vi.mock("../server/db", () => ({
-  getDb: vi.fn(),
+  getDb: vi.fn(() => mockDb),
 }));
 
 vi.mock("../server/storage", () => ({
   storage: {
-    getUserByEmail: vi.fn(),
-    createUser: vi.fn(),
+    recordLoginAudit: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -30,6 +40,13 @@ vi.mock("ioredis", () => ({
     info: vi.fn().mockResolvedValue(""),
   })),
 }));
+
+/** Override getDb to return the given mock implementation */
+async function setMockDb(mockImpl: any) {
+  const mod = await import("../server/db");
+  const getDbMock = mod.getDb as any;
+  getDbMock.mockReturnValue(mockImpl);
+}
 
 async function buildApp() {
   const { createAuthRouter } = await import("../server/auth");
@@ -49,7 +66,7 @@ async function buildApp() {
 describe("POST /api/auth/resend-otp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSendVerificationCode.mockResolvedValue(true);
+    mockSendVerificationEmail.mockResolvedValue(true);
   });
 
   it("returns 400 when email is missing", async () => {
@@ -61,21 +78,67 @@ describe("POST /api/auth/resend-otp", () => {
     expect(res.body.message).toMatch(/email is required/i);
   });
 
-  it("returns 400 when no pending OTP exists for login mode", async () => {
+  it("returns 404 when user is not found (no pending otp scenario)", async () => {
+    await setMockDb({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve([]),
+          }),
+        }),
+      }),
+      transaction: vi.fn(),
+    });
     const app = await buildApp();
-    const res = await request(app)
+    return request(app)
       .post("/api/auth/resend-otp")
-      .send({ email: "noone@clinic.com", mode: "login" });
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/no pending verification/i);
+      .send({ email: "noone@clinic.com", mode: "login" })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.message).toMatch(/No pending verification found/i);
+      });
   });
 
-it("does not require password — only email", async () => {
+  it("returns 404 when user is not found in database", async () => {
+    // Mock db select to return empty array (user not found)
+    const mockLimit = vi.fn().mockResolvedValue([]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockDb.select.mockImplementation(() => ({ from: mockFrom }));
+
     const app = await buildApp();
     const res = await request(app)
       .post("/api/auth/resend-otp")
-      .send({ email: "test@clinic.com", mode: "login" });
-    // The 400 should be for "no pending OTP", not for missing password
-    expect(res.body.message).not.toMatch(/password/i);
+      .send({ email: "noone@clinic.com" });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/user not found/i);
+  });
+
+  it("resends OTP successfully when user exists (does not ask for password)", async () => {
+    await setMockDb({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve([{ id: "user-1", emailVerified: false }]),
+          }),
+        }),
+      }),
+      transaction: async (cb: any) => {
+        const tx = {
+          update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
+          insert: () => ({ values: () => Promise.resolve() }),
+        };
+        return cb(tx);
+      },
+    });
+    const app = await buildApp();
+    const res = await request(app)
+      .post("/api/auth/resend-otp")
+      .send({ email: "test@clinic.com", mode: "register" });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("success", true);
+    expect(res.body).toHaveProperty("pendingEmail");
+    expect(Object.keys(res.body)).not.toContain("devOtp");
+    expect(mockSendVerificationEmail).toHaveBeenCalledTimes(1);
   });
 });

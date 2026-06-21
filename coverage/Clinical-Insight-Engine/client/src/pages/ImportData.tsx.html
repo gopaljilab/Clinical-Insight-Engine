@@ -1,0 +1,862 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for Clinical-Insight-Engine/client/src/pages/ImportData.tsx</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../../prettify.css" />
+    <link rel="stylesheet" href="../../../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../../../index.html">All files</a> / <a href="index.html">Clinical-Insight-Engine/client/src/pages</a> ImportData.tsx</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>0/219</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>0/1</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/1</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>0/219</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a>
+<a name='L169'></a><a href='#L169'>169</a>
+<a name='L170'></a><a href='#L170'>170</a>
+<a name='L171'></a><a href='#L171'>171</a>
+<a name='L172'></a><a href='#L172'>172</a>
+<a name='L173'></a><a href='#L173'>173</a>
+<a name='L174'></a><a href='#L174'>174</a>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a>
+<a name='L181'></a><a href='#L181'>181</a>
+<a name='L182'></a><a href='#L182'>182</a>
+<a name='L183'></a><a href='#L183'>183</a>
+<a name='L184'></a><a href='#L184'>184</a>
+<a name='L185'></a><a href='#L185'>185</a>
+<a name='L186'></a><a href='#L186'>186</a>
+<a name='L187'></a><a href='#L187'>187</a>
+<a name='L188'></a><a href='#L188'>188</a>
+<a name='L189'></a><a href='#L189'>189</a>
+<a name='L190'></a><a href='#L190'>190</a>
+<a name='L191'></a><a href='#L191'>191</a>
+<a name='L192'></a><a href='#L192'>192</a>
+<a name='L193'></a><a href='#L193'>193</a>
+<a name='L194'></a><a href='#L194'>194</a>
+<a name='L195'></a><a href='#L195'>195</a>
+<a name='L196'></a><a href='#L196'>196</a>
+<a name='L197'></a><a href='#L197'>197</a>
+<a name='L198'></a><a href='#L198'>198</a>
+<a name='L199'></a><a href='#L199'>199</a>
+<a name='L200'></a><a href='#L200'>200</a>
+<a name='L201'></a><a href='#L201'>201</a>
+<a name='L202'></a><a href='#L202'>202</a>
+<a name='L203'></a><a href='#L203'>203</a>
+<a name='L204'></a><a href='#L204'>204</a>
+<a name='L205'></a><a href='#L205'>205</a>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a>
+<a name='L211'></a><a href='#L211'>211</a>
+<a name='L212'></a><a href='#L212'>212</a>
+<a name='L213'></a><a href='#L213'>213</a>
+<a name='L214'></a><a href='#L214'>214</a>
+<a name='L215'></a><a href='#L215'>215</a>
+<a name='L216'></a><a href='#L216'>216</a>
+<a name='L217'></a><a href='#L217'>217</a>
+<a name='L218'></a><a href='#L218'>218</a>
+<a name='L219'></a><a href='#L219'>219</a>
+<a name='L220'></a><a href='#L220'>220</a>
+<a name='L221'></a><a href='#L221'>221</a>
+<a name='L222'></a><a href='#L222'>222</a>
+<a name='L223'></a><a href='#L223'>223</a>
+<a name='L224'></a><a href='#L224'>224</a>
+<a name='L225'></a><a href='#L225'>225</a>
+<a name='L226'></a><a href='#L226'>226</a>
+<a name='L227'></a><a href='#L227'>227</a>
+<a name='L228'></a><a href='#L228'>228</a>
+<a name='L229'></a><a href='#L229'>229</a>
+<a name='L230'></a><a href='#L230'>230</a>
+<a name='L231'></a><a href='#L231'>231</a>
+<a name='L232'></a><a href='#L232'>232</a>
+<a name='L233'></a><a href='#L233'>233</a>
+<a name='L234'></a><a href='#L234'>234</a>
+<a name='L235'></a><a href='#L235'>235</a>
+<a name='L236'></a><a href='#L236'>236</a>
+<a name='L237'></a><a href='#L237'>237</a>
+<a name='L238'></a><a href='#L238'>238</a>
+<a name='L239'></a><a href='#L239'>239</a>
+<a name='L240'></a><a href='#L240'>240</a>
+<a name='L241'></a><a href='#L241'>241</a>
+<a name='L242'></a><a href='#L242'>242</a>
+<a name='L243'></a><a href='#L243'>243</a>
+<a name='L244'></a><a href='#L244'>244</a>
+<a name='L245'></a><a href='#L245'>245</a>
+<a name='L246'></a><a href='#L246'>246</a>
+<a name='L247'></a><a href='#L247'>247</a>
+<a name='L248'></a><a href='#L248'>248</a>
+<a name='L249'></a><a href='#L249'>249</a>
+<a name='L250'></a><a href='#L250'>250</a>
+<a name='L251'></a><a href='#L251'>251</a>
+<a name='L252'></a><a href='#L252'>252</a>
+<a name='L253'></a><a href='#L253'>253</a>
+<a name='L254'></a><a href='#L254'>254</a>
+<a name='L255'></a><a href='#L255'>255</a>
+<a name='L256'></a><a href='#L256'>256</a>
+<a name='L257'></a><a href='#L257'>257</a>
+<a name='L258'></a><a href='#L258'>258</a>
+<a name='L259'></a><a href='#L259'>259</a>
+<a name='L260'></a><a href='#L260'>260</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >import { useState, useRef } from "react";<span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" ></span></span></span>
+<span class="cstat-no" title="statement not covered" >import Papa from "papaparse";</span>
+import { ApiClient } from "@/lib/apiClient";
+<span class="cstat-no" title="statement not covered" >import { useBulkImport } from "@/hooks/use-bulk-import";</span>
+<span class="cstat-no" title="statement not covered" >import { UploadCloud, CheckCircle, AlertCircle, Loader2, FileText, Download, X, XCircle, ShieldCheck } from "lucide-react";</span>
+<span class="cstat-no" title="statement not covered" >import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";</span>
+<span class="cstat-no" title="statement not covered" >import { Button } from "@/components/ui/button";</span>
+<span class="cstat-no" title="statement not covered" >import { useToast } from "@/hooks/use-toast";</span>
+<span class="cstat-no" title="statement not covered" >import { AppLayout } from "@/components/layout/AppLayout";</span>
+&nbsp;
+&nbsp;
+<span class="cstat-no" title="statement not covered" >const ACCEPTED_TYPES = ".csv,.xlsx,.xls";</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >const STEP_LABELS: Record&lt;string, string&gt; = {</span>
+<span class="cstat-no" title="statement not covered" >  idle: "",</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  parsing: "Parsing file...",</span>
+<span class="cstat-no" title="statement not covered" >  validating: "Validating data...",</span>
+<span class="cstat-no" title="statement not covered" >  importing: "Processing ML predictions...",</span>
+<span class="cstat-no" title="statement not covered" >  done: "Import complete!",</span>
+<span class="cstat-no" title="statement not covered" >  error: "Import failed",</span>
+<span class="cstat-no" title="statement not covered" >};</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >const RISK_COLORS: Record&lt;string, string&gt; = {</span>
+<span class="cstat-no" title="statement not covered" >  HIGH: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400",</span>
+<span class="cstat-no" title="statement not covered" >  MODERATE: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400",</span>
+<span class="cstat-no" title="statement not covered" >  LOW: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",</span>
+<span class="cstat-no" title="statement not covered" >};</span>
+&nbsp;
+&nbsp;
+<span class="cstat-no" title="statement not covered" >const REQUIRED_HEADERS = [</span>
+<span class="cstat-no" title="statement not covered" >  "patientName","gender","age","hypertension",</span>
+<span class="cstat-no" title="statement not covered" >  "heartDisease","smokingHistory","bmi","hba1cLevel","bloodGlucoseLevel",</span>
+<span class="cstat-no" title="statement not covered" >];</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >const SAMPLE_CSV_ROWS = [</span>
+<span class="cstat-no" title="statement not covered" >  REQUIRED_HEADERS.join(","),</span>
+<span class="cstat-no" title="statement not covered" >  "John Doe,male,45,0,0,never,28.5,5.7,140",</span>
+<span class="cstat-no" title="statement not covered" >  "Jane Smith,female,62,1,0,current,32.1,7.2,210",</span>
+<span class="cstat-no" title="statement not covered" >];</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >function downloadSampleCSV() {</span>
+<span class="cstat-no" title="statement not covered" >  const blob = new Blob([SAMPLE_CSV_ROWS.join("\\n")], { type: "text/csv" });</span>
+<span class="cstat-no" title="statement not covered" >  const url = URL.createObjectURL(blob);</span>
+<span class="cstat-no" title="statement not covered" >  const a = document.createElement("a");</span>
+<span class="cstat-no" title="statement not covered" >  a.href = url; a.download = "sample_patient_data.csv"; a.click();</span>
+<span class="cstat-no" title="statement not covered" >  URL.revokeObjectURL(url);</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+type ValidationResult =
+  | { ok: true; count: number }
+  | { ok: false; errors: string[] };
+&nbsp;
+<span class="cstat-no" title="statement not covered" >function validateParsedData(rows: Record&lt;string, unknown&gt;[]): ValidationResult {</span>
+<span class="cstat-no" title="statement not covered" >  const errors: string[] = [];</span>
+<span class="cstat-no" title="statement not covered" >  rows.forEach((row, i) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    const rowNum = i + 2;</span>
+<span class="cstat-no" title="statement not covered" >    if (!row.patientName &amp;&amp; !row.name) errors.push("Row " + rowNum + ": missing patientName");</span>
+<span class="cstat-no" title="statement not covered" >    const age = Number(row.age);</span>
+<span class="cstat-no" title="statement not covered" >    if (isNaN(age) || age &lt;= 0) errors.push("Row " + rowNum + ": invalid age");</span>
+<span class="cstat-no" title="statement not covered" >    const bmi = Number(row.bmi);</span>
+<span class="cstat-no" title="statement not covered" >    if (isNaN(bmi) || bmi &lt;= 0) errors.push("Row " + rowNum + ": invalid bmi");</span>
+<span class="cstat-no" title="statement not covered" >    const hba1c = Number(row.hba1cLevel || row.HbA1c_level);</span>
+<span class="cstat-no" title="statement not covered" >    if (isNaN(hba1c) || hba1c &lt;= 0) errors.push("Row " + rowNum + ": missing hba1cLevel");</span>
+<span class="cstat-no" title="statement not covered" >  });</span>
+<span class="cstat-no" title="statement not covered" >  if (errors.length &gt; 0) return { ok: false, errors };</span>
+<span class="cstat-no" title="statement not covered" >  return { ok: true, count: rows.length };</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >export default function ImportData() {</span>
+<span class="cstat-no" title="statement not covered" >  const { preview, step, parseFile, confirmImport: handleConfirm, reset, fileName } = useBulkImport();</span>
+<span class="cstat-no" title="statement not covered" >  const { toast } = useToast();</span>
+<span class="cstat-no" title="statement not covered" >  const [isDragging, setIsDragging] = useState(false);</span>
+<span class="cstat-no" title="statement not covered" >  const [isProcessing, setIsProcessing] = useState(false);</span>
+<span class="cstat-no" title="statement not covered" >  const [progress, setProgress] = useState(0);</span>
+<span class="cstat-no" title="statement not covered" >  const [selectedFile, setSelectedFile] = useState&lt;File | null&gt;(null);</span>
+<span class="cstat-no" title="statement not covered" >  const [validation, setValidation] = useState&lt;ValidationResult | null&gt;(null);</span>
+<span class="cstat-no" title="statement not covered" >  const [results, setResults] = useState&lt;Record&lt;string, unknown&gt;[]&gt;([]);</span>
+<span class="cstat-no" title="statement not covered" >  const inputRef = useRef&lt;HTMLInputElement&gt;(null);</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  const handleDrag = (e: React.DragEvent) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    e.preventDefault(); e.stopPropagation();</span>
+<span class="cstat-no" title="statement not covered" >    if (e.type === "dragenter" || e.type === "dragover") setIsDragging(true);</span>
+<span class="cstat-no" title="statement not covered" >    else if (e.type === "dragleave") setIsDragging(false);</span>
+<span class="cstat-no" title="statement not covered" >  };</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  const startProgress = () =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    setProgress(0);</span>
+<span class="cstat-no" title="statement not covered" >    let p = 0;</span>
+<span class="cstat-no" title="statement not covered" >    const iv = setInterval(() =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >      p += Math.random() * 15;</span>
+<span class="cstat-no" title="statement not covered" >      if (p &gt;= 90) { clearInterval(iv); p = 90; }</span>
+<span class="cstat-no" title="statement not covered" >      setProgress(Math.min(p, 90));</span>
+<span class="cstat-no" title="statement not covered" >    }, 180);</span>
+<span class="cstat-no" title="statement not covered" >    return iv;</span>
+<span class="cstat-no" title="statement not covered" >  };</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  const clearFile = () =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    setSelectedFile(null); setValidation(null); setResults([]); setProgress(0);</span>
+<span class="cstat-no" title="statement not covered" >    if (inputRef.current) inputRef.current.value = "";</span>
+<span class="cstat-no" title="statement not covered" >  };</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  const formatBytes = (b: number) =&gt; b &lt; 1024 ? b+" B" : b &lt; 1048576 ? (b/1024).toFixed(1)+" KB" : (b/1048576).toFixed(1)+" MB";</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  const processFile = (file: File) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    if (file.type !== "text/csv" &amp;&amp; !file.name.endsWith(".csv")) {</span>
+<span class="cstat-no" title="statement not covered" >      toast({ title: "Invalid file type", description: "Please upload a valid CSV file.", variant: "destructive" });</span>
+<span class="cstat-no" title="statement not covered" >      return;</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >    setSelectedFile(file); setValidation(null); setResults([]);</span>
+<span class="cstat-no" title="statement not covered" >    Papa.parse(file, {</span>
+<span class="cstat-no" title="statement not covered" >      header: true, skipEmptyLines: true,</span>
+<span class="cstat-no" title="statement not covered" >      complete: async (parsed: Papa.ParseResult&lt;Record&lt;string, unknown&gt;&gt;) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >        const v = validateParsedData(parsed.data);</span>
+<span class="cstat-no" title="statement not covered" >        setValidation(v);</span>
+<span class="cstat-no" title="statement not covered" >        if (!v.ok) return;</span>
+<span class="cstat-no" title="statement not covered" >        setIsProcessing(true);</span>
+<span class="cstat-no" title="statement not covered" >        const iv = startProgress();</span>
+<span class="cstat-no" title="statement not covered" >        try {</span>
+<span class="cstat-no" title="statement not covered" >          const formattedData = parsed.data.map((row: Record&lt;string, unknown&gt;) =&gt; ({</span>
+<span class="cstat-no" title="statement not covered" >            patientName: row.patientName || row.name || "Unknown Patient",</span>
+<span class="cstat-no" title="statement not covered" >            gender: row.gender, age: Number(row.age),</span>
+<span class="cstat-no" title="statement not covered" >            hypertension: row.hypertension === "1" || row.hypertension === "true" || row.hypertension === true,</span>
+<span class="cstat-no" title="statement not covered" >            heartDisease: row.heartDisease === "1" || row.heartDisease === "true" || row.heartDisease === true,</span>
+<span class="cstat-no" title="statement not covered" >            smokingHistory: row.smokingHistory || row.smoking_history,</span>
+<span class="cstat-no" title="statement not covered" >            bmi: Number(row.bmi),</span>
+<span class="cstat-no" title="statement not covered" >            hba1cLevel: Number(row.hba1cLevel || row.HbA1c_level),</span>
+<span class="cstat-no" title="statement not covered" >            bloodGlucoseLevel: Number(row.bloodGlucoseLevel || row.blood_glucose_level),</span>
+<span class="cstat-no" title="statement not covered" >          }));</span>
+<span class="cstat-no" title="statement not covered" >          const res = await fetch("/api/assessments/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assessments: formattedData }), credentials: "include" });</span>
+<span class="cstat-no" title="statement not covered" >          if (!res.ok) throw new Error("Import failed");</span>
+<span class="cstat-no" title="statement not covered" >          const data = await res.json();</span>
+<span class="cstat-no" title="statement not covered" >          clearInterval(iv); setProgress(100); setResults(data.assessments);</span>
+<span class="cstat-no" title="statement not covered" >          toast({ title: "Success", description: "Successfully imported " + data.count + " patient records." });</span>
+<span class="cstat-no" title="statement not covered" >        } catch (error: unknown) {</span>
+<span class="cstat-no" title="statement not covered" >          clearInterval(iv); setProgress(0);</span>
+<span class="cstat-no" title="statement not covered" >          toast({ title: "Import Error", description: error instanceof Error ? error.message : String(error), variant: "destructive" });</span>
+<span class="cstat-no" title="statement not covered" >        } finally { setIsProcessing(false); }</span>
+<span class="cstat-no" title="statement not covered" >      },</span>
+<span class="cstat-no" title="statement not covered" >      error: (error: Error) =&gt; { toast({ title: "Parsing Error", description: error.message, variant: "destructive" }); },</span>
+<span class="cstat-no" title="statement not covered" >    });</span>
+<span class="cstat-no" title="statement not covered" >  };</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  const handleFile = (file: File | null) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    if (!file) return;</span>
+<span class="cstat-no" title="statement not covered" >    const isCsv = file.name.endsWith(".csv");</span>
+<span class="cstat-no" title="statement not covered" >    const isExcel = file.name.endsWith(".xlsx") || file.name.endsWith(".xls");</span>
+<span class="cstat-no" title="statement not covered" >    if (!isCsv &amp;&amp; !isExcel) {</span>
+<span class="cstat-no" title="statement not covered" >      toast({ title: "Invalid file type", description: "Please upload a CSV or Excel (.xlsx, .xls) file.", variant: "destructive" });</span>
+<span class="cstat-no" title="statement not covered" >      return;</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >    processFile(file);</span>
+<span class="cstat-no" title="statement not covered" >  };</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  const handleDrop = (e: React.DragEvent) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    e.preventDefault(); e.stopPropagation(); setIsDragging(false);</span>
+<span class="cstat-no" title="statement not covered" >    if (e.dataTransfer.files?.[0]) processFile(e.dataTransfer.files[0]);</span>
+<span class="cstat-no" title="statement not covered" >  };</span>
+<span class="cstat-no" title="statement not covered" >  const handleChange = (e: React.ChangeEvent&lt;HTMLInputElement&gt;) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    e.preventDefault();</span>
+<span class="cstat-no" title="statement not covered" >    if (e.target.files?.[0]) processFile(e.target.files[0]);</span>
+<span class="cstat-no" title="statement not covered" >  };</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  return (</span>
+<span class="cstat-no" title="statement not covered" >    &lt;AppLayout&gt;</span>
+<span class="cstat-no" title="statement not covered" >    &lt;div className="space-y-6"&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;div className="flex flex-col gap-2"&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-gray-100"&gt;Bulk Import&lt;/h1&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;p className="text-slate-500 dark:text-slate-400"&gt;</span>
+          Upload a CSV or Excel file with patient data. Each row is validated and processed through the ML risk model.
+<span class="cstat-no" title="statement not covered" >        &lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;/div&gt;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >      &lt;Card className="border-slate-200 dark:border-gray-700"&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;CardHeader className="flex flex-row items-start justify-between gap-4"&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;div&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;CardTitle&gt;Upload Patient Data&lt;/CardTitle&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;CardDescription className="mt-1"&gt;CSV must contain headers: {REQUIRED_HEADERS.join(", ")}.&lt;/CardDescription&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;Button variant="outline" size="sm" className="shrink-0 gap-2" onClick={downloadSampleCSV}&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;Download className="w-4 h-4" /&gt; Download Sample CSV Template</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/Button&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;/CardHeader&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;CardContent className="space-y-4"&gt;</span>
+<span class="cstat-no" title="statement not covered" >          {!selectedFile &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >            &lt;div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}</span>
+<span class="cstat-no" title="statement not covered" >              onClick={() =&gt; inputRef.current?.click()}</span>
+<span class="cstat-no" title="statement not covered" >              className={"relative flex flex-col items-center justify-center w-full h-56 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 " + (isDragging ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 scale-[1.01]" : "border-slate-300 dark:border-gray-600 bg-slate-50 dark:bg-gray-800/50 hover:bg-slate-100 dark:hover:bg-gray-800 hover:border-slate-400 dark:hover:border-gray-500")}&gt;</span>
+<span class="cstat-no" title="statement not covered" >              &lt;input ref={inputRef} type="file" className="hidden" accept=".csv" onChange={handleChange} disabled={isProcessing} /&gt;</span>
+<span class="cstat-no" title="statement not covered" >                &lt;div className={"flex flex-col items-center gap-3 transition-transform duration-300 " + (isDragging ? "translate-y-[-4px]" : "")}&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;div className={"p-4 rounded-full shadow-sm transition-colors " + (isDragging ? "bg-blue-100 dark:bg-blue-900" : "bg-white dark:bg-gray-800")}&gt;</span>
+<span class="cstat-no" title="statement not covered" >                    &lt;UploadCloud className={"w-10 h-10 transition-colors " + (isDragging ? "text-blue-500" : "text-slate-400 dark:text-slate-500")} /&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;p className="text-lg font-bold text-slate-700 dark:text-gray-200"&gt;{isDragging ? "Drop your CSV file here" : "Click or drag CSV file to upload"}&lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;p className="text-sm text-slate-500 dark:text-slate-400"&gt;Max file size: 5 MB&lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >                &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;/div&gt;</span>
+          )}
+&nbsp;
+<span class="cstat-no" title="statement not covered" >          {selectedFile &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >            &lt;div className="rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm space-y-3"&gt;</span>
+<span class="cstat-no" title="statement not covered" >              &lt;div className="flex items-center gap-3"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                &lt;div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg"&gt;&lt;FileText className="w-6 h-6 text-blue-500 dark:text-blue-400" /&gt;&lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >                &lt;div className="flex-1 min-w-0"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;p className="font-semibold text-slate-800 dark:text-gray-200 truncate"&gt;{selectedFile.name}&lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;p className="text-xs text-slate-500 dark:text-slate-400"&gt;{formatBytes(selectedFile.size)}&lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >                &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >                {!isProcessing &amp;&amp; &lt;button onClick={clearFile} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-gray-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"&gt;&lt;X className="w-4 h-4" /&gt;&lt;/button&gt;}</span>
+<span class="cstat-no" title="statement not covered" >              &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >              {(isProcessing || progress &gt; 0) &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >                &lt;div className="space-y-1"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;div className="w-full bg-slate-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                    &lt;div className="h-2 rounded-full transition-all duration-300" style={{ width: progress+"%", background: progress === 100 ? "linear-gradient(90deg,#10b981,#059669)" : "linear-gradient(90deg,#3b82f6,#6366f1)" }} /&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;p className="text-xs text-slate-500 dark:text-slate-400"&gt;{isProcessing ? (progress &lt; 90 ? "Parsing and validating recordsâ¦" : "Uploading to serverâ¦") : "Complete"}&lt;/p&gt;</span>
+<span class="cstat-no" title="statement not covered" >                &lt;/div&gt;</span>
+              )}
+<span class="cstat-no" title="statement not covered" >              {!isProcessing &amp;&amp; validation?.ok &amp;&amp; progress &lt; 100 &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >                &lt;Button className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white" onClick={() =&gt; processFile(selectedFile)}&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;UploadCloud className="w-4 h-4" /&gt; Process Data</span>
+<span class="cstat-no" title="statement not covered" >                &lt;/Button&gt;</span>
+              )}
+<span class="cstat-no" title="statement not covered" >            &lt;/div&gt;</span>
+          )}
+&nbsp;
+<span class="cstat-no" title="statement not covered" >          {validation &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >            &lt;div className={"rounded-xl border p-4 " + (validation.ok ? "border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30")}&gt;</span>
+<span class="cstat-no" title="statement not covered" >              {validation.ok ? (</span>
+<span class="cstat-no" title="statement not covered" >                &lt;div className="flex items-center gap-2"&gt;&lt;CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /&gt;&lt;p className="font-semibold text-emerald-800 dark:text-emerald-400"&gt;CSV Validated: {validation.ok ? validation.count : 0} patient records ready for optimization mapping.&lt;/p&gt;&lt;/div&gt;</span>
+              ) : (
+<span class="cstat-no" title="statement not covered" >                &lt;div className="space-y-2"&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;div className="flex items-center gap-2"&gt;&lt;AlertCircle className="w-5 h-5 text-red-500 shrink-0" /&gt;&lt;p className="font-semibold text-red-800 dark:text-red-400"&gt;Validation Failed: {validation.ok === false ? validation.errors.length : 0} issue(s) found.&lt;/p&gt;&lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;ul className="ml-7 space-y-1"&gt;{validation.ok === false &amp;&amp; validation.errors.slice(0,8).map((err: string, i: number) =&gt; &lt;li key={i} className="text-sm text-red-700 dark:text-red-400 list-disc"&gt;{err}&lt;/li&gt;)}&lt;/ul&gt;</span>
+<span class="cstat-no" title="statement not covered" >                  &lt;Button variant="outline" size="sm" onClick={clearFile}&gt;&lt;X className="w-3 h-3 mr-1" /&gt;Clear and re-upload&lt;/Button&gt;</span>
+<span class="cstat-no" title="statement not covered" >                &lt;/div&gt;</span>
+              )}
+<span class="cstat-no" title="statement not covered" >            &lt;/div&gt;</span>
+          )}
+<span class="cstat-no" title="statement not covered" >        &lt;/CardContent&gt;</span>
+<span class="cstat-no" title="statement not covered" >      &lt;/Card&gt;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >      {results.length &gt; 0 &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >        &lt;Card className="border-slate-200 dark:border-gray-700"&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;CardHeader&gt;&lt;CardTitle className="flex items-center gap-2 dark:text-gray-100"&gt;&lt;CheckCircle className="w-5 h-5 text-emerald-500" /&gt;Import Successful -- {results.length} records processed&lt;/CardTitle&gt;&lt;/CardHeader&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;CardContent&gt;&lt;div className="overflow-x-auto"&gt;&lt;table className="w-full text-sm text-left"&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-gray-800 dark:text-slate-400"&gt;&lt;tr&gt;&lt;th className="px-4 py-3"&gt;Patient&lt;/th&gt;&lt;th className="px-4 py-3"&gt;Age / Gender&lt;/th&gt;&lt;th className="px-4 py-3"&gt;Risk Category&lt;/th&gt;&lt;th className="px-4 py-3"&gt;Risk Score&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;</span>
+<span class="cstat-no" title="statement not covered" >            &lt;tbody&gt;{results.map((r, i) =&gt; (&lt;tr key={i} className="border-b border-slate-100 dark:border-gray-800"&gt;&lt;td className="px-4 py-3 font-medium dark:text-gray-200"&gt;{String(r.patientName)}&lt;/td&gt;&lt;td className="px-4 py-3 dark:text-gray-300"&gt;{String(r.age)} / {String(r.gender)}&lt;/td&gt;&lt;td className="px-4 py-3"&gt;&lt;span className={"px-2 py-1 rounded text-xs font-bold " + (r.riskCategory === "HIGH" ? "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400" : r.riskCategory === "MODERATE" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400")}&gt;{String(r.riskCategory)}&lt;/span&gt;&lt;/td&gt;&lt;td className="px-4 py-3 font-bold dark:text-gray-100"&gt;{String(r.riskScore)}%&lt;/td&gt;&lt;/tr&gt;))}&lt;/tbody&gt;</span>
+<span class="cstat-no" title="statement not covered" >          &lt;/table&gt;&lt;/div&gt;&lt;/CardContent&gt;</span>
+<span class="cstat-no" title="statement not covered" >        &lt;/Card&gt;</span>
+      )}
+&nbsp;
+<span class="cstat-no" title="statement not covered" >      {!isProcessing &amp;&amp; results.length &gt; 0 &amp;&amp; !validation &amp;&amp; (</span>
+<span class="cstat-no" title="statement not covered" >        &lt;Button variant="outline" onClick={clearFile}&gt;</span>
+          Import Another File
+<span class="cstat-no" title="statement not covered" >        &lt;/Button&gt;</span>
+      )}
+<span class="cstat-no" title="statement not covered" >    &lt;/div&gt;</span>
+<span class="cstat-no" title="statement not covered" >    &lt;/AppLayout&gt;</span>
+  );
+<span class="cstat-no" title="statement not covered" >}</span>
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-06-16T09:39:04.641Z
+            </div>
+        <script src="../../../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../../../sorter.js"></script>
+        <script src="../../../../block-navigation.js"></script>
+    </body>
+</html>
+    

@@ -43,23 +43,3 @@ describe("OTP generation", () => {
     }
   });
 });
-
-describe("OTP rate-limit keys", () => {
-  it("keys OTP attempts by normalized email", () => {
-    const key = getOtpRateLimitKey({
-      body: { email: "  Doctor@Example.COM " },
-      ip: "203.0.113.10",
-    });
-
-    expect(key).toBe("otp:doctor@example.com");
-  });
-
-  it("falls back to the client IP when email is missing", () => {
-    const key = getOtpRateLimitKey({
-      body: {},
-      ip: "203.0.113.10",
-    });
-
-    expect(key).toContain("203.0.113.10");
-  });
-});

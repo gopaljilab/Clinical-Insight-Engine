@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -68,17 +68,11 @@ export function ConfirmDeleteDialog({
           <Button
             variant="destructive"
             onClick={handleConfirm}
-            disabled={isDeleting}
+            isLoading={isDeleting}
+            loadingText="Deleting..."
             className="gap-2"
           >
-            {isDeleting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Deleting...
-              </>
-            ) : (
-              "Delete"
-            )}
+            Delete
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

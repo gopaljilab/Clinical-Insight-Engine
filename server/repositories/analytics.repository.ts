@@ -26,35 +26,27 @@ export class AnalyticsRepository {
     const db = getDb();
     const filters: ReturnType<typeof eq>[] = [];
     if (createdBy) {
-      const createdByCol = (assessments as any).createdBy ?? (assessments as any).created_by;
-      if (createdByCol) {
-        filters.push(eq(createdByCol, createdBy));
-      }
+      filters.push(eq(assessments.createdBy, createdBy));
     }
 
-    let countQuery = db.select({ count: sql<number>`count(*)` }).from(assessments);
-    if (filters.length > 0) countQuery = countQuery.where(and(...filters)) as any;
-    const countResult = await countQuery;
+    const baseCount = db.select({ count: sql<number>`count(*)` }).from(assessments);
+    const countResult = await (filters.length > 0 ? baseCount.where(and(...filters)) : baseCount);
     const totalPatients = Number(countResult[0]?.count || 0);
 
-    let distQuery = db.select({ 
-      riskCategory: (assessments as any).riskCategory ?? (assessments as any).risk_category, 
+    const baseDist = db.select({ 
+      riskCategory: assessments.riskCategory, 
       count: sql<number>`count(*)` 
-    }).from(assessments).groupBy((assessments as any).riskCategory ?? (assessments as any).risk_category);
-    if (filters.length > 0) distQuery = distQuery.where(and(...filters)) as any;
-    const distResult = await distQuery;
+    }).from(assessments).groupBy(assessments.riskCategory);
+    const distResult = await (filters.length > 0 ? baseDist.where(and(...filters)) : baseDist);
 
-    let avgQuery = db.select({ 
+    const baseAvg = db.select({ 
       avgBmi: sql<number>`avg(${assessments.bmi})`, 
-      avgHba1c: sql<number>`avg(${(assessments as any).hba1cLevel ?? (assessments as any).hba1c_level})` 
+      avgHba1c: sql<number>`avg(${assessments.hba1cLevel})` 
     }).from(assessments);
-    if (filters.length > 0) avgQuery = avgQuery.where(and(...filters)) as any;
-    const avgResult = await avgQuery;
+    const avgResult = await (filters.length > 0 ? baseAvg.where(and(...filters)) : baseAvg);
 
-    const riskScoreCol = (assessments as any).riskScore ?? (assessments as any).risk_score;
-    let alertsQuery = db.select().from(assessments).orderBy(desc(riskScoreCol)).limit(5);
-    if (filters.length > 0) alertsQuery = alertsQuery.where(and(...filters)) as any;
-    const alerts = await alertsQuery;
+    const baseAlerts = db.select().from(assessments).orderBy(desc(assessments.riskScore)).limit(5);
+    const alerts = await (filters.length > 0 ? baseAlerts.where(and(...filters)) : baseAlerts);
 
     return {
       totalPatients,
