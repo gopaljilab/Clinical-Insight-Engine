@@ -3,6 +3,10 @@ import { storage } from "./storage";
 import IORedis from "ioredis";
 import { sendCriticalRiskAlert } from "./email";
 import { logger } from "./logger";
+import { generateRecommendations } from "./services/recommendation-engine";
+import { generatePredictionExplanation } from "./services/prediction-explainer";
+import { generateQualityAlerts } from "./services/assessment-quality-checker";
+import { generateAttentionNavigator } from "./services/clinical-attention-navigator";
 import { MLService, calculateClinicalFallback } from "./services/mlService";
 
 import { execFile } from "child_process";
@@ -253,6 +257,32 @@ export function startAssessmentWorker(): void {
           }
         }
 
+        const recommendations = generateRecommendations({
+          ...assessment,
+          riskCategory: assessment.riskCategory,
+        });
+        const qualityAlerts = generateQualityAlerts({
+          ...assessment,
+          factors: assessment.factors,
+        });
+        const explanation = generatePredictionExplanation({
+          ...assessment,
+          riskCategory: assessment.riskCategory,
+          factors: assessment.factors,
+        });
+        const attentionNavigator = generateAttentionNavigator({
+          ...assessment,
+          riskCategory: assessment.riskCategory,
+          factors: assessment.factors,
+        });
+
+        return {
+          ...assessment,
+          prediction,
+          recommendations,
+          qualityAlerts,
+          explanation,
+          attentionNavigator,
         emitAssessmentProgress(job.id ?? "", 90, "Generating Results");
         const result = {
           ...assessment,
