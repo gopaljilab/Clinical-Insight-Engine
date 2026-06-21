@@ -91,7 +91,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
 
   function handleServerErrors(err: unknown) {
     clearAllFieldErrors();
-    const fieldErrs = err.fieldErrors as Array<{ field: string; message: string }> | undefined;
+    const fieldErrs = (err as any).fieldErrors as Array<{ field: string; message: string }> | undefined;
     if (fieldErrs && fieldErrs.length > 0) {
       const mapped: FieldErrors = {};
       for (const fe of fieldErrs) {

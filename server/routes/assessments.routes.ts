@@ -119,7 +119,7 @@ assessmentsRouter.post(
           const variant = { ...original, ...p };
           const variantResult = calculateClinicalFallback(variant) as PredictionResult;
           const riskReduction = originalResult.riskScore - variantResult.riskScore;
-          const desc = Object.keys(p).map(k => `${k}:${(original)[k] ?? '?'}->${(p)[k]}`).join("; ");
+          const desc = Object.keys(p).map(k => `${k}:${(original as any)[k] ?? '?'}->${(p as any)[k]}`).join("; ");
           return {
             delta: desc,
             riskScore: variantResult.riskScore,
@@ -308,8 +308,8 @@ assessmentsRouter.post(
         }
 
         logger.warn(
-          "Python prediction simulation failed, falling back to clinical rule-based model:",
-          error
+          { err: error },
+          "Python prediction simulation failed, falling back to clinical rule-based model:"
         );
         prediction = calculateClinicalFallback(input);
       }
@@ -564,7 +564,7 @@ assessmentsRouter.get(
         return res.status(404).json({ message: "Assessment not found." });
       }
 
-      if (!canAccessPatientRecord(user, assessment)) {
+      if (!canAccessPatientRecord(user as any, assessment)) {
         logAccessAttempt(
           (user).id,
           "Assessment",
@@ -609,7 +609,7 @@ assessmentsRouter.delete(
         return res.status(404).json({ message: "Assessment not found." });
       }
 
-      if (!canAccessPatientRecord(user, assessment)) {
+      if (!canAccessPatientRecord(user as any, assessment)) {
         logAccessAttempt(
           (user).id,
           "Assessment",
