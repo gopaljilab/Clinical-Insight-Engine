@@ -47,7 +47,7 @@ export default function Analytics() {
         <div className="flex h-[50vh] flex-col items-center justify-center gap-4">
           <div className="text-lg text-destructive">Unable to load analytics data.</div>
           <p className="max-w-md text-center text-sm text-muted-foreground">
-            {error instanceof Error ? error.message : "Please check your connection and try again."}
+            {error instanceof Error ? (error as Error).message : "Please check your connection and try again."}
           </p>
           <button
             onClick={() => window.location.reload()}

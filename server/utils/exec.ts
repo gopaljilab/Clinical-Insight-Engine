@@ -33,6 +33,14 @@ function validateArgs(executable: string, args: ReadonlyArray<string>) {
   }
 }
 
+/**
+ * Safe Exec File.
+ * @param file - The file parameter.
+ * @param args - The args parameter.
+ * @param options - The options parameter.
+ * @param callback - The callback parameter.
+ * @returns The result of the operation.
+ */
 export function safeExecFile(
   file: string,
   args: string[],
@@ -43,6 +51,13 @@ export function safeExecFile(
   return cpExecFile(file, args, options, callback as any);
 }
 
+/**
+ * Safe Exec M L.
+ * @param file - The file parameter.
+ * @param args - The args parameter.
+ * @param options - The options parameter.
+ * @returns The result of the operation.
+ */
 export function safeExecML(
   file: string,
   args: string[],

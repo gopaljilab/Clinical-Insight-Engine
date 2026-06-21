@@ -61,6 +61,28 @@ export interface IStorage {
   recordPatientAccess(params: { userId: string; resourceType: string; resourceId?: string; action: string; ipAddress?: string; userAgent?: string; granted: boolean; }): Promise<void>;
   getPatientAccessAuditLogs(page: number, limit: number): Promise<{ data: typeof patientAccessAuditLogs.$inferSelect[]; total: number }>;
   getAnalyticsStats(createdBy?: string): Promise<any>;
+  getCohortStats(params: {
+    minAge?: number; maxAge?: number;
+    minBmi?: number; maxBmi?: number;
+    minHba1c?: number; maxHba1c?: number;
+    minGlucose?: number; maxGlucose?: number;
+    gender?: string; smokingHistory?: string;
+    hypertension?: boolean; heartDisease?: boolean;
+    riskCategory?: string;
+    startDate?: string; endDate?: string;
+    createdBy?: string;
+  }): Promise<{
+    total: number;
+    avgRiskScore: number | null;
+    avgBmi: number | null;
+    avgHba1c: number | null;
+    avgGlucose: number | null;
+    riskDistribution: { category: string; count: number }[];
+    ageDistribution: { range: string; count: number }[];
+    genderDistribution: { gender: string; count: number }[];
+    smokingDistribution: { status: string; count: number }[];
+    comorbidityRate: number;
+  }>;
   getModelVersions(): Promise<ModelVersion[]>;
   getLatestModelVersion(): Promise<ModelVersion | undefined>;
   createModelVersion(data: InsertModelVersion): Promise<ModelVersion>;
@@ -69,8 +91,13 @@ export interface IStorage {
   getPatientUserByPatientName(patientName: string): Promise<PatientUser | undefined>;
   getPatientUserById(id: string): Promise<PatientUser | undefined>;
   createPatientUser(data: InsertPatientUser): Promise<PatientUser>;
-  getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number): Promise<{ data: Assessment[]; total: number }>;
-  getPatientTrends(patientName: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]>;
+  getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, createdBy?: string, startDate?: string, endDate?: string): Promise<{ data: Assessment[]; total: number }>;
+  getPatientTrends(patientName: string, createdBy?: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]>;
+  getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string): Promise<{
+    assessments: any[];
+    summary: { total: number; latestRiskScore: number | null; latestRiskCategory: string | null; earliestRiskScore: number | null; trend: string; avgRiskScore: number; change: number };
+  }>;
+  createAssessmentsBatch(data: AssessmentCreateInput[]): Promise<Assessment[]>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
@@ -152,6 +179,10 @@ export class DatabaseStorage implements IStorage {
     return this.assessmentRepository.deleteAssessment(id);
   }
 
+  async createAssessmentsBatch(data: AssessmentCreateInput[]) {
+    return this.assessmentRepository.createAssessmentsBatch(data);
+  }
+
   async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {
     return this.assessmentRepository.autocompletePatientNames(query, createdBy, limit);
   }
@@ -194,6 +225,20 @@ export class DatabaseStorage implements IStorage {
     return this.analyticsRepository.getAnalyticsStats(createdBy);
   }
 
+  async getCohortStats(params: {
+    minAge?: number; maxAge?: number;
+    minBmi?: number; maxBmi?: number;
+    minHba1c?: number; maxHba1c?: number;
+    minGlucose?: number; maxGlucose?: number;
+    gender?: string; smokingHistory?: string;
+    hypertension?: boolean; heartDisease?: boolean;
+    riskCategory?: string;
+    startDate?: string; endDate?: string;
+    createdBy?: string;
+  }) {
+    return this.assessmentRepository.getCohortStats(params);
+  }
+
   async recordPatientAccess(params: { userId: string; resourceType: string; resourceId?: string; action: string; ipAddress?: string; userAgent?: string; granted: boolean; }): Promise<void> {
     return this.auditRepository.recordPatientAccess(params);
   }
@@ -234,12 +279,16 @@ export class DatabaseStorage implements IStorage {
     return this.patientUserRepository.create(data);
   }
 
-  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number) {
-    return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset);
+  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, createdBy?: string, startDate?: string, endDate?: string) {
+    return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset, createdBy, startDate, endDate);
   }
 
-  async getPatientTrends(patientName: string) {
-    return this.assessmentRepository.getPatientTrends(patientName);
+  async getPatientTrends(patientName: string, createdBy?: string) {
+    return this.assessmentRepository.getPatientTrends(patientName, createdBy);
+  }
+
+  async getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string) {
+    return this.assessmentRepository.getTrendsDashboardData(patientName, startDate, endDate);
   }
 }
 

@@ -29,6 +29,12 @@ const isValidDateString = (value?: string) => {
   return !Number.isNaN(date.getTime());
 };
 
+/**
+ * Filter Assessments.
+ * @param assessments - The assessments parameter.
+ * @param filters - The filters parameter.
+ * @returns The result of the operation.
+ */
 export function filterAssessments(
   assessments: Assessment[],
   filters: AssessmentFilterState,

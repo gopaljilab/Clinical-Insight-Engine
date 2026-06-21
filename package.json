@@ -10,15 +10,16 @@
     "check": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:python": "test -x .venv/bin/pytest && .venv/bin/pytest || python3 -m pytest",
     "test:all": "npm run test && npm run test:python",
     "test:e2e": "playwright test",
     "db:push": "drizzle-kit push",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "docs:generate": "typedoc --options typedoc.json"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",
-    "@elastic/elasticsearch": "^9.4.2",
     "@hookform/resolvers": "^5.4.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@radix-ui/react-accordion": "^1.2.4",
@@ -136,6 +137,7 @@
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "^3.2.6",
     "autoprefixer": "^10.5.0",
     "drizzle-kit": "^0.31.8",
     "esbuild": "^0.25.0",
@@ -149,6 +151,7 @@
     "tailwindcss": "^4.3.0",
     "ts-morph": "^28.0.0",
     "tsx": "^4.22.4",
+    "typedoc": "^0.28.19",
     "typescript": "5.6.3",
     "vite": "^7.3.0",
     "vitest": "^3.2.4"

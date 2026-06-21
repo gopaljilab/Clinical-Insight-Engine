@@ -13,7 +13,7 @@ export interface RlsUserContext {
 const rlsStorage = dbRlsStorage;
 
 export function getRlsDb(): NodePgDatabase<typeof schema> | undefined {
-  return rlsStorage.getStore();
+  return dbRlsStorage.getStore();
 }
 
 export async function createRlsClient(context: RlsUserContext): Promise<{
@@ -55,5 +55,5 @@ export function runWithRlsDb<T>(
   db: NodePgDatabase<typeof schema>,
   fn: () => T,
 ): T {
-  return rlsStorage.run(db, fn);
+  return dbRlsStorage.run(db, fn);
 }

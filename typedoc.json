@@ -1,0 +1,18 @@
+{
+  "entryPoints": [
+    "server/services",
+    "server/utils",
+    "client/src/hooks"
+  ],
+  "entryPointStrategy": "expand",
+  "out": "docs/typedoc",
+  "tsconfig": "tsconfig.json",
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/node_modules/**"
+  ],
+  "name": "Clinical Insight Engine - Developer Documentation",
+  "includeVersion": true,
+  "plugin": []
+}

@@ -25,6 +25,11 @@ function fmt(val: unknown): string {
   return String(val);
 }
 
+/**
+ * Download Bulk Assessment Pdf.
+ * @param assessments - The assessments parameter.
+ * @returns The result of the operation.
+ */
 export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): void {
   const doc = new jsPDF("landscape", "mm", "a4");
   const pw = doc.internal.pageSize.getWidth();
