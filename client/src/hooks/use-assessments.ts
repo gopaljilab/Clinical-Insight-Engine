@@ -1,5 +1,5 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type AssessmentInput, type AssessmentResponse, type AssessmentsListResponse } from "@shared/routes";
+import { api, type AssessmentInput, type AssessmentResponse, type AssessmentSimulationResponse, type AssessmentWhatIfResponse, type AssessmentWhatIfBatchResponse, type AssessmentsListResponse } from "@shared/routes";
 import { useToast } from "./use-toast";
 
 // Parse with logging to catch silent Zod JSON translation errors
@@ -15,6 +15,11 @@ function parseWithLogging<T>(schema: any, data: unknown, label: string): T {
 // The base query key for all assessments list queries.
 const ASSESSMENTS_LIST_QUERY_KEY = api.assessments.list.path;
 
+/**
+ * A React hook to query the assessments list, supporting pagination, sorting, search term, and range filters.
+ * @param params - The params parameter.
+ * @returns The result of the operation.
+ */
 export function useAssessments(params?: {
   page?: number;
   limit?: number;
@@ -118,6 +123,10 @@ export function useClearPatientCache() {
   };
 }
 
+/**
+ * A React hook to remove a specific patient assessment and invalidate associated queries.
+ * @returns The result of the operation.
+ */
 export function useDeleteAssessment() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -151,13 +160,16 @@ export function useDeleteAssessment() {
     onError: (error: Error) => {
       toast({
         title: "Deletion failed",
-        description: error.message || "An unexpected error occurred while deleting.",
+        description: (error as Error).message || "An unexpected error occurred while deleting.",
         variant: "destructive",
       });
     },
   });
 }
-
+/**
+ * A React hook to submit a new patient assessment and automatically refresh the assessments list cache.
+ * @returns The result of the operation.
+ */
 export function useCreateAssessment() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -247,14 +259,133 @@ export function useCreateAssessment() {
       queryClient.invalidateQueries({ queryKey: [ASSESSMENTS_LIST_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ["assessments-patient"] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Assessment Failed",
-        description: error.message?.includes("timed out")
+        description: (error as Error).message?.includes("timed out")
           ? "The analysis took too long. Please try again."
-          : error.message || "An unexpected error occurred during the assessment.",
+          : (error as Error).message || "An unexpected error occurred during the assessment.",
         variant: "destructive",
       });
+    },
+  });
+}
+
+/**
+ * A React hook to simulate a diabetes risk score based on what-if updates to patient parameters.
+ * @returns The result of the operation.
+ */
+export function useSimulateAssessment() {
+  return useMutation({
+    mutationFn: async (data: AssessmentInput) => {
+      const validated = api.assessments.simulate.input.parse(data);
+      const res = await fetch(api.assessments.simulate.path, {
+        method: api.assessments.simulate.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to simulate assessment");
+      }
+
+      const responseData = await res.json();
+      return parseWithLogging<AssessmentSimulationResponse>(
+        api.assessments.simulate.responses[200],
+        responseData,
+        "assessments.simulate"
+      );
+    },
+  });
+}
+
+/**
+ * React hook for  what if assessment.
+ * @returns The result of the operation.
+ */
+export function useWhatIfAssessment() {
+  return useMutation({
+    mutationFn: async (data: AssessmentInput) => {
+      const validated = api.assessments.whatIf.input.parse(data);
+      const res = await fetch(api.assessments.whatIf.path, {
+        method: api.assessments.whatIf.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to run what-if analysis");
+      }
+
+      const responseData = await res.json();
+      return parseWithLogging<AssessmentWhatIfResponse>(
+        api.assessments.whatIf.responses[200],
+        responseData,
+        "assessments.whatIf"
+      );
+    },
+  });
+}
+
+/**
+ * React hook for  what if batch.
+ * @returns The result of the operation.
+ */
+export function useWhatIfBatch() {
+  return useMutation({
+    mutationFn: async (data: {
+      original: AssessmentInput;
+      perturbations: Record<string, string | number | boolean>[];
+    }) => {
+      const validated = api.assessments.whatIfBatch.input.parse(data);
+      const res = await fetch(api.assessments.whatIfBatch.path, {
+        method: api.assessments.whatIfBatch.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to run batch what-if analysis");
+      }
+
+      const responseData = await res.json();
+      return parseWithLogging<AssessmentWhatIfBatchResponse>(
+        api.assessments.whatIfBatch.responses[200],
+        responseData,
+        "assessments.whatIfBatch"
+      );
+    },
+  });
+}
+
+/**
+ * React hook for  what if auto.
+ * @returns The result of the operation.
+ */
+export function useWhatIfAuto() {
+  return useMutation({
+    mutationFn: async (data: AssessmentInput) => {
+      // Validate input using the base create schema
+      const validated = api.assessments.create.input.parse(data);
+      const res = await fetch("/api/assessments/what-if/auto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || "Failed to run auto what-if analysis");
+      }
+
+      return await res.json();
     },
   });
 }

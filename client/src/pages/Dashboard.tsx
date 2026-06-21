@@ -3,14 +3,17 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { EmptyState } from "@/components/EmptyState";
 import { AssessmentResult } from "@/components/AssessmentResult";
 import { BMIClassificationHelper } from "@/components/BMIClassificationHelper";
 import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
-import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UserCircle, Info, X } from "lucide-react";
+import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UploadCloud, UserCircle, Info, X } from "lucide-react";
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
 import { insertAssessmentSchema } from "@shared/schema";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-
+import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 const formSchema = insertAssessmentSchema.pick({
   patientName: true,
   gender: true,
@@ -23,31 +26,31 @@ const formSchema = insertAssessmentSchema.pick({
   bloodGlucoseLevel: true,
 });
 
-type FormData = z.infer<typeof formSchema>;
+type AssessmentFormData = z.infer<typeof formSchema>;
 
 const inputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[#1E293B] placeholder-slate-400 shadow-sm outline-none transition-all duration-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/20";
+  "w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900 px-4 py-3 text-[#1E293B] dark:text-gray-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-sm outline-none transition-all duration-200 focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-600/20 dark:focus:ring-blue-500/20";
 
 const getInputClass = (hasError: boolean) =>
   `${inputClass} ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-100 ring-2 ring-red-500/20" : ""}`;
 
-const labelClass = "text-sm font-bold text-[#1E293B]";
+const labelClass = "text-sm font-bold text-[#1E293B] dark:text-gray-100";
 
 const sectionHeadingClass =
-  "flex items-center gap-2 border-b border-slate-100 pb-3 text-sm font-black uppercase tracking-[0.14em] text-slate-500";
+  "flex items-center gap-2 border-b border-slate-100 dark:border-gray-800 pb-3 text-sm font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400";
 
 // dashboardStats removed and calculated dynamically inside the component
 
 function getRiskBadgeClass(category?: string) {
   switch ((category ?? "").toUpperCase()) {
     case "LOW":
-      return "border-green-200 bg-green-50 text-green-700";
+      return "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-400";
     case "MODERATE":
-      return "border-amber-200 bg-amber-50 text-amber-700";
+      return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-400";
     case "HIGH":
-      return "border-red-200 bg-red-50 text-red-700";
+      return "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400";
     default:
-      return "border-slate-200 bg-slate-50 text-slate-600";
+      return "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-gray-800 dark:text-slate-400";
   }
 }
 
@@ -61,6 +64,8 @@ export default function Dashboard() {
   const [previewPending, setPreviewPending] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const { mutate: createAssessment, isPending, error } = useCreateAssessment();
+  const { toast } = useToast();
+  const { t } = useTranslation();
 
   const { data: assessmentsData } = useAssessments({ limit: 50 });
   const assessments = assessmentsData?.data ?? [];
@@ -85,8 +90,8 @@ export default function Dashboard() {
     watch,
     setValue,
     reset,
-  } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+  } = useForm<AssessmentFormData>({
+    resolver: zodResolver(formSchema) as any,
     defaultValues: {
       patientName: "",
       hypertension: false,
@@ -100,7 +105,7 @@ export default function Dashboard() {
     },
   });
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = (data: AssessmentFormData) => {
     createAssessment(data, {
       onSuccess: (data) => {
         setResult(data);
@@ -153,12 +158,16 @@ export default function Dashboard() {
         Object.entries(draft).forEach(([k, v]) => {
           if (!allowedKeys.includes(k)) return;
           try {
-            setValue(k as keyof FormData, v as any, { shouldDirty: true });
+            setValue(k as keyof AssessmentFormData, v as any, { shouldDirty: true });
           } catch (e) {}
         });
       }
     } catch (e) {
-      // ignore malformed draft
+      toast({
+        title: "Draft restore failed",
+        description: "Could not restore your previous draft. The data may be corrupted.",
+        variant: "destructive",
+      });
     }
   }, [setValue]);
 
@@ -192,11 +201,11 @@ export default function Dashboard() {
 
         const parsed = api.assessments.preview.responses[200].parse(data);
         setPreview(parsed);
-      } catch (previewErr: any) {
-        if (previewErr.name === "AbortError") {
+      } catch (previewErr: unknown) {
+        if ((previewErr as Error).name === "AbortError") {
           return;
         }
-        setPreviewError(previewErr.message ?? "Failed to generate preview");
+        setPreviewError((previewErr as Error).message ?? "Failed to generate preview");
       } finally {
         setPreviewPending(false);
       }
@@ -224,70 +233,87 @@ export default function Dashboard() {
   }, [formData, result, DRAFT_TTL_MS]);
 
   return (
-    <AppLayout>
+    <ErrorBoundary>
+      <AppLayout>
       <TooltipProvider delayDuration={300}>
         <div className="space-y-8">
         <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-blue-700">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-950/50 px-4 py-2 text-sm font-black text-blue-700 dark:text-blue-400">
               <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.18)]" />
               Clinical AI workspace
             </div>
-            <h1 className="text-3xl md:text-5xl font-black font-display text-[#1E293B] tracking-tight">New Assessment</h1>
-            <p className="text-slate-500 mt-3 text-lg max-w-2xl leading-8">
+            <h1 className="text-3xl md:text-5xl font-black font-display text-[#1E293B] dark:text-gray-100 tracking-tight">New Assessment</h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-3 text-lg max-w-2xl leading-8">
               Enter patient details to run the preventive diabetes and cardiovascular risk model.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:min-w-115">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div
-                  key={stat.label}
-                  className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500">
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    <Icon className="h-5 w-5" />
+<div className="grid grid-cols-1 gap-3 sm:grid-cols-4 lg:min-w-115">
+            {assessments.length === 0 ? (
+              <div className="sm:col-span-4">
+                <EmptyState
+                  icon={Activity}
+                  title={t('dashboard.emptyState.title')}
+                  description={t('dashboard.emptyState.description')}
+                  actionLabel={t('dashboard.emptyState.actionLabel')}
+                  actionOnClick={() =>
+                    document
+                      .getElementById("assessment-form")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                />
+              </div>
+            ) : (
+              <>
+                {stats.map((stat) => {
+                  const Icon = stat.icon;
+                  return (
+                    <div
+                      key={stat.label}
+                      className="rounded-2xl border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm shadow-slate-900/3 dark:shadow-gray-950/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-500">
+                      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <p className="text-lg font-black text-[#1E293B] dark:text-gray-100">{stat.value}</p>
+                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">{stat.label}</p>
+                    </div>
+                  );
+                })}
+                <a
+                  href="/import"
+                  className="group rounded-2xl border-2 border-dashed border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                >
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 group-hover:bg-blue-200 dark:group-hover:bg-blue-800 transition-colors">
+                    <UploadCloud className="h-5 w-5" />
                   </div>
-                  <p className="text-lg font-black text-[#1E293B]">{stat.value}</p>
-                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{stat.label}</p>
-                </div>
-              );
-            })}
+                  <p className="text-lg font-black text-blue-700 dark:text-blue-400">Batch Import</p>
+                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-blue-500 dark:text-blue-400">CSV / Excel &rarr;</p>
+                </a>
+              </>
+            )}
           </div>
         </div>
 
-        {result && (
-          <div className="mb-12 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-              <h2 className="text-xl font-black text-[#1E293B]">Assessment Complete</h2>
-              <button onClick={() => setResult(null)} className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">
-                Clear Result & Start Over
-              </button>
-            </div>
-            <AssessmentResult assessment={result} />
-          </div>
-        )}
-
-        <div className={`transition-all duration-500 ${result ? "opacity-50 pointer-events-none grayscale" : "opacity-100"}`}>
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-5 lg:items-start">
-            <div className="lg:col-span-3 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4">
-              <form
-                onSubmit={handleSubmit(onSubmit)}
-                className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] transition-all duration-200 md:p-8"
-              >
+        <div className={`transition-all duration-500 grid grid-cols-1 gap-8 lg:items-start ${(result || isPending) ? "lg:grid-cols-12" : "lg:grid-cols-5"}`}>
+          <div className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-4 sticky top-8" : "lg:col-span-3"} lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-4`}>
+            <form
+              id="assessment-form"
+              onSubmit={handleSubmit(onSubmit)}
+              className={`rounded-2xl border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_-2px_rgba(0,0,0,0.3)] transition-all duration-200 md:p-8 ${result ? "opacity-75 pointer-events-none" : ""}`}
+            >
                 {error && (
-                  <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 text-red-600">
+                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 rounded-xl flex items-start gap-3 text-red-600 dark:text-red-400">
                     <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold">Assessment Failed</p>
-                      <p className="text-sm opacity-90">{error.message}</p>
+                      <p className="text-sm opacity-90">{(error as Error).message}</p>
                     </div>
                   </div>
                 )}
 
                 <div className="space-y-6">
-                  <section className="rounded-2xl border border-slate-200 bg-slate-50/40 p-5">
+                  <section className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-slate-50/40 dark:bg-gray-800/40 p-5">
                     <h3 className={sectionHeadingClass}>
                       <UserCircle className="w-5 h-5 text-blue-600" /> Demographics
                     </h3>
@@ -300,7 +326,10 @@ export default function Dashboard() {
                           {...register("patientName")}
                           className={getInputClass(!!errors.patientName)}
                           placeholder="e.g., John Doe"
+                          aria-label="Patient full name"
+                          aria-describedby="patientName-guidance"
                         />
+                        <p id="patientName-guidance" className="text-xs text-slate-500 dark:text-slate-400">Enter the full name used in the clinical record.</p>
                         {errors.patientName && <p className="text-sm text-red-600 mt-1">{errors.patientName.message}</p>}
                       </div>
 
@@ -318,7 +347,16 @@ export default function Dashboard() {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <input id="age" type="number" {...register("age")} className={getInputClass(!!errors.age)} placeholder="e.g. 45" />
+                        <input
+                          id="age"
+                          type="number"
+                          {...register("age")}
+                          className={getInputClass(!!errors.age)}
+                          placeholder="e.g. 45 years"
+                          aria-label="Patient age in years"
+                          aria-describedby="age-guidance"
+                        />
+                        <p id="age-guidance" className="text-xs text-slate-500 dark:text-slate-400">Use whole years; the model is intended for adult patients.</p>
                         {errors.age && <p className="text-sm text-red-600 mt-1">{errors.age.message}</p>}
                       </div>
 
@@ -327,18 +365,18 @@ export default function Dashboard() {
                         <div
                           role="group"
                           aria-labelledby="gender-label"
-                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 transition-all duration-200 ${errors.gender ? "ring-2 ring-red-500 bg-red-50/30" : ""}`}
+                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 dark:bg-gray-800 p-1 transition-all duration-200 ${errors.gender ? "ring-2 ring-red-500 bg-red-50/30 dark:bg-red-950/20" : ""}`}
                         >
                           {["Male", "Female"].map((g) => (
                             <label key={g} className="flex-1 cursor-pointer">
                               <input type="radio" value={g} {...register("gender")} className="peer sr-only" />
-                              <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 hover:text-blue-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow-sm">
+                              <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-400 peer-checked:bg-white dark:peer-checked:bg-gray-700 peer-checked:text-blue-700 dark:peer-checked:text-blue-400 peer-checked:shadow-sm">
                                 {g}
                               </div>
                             </label>
                           ))}
                         </div>
-                        {errors.gender && <p className="text-sm text-red-600 mt-1">{errors.gender.message}</p>}
+                        {errors.gender && <p className="text-sm text-red-600 dark:text-red-400 mt-1">{errors.gender.message}</p>}
                       </div>
 
                       <div className="space-y-2 md:col-span-3">
@@ -346,12 +384,12 @@ export default function Dashboard() {
                         <div
                           role="group"
                           aria-labelledby="smoking-label"
-                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 transition-all duration-200 sm:grid-cols-4 ${errors.smokingHistory ? "ring-2 ring-red-500 bg-red-50/30" : ""}`}
+                          className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 dark:bg-gray-800 p-1 transition-all duration-200 sm:grid-cols-4 ${errors.smokingHistory ? "ring-2 ring-red-500 bg-red-50/30 dark:bg-red-950/20" : ""}`}
                         >
                           {["never", "No Info", "current", "former"].map((smoking) => (
                             <label key={smoking} className="flex-1 cursor-pointer">
                               <input type="radio" value={smoking} {...register("smokingHistory")} className="peer sr-only" />
-                              <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 hover:text-blue-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow-sm">
+                              <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-400 peer-checked:bg-white dark:peer-checked:bg-gray-700 peer-checked:text-blue-700 dark:peer-checked:text-blue-400 peer-checked:shadow-sm">
                                 {smoking}
                               </div>
                             </label>
@@ -362,7 +400,7 @@ export default function Dashboard() {
                     </div>
                   </section>
 
-                  <section className="rounded-2xl border border-slate-200 bg-slate-50/40 p-5">
+                  <section className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-slate-50/40 dark:bg-gray-800/40 p-5">
                     <h3 className={sectionHeadingClass}>
                       <HeartPulse className="w-5 h-5 text-blue-600" /> Vitals
                     </h3>
@@ -394,13 +432,23 @@ export default function Dashboard() {
                           )}
                         </div>
                         <div className="relative">
-                          <input id="bmi" type="number" step="0.1" {...register("bmi")} className={getInputClass(!!errors.bmi)} placeholder="e.g. 25.0" />
+                          <input
+                            id="bmi"
+                            type="number"
+                            step="0.1"
+                            {...register("bmi")}
+                            className={getInputClass(!!errors.bmi)}
+                            placeholder="e.g. 24.5 kg/m²"
+                            aria-label="Body mass index in kilograms per square meter"
+                            aria-describedby="bmi-guidance"
+                          />
                           {watchedValues.bmi && (
-                            <button type="button" onClick={() => setValue("bmi", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("bmi", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
                               <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
+                        <p id="bmi-guidance" className="text-xs text-slate-500 dark:text-slate-400">Enter BMI in kg/m², typically between 18.5 and 30+.</p>
                         {errors.bmi && <p className="text-sm text-red-600 mt-1">{errors.bmi.message}</p>}
                         <BMIClassificationHelper bmi={watchedValues.bmi} />
                       </div>
@@ -432,13 +480,23 @@ export default function Dashboard() {
                           )}
                         </div>
                         <div className="relative">
-                          <input id="hba1cLevel" type="number" step="0.1" {...register("hba1cLevel")} className={getInputClass(!!errors.hba1cLevel)} placeholder="e.g. 5.7" />
+                          <input
+                            id="hba1cLevel"
+                            type="number"
+                            step="0.1"
+                            {...register("hba1cLevel")}
+                            className={getInputClass(!!errors.hba1cLevel)}
+                            placeholder="e.g. 5.7%"
+                            aria-label="HbA1c level percentage"
+                            aria-describedby="hba1cLevel-guidance"
+                          />
                           {watchedValues.hba1cLevel && (
-                            <button type="button" onClick={() => setValue("hba1cLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("hba1cLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
                               <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
+                        <p id="hba1cLevel-guidance" className="text-xs text-slate-500 dark:text-slate-400">Enter the HbA1c percentage from the most recent lab result.</p>
                         {errors.hba1cLevel && <p className="text-sm text-red-600 mt-1">{errors.hba1cLevel.message}</p>}
                       </div>
 
@@ -462,40 +520,49 @@ export default function Dashboard() {
                           </Tooltip>
                         </div>
                         <div className="relative">
-                          <input id="bloodGlucoseLevel" type="number" {...register("bloodGlucoseLevel")} className={getInputClass(!!errors.bloodGlucoseLevel)} placeholder="e.g. 100" />
+                          <input
+                            id="bloodGlucoseLevel"
+                            type="number"
+                            {...register("bloodGlucoseLevel")}
+                            className={getInputClass(!!errors.bloodGlucoseLevel)}
+                            placeholder="e.g. 140 mg/dL"
+                            aria-label="Blood glucose level in milligrams per deciliter"
+                            aria-describedby="bloodGlucoseLevel-guidance"
+                          />
                           {watchedValues.bloodGlucoseLevel && (
-                            <button type="button" onClick={() => setValue("bloodGlucoseLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-white">
+                            <button type="button" onClick={() => setValue("bloodGlucoseLevel", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
                               <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
+                        <p id="bloodGlucoseLevel-guidance" className="text-xs text-slate-500 dark:text-slate-400">Use mg/dL from the most recent fasting or clinical glucose reading.</p>
                         {errors.bloodGlucoseLevel && <p className="text-sm text-red-600 mt-1">{errors.bloodGlucoseLevel.message}</p>}
                       </div>
                     </div>
                   </section>
 
-                  <section className="rounded-2xl border border-slate-200 bg-slate-50/40 p-5">
+                  <section className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-slate-50/40 dark:bg-gray-800/40 p-5">
                     <h3 className={sectionHeadingClass}>
                       <Activity className="w-5 h-5 text-blue-600" /> Medical History
                     </h3>
                     <div className="mt-4 space-y-4">
-                      <label className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 bg-white cursor-pointer transition-all duration-200 hover:border-blue-200 hover:shadow-sm">
+                      <label className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 cursor-pointer transition-all duration-200 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm">
                         <div>
-                          <p className="font-bold text-[#1E293B]">Hypertension</p>
-                          <p className="text-xs text-slate-500">Diagnosed high blood pressure</p>
+                          <p className="font-bold text-[#1E293B] dark:text-gray-100">Hypertension</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Diagnosed high blood pressure</p>
                         </div>
-                        <div className={`relative h-7 w-14 shrink-0 rounded-full transition-all duration-200 ${isHypertension ? "bg-blue-600 shadow-md shadow-blue-500/20" : "bg-slate-300"}`}>
+                        <div className={`relative h-7 w-14 shrink-0 rounded-full transition-all duration-200 ${isHypertension ? "bg-blue-600 shadow-md shadow-blue-500/20" : "bg-slate-300 dark:bg-slate-600"}`}>
                           <input type="checkbox" {...register("hypertension")} className="sr-only" />
                           <div className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isHypertension ? "translate-x-8" : "translate-x-1"}`} />
                         </div>
                       </label>
 
-                      <label className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 bg-white cursor-pointer transition-all duration-200 hover:border-blue-200 hover:shadow-sm">
+                      <label className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 cursor-pointer transition-all duration-200 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm">
                         <div>
-                          <p className="font-bold text-[#1E293B]">Heart Disease</p>
-                          <p className="text-xs text-slate-500">Prior cardiovascular conditions</p>
+                          <p className="font-bold text-[#1E293B] dark:text-gray-100">Heart Disease</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Prior cardiovascular conditions</p>
                         </div>
-                        <div className={`relative h-7 w-14 shrink-0 rounded-full transition-all duration-200 ${isHeartDisease ? "bg-blue-600 shadow-md shadow-blue-500/20" : "bg-slate-300"}`}>
+                        <div className={`relative h-7 w-14 shrink-0 rounded-full transition-all duration-200 ${isHeartDisease ? "bg-blue-600 shadow-md shadow-blue-500/20" : "bg-slate-300 dark:bg-slate-600"}`}>
                           <input type="checkbox" {...register("heartDisease")} className="sr-only" />
                           <div className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isHeartDisease ? "translate-x-8" : "translate-x-1"}`} />
                         </div>
@@ -504,27 +571,27 @@ export default function Dashboard() {
                   </section>
                 </div>
 
-                <div className="mt-8 rounded-xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-center text-xs italic text-slate-400">
+                <div className="mt-8 rounded-xl border border-slate-100 dark:border-gray-800 bg-slate-50 dark:bg-gray-800/50 p-4">
+                  <p className="text-center text-xs italic text-slate-400 dark:text-slate-500">
                     This tool is a prototype for decision support only. It does not provide a medical diagnosis. Always consult a healthcare professional.
                   </p>
                 </div>
 
-                <div className="mt-8 border-t border-slate-100 pt-6 flex flex-col md:flex-row justify-end gap-3">
+                <div className="mt-8 border-t border-slate-100 dark:border-gray-800 pt-6 flex flex-col md:flex-row justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => {
                       reset();
                       localStorage.removeItem("clinical-insight-assessment-draft");
                     }}
-                    className="w-full md:w-auto px-8 py-4 rounded-xl font-bold text-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 transition-all duration-200"
+                    className="w-full md:w-auto px-8 py-4 rounded-xl font-bold text-lg border border-slate-200 dark:border-gray-700 text-slate-600 dark:text-slate-400 bg-white dark:bg-gray-900 hover:bg-slate-50 dark:hover:bg-gray-800 transition-all duration-200"
                   >
                     Reset Form
                   </button>
                   <button
                     type="submit"
                     disabled={isPending || result !== null}
-                    className="w-full md:w-auto px-8 py-4 rounded-xl font-black text-lg border border-blue-200 text-blue-700 bg-white shadow-sm hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full md:w-auto px-8 py-4 rounded-xl font-black text-lg border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 bg-white dark:bg-gray-900 shadow-sm hover:bg-blue-50 dark:hover:bg-blue-950/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
                   >
                     {isPending ? (
                       <>
@@ -542,135 +609,173 @@ export default function Dashboard() {
               </form>
             </div>
 
-            <aside className="lg:col-span-2 lg:sticky lg:top-8">
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 p-6 shadow-sm space-y-5">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-lg font-black text-[#1E293B] dark:text-slate-100">Real-Time Risk Panel</h3>
-                  <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Auto updating</span>
+            <aside className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
+              {isPending ? (
+                <div className="rounded-2xl border border-slate-100 bg-white p-8 shadow-sm shadow-slate-900/3 flex flex-col items-center justify-center min-h-[500px]" aria-live="polite">
+                  <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-6" aria-hidden="true" />
+                  <h2 className="text-2xl font-black text-[#1E293B] mb-3">Analyzing Patient Data...</h2>
+                  <p className="text-slate-500 text-center max-w-md mb-10 text-lg">
+                    Processing clinical indicators, computing vital correlations, and generating risk prediction.
+                  </p>
+                  
+                  <div className="w-full max-w-3xl space-y-6 opacity-60">
+                    {/* Header Skeleton */}
+                    <div className="flex items-center gap-4">
+                      <div className="h-16 w-16 bg-slate-100 rounded-full animate-pulse"></div>
+                      <div className="space-y-2 flex-1">
+                        <div className="h-6 w-1/3 bg-slate-100 rounded-lg animate-pulse"></div>
+                        <div className="h-4 w-1/4 bg-slate-50 rounded-lg animate-pulse"></div>
+                      </div>
+                    </div>
+                    {/* Metrics Cards Skeleton */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-32 bg-slate-50 border border-slate-100 rounded-2xl animate-pulse"></div>
+                      ))}
+                    </div>
+                    {/* Main Content Skeleton */}
+                    <div className="h-64 bg-slate-50 border border-slate-100 rounded-2xl animate-pulse w-full"></div>
+                  </div>
                 </div>
+              ) : result ? (
+                <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-900/3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+                    <h2 className="text-xl font-black text-[#1E293B] dark:text-gray-100">Assessment Complete</h2>
+                    <button onClick={() => setResult(null)} className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
+                      Clear Result & Start Over
+                    </button>
+                  </div>
+                  <AssessmentResult assessment={result} />
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 p-6 shadow-sm space-y-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-lg font-black text-[#1E293B] dark:text-slate-100">Real-Time Risk Panel</h3>
+                    <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Auto updating</span>
+                  </div>
 
-                {!parsedForPreview.success && (
-                  <div className="space-y-6">
-                    {/* Radial risk gauge skeleton */}
-                    <div className="flex flex-col items-center justify-center p-6 bg-slate-50/50 dark:bg-slate-900/20 rounded-2xl border border-slate-100 dark:border-slate-800/50 relative overflow-hidden group">
-                      {/* Shimmer overlay effect */}
-                      <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent dark:via-white/5" />
-                      
-                      <div className="relative w-36 h-36 flex items-center justify-center">
-                        {/* Outer track */}
-                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                          <circle
-                            cx="50"
-                            cy="50"
-                            r="42"
-                            className="stroke-slate-200 dark:stroke-slate-800/80 fill-none"
-                            strokeWidth="8"
-                          />
-                          <circle
-                            cx="50"
-                            cy="50"
-                            r="42"
-                            className="stroke-blue-500/20 dark:stroke-blue-500/10 fill-none"
-                            strokeWidth="8"
-                            strokeDasharray="264"
-                            strokeDashoffset="180"
-                            strokeLinecap="round"
-                            style={{ animation: 'dash 3s ease-in-out infinite' }}
-                          />
-                        </svg>
+                  {!parsedForPreview.success && (
+                    <div className="space-y-6">
+                      {/* Radial risk gauge skeleton */}
+                      <div className="flex flex-col items-center justify-center p-6 bg-slate-50/50 dark:bg-slate-900/20 rounded-2xl border border-slate-100 dark:border-slate-800/50 relative overflow-hidden group">
+                        {/* Shimmer overlay effect */}
+                        <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent dark:via-white/5" />
                         
-                        {/* Center info */}
-                        <div className="absolute flex flex-col items-center justify-center">
-                          <div className="h-5 w-14 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
-                          <div className="h-3 w-8 bg-slate-100 dark:bg-slate-900 rounded mt-1.5 animate-pulse" />
+                        <div className="relative w-36 h-36 flex items-center justify-center">
+                          {/* Outer track */}
+                          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                            <circle
+                              cx="50"
+                              cy="50"
+                              r="42"
+                              className="stroke-slate-200 dark:stroke-slate-800/80 fill-none"
+                              strokeWidth="8"
+                            />
+                            <circle
+                              cx="50"
+                              cy="50"
+                              r="42"
+                              className="stroke-blue-500/20 dark:stroke-blue-500/10 fill-none animate-[dash_3s_ease-in-out_infinite]"
+                              strokeWidth="8"
+                              strokeDasharray="264"
+                              strokeDashoffset="180"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          
+                          {/* Center info */}
+                          <div className="absolute flex flex-col items-center justify-center">
+                            <div className="h-5 w-14 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+                            <div className="h-3 w-8 bg-slate-100 dark:bg-slate-900 rounded mt-1.5 animate-pulse" />
+                          </div>
+                        </div>
+                        
+                        <div className="mt-4 h-5 w-24 bg-slate-200 dark:bg-slate-800 rounded-full animate-pulse" />
+                      </div>
+
+                      {/* Comparative metrics skeleton */}
+                      <div className="space-y-4 p-4 bg-slate-50/30 dark:bg-slate-900/10 rounded-2xl border border-slate-100/50 dark:border-slate-800/30">
+                        <div className="h-4 w-32 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+                        
+                        <div className="space-y-3.5">
+                          {[65, 40, 55].map((width, idx) => (
+                            <div key={idx} className="space-y-1.5">
+                              <div className="flex justify-between items-center">
+                                <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+                                <div className="h-3 w-8 bg-slate-100 dark:bg-slate-900 rounded animate-pulse" />
+                              </div>
+                              <div className="h-2 w-full bg-slate-200/50 dark:bg-slate-800/50 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-slate-300 dark:bg-slate-700/60 rounded-full animate-pulse w-[var(--width)]" 
+                                  style={{ '--width': `${width}%` } as React.CSSProperties} 
+                                />
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      
-                      <div className="mt-4 h-5 w-24 bg-slate-200 dark:bg-slate-800 rounded-full animate-pulse" />
                     </div>
+                  )}
 
-                    {/* Comparative metrics skeleton */}
-                    <div className="space-y-4 p-4 bg-slate-50/30 dark:bg-slate-900/10 rounded-2xl border border-slate-100/50 dark:border-slate-800/30">
-                      <div className="h-4 w-32 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
-                      
-                      <div className="space-y-3.5">
-                        {[65, 40, 55].map((width, idx) => (
-                          <div key={idx} className="space-y-1.5">
-                            <div className="flex justify-between items-center">
-                              <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
-                              <div className="h-3 w-8 bg-slate-100 dark:bg-slate-900 rounded animate-pulse" />
-                            </div>
-                            <div className="h-2 w-full bg-slate-200/50 dark:bg-slate-800/50 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-slate-300 dark:bg-slate-700/60 rounded-full animate-pulse" 
-                                style={{ width: `${width}%` }} 
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                  {previewPending && (
+                    <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Updating risk preview...
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {previewPending && (
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Updating risk preview...
-                  </div>
-                )}
+                  {previewError && <p className="text-sm text-red-600 dark:text-red-400">{previewError}</p>}
 
-                {previewError && <p className="text-sm text-red-600">{previewError}</p>}
+                  {preview && (
+                    <>
+                      {preview.isFallback && (
+                        <div className="flex items-start gap-2 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-400">
+                          <span className="mt-0.5 shrink-0">⚠️</span>
+                          <span>
+                            <strong>Rule-based estimate</strong> — ML model unavailable. Results are from a simplified heuristic and may be less accurate.
+                          </span>
+                        </div>
+                      )}
 
-                {preview && (
-                  <>
-                    {preview.isFallback && (
-                      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                        <span className="mt-0.5 shrink-0">⚠️</span>
-                        <span>
-                          <strong>Rule-based estimate</strong> — ML model unavailable. Results are from a simplified heuristic and may be less accurate.
+                      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-5 text-center">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Risk Score</p>
+                        <p className="mt-2 text-5xl font-black text-[#1E293B] dark:text-slate-100">{preview.riskScore.toFixed(1)}%</p>
+                        <span className={`mt-3 inline-flex rounded-full border px-3 py-1 text-sm font-bold ${getRiskBadgeClass(preview.riskCategory)}`}>
+                          {preview.riskCategory} Risk
                         </span>
                       </div>
-                    )}
 
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-5 text-center">
-                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Risk Score</p>
-                      <p className="mt-2 text-5xl font-black text-[#1E293B] dark:text-slate-100">{preview.riskScore.toFixed(1)}%</p>
-                      <span className={`mt-3 inline-flex rounded-full border px-3 py-1 text-sm font-bold ${getRiskBadgeClass(preview.riskCategory)}`}>
-                        {preview.riskCategory} Risk
-                      </span>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 mb-2">Key Drivers</p>
-                      <div className="space-y-2">
-                        {preview.factors.length > 0 ? (
-                          preview.factors.slice(0, 3).map((factor) => (
-                            <div key={`${factor.name}-${factor.impact}`} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-800/60">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="font-bold text-sm text-[#1E293B] dark:text-slate-100">{factor.name}</p>
-                                <span
-                                  className={`text-xs font-bold ${factor.impact === "positive" ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}
-                                >
-                                  {factor.impact === "positive" ? "Increases" : "Decreases"}
-                                </span>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-2">Key Drivers</p>
+                        <div className="space-y-2">
+                          {preview.factors.length > 0 ? (
+                            preview.factors.slice(0, 3).map((factor) => (
+                              <div key={`${factor.name}-${factor.impact}`} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-800/60">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="font-bold text-sm text-[#1E293B] dark:text-slate-100">{factor.name}</p>
+                                  <span
+                                    className={`text-xs font-bold ${factor.impact === "positive" ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}
+                                  >
+                                    {factor.impact === "positive" ? "Increases" : "Decreases"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">{factor.description}</p>
                               </div>
-                              <p className="text-xs text-slate-500 mt-1">{factor.description}</p>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-sm text-slate-500">No significant factors highlighted yet.</p>
-                        )}
+                            ))
+                          ) : (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">No significant factors highlighted yet.</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </>
-                )}
-              </div>
+                    </>
+                  )}
+                </div>
+              )}
             </aside>
           </div>
         </div>
-      </div>
       </TooltipProvider>
     </AppLayout>
+    </ErrorBoundary>
   );
 }

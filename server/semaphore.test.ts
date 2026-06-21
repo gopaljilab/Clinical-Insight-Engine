@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SimpleSemaphore } from "./routes";
+import { SimpleSemaphore } from "./services/mlService";
 
 describe("SimpleSemaphore", () => {
   it("limits concurrency to the specified maximum", async () => {

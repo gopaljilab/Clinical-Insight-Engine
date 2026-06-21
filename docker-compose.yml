@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     container_name: clinical-insight-db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: clinical_insight_engine
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-clinical_insight_engine}
     ports:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d clinical_insight_engine"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-clinical_insight_engine}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -34,13 +34,12 @@ services:
     ports:
       - "5001:5000"
     environment:
-      NODE_ENV: development
-      PORT: 5000
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/clinical_insight_engine
-      REDIS_URL: redis://redis:6379
-      SESSION_SECRET: clinical-insight-engine-dev-secret
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-5000}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/clinical_insight_engine}
+      SESSION_SECRET: ${SESSION_SECRET:-clinical-insight-engine-dev-secret}
       PUPPETEER_SKIP_DOWNLOAD: "true"
-      REDIS_URL: "redis://redis:6379"
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     volumes:
       # Mount the workspace directory to support hot-reloading in development
       - .:/app

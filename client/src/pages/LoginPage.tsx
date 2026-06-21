@@ -1,24 +1,16 @@
 import { useEffect } from "react";
-import { useLocation } from "wouter";
-import { AuthFlowModal } from "@/components/AuthFlowModal";
+import { AuthFlow } from "@/components/auth/AuthFlow";
 
-/**
- * /login is kept as a navigable route so that direct links and bookmarks
- * continue to work. It renders the canonical AuthFlowModal rather than
- * duplicating the auth logic inline.
- */
 export default function LoginPage() {
-  const [, setLocation] = useLocation();
-
   useEffect(() => {
-    document.title = "Clinical Insight Engine - Sign In";
+    document.title = "Clinical Insight Engine - Authentication";
   }, []);
 
+  // Use URL params to determine initial mode if desired
+  const searchParams = new URLSearchParams(window.location.search);
+  const initialMode = searchParams.get("mode") === "register" ? "register" : "login";
+
   return (
-    <AuthFlowModal
-      initialMode="login"
-      isOpen={true}
-      onClose={() => setLocation("/")}
-    />
+    <AuthFlow initialMode={initialMode} />
   );
 }

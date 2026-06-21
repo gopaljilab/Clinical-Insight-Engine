@@ -1,3 +1,4 @@
+import { useLocation } from "wouter";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -15,7 +16,6 @@ import {
   Stethoscope,
   Workflow,
 } from "lucide-react";
-import { AuthFlowModal, type AuthMode } from "@/components/AuthFlowModal";
 
 const navLinks = [
   { href: "#features", label: "Features" },
@@ -59,7 +59,7 @@ const footerLinks = [
 ];
 
 const socialLinks = [
-  { href: "https://www.linkedin.com", icon: Linkedin, label: "LinkedIn" },
+  { href: "https://www.linkedin.com/in/guptagopal001/", icon: Linkedin, label: "LinkedIn" },
   { href: "https://github.com/gopaljilab/Clinical-Insight-Engine", icon: Github, label: "GitHub" },
   { href: "mailto:hello@cardioguard.ai", icon: Mail, label: "Email" },
 ];
@@ -145,8 +145,8 @@ function DashboardPreview() {
                 {[46, 58, 52, 64, 48, 42].map((height, index) => (
                   <div key={height + index} className="flex flex-1 flex-col items-center gap-2">
                     <div
-                      className="w-full rounded-t-xl bg-gradient-to-t from-[#2563EB] to-cyan-300"
-                      style={{ height: `${height}%` }}
+                      className="w-full rounded-t-xl bg-gradient-to-t from-[#2563EB] to-cyan-300 h-[var(--height)]"
+                      style={{ '--height': `${height}%` } as React.CSSProperties}
                     />
                     <span className="text-[10px] font-semibold text-slate-500">M{index + 1}</span>
                   </div>
@@ -164,8 +164,8 @@ function DashboardPreview() {
 }
 
 export function CardioGuardLanding() {
-  const [authMode, setAuthMode] = useState<AuthMode | null>(null);
-
+  const [, setLocation] = useLocation();
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/60 to-white text-slate-600">
       <header className="sticky top-0 z-50 border-b border-white/70 bg-white/80 backdrop-blur-xl">
@@ -189,21 +189,21 @@ export function CardioGuardLanding() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setAuthMode("login")}
+              onClick={() => setLocation("/login")}
               className="hidden rounded-2xl px-4 py-3 text-sm font-black text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-[#2563EB] focus:outline-none focus:ring-4 focus:ring-blue-100 sm:inline-flex"
             >
               Login
             </button>
             <button
               type="button"
-              onClick={() => setAuthMode("register")}
+              onClick={() => setLocation("/login?mode=register")}
               className="hidden rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-[#1E293B] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2563EB] hover:text-[#2563EB] hover:shadow-md focus:outline-none focus:ring-4 focus:ring-blue-100 md:inline-flex"
             >
               Register
             </button>
             <button
               type="button"
-              onClick={() => setAuthMode("login")}
+              onClick={() => setLocation("/login")}
               className="inline-flex items-center justify-center rounded-2xl bg-[#2563EB] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-600/25 focus:outline-none focus:ring-4 focus:ring-blue-200"
             >
               Go to App
@@ -245,7 +245,7 @@ export function CardioGuardLanding() {
               <div className="mt-9 flex flex-col gap-4 sm:flex-row">
                 <button
                   type="button"
-                  onClick={() => setAuthMode("register")}
+                  onClick={() => setLocation("/login?mode=register")}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-7 py-4 text-base font-black text-white shadow-xl shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-blue-700 hover:shadow-2xl hover:shadow-blue-600/30 focus:outline-none focus:ring-4 focus:ring-blue-200"
                 >
                   Request a Demo
@@ -262,7 +262,7 @@ export function CardioGuardLanding() {
 
               <button
                 type="button"
-                onClick={() => setAuthMode("login")}
+                onClick={() => setLocation("/login")}
                 className="mt-5 text-sm font-black text-[#2563EB] transition-all duration-200 hover:text-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100"
               >
                 Already have access? Login to your clinical dashboard
@@ -417,11 +417,7 @@ export function CardioGuardLanding() {
         </div>
       </footer>
 
-      <AuthFlowModal
-        initialMode={authMode ?? "login"}
-        isOpen={authMode !== null}
-        onClose={() => setAuthMode(null)}
-      />
+      
     </div>
   );
 }
