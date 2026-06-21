@@ -11,6 +11,12 @@ function parseDate(value: DateInput): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/**
+ * Format Readable Date.
+ * @param value - The value parameter.
+ * @param options - The options parameter.
+ * @returns The result of the operation.
+ */
 export function formatReadableDate(value: DateInput, options: DateFormatOptions = {}): string {
   const { fallback = "Unknown date", includeTime = true } = options;
   const date = parseDate(value);
@@ -31,6 +37,12 @@ export function formatReadableDate(value: DateInput, options: DateFormatOptions 
   return includeTime ? formatted.replace(/, (?=\d{1,2}:)/, " at ") : formatted;
 }
 
+/**
+ * Format Compact Date.
+ * @param value - The value parameter.
+ * @param fallback - The fallback parameter.
+ * @returns The result of the operation.
+ */
 export function formatCompactDate(value: DateInput, fallback = "?"): string {
   const date = parseDate(value);
   if (!date) return fallback;

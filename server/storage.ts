@@ -46,8 +46,9 @@ export interface IStorage {
     limit?: number,
     cursor?: number
   ): Promise<{ data: Assessment[]; nextCursor: number | null }>;
-  getAssessmentById(id: number): Promise<Assessment | undefined>;
+  getAssessmentById(id: number, createdBy?: string): Promise<Assessment | undefined>;
   createAssessment(assessment: any): Promise<Assessment>;
+  updateClinicalNote(id: number, clinicalNote: string): Promise<Assessment | undefined>;
   deleteAssessment(id: number): Promise<void>;
   autocompletePatientNames(query: string, createdBy?: string, limit?: number): Promise<string[]>;
   createUser(data: InsertUser): Promise<User>;
@@ -91,12 +92,13 @@ export interface IStorage {
   getPatientUserByPatientName(patientName: string): Promise<PatientUser | undefined>;
   getPatientUserById(id: string): Promise<PatientUser | undefined>;
   createPatientUser(data: InsertPatientUser): Promise<PatientUser>;
-  getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, startDate?: string, endDate?: string): Promise<{ data: Assessment[]; total: number }>;
-  getPatientTrends(patientName: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]>;
+  getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, createdBy?: string, startDate?: string, endDate?: string): Promise<{ data: Assessment[]; total: number }>;
+  getPatientTrends(patientName: string, createdBy?: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]>;
   getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string): Promise<{
     assessments: any[];
     summary: { total: number; latestRiskScore: number | null; latestRiskCategory: string | null; earliestRiskScore: number | null; trend: string; avgRiskScore: number; change: number };
   }>;
+  createAssessmentsBatch(data: AssessmentCreateInput[]): Promise<Assessment[]>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
@@ -149,21 +151,9 @@ export class DatabaseStorage implements IStorage {
       createdBy: limitOrParams?.createdBy ?? createdBy,
     });
   }
-
-  async searchAssessments(
-    searchTerm: string,
-    createdBy?: string,
-    riskCategory?: RiskCategory,
-    limit?: number,
-    cursor?: number,
-  ) {
-    return this.assessmentRepository.searchAssessments(
-      searchTerm,
-      createdBy,
-      riskCategory,
-      limit,
-      cursor,
-    );
+  
+  async getAssessmentById(id: number, createdBy?: string) { 
+    return this.assessmentRepository.getAssessmentById(id, createdBy); 
   }
 
   async getAssessmentById(id: number) {
@@ -174,8 +164,16 @@ export class DatabaseStorage implements IStorage {
     return this.assessmentRepository.createAssessment(assessment);
   }
 
+  async updateClinicalNote(id: number, clinicalNote: string) {
+    return this.assessmentRepository.updateClinicalNote(id, clinicalNote);
+  }
+
   async deleteAssessment(id: number) {
     return this.assessmentRepository.deleteAssessment(id);
+  }
+
+  async createAssessmentsBatch(data: AssessmentCreateInput[]) {
+    return this.assessmentRepository.createAssessmentsBatch(data);
   }
 
   async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {
@@ -274,12 +272,12 @@ export class DatabaseStorage implements IStorage {
     return this.patientUserRepository.create(data);
   }
 
-  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, startDate?: string, endDate?: string, createdBy?: string) {
-    return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset, startDate, endDate, createdBy);
+  async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, createdBy?: string, startDate?: string, endDate?: string) {
+    return this.assessmentRepository.getAssessmentsByPatientName(patientName, limit, offset, createdBy, startDate, endDate);
   }
 
-  async getPatientTrends(patientName: string) {
-    return this.assessmentRepository.getPatientTrends(patientName);
+  async getPatientTrends(patientName: string, createdBy?: string) {
+    return this.assessmentRepository.getPatientTrends(patientName, createdBy);
   }
 
   async getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string) {
