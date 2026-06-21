@@ -49,7 +49,7 @@ export interface IStorage {
     limit?: number,
     cursor?: number
   ): Promise<{ data: Assessment[]; nextCursor: number | null }>;
-  getAssessmentById(id: number): Promise<Assessment | undefined>;
+  getAssessmentById(id: number, createdBy?: string): Promise<Assessment | undefined>;
   createAssessment(assessment: any): Promise<Assessment>;
   deleteAssessment(id: number): Promise<void>;
   createUser(data: InsertUser): Promise<User>;
@@ -85,8 +85,8 @@ export class DatabaseStorage implements IStorage {
     return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor); 
   }
   
-  async getAssessmentById(id: number) { 
-    return this.assessmentRepository.getAssessmentById(id); 
+  async getAssessmentById(id: number, createdBy?: string) { 
+    return this.assessmentRepository.getAssessmentById(id, createdBy); 
   }
   
   async createAssessment(assessment: any) { 

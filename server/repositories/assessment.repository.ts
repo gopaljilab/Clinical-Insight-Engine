@@ -300,9 +300,13 @@ export class AssessmentRepository {
     return { data: pagedData, nextCursor };
   }
 
-  async getAssessmentById(id: number): Promise<Assessment | undefined> {
+  async getAssessmentById(id: number, createdBy?: string): Promise<Assessment | undefined> {
     const db = getDb();
     const conditions: ReturnType<typeof eq>[] = [eq(assessments.id, id)];
+
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy) as any);
+    }
 
     const [result] = await db
       .select()
