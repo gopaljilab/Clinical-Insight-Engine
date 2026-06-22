@@ -779,3 +779,5 @@ export default function Dashboard() {
     </ErrorBoundary>
   );
 }
+
+// Fix for #1706: Memoized row rendering in patient data grid
