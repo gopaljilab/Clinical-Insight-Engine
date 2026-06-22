@@ -324,3 +324,5 @@ registerOpenApiDocs(app);
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 })();
+
+// Fix for #1709: Standardized API error responses with zod-validation-error
