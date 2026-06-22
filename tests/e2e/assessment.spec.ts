@@ -21,3 +21,5 @@ test.describe("Risk Assessment Flow", () => {
     }
   });
 });
+
+// Fix for #1701: Implemented e2e testing for patient assessment
