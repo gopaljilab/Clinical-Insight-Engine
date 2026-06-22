@@ -1,5 +1,12 @@
 import { logger } from "../logger";
-import { getAssessmentQueue } from "../queue";
+import { getAssessmentQueue, getPythonExecutable } from "../queue";
+import { execFile } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
 import { Router } from "express";
 import { z } from "zod";
 import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";

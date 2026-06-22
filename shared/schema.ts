@@ -19,6 +19,8 @@ export const assessments = pgTable("assessments", {
   bmi: doublePrecision("bmi").notNull(),
   hba1cLevel: doublePrecision("hba1c_level").notNull(),
   bloodGlucoseLevel: doublePrecision("blood_glucose_level").notNull(),
+  insulin: doublePrecision("insulin"),
+  skinThickness: doublePrecision("skin_thickness"),
 
   // Model Outputs
   riskScore: doublePrecision("risk_score").notNull(), // 0-100 percentage
@@ -105,9 +107,35 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "Blood glucose level is required", invalid_type_error: "Blood glucose must be a number" })
+      .number({ required_error: "Blood glucose level is required", invalid_type_error: "Blood glucose level must be a number" })
       .min(50, "Blood glucose must be at least 50")
-      .max(400, "Blood glucose must be 400 or below"),
+      .max(500, "Blood glucose must be 500 or below"),
+  ),
+  insulin: z.preprocess(
+    (v) => {
+      if (v === "" || v === undefined || v === null) return undefined;
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
+      return Number.isNaN(n) ? v : n;
+    },
+    z
+      .number({ invalid_type_error: "Insulin must be a number" })
+      .min(0, "Insulin must be at least 0")
+      .max(1000, "Insulin must be 1000 or below")
+      .optional(),
+  ),
+  skinThickness: z.preprocess(
+    (v) => {
+      if (v === "" || v === undefined || v === null) return undefined;
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
+      return Number.isNaN(n) ? v : n;
+    },
+    z
+      .number({ invalid_type_error: "Skin thickness must be a number" })
+      .min(0, "Skin thickness must be at least 0")
+      .max(100, "Skin thickness must be 100 or below")
+      .optional(),
   ),
   createdBy: z.string().email("createdBy must be a valid email").optional(),
   clinicalNote: z.string().optional().nullable(),

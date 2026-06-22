@@ -176,6 +176,10 @@ export class DatabaseStorage implements IStorage {
     return this.assessmentRepository.createAssessmentsBatch(data);
   }
 
+  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: "LOW" | "MODERATE" | "HIGH", limit?: number, cursor?: number) {
+    return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor);
+  }
+
   async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {
     return this.assessmentRepository.autocompletePatientNames(query, createdBy, limit);
   }
