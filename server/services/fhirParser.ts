@@ -522,9 +522,9 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Ins
   // Zod parsing will validate range values
   try {
     return insertAssessmentSchema.parse(assessment);
-  } catch (err: unknown) {
-    if (err.errors && err.errors.length > 0) {
-      throw new Error(err.errors[0].message);
+  } catch (err) {
+    if ((err as any).errors && (err as any).errors.length > 0) {
+      throw new Error(String((err as any).errors[0].message));
     }
     throw err;
   }

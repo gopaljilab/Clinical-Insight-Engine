@@ -119,7 +119,7 @@ assessmentsRouter.post(
           const variant = { ...original, ...p };
           const variantResult = calculateClinicalFallback(variant) as PredictionResult;
           const riskReduction = originalResult.riskScore - variantResult.riskScore;
-          const desc = Object.keys(p).map(k => `${k}:${(original)[k] ?? '?'}->${(p)[k]}`).join("; ");
+          const desc = Object.keys(p).map(k => `${k}:${(original as Record<string, unknown>)[k] ?? '?'}->${(p as Record<string, unknown>)[k]}`).join("; ");
           return {
             delta: desc,
             riskScore: variantResult.riskScore,
@@ -308,8 +308,8 @@ assessmentsRouter.post(
         }
 
         logger.warn(
+          { err: error as Error },
           "Python prediction simulation failed, falling back to clinical rule-based model:",
-          error
         );
         prediction = calculateClinicalFallback(input);
       }
@@ -564,9 +564,9 @@ assessmentsRouter.get(
         return res.status(404).json({ message: "Assessment not found." });
       }
 
-      if (!canAccessPatientRecord(user, assessment)) {
+      if (!canAccessPatientRecord({ id: user.id, email: user.email, role: user.role ?? null }, assessment)) {
         logAccessAttempt(
-          (user).id,
+          user.id,
           "Assessment",
           id,
           false,
@@ -575,7 +575,7 @@ assessmentsRouter.get(
         return res.status(404).json({ message: "Assessment not found." });
       }
 
-      logAccessAttempt((user).id, "Assessment", id, true, "Authorized access");
+      logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
       const recommendations = generateRecommendations({ ...assessment, riskCategory: assessment.riskCategory });
       return res.json({ ...assessment, recommendations });
     } catch (err) {
@@ -609,9 +609,9 @@ assessmentsRouter.delete(
         return res.status(404).json({ message: "Assessment not found." });
       }
 
-      if (!canAccessPatientRecord(user, assessment)) {
+      if (!canAccessPatientRecord({ id: user.id, email: user.email, role: user.role ?? null }, assessment)) {
         logAccessAttempt(
-          (user).id,
+          user.id,
           "Assessment",
           id,
           false,
@@ -622,7 +622,7 @@ assessmentsRouter.delete(
 
       await storage.deleteAssessment(id);
       
-      logAccessAttempt((user).id, "Assessment", id, true, "Assessment deleted successfully");
+      logAccessAttempt(user.id, "Assessment", id, true, "Assessment deleted successfully");
       return res.status(204).send();
     } catch (err) {
       logger.error({ err }, "Assessment delete error:");

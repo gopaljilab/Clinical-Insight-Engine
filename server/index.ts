@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { safeExecML } from "./utils/exec";
-import express, { type Request, Response, NextFunction } from "express";
+import express, { type Request, type Response, type NextFunction, type RequestHandler } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
@@ -132,9 +132,9 @@ app.use((_req, res, next) => {
 });
 
 // Security headers via helmet
-const scriptSrcDirective: Array<string | ((req: Parameters<RequestHandler>[0], res: Parameters<RequestHandler>[0]) => string)> = [
+const scriptSrcDirective: Array<string | ((req: Request, res: Response) => string)> = [
   "'self'",
-  (_req: any, res: Parameters<RequestHandler>[0]) => `'nonce-${res.locals.cspNonce}'`,
+  (_req: Request, res: Response) => `'nonce-${res.locals.cspNonce}'`,
 ];
 
 

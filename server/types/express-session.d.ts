@@ -1,8 +1,13 @@
 import "express-session";
-import { User } from "@shared/schema";
 
 declare module "express-session" {
   interface SessionData {
-    user: Pick<User, "id" | "email" | "role">;
+    user?: {
+      id: string;
+      email: string;
+      name: string;
+      role?: string | null;
+      emailVerified: boolean;
+    };
   }
 }

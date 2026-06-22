@@ -91,7 +91,8 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
 
   function handleServerErrors(err: unknown) {
     clearAllFieldErrors();
-    const fieldErrs = err.fieldErrors as Array<{ field: string; message: string }> | undefined;
+    const errRecord = err as Record<string, unknown> | undefined;
+    const fieldErrs = errRecord?.fieldErrors as Array<{ field: string; message: string }> | undefined;
     if (fieldErrs && fieldErrs.length > 0) {
       const mapped: FieldErrors = {};
       for (const fe of fieldErrs) {
@@ -104,10 +105,10 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       }
       setFieldErrors(mapped);
       if (Object.keys(mapped).length === 0) {
-        setError((err as Error).message || "Validation failed.");
+        setError((errRecord?.message as string) || "Validation failed.");
       }
     } else {
-      setError((err as Error).message || "Authentication failed. Please try again.");
+      setError((errRecord?.message as string) || "Authentication failed. Please try again.");
     }
   }
 
@@ -143,7 +144,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       setCountdown(600);
       setResendCooldown(60);
       setOtp(responseData?.devOtp || "");
-    } catch (err: unknown) {
+    } catch (err: any) {
       handleServerErrors(err);
     } finally {
       setIsLoading(false);
@@ -175,8 +176,8 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       } else {
         setLocation("/dashboard");
       }
-    } catch (err: unknown) {
-      setError((err as Error).message || "Verification failed. Please check the code and try again.");
+    } catch (err: any) {
+      setError(err?.message || "Verification failed. Please check the code and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -209,8 +210,8 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
         setDevOtp(undefined);
         setOtp("");
       }
-    } catch (err: unknown) {
-      setError((err as Error).message);
+    } catch (err: any) {
+      setError(err?.message);
     } finally {
       setIsLoading(false);
     }
@@ -225,8 +226,8 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     try {
       await ApiClient.post("/api/auth/forgot-password", { email });
       setForgotSent(true);
-    } catch (err: unknown) {
-      setError((err as Error).message || "Failed to send reset email.");
+    } catch (err: any) {
+      setError(err?.message || "Failed to send reset email.");
     } finally {
       setIsLoading(false);
     }

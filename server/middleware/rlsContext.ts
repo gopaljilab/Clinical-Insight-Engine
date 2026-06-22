@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import { createRlsClient, runWithRlsDb, type RlsUserContext } from "../db-rls";
 import { getDb } from "../db";
-import { patientUsers } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "../logger";
+import { patientUsers } from "@shared/schema";
 
 async function resolvePatientName(userId: string): Promise<string | undefined> {
   try {
@@ -84,7 +84,7 @@ export async function rlsContextMiddleware(
     }
   }
 
-  const authUser = (req).authenticatedUser;
+  const authUser = (req as any).authenticatedUser as { userId: string; email: string; role: string } | undefined;
   if (!context && authUser) {
     context = {
       userId: authUser.userId,
