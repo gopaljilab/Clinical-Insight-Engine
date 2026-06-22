@@ -182,6 +182,8 @@ export class DatabaseStorage implements IStorage {
     return this.assessmentRepository.createAssessmentsBatch(data);
   }
 
+
+
   async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {
     return this.assessmentRepository.autocompletePatientNames(query, createdBy, limit);
   }

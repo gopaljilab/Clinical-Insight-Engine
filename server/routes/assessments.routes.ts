@@ -1,5 +1,12 @@
 import { logger } from "../logger";
-import { getAssessmentQueue } from "../queue";
+import { getAssessmentQueue, getPythonExecutable } from "../queue";
+import { execFile } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
 import { Router } from "express";
 import { z } from "zod";
 import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
@@ -19,23 +26,6 @@ import { searchQuerySchema, assessmentsQuerySchema, cohortQuerySchema } from "..
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
 import { validateDTO } from "../middleware/validateDTO";
-import { existsSync } from "fs";
-import { execFile } from "child_process";
-import { fileURLToPath } from "url";
-import path from "path";
-import os from "os";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
-
-function getPythonExecutable() {
-  const candidates =
-    process.platform === "win32"
-      ? [ path.resolve(".venv", "Scripts", "python.exe"), path.resolve("venv", "Scripts", "python.exe") ]
-      : [ path.resolve(".venv", "bin", "python"), path.resolve("venv", "bin", "python") ];
-  return candidates.find((candidate) => existsSync(candidate)) ?? (process.platform === "win32" ? "python" : "python3");
-}
 
 const assessmentsRouter = Router();
 
@@ -146,14 +136,14 @@ assessmentsRouter.post(
           getPythonExecutable(),
           [analyzePyPath, "counterfactual"],
           { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
-          (error, stdout, stderr) => {
+          (error: any, stdout: any, stderr: any) => {
             if (error) reject(error);
             else resolve(stdout);
           }
         );
 
         if (child.stdin) {
-          child.stdin.on("error", (err) => {
+          child.stdin.on("error", (err: any) => {
             logger.error({ err }, "Error writing to python stdin");
           });
           child.stdin.write(JSON.stringify(payload));
@@ -194,14 +184,14 @@ assessmentsRouter.post(
           getPythonExecutable(),
           [analyzePyPath, "counterfactual_auto"],
           { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
-          (error, stdout, stderr) => {
+          (error: any, stdout: any, stderr: any) => {
             if (error) reject(error);
             else resolve(stdout);
           }
         );
 
         if (child.stdin) {
-          child.stdin.on("error", (err) => {
+          child.stdin.on("error", (err: any) => {
             logger.error({ err }, "Error writing to python stdin");
           });
           child.stdin.write(JSON.stringify(input));
