@@ -148,6 +148,81 @@ const rules: Rule[] = [
     }
     return recs;
   },
+    (a) => {
+    const recs: Recommendation[] = [];
+
+    const bmi =
+      typeof a.bmi === "number" ? a.bmi : Number(a.bmi || 0);
+
+    const glucose =
+      typeof a.bloodGlucoseLevel === "number"
+        ? a.bloodGlucoseLevel
+        : Number(a.bloodGlucoseLevel || 0);
+
+    if (bmi >= 25 || glucose >= 140) {
+      recs.push({
+        id: uuidv4(),
+        title: "AI Personalized Diet Plan",
+        description:
+          "Follow a balanced diet rich in vegetables, whole grains, lean protein, and fiber while reducing sugar and processed foods.",
+        urgency: "medium",
+        audience: "both",
+        checklist: true,
+      });
+    }
+
+    return recs;
+  },
+    (a) => {
+    const recs: Recommendation[] = [];
+
+    recs.push({
+      id: uuidv4(),
+      title: "Weekly Health Improvement Goal",
+      description:
+        "Complete at least 150 minutes of exercise per week, maintain proper hydration, sleep 7-8 hours, and track body weight.",
+      urgency: "low",
+      audience: "both",
+      checklist: true,
+    });
+
+    return recs;
+  },
+    (a) => {
+    const recs: Recommendation[] = [];
+
+    const risk =
+      (a.riskCategory || "").toString().toUpperCase();
+
+    if (risk === "HIGH" || risk === "MEDIUM") {
+      recs.push({
+        id: uuidv4(),
+        title: "Diabetes Risk Reduction Milestone",
+        description:
+          "Aim to improve HbA1c levels, maintain a healthy BMI, avoid smoking, and achieve measurable lifestyle improvements over the next 3-6 months.",
+        urgency: "medium",
+        audience: "both",
+        checklist: true,
+      });
+    }
+
+    return recs;
+  },
+    (a) => {
+    const recs: Recommendation[] = [];
+
+    recs.push({
+      id: uuidv4(),
+      title: "Lifestyle Progress Tracking",
+      description:
+        "Monitor daily physical activity, diet quality, blood glucose trends, and weight changes to support long-term diabetes prevention.",
+      urgency: "low",
+      audience: "both",
+      checklist: true,
+    });
+
+    return recs;
+  },
 ];
 
 /**
