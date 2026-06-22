@@ -2,6 +2,21 @@ import { Info, TrendingUp, TrendingDown } from "lucide-react";
 import type { PredictionExplanation as PredictionExplanationType } from "@shared/routes";
 import { useTranslation } from "react-i18next";
 
+function translateFactor(key: string, t: (key: string) => string) {
+  const map: Record<string, string> = {
+    Age: "factorReasoning.age",
+    BMI: "factorReasoning.bmi",
+    HbA1c: "factorReasoning.hba1c",
+    "Blood Glucose": "factorReasoning.glucose",
+    Hypertension: "factorReasoning.hypertension",
+    "Heart Disease": "factorReasoning.heartDisease",
+    Smoking: "factorReasoning.smoking",
+    Gender: "factorReasoning.gender",
+  };
+
+  return map[key] ? t(map[key]) : key;
+}
+
 export function PredictionExplanation({
   explanation,
   view,
@@ -15,7 +30,14 @@ export function PredictionExplanation({
   }
 
   const heading = view === "patient" ? t("predictionExplanation.titlePatient") : t("predictionExplanation.titleClinician");
-  const description = view === "patient" ? explanation.patientSummary : explanation.clinicianSummary;
+  const description =
+    view === "patient"
+      ? t("predictionExplanation.patientSummary", {
+          defaultValue: explanation.patientSummary,
+        })
+      : t("predictionExplanation.clinicianSummary", {
+          defaultValue: explanation.clinicianSummary,
+        });
 
   return (
     <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
@@ -43,7 +65,9 @@ export function PredictionExplanation({
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="font-semibold text-foreground">{factor.name}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{factor.description}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {translateFactor(factor.name, t)}
+                    </p>
                   </div>
                   <span
                     className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
@@ -63,7 +87,9 @@ export function PredictionExplanation({
                     style={{ width: `${factor.strength}%` }}
                   />
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">{factor.why}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {translateFactor(factor.name, t)}
+                </p>
               </li>
             ))}
           </ul>
