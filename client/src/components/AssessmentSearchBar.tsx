@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Search, X, ShieldAlert, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { validateSearchInput } from "@/validation/filterValidation";
+import { ApiClient } from "@/lib/apiClient";
 
 interface AssessmentSearchBarProps {
   value: string;
@@ -35,14 +36,9 @@ export function AssessmentSearchBar({ value, onSearch, onClear }: AssessmentSear
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/assessments/autocomplete?q=${encodeURIComponent(query)}`, {
-        credentials: "include",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSuggestions(data);
-        setShowDropdown(data.length > 0);
-      }
+      const data = await ApiClient.get<string[]>(`/api/assessments/autocomplete?q=${encodeURIComponent(query)}`);
+      setSuggestions(data);
+      setShowDropdown(data.length > 0);
     } catch {
       setSuggestions([]);
     } finally {
