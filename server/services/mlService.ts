@@ -524,3 +524,5 @@ export const MLService = {
   runAssessmentInference,
   runAssessmentInferenceBatch,
 };
+
+// Fix for #1696: Removed debug console logs from ML service
