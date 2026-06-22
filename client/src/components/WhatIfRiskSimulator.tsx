@@ -3,13 +3,7 @@ import { ArrowDown, ArrowUp, BarChart3, CheckCircle2, Loader2, TrendingDown, Tre
 import { type AssessmentResponse, type AssessmentWhatIfResponse, type AssessmentWhatIfBatchResponse } from "@shared/routes";
 import { useWhatIfAssessment, useWhatIfBatch } from "@/hooks/use-assessments";
 import { useToast } from "@/hooks/use-toast";
-
-const smokingStatusOptions = [
-  { label: "Never", value: "never" },
-  { label: "Former", value: "former" },
-  { label: "Current", value: "current" },
-  { label: "No Info", value: "No Info" },
-];
+import { useTranslation } from "react-i18next";
 
 const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
@@ -42,7 +36,15 @@ interface WhatIfRiskSimulatorProps {
 }
 
 export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfRiskSimulatorProps) {
+  const { t } = useTranslation();
   const { toast } = useToast();
+
+  const smokingStatusOptions = [
+    { label: t("simulator.neverSmoked"), value: "never" },
+    { label: t("simulator.formerSmoker"), value: "former" },
+    { label: t("simulator.currentSmoker"), value: "current" },
+    { label: t("simulator.noInfo"), value: "No Info" },
+  ];
   const whatIfMutation = useWhatIfAssessment();
   const whatIfBatchMutation = useWhatIfBatch();
 
@@ -65,16 +67,16 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
 
   const differenceLabel = useMemo(() => {
     if (!simulationResult) {
-      return "Adjust values above to see the impact.";
+      return t("simulator.adjustValues");
     }
     if (riskDifference < 0) {
-      return `Risk Reduction: ${Math.abs(riskDifference).toFixed(1)}%`;
+      return t("simulator.riskReduction", { percent: Math.abs(riskDifference).toFixed(1) });
     }
     if (riskDifference > 0) {
-      return `Risk Increase: +${riskDifference.toFixed(1)}%`;
+      return t("simulator.riskIncrease", { percent: riskDifference.toFixed(1) });
     }
-    return "Risk unchanged.";
-  }, [riskDifference, simulationResult]);
+    return t("simulator.riskUnchanged");
+  }, [riskDifference, simulationResult, t]);
 
   const buildInput = (overrides: Partial<typeof values>) => ({
     patientName: assessment.patientName,
@@ -129,13 +131,13 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
         onComparisonFactors(response.factors ?? null);
       }
       toast({
-        title: "Simulation complete",
-        description: "Your what-if risk preview is ready.",
+        title: t("simulator.simulationComplete"),
+        description: t("simulator.simulationReady"),
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Simulation failed",
-        description: error?.message ?? "Unable to calculate the simulated risk.",
+        description: (error as Error).message ?? "Unable to calculate the simulated risk.",
         variant: "destructive",
       });
     }
@@ -180,11 +182,11 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/80">
-            What-If Risk Simulator
+            {t("simulator.title")}
           </p>
-          <h3 className="mt-2 text-xl font-bold text-foreground">Explore the impact of lifestyle changes</h3>
+          <h3 className="mt-2 text-xl font-bold text-foreground">{t("simulator.heading")}</h3>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Adjust key health inputs and see how the risk estimate changes in real time.
+            {t("simulator.description")}
           </p>
         </div>
         <div className="flex gap-2">
@@ -199,7 +201,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
             }`}
           >
             <BarChart3 className="h-4 w-4" />
-            {showComparison ? "Showing What-If" : "Compare Charts"}
+            {showComparison ? t("simulator.showingWhatIf") : t("simulator.compareCharts")}
           </button>
           <button
             type="button"
@@ -212,7 +214,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
             ) : (
               <TrendingUp className="h-4 w-4" />
             )}
-            Run Simulation
+            {t("simulator.runSimulation")}
           </button>
         </div>
       </div>
@@ -221,7 +223,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
         <div className="rounded-3xl border border-border bg-secondary/75 p-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-2">
-              <span className="text-sm font-semibold text-foreground">BMI</span>
+              <span className="text-sm font-semibold text-foreground">{t("simulator.bmi")}</span>
               <input
                 type="number"
                 value={values.bmi}
@@ -233,7 +235,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
               />
             </label>
             <label className="space-y-2">
-              <span className="text-sm font-semibold text-foreground">HbA1c Level</span>
+              <span className="text-sm font-semibold text-foreground">{t("simulator.hba1c")}</span>
               <input
                 type="number"
                 value={values.hba1cLevel}
@@ -245,7 +247,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
               />
             </label>
             <label className="space-y-2">
-              <span className="text-sm font-semibold text-foreground">Blood Glucose</span>
+              <span className="text-sm font-semibold text-foreground">{t("simulator.bloodGlucose")}</span>
               <input
                 type="number"
                 value={values.bloodGlucoseLevel}
@@ -257,7 +259,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
               />
             </label>
             <label className="space-y-2">
-              <span className="text-sm font-semibold text-foreground">Smoking Status</span>
+              <span className="text-sm font-semibold text-foreground">{t("simulator.smokingStatus")}</span>
               <select
                 value={values.smokingHistory}
                 onChange={(event) => handleFieldChange("smokingHistory", event.target.value)}
@@ -277,7 +279,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
           <div className="rounded-3xl border border-border bg-background p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-muted-foreground">Current Risk</p>
+                <p className="text-sm font-semibold text-muted-foreground">{t("simulator.currentRisk")}</p>
                 <p className="mt-2 text-3xl font-bold text-foreground">{formatPercent(currentRisk)}</p>
               </div>
               <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getRiskBadgeClasses(assessment.riskCategory)}`}>
@@ -289,13 +291,13 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
           <div className="rounded-3xl border border-border bg-background p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-muted-foreground">Simulated Risk</p>
+                <p className="text-sm font-semibold text-muted-foreground">{t("simulator.simulatedRisk")}</p>
                 <p className="mt-2 text-3xl font-bold text-foreground">
                   {simulationResult ? formatPercent(simulatedRisk) : "--"}
                 </p>
               </div>
               <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${simulationResult ? getRiskBadgeClasses(simulationResult.riskCategory) : "text-slate-500 bg-slate-100 border-slate-200"}`}>
-                {simulationResult?.riskCategory ?? "Pending"}
+                {simulationResult?.riskCategory ?? t("simulator.pending")}
               </span>
             </div>
           </div>
@@ -306,7 +308,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
                 {riskDifference < 0 ? <TrendingDown className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
               </div>
               <div>
-                <p className="text-sm font-semibold text-foreground">Risk Difference</p>
+                <p className="text-sm font-semibold text-foreground">{t("simulator.riskDifference")}</p>
                 <p className="mt-2 text-lg font-bold">{simulationResult ? `${riskDifference > 0 ? "+" : ""}${riskDifference.toFixed(1)}%` : "--"}</p>
               </div>
             </div>
@@ -319,7 +321,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
         <div className="mt-6 rounded-3xl border border-border bg-secondary/80 p-5">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-4">
             <CheckCircle2 className="h-4 w-4 text-green-600" />
-            Biggest Impact Changes
+            {t("simulator.biggestImpact")}
           </div>
           <div className="grid gap-3">
             {batchResult.ranked.slice(0, 5).map((item: any, i: number) => {
@@ -333,7 +335,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
                     <div>
                       <p className="font-semibold text-foreground">{item.delta}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        New risk: {item.riskScore.toFixed(1)}% ({item.riskCategory})
+                        {t("simulator.newRisk", { score: item.riskScore.toFixed(1), category: item.riskCategory })}
                       </p>
                     </div>
                   </div>

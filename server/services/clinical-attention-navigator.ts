@@ -35,6 +35,11 @@ function admissionPriority(value: number | undefined, threshold: number, keyLabe
   return "monitor";
 }
 
+/**
+ * Prioritizes clinical risk factors based on urgency (high/moderate/monitor) to navigate clinician attention to critical areas.
+ * @param input - The input parameter.
+ * @returns The result of the operation.
+ */
 export function generateAttentionNavigator(input: NavigatorInput): AttentionNavigator {
   const priorities: AttentionPriority[] = [];
   const age = Number(input.age ?? NaN);

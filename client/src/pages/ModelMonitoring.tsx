@@ -377,7 +377,7 @@ export default function ModelMonitoring() {
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.message || "Retrain failed");
+        throw new Error((err as Error).message || "Retrain failed");
       }
       return res.json();
     },
