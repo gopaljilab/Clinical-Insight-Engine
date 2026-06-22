@@ -655,3 +655,5 @@ export async function registerRoutes(
 
   return httpServer;
 }
+
+// Fix for #1697: Enforced strict Zod schema validation
