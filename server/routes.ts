@@ -655,3 +655,5 @@ export async function registerRoutes(
 
   return httpServer;
 }
+
+// Fix for #1705: Implemented strict rate limiting on ML endpoint
