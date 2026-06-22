@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { randomInt, randomBytes } from "crypto";
+import { randomInt, randomBytes, createHash } from "crypto";
 import bcrypt from "bcrypt";
 import { rateLimit } from "express-rate-limit";
 import { issueToken } from "./services/auth/tokenValidator";
@@ -639,9 +639,10 @@ out
       }
 
       const token = randomBytes(32).toString("hex");
+      const tokenHash = createHash("sha256").update(token).digest("hex");
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-      await authRepository.createPasswordResetToken(user.id, token, expiresAt);
+      await authRepository.createPasswordResetToken(user.id, tokenHash, expiresAt);
 
       const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password?token=${token}`;
 
@@ -665,6 +666,12 @@ out
     const { token, newPassword } = req.body;
 
     try {
+      const resetToken = await authRepository.findPasswordResetToken(createHash("sha256").update(token).digest("hex"));
+
+      if (!resetToken) {
+        return res.status(400).json({ message: "Invalid or expired reset token." });
+      }
+
       const passwordHash = hashPassword(newPassword);
       await authRepository.claimPasswordResetToken(token, passwordHash);
       return res.json({ success: true, message: "Password has been reset successfully." });

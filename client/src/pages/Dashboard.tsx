@@ -14,6 +14,7 @@ import { insertAssessmentSchema } from "@shared/schema";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { ApiClient } from "@/lib/apiClient";
 const formSchema = insertAssessmentSchema.pick({
   patientName: true,
   gender: true,
@@ -185,19 +186,7 @@ export default function Dashboard() {
         setPreviewPending(true);
         setPreviewError(null);
 
-        const response = await fetch(api.assessments.preview.path, {
-          method: api.assessments.preview.method,
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(parsedForPreview.data),
-          signal: controller.signal,
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data?.message ?? "Failed to generate preview");
-        }
+        const data = await ApiClient.post(api.assessments.preview.path, parsedForPreview.data, { signal: controller.signal });
 
         const parsed = api.assessments.preview.responses[200].parse(data);
         setPreview(parsed);
