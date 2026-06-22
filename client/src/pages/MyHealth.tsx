@@ -11,7 +11,6 @@ import { Loader2, LogOut, Download, AlertTriangle, Heart, Activity, FileText, Ch
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatReadableDate } from "@/utils/dateFormat";
 import { EmptyState } from "@/components/EmptyState";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
 
 interface PatientUser {
