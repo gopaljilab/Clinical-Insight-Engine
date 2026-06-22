@@ -67,4 +67,21 @@ describe("File Upload Hardening", () => {
     expect(response.status).toBe(400);
     expect(response.body.message).toContain("File too large");
   });
+
+  it("rejects CSV files with more than 100 rows", async () => {
+    let csvContent = "name,age\n";
+    for (let i = 0; i < 101; i++) {
+      csvContent += `User${i},30\n`;
+    }
+    const response = await request(app)
+      .post("/api/upload/lab-results")
+      .attach("file", Buffer.from(csvContent), {
+        filename: "too_many_rows.csv",
+        contentType: "text/csv"
+      });
+    
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe("CSV exceeds maximum limit of 100 rows.");
+  });
 });
+

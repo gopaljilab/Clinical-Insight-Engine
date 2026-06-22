@@ -538,7 +538,7 @@ def validate_assessment_input(data):
         raise ValueError("Invalid age")
 
     gender = data.get("gender")
-    if gender not in ("Male", "Female"):
+    if not isinstance(gender, str) or not gender:
         raise ValueError("Invalid gender")
 
     bmi = data.get("bmi")
@@ -899,10 +899,16 @@ if __name__ == "__main__":
                     file=sys.stderr,
                 )
                 sys.exit(1)
-            with open(resolved_input, 'r') as f:
-                data = json.load(f)
+            with open(resolved_input, 'rb') as f:
+                raw_bytes = f.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         else:
-            data = json.load(sys.stdin)
+            raw_bytes = sys.stdin.buffer.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         model, scaler, features, cov_beta = get_model()
         if isinstance(data, list):
             results = interpret_predictions_batch(model, scaler, features, data, cov_beta)
@@ -912,12 +918,13 @@ if __name__ == "__main__":
             print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "daemon":
         model, scaler, features, cov_beta = get_model()
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
+        from app.utils.text_sanitizer import sanitize_text
+        for line_bytes in sys.stdin.buffer:
+            line_str = sanitize_text(line_bytes).strip()
+            if not line_str:
                 continue
             try:
-                request = json.loads(line)
+                request = json.loads(line_str)
                 request_id = request.get("requestId")
                 input_data = request.get("input")
                 
@@ -937,7 +944,7 @@ if __name__ == "__main__":
                     validated_input = validate_assessment_input(
                         input_data
                         )
-
+ 
                     prediction = interpret_prediction(
                         model,
                         scaler,
@@ -962,19 +969,31 @@ if __name__ == "__main__":
                 print(json.dumps(response), flush=True)
     elif len(sys.argv) > 1 and sys.argv[1] == "counterfactual":
         if len(sys.argv) > 2:
-            with open(sys.argv[2], 'r') as f:
-                data = json.load(f)
+            with open(sys.argv[2], 'rb') as f:
+                raw_bytes = f.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         else:
-            data = json.load(sys.stdin)
+            raw_bytes = sys.stdin.buffer.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         model, scaler, features, cov_beta = get_model()
         result = counterfactual_analysis(model, scaler, features, data, cov_beta)
         print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "counterfactual_auto":
         if len(sys.argv) > 2:
-            with open(sys.argv[2], 'r') as f:
-                data = json.load(f)
+            with open(sys.argv[2], 'rb') as f:
+                raw_bytes = f.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         else:
-            data = json.load(sys.stdin)
+            raw_bytes = sys.stdin.buffer.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         model, scaler, features, cov_beta = get_model()
         result = get_counterfactuals(model, scaler, features, data, cov_beta)
         print(json.dumps(result))

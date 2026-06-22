@@ -262,7 +262,7 @@ export function startAssessmentWorker(): void {
         emitAssessmentProgress(job.id ?? "", 100, "Assessment Complete");
         emitAssessmentCompleted(job.id ?? "", result);
         return result;
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error(
           {
             jobId: job.id,
@@ -274,10 +274,10 @@ export function startAssessmentWorker(): void {
         );
 
         if (
-          err.killed ||
-          err.signal === "SIGTERM" ||
-          err.message === "Clinical assessment timed out." ||
-          err.message?.includes("timed out")
+          (err as any).killed ||
+          (err as any).signal === "SIGTERM" ||
+          (err as Error).message === "Clinical assessment timed out." ||
+          (err as Error).message?.includes("timed out")
         ) {
           throw new Error("Clinical assessment generation timed out.");
         }

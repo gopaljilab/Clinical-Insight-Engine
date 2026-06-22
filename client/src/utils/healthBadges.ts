@@ -97,6 +97,12 @@ function hasAnyImprovement(
   return hasBmi || hasHba1c || hasGlucose || hasRisk;
 }
 
+/**
+ * Calculate Health Badges.
+ * @param current - The current parameter.
+ * @param history - The history parameter.
+ * @returns The result of the operation.
+ */
 export function calculateHealthBadges(
   current: AssessmentResponse,
   history: AssessmentResponse[]
