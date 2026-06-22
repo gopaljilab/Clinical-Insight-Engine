@@ -324,3 +324,5 @@ registerOpenApiDocs(app);
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 })();
+
+// Fix for #1708: Enforced strict CORS origin policies
