@@ -83,7 +83,9 @@
     "es": "Español",
     "fr": "Français",
     "hi": "हिन्दी",
-    "switchTo": "भाषा बदलें"
+    "switchTo": "भाषा बदलें",
+    "zh": "中文",
+    "ar": "العربية"
   },
   "assessment": {
     "title": "नया मूल्यांकन",

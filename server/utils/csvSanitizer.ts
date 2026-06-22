@@ -1,5 +1,25 @@
 const FORMULA_PREFIX_PATTERN = /^[=+\-@]/;
 
+function flattenCellValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => flattenCellValue(item))
+      .filter(Boolean)
+      .join("; ");
+  }
+  if (value !== null && typeof value === "object" && !(value instanceof Date)) {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => `${k}: ${flattenCellValue(v)}`)
+      .join(", ");
+  }
+  return String(value ?? "");
+}
+
+/**
+ * Sanitize Csv Cell.
+ * @param value - The value parameter.
+ * @returns The result of the operation.
+ */
 export function sanitizeCsvCell(value: unknown): string {
   if (value === null || value === undefined) {
     return "";
@@ -13,7 +33,7 @@ export function sanitizeCsvCell(value: unknown): string {
   if (value instanceof Date) {
     text = value.toISOString();
   } else if (typeof value === "object") {
-    text = JSON.stringify(value);
+    text = flattenCellValue(value);
   } else {
     text = String(value);
   }
@@ -32,6 +52,11 @@ export function sanitizeCsvCell(value: unknown): string {
   return text;
 }
 
+/**
+ * Escape Csv Cell.
+ * @param value - The value parameter.
+ * @returns The result of the operation.
+ */
 export function escapeCsvCell(value: unknown): string {
   const sanitized = sanitizeCsvCell(value);
 

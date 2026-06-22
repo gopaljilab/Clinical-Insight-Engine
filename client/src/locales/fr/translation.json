@@ -83,7 +83,9 @@
     "es": "Español",
     "fr": "Français",
     "hi": "हिन्दी",
-    "switchTo": "Changer de langue"
+    "switchTo": "Changer de langue",
+    "zh": "中文",
+    "ar": "العربية"
   },
   "assessment": {
     "title": "Nouvelle Évaluation",

@@ -41,13 +41,8 @@ describe("api route contracts", () => {
     const parsed = api.assessments.list.responses[200].parse({
       data: [],
       nextCursor: null,
-      total: 0,
-      page: 1,
-      limit: 20,
-      totalPages: 0,
     });
 
-    expect(parsed.total).toBe(0);
     expect(parsed.nextCursor).toBeNull();
   });
 

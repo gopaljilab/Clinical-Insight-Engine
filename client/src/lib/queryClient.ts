@@ -27,8 +27,8 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     try {
       return await ApiClient.get(queryKey.join("/") as string);
-    } catch (error: any) {
-      if (unauthorizedBehavior === "returnNull" && error.status === 401) {
+    } catch (error: unknown) {
+      if (unauthorizedBehavior === "returnNull" && (error as any).status === 401) {
         return null;
       }
       throw error;

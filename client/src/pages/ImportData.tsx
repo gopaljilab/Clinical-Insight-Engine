@@ -50,7 +50,7 @@ type ValidationResult =
   | { ok: true; count: number }
   | { ok: false; errors: string[] };
 
-function validateParsedData(rows: any[]): ValidationResult {
+function validateParsedData(rows: Record<string, unknown>[]): ValidationResult {
   const errors: string[] = [];
   rows.forEach((row, i) => {
     const rowNum = i + 2;
@@ -74,7 +74,7 @@ export default function ImportData() {
   const [progress, setProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<Record<string, unknown>[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -109,14 +109,14 @@ export default function ImportData() {
     setSelectedFile(file); setValidation(null); setResults([]);
     Papa.parse(file, {
       header: true, skipEmptyLines: true,
-      complete: async (parsed: Papa.ParseResult<any>) => {
+      complete: async (parsed: Papa.ParseResult<Record<string, unknown>>) => {
         const v = validateParsedData(parsed.data);
         setValidation(v);
         if (!v.ok) return;
         setIsProcessing(true);
         const iv = startProgress();
         try {
-          const formattedData = parsed.data.map((row: any) => ({
+          const formattedData = parsed.data.map((row: Record<string, unknown>) => ({
             patientName: row.patientName || row.name || "Unknown Patient",
             gender: row.gender, age: Number(row.age),
             hypertension: row.hypertension === "1" || row.hypertension === "true" || row.hypertension === true,
@@ -131,12 +131,12 @@ export default function ImportData() {
           const data = await res.json();
           clearInterval(iv); setProgress(100); setResults(data.assessments);
           toast({ title: "Success", description: "Successfully imported " + data.count + " patient records." });
-        } catch (error: any) {
+        } catch (error: unknown) {
           clearInterval(iv); setProgress(0);
-          toast({ title: "Import Error", description: error.message, variant: "destructive" });
+          toast({ title: "Import Error", description: error instanceof Error ? (error as Error).message : String(error), variant: "destructive" });
         } finally { setIsProcessing(false); }
       },
-      error: (error: Error) => { toast({ title: "Parsing Error", description: error.message, variant: "destructive" }); },
+      error: (error: Error) => { toast({ title: "Parsing Error", description: (error as Error).message, variant: "destructive" }); },
     });
   };
 
@@ -225,11 +225,11 @@ export default function ImportData() {
           {validation && (
             <div className={"rounded-xl border p-4 " + (validation.ok ? "border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30")}>
               {validation.ok ? (
-                <div className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /><p className="font-semibold text-emerald-800 dark:text-emerald-400">CSV Validated: {(validation as any).count} patient records ready for optimization mapping.</p></div>
+                <div className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /><p className="font-semibold text-emerald-800 dark:text-emerald-400">CSV Validated: {validation.ok ? validation.count : 0} patient records ready for optimization mapping.</p></div>
               ) : (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2"><AlertCircle className="w-5 h-5 text-red-500 shrink-0" /><p className="font-semibold text-red-800 dark:text-red-400">Validation Failed: {(validation as any).errors.length} issue(s) found.</p></div>
-                  <ul className="ml-7 space-y-1">{(validation as any).errors.slice(0,8).map((err: string, i: number) => <li key={i} className="text-sm text-red-700 dark:text-red-400 list-disc">{err}</li>)}</ul>
+                  <div className="flex items-center gap-2"><AlertCircle className="w-5 h-5 text-red-500 shrink-0" /><p className="font-semibold text-red-800 dark:text-red-400">Validation Failed: {validation.ok === false ? validation.errors.length : 0} issue(s) found.</p></div>
+                  <ul className="ml-7 space-y-1">{validation.ok === false && validation.errors.slice(0,8).map((err: string, i: number) => <li key={i} className="text-sm text-red-700 dark:text-red-400 list-disc">{err}</li>)}</ul>
                   <Button variant="outline" size="sm" onClick={clearFile}><X className="w-3 h-3 mr-1" />Clear and re-upload</Button>
                 </div>
               )}
@@ -243,7 +243,7 @@ export default function ImportData() {
           <CardHeader><CardTitle className="flex items-center gap-2 dark:text-gray-100"><CheckCircle className="w-5 h-5 text-emerald-500" />Import Successful -- {results.length} records processed</CardTitle></CardHeader>
           <CardContent><div className="overflow-x-auto"><table className="w-full text-sm text-left">
             <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-gray-800 dark:text-slate-400"><tr><th className="px-4 py-3">Patient</th><th className="px-4 py-3">Age / Gender</th><th className="px-4 py-3">Risk Category</th><th className="px-4 py-3">Risk Score</th></tr></thead>
-            <tbody>{results.map((r, i) => (<tr key={i} className="border-b border-slate-100 dark:border-gray-800"><td className="px-4 py-3 font-medium dark:text-gray-200">{r.patientName}</td><td className="px-4 py-3 dark:text-gray-300">{r.age} / {r.gender}</td><td className="px-4 py-3"><span className={"px-2 py-1 rounded text-xs font-bold " + (r.riskCategory === "HIGH" ? "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400" : r.riskCategory === "MODERATE" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400")}>{r.riskCategory}</span></td><td className="px-4 py-3 font-bold dark:text-gray-100">{r.riskScore}%</td></tr>))}</tbody>
+            <tbody>{results.map((r, i) => (<tr key={i} className="border-b border-slate-100 dark:border-gray-800"><td className="px-4 py-3 font-medium dark:text-gray-200">{String(r.patientName)}</td><td className="px-4 py-3 dark:text-gray-300">{String(r.age)} / {String(r.gender)}</td><td className="px-4 py-3"><span className={"px-2 py-1 rounded text-xs font-bold " + (r.riskCategory === "HIGH" ? "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400" : r.riskCategory === "MODERATE" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400")}>{String(r.riskCategory)}</span></td><td className="px-4 py-3 font-bold dark:text-gray-100">{String(r.riskScore)}%</td></tr>))}</tbody>
           </table></div></CardContent>
         </Card>
       )}

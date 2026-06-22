@@ -392,3 +392,76 @@ def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
     assert migrated_data[5] == os.path.getmtime(test_data_file)
     assert migrated_data[6] == os.path.getsize(test_data_file)
 
+def test_validate_assessment_input_rejects_invalid_age():
+    from analyze import validate_assessment_input
+
+    with pytest.raises(ValueError):
+        validate_assessment_input(
+            {
+                "age": -1,
+                "gender": "Male",
+                "hypertension": False,
+                "heartDisease": False,
+                "bmi": 25,
+                "hba1cLevel": 5.5,
+                "bloodGlucoseLevel": 100,
+                "smokingHistory": "never",
+            }
+        )
+
+
+def test_validate_assessment_input_rejects_invalid_gender():
+    from analyze import validate_assessment_input
+
+    # Rejects non-string gender
+    with pytest.raises(ValueError):
+        validate_assessment_input(
+            {
+                "age": 40,
+                "gender": 123,
+                "hypertension": False,
+                "heartDisease": False,
+                "bmi": 25,
+                "hba1cLevel": 5.5,
+                "bloodGlucoseLevel": 100,
+                "smokingHistory": "never",
+            }
+        )
+
+    # Rejects empty gender
+    with pytest.raises(ValueError):
+        validate_assessment_input(
+            {
+                "age": 40,
+                "gender": "",
+                "hypertension": False,
+                "heartDisease": False,
+                "bmi": 25,
+                "hba1cLevel": 5.5,
+                "bloodGlucoseLevel": 100,
+                "smokingHistory": "never",
+            }
+        )
+
+
+def test_validate_assessment_input_allows_other_genders_and_warns():
+    from analyze import validate_assessment_input, interpret_predictions_batch, get_model
+
+    # Validates successfully for custom gender
+    input_data = {
+        "age": 40,
+        "gender": "Other",
+        "hypertension": False,
+        "heartDisease": False,
+        "bmi": 25,
+        "hba1cLevel": 5.5,
+        "bloodGlucoseLevel": 100,
+        "smokingHistory": "never",
+    }
+    assert validate_assessment_input(input_data) == input_data
+
+    # Check that interpret_predictions_batch returns warning for custom gender
+    model, scaler, features, cov_beta = get_model()
+    results = interpret_predictions_batch(model, scaler, features, [input_data], cov_beta)
+    assert "warning" in results[0]
+    assert "Gender value 'Other' was not present in the model's training data" in results[0]["warning"]

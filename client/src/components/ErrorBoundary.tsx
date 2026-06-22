@@ -37,8 +37,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: error.message,
-          stack: error.stack,
+          message: (error as Error).message,
+          stack: (error as Error).stack,
           componentStack: errorInfo.componentStack,
           url: window.location.href,
           timestamp: new Date().toISOString(),

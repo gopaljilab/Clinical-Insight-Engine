@@ -7,11 +7,13 @@ import time
 import numpy as np
 import pandas as pd
 from app.ml.prediction_cache import get_cache
+from app.middleware.phi_redaction import phi_redaction_middleware
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import pickle
+
 
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
 
@@ -163,42 +165,90 @@ def _compute_dataset_hash(filepath: str) -> str | None:
     return hasher.hexdigest()
 
 
+class FileLock:
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self.fd = None
+
+    def acquire(self, timeout=LOCK_TIMEOUT):
+        if self.fd is not None:
+            return False
+
+        end_time = time.time() + timeout
+        while True:
+            try:
+                # Open the sidecar lock file in append+ mode (creates it if missing)
+                self.fd = open(self.filepath, "a+")
+                
+                # Request a non-blocking exclusive lock
+                if sys.platform == "win32":
+                    import msvcrt
+                    self.fd.seek(0)
+                    msvcrt.locking(self.fd.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self.fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                
+                # Lock acquired successfully! Write PID.
+                self.fd.seek(0)
+                self.fd.truncate()
+                self.fd.write(str(os.getpid()))
+                self.fd.flush()
+                return True
+            except OSError:
+                if self.fd:
+                    try:
+                        self.fd.close()
+                    except OSError:
+                        pass
+                    self.fd = None
+            
+            if time.time() >= end_time:
+                break
+            time.sleep(LOCK_POLL_INTERVAL)
+        return False
+
+    def release(self):
+        if self.fd is not None:
+            try:
+                if sys.platform == "win32":
+                    import msvcrt
+                    self.fd.seek(0)
+                    msvcrt.locking(self.fd.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self.fd.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+            try:
+                self.fd.close()
+            except OSError:
+                pass
+            self.fd = None
+            try:
+                os.remove(self.filepath)
+            except OSError:
+                pass
+
+_global_lock = FileLock(LOCK_FILE)
+
 def _acquire_lock(timeout=LOCK_TIMEOUT):
-    """Acquire an exclusive lock on the model file using a sidecar lock file.
+    """Acquire an exclusive OS-level lock on the model file.
 
     Blocks up to `timeout` seconds, polling every 100ms.
     Returns True if the lock was acquired, False if the timeout was reached.
     """
-    end_time = time.time() + timeout
-    while time.time() < end_time:
-        try:
-            fd = os.open(LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_RDWR)
-            with os.fdopen(fd, 'w') as f:
-                f.write(str(os.getpid()))
-            return True
-        except FileExistsError:
-            _clean_stale_lock()
-            time.sleep(LOCK_POLL_INTERVAL)
-    return False
+    return _global_lock.acquire(timeout)
 
 
 def _release_lock():
-    """Release the exclusive lock."""
-    try:
-        if os.path.exists(LOCK_FILE):
-            os.remove(LOCK_FILE)
-    except OSError:
-        pass
+    """Release the exclusive OS-level lock."""
+    _global_lock.release()
 
 
 def _clean_stale_lock():
-    """Remove the lock file if it is older than 5 minutes (stale from a crash)."""
-    try:
-        mtime = os.path.getmtime(LOCK_FILE)
-        if time.time() - mtime > 300:
-            os.remove(LOCK_FILE)
-    except OSError:
-        pass
+    """OS-level locks clean up automatically on process termination. No manual cleanup needed."""
+    pass
 
 
 def _atomic_write(filepath, data):
@@ -479,6 +529,25 @@ def get_model():
     finally:
         _release_lock()
 
+def validate_assessment_input(data):
+    if not isinstance(data, dict):
+        raise ValueError("Input must be an object")
+
+    age = data.get("age")
+    if age is None or age < 0 or age > 130:
+        raise ValueError("Invalid age")
+
+    gender = data.get("gender")
+    if not isinstance(gender, str) or not gender:
+        raise ValueError("Invalid gender")
+
+    bmi = data.get("bmi")
+    if bmi is not None and (bmi < 0 or bmi > 100):
+        raise ValueError("Invalid BMI")
+
+    return data
+
+@phi_redaction_middleware
 def interpret_predictions_batch(model, scaler, features, input_data_list, cov_beta=None):
     """Vectorized batch prediction for a list of patient records using NumPy."""
     if model is None:
@@ -669,6 +738,7 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
             
     return results
 
+@phi_redaction_middleware
 def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     """Interprets a single patient's data, yielding clinician and patient views."""
     res = interpret_predictions_batch(model, scaler, features, [input_data], cov_beta)
@@ -678,6 +748,7 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
         return res[0]
     return res
 
+@phi_redaction_middleware
 def counterfactual_analysis(model, scaler, features, input_data, cov_beta=None):
     """
     Performs what-if counterfactual analysis.
@@ -726,6 +797,85 @@ def counterfactual_analysis(model, scaler, features, input_data, cov_beta=None):
         "ranked": perturbation_results,
     }
 
+def get_counterfactuals(model, scaler, features, input_data, cov_beta=None):
+    """
+    Generates hypothetical inputs with healthier values and returns the top impactful changes.
+    """
+    perturbations = []
+    
+    # 1. BMI: Reduce by 2 points (if BMI > 25)
+    bmi = input_data.get('bmi')
+    if bmi is not None and bmi > 25:
+        perturbations.append({'bmi': max(25.0, float(bmi) - 2.0)})
+        
+    # 2. Blood Glucose: Reduce by 10 points (if > 100)
+    bg = input_data.get('bloodGlucoseLevel')
+    if bg is not None and bg > 100:
+        perturbations.append({'bloodGlucoseLevel': max(100.0, float(bg) - 10.0)})
+        
+    # 3. HbA1c: Reduce by 0.5 points (if > 5.7)
+    hba1c = input_data.get('hba1cLevel')
+    if hba1c is not None and hba1c > 5.7:
+        perturbations.append({'hba1cLevel': max(5.7, float(hba1c) - 0.5)})
+        
+    # 4. Smoking Status: Change to former if current
+    smoke = input_data.get('smokingHistory')
+    if smoke == 'current':
+        perturbations.append({'smokingHistory': 'former'})
+
+    # 5. Hypertension: Manage/Control
+    if input_data.get('hypertension') in [1, True, "1", "true"]:
+        perturbations.append({'hypertension': False})
+
+    if not perturbations:
+        original = interpret_prediction(model, scaler, features, input_data, cov_beta)
+        return {
+            "original": original,
+            "recommendations": []
+        }
+        
+    data = {
+        "original": input_data,
+        "perturbations": perturbations
+    }
+    
+    result = counterfactual_analysis(model, scaler, features, data, cov_beta)
+    ranked = result.get("ranked", [])
+    
+    # Generate actionable messages for top 2
+    recommendations = []
+    for item in ranked[:2]:
+        if item["riskReduction"] <= 0:
+            continue
+        
+        delta_str = item["delta"]
+        
+        action = "Making a healthy change"
+        if "bmi:" in delta_str:
+            action = "Reducing your BMI by 2 points"
+        elif "bloodGlucoseLevel:" in delta_str:
+            action = "Lowering your blood glucose by 10 points"
+        elif "hba1cLevel:" in delta_str:
+            action = "Lowering your HbA1c by 0.5%"
+        elif "smokingHistory:" in delta_str:
+            action = "Quitting smoking"
+        elif "hypertension:" in delta_str:
+            action = "Managing your hypertension effectively"
+            
+        msg = f"{action} could lower your overall diabetes risk score by {item['riskReduction']}%."
+        
+        recommendations.append({
+            "action": action,
+            "riskReduction": item["riskReduction"],
+            "newRiskScore": item["riskScore"],
+            "message": msg
+        })
+        
+    return {
+        "original": result.get("original"),
+        "recommendations": recommendations
+    }
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "predict_file":
         if len(sys.argv) > 2:
@@ -749,10 +899,16 @@ if __name__ == "__main__":
                     file=sys.stderr,
                 )
                 sys.exit(1)
-            with open(resolved_input, 'r') as f:
-                data = json.load(f)
+            with open(resolved_input, 'rb') as f:
+                raw_bytes = f.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         else:
-            data = json.load(sys.stdin)
+            raw_bytes = sys.stdin.buffer.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         model, scaler, features, cov_beta = get_model()
         if isinstance(data, list):
             results = interpret_predictions_batch(model, scaler, features, data, cov_beta)
@@ -762,18 +918,40 @@ if __name__ == "__main__":
             print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "daemon":
         model, scaler, features, cov_beta = get_model()
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
+        from app.utils.text_sanitizer import sanitize_text
+        for line_bytes in sys.stdin.buffer:
+            line_str = sanitize_text(line_bytes).strip()
+            if not line_str:
                 continue
             try:
-                request = json.loads(line)
+                request = json.loads(line_str)
                 request_id = request.get("requestId")
                 input_data = request.get("input")
+                
                 if isinstance(input_data, list):
-                    prediction = interpret_predictions_batch(model, scaler, features, input_data, cov_beta)
+                    validated_input = [
+                        validate_assessment_input(item)
+                        for item in input_data
+                        ]
+                    prediction = interpret_predictions_batch(
+                        model,
+                        scaler,
+                        features,
+                        validated_input,
+                        cov_beta,
+                    )
                 else:
-                    prediction = interpret_prediction(model, scaler, features, input_data, cov_beta)
+                    validated_input = validate_assessment_input(
+                        input_data
+                        )
+ 
+                    prediction = interpret_prediction(
+                        model,
+                        scaler,
+                        features,
+                        validated_input,
+                        cov_beta,
+                    )
                 response = {
                     "requestId": request_id,
                     "prediction": prediction
@@ -791,12 +969,33 @@ if __name__ == "__main__":
                 print(json.dumps(response), flush=True)
     elif len(sys.argv) > 1 and sys.argv[1] == "counterfactual":
         if len(sys.argv) > 2:
-            with open(sys.argv[2], 'r') as f:
-                data = json.load(f)
+            with open(sys.argv[2], 'rb') as f:
+                raw_bytes = f.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         else:
-            data = json.load(sys.stdin)
+            raw_bytes = sys.stdin.buffer.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         model, scaler, features, cov_beta = get_model()
         result = counterfactual_analysis(model, scaler, features, data, cov_beta)
+        print(json.dumps(result))
+    elif len(sys.argv) > 1 and sys.argv[1] == "counterfactual_auto":
+        if len(sys.argv) > 2:
+            with open(sys.argv[2], 'rb') as f:
+                raw_bytes = f.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
+        else:
+            raw_bytes = sys.stdin.buffer.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
+        model, scaler, features, cov_beta = get_model()
+        result = get_counterfactuals(model, scaler, features, data, cov_beta)
         print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):

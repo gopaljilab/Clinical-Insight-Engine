@@ -1,7 +1,10 @@
+import { AsyncLocalStorage } from "async_hooks";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
 import { logger } from "./logger";
+
+export const dbRlsStorage = new AsyncLocalStorage<NodePgDatabase<typeof schema>>();
 
 const { Pool } = pg;
 
@@ -33,10 +36,10 @@ function getDatabaseUrl() {
   return process.env.DATABASE_URL;
 }
 
-export function isTransientError(error: any): boolean {
+export function isTransientError(error: unknown): boolean {
   if (!error) return false;
-  const message = error.message || String(error);
-  const code = error.code;
+  const message = (error as Error).message || String(error);
+  const code = (error as any).code;
 
   const transientCodes = new Set([
     "08000", "08003", "08006", "08001", "08004",
@@ -95,10 +98,16 @@ export async function withRetry<T>(
 
 export function getPool() {
   if (!poolInstance) {
+    const dbUrl = getDatabaseUrl();
+    const useSSL =
+      process.env.DB_SSL === "true" ||
+      /supabase\.co|pooler\.supabase\.com/i.test(dbUrl);
+
     poolInstance = new Pool({
-      connectionString: getDatabaseUrl(),
+      connectionString: dbUrl,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 10000,
+      ...(useSSL ? { ssl: { rejectUnauthorized: false } } : {}),
     });
 
     poolInstance.on("error", (err) => {
@@ -134,7 +143,7 @@ export function getPool() {
         const callback = lastArg;
         const connectPromise = () =>
           new Promise<{ client: pg.PoolClient; release: any }>((resolve, reject) => {
-            originalConnect((err: any, client: any, done: any) => {
+            originalConnect((err: unknown, client: any, done: any) => {
               if (err) reject(err);
               else resolve({ client, release: done });
             });
@@ -157,6 +166,9 @@ export function getPool() {
 }
 
 export function getDb() {
+  const rlsDb = dbRlsStorage.getStore();
+  if (rlsDb) return rlsDb;
+
   if (!dbInstance) {
     const rawDb = drizzle(getPool(), { schema });
     const originalTransaction = rawDb.transaction.bind(rawDb);
@@ -182,7 +194,7 @@ export async function verifyDatabaseConnection() {
   try {
     await getPool().query("select 1");
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = error instanceof Error ? (error as Error).message : String(error);
     throw new DatabaseStartupError(
       formatDatabaseStartupMessage(`PostgreSQL is unreachable. ${detail}`),
     );

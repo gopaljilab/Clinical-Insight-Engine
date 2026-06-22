@@ -239,7 +239,7 @@ export default function History() {
   };
 
   const activeFilterChips = useMemo(() => {
-    const chips: any[] = [];
+    const chips: { id: string; label: string; onRemove: () => void }[] = [];
     if (searchTerm) {
       chips.push({ id: 'search', label: `Search: ${searchTerm}`, onRemove: () => setSearchTerm("") });
     }
@@ -277,8 +277,8 @@ export default function History() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to upload");
       toast({ title: "Success", description: data.message });
-    } catch (err: any) {
-      toast({ title: "Upload Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Upload Error", description: err instanceof Error ? (err as Error).message : String(err), variant: "destructive" });
     }
     e.target.value = ''; // Reset input
   };
@@ -371,7 +371,7 @@ export default function History() {
 
   const [, setLocation] = useLocation();
 
-  function reloadToForm(assessment: any) {
+  function reloadToForm(assessment: Partial<Assessment>) {
     const draft = {
       patientName: assessment.patientName ?? "",
       gender: assessment.gender,
@@ -537,7 +537,7 @@ export default function History() {
 
 
 
-  const formatAssessmentDate = (dateVal: any) => {
+  const formatAssessmentDate = (dateVal: string | Date | null | undefined) => {
     return formatReadableDate(dateVal, { fallback: "Unknown", includeTime: false });
   };
 
@@ -1062,15 +1062,15 @@ export default function History() {
                       </thead>
                       <tbody className="divide-y divide-border">
                         {[
-                          { label: "Age", get: (r: any[]) => r[0]?.age ?? "—" },
-                          { label: "BMI", get: (r: any[]) => Number(r[0]?.bmi ?? 0).toFixed(1) },
-                          { label: "HbA1c (%)", get: (r: any[]) => `${Number(r[0]?.hba1cLevel ?? 0).toFixed(1)}%` },
-                          { label: "Blood Glucose", get: (r: any[]) => Number(r[0]?.bloodGlucoseLevel ?? 0).toFixed(0) },
-                          { label: "Hypertension", get: (r: any[]) => (r[0]?.hypertension ? "Yes" : "No") },
-                          { label: "Heart Disease", get: (r: any[]) => (r[0]?.heartDisease ? "Yes" : "No") },
-                          { label: "Smoking", get: (r: any[]) => r[0]?.smokingHistory ?? "—" },
-                          { label: "Risk Score", get: (r: any[]) => `${Number(r[0]?.riskScore ?? 0).toFixed(1)}%` },
-                          { label: "Risk Category", get: (r: any[]) => r[0]?.riskCategory ?? "—" },
+                          { label: "Age", get: (r: Assessment[]) => r[0]?.age ?? "—" },
+                          { label: "BMI", get: (r: Assessment[]) => Number(r[0]?.bmi ?? 0).toFixed(1) },
+                          { label: "HbA1c (%)", get: (r: Assessment[]) => `${Number(r[0]?.hba1cLevel ?? 0).toFixed(1)}%` },
+                          { label: "Blood Glucose", get: (r: Assessment[]) => Number(r[0]?.bloodGlucoseLevel ?? 0).toFixed(0) },
+                          { label: "Hypertension", get: (r: Assessment[]) => (r[0]?.hypertension ? "Yes" : "No") },
+                          { label: "Heart Disease", get: (r: Assessment[]) => (r[0]?.heartDisease ? "Yes" : "No") },
+                          { label: "Smoking", get: (r: Assessment[]) => r[0]?.smokingHistory ?? "—" },
+                          { label: "Risk Score", get: (r: Assessment[]) => `${Number(r[0]?.riskScore ?? 0).toFixed(1)}%` },
+                          { label: "Risk Category", get: (r: Assessment[]) => r[0]?.riskCategory ?? "—" },
                         ].map(row => (
                           <tr key={row.label} className="hover:bg-muted/20 transition-colors">
                             <td className="p-3 font-semibold text-muted-foreground whitespace-nowrap">{row.label}</td>

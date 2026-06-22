@@ -3,6 +3,7 @@ import { sanitizeDatabaseError } from "../security/sqlProtection";
 import { logAuditEvent, generateRequestId } from "../services/security/auditLogger";
 import { createErrorResponse } from "../../shared/schemas/errorResponse";
 import { logger } from "../logger";
+import { AppError } from "../utils/AppError";
 
 /**
  * Global Exception Handler
@@ -16,7 +17,7 @@ import { logger } from "../logger";
  * from all preceding route handlers and middleware.
  */
 export function globalErrorHandler(
-  err: any,
+  err: unknown,
   req: Request,
   res: Response,
   next: NextFunction
@@ -26,9 +27,9 @@ export function globalErrorHandler(
   }
 
   // Handle CORS errors specifically (e.g. missing Origin, disallowed origin)
-  if (err.message === "CORS: Origin header is required" || err.message === "Not allowed by CORS") {
-    logger.warn({ err: { message: err.message, method: req.method, path: req.originalUrl } }, "CORS error rejected");
-    return res.status(403).json({ message: err.message });
+  if ((err as Error).message === "CORS: Origin header is required" || (err as Error).message === "Not allowed by CORS") {
+    logger.warn({ err: { message: (err as Error).message, method: req.method, path: req.originalUrl } }, "CORS error rejected");
+    return res.status(403).json({ message: (err as Error).message });
   }
 
   const requestId = generateRequestId();
@@ -41,15 +42,25 @@ export function globalErrorHandler(
   const { statusCode, message } = sanitizeDatabaseError(err);
 
   // 3. Determine final HTTP status code
-  const finalStatus =
-    err?.code && typeof err.code === "string" && err.code.length === 5
-      ? statusCode
-      : err?.status ?? err?.statusCode ?? statusCode;
+  let finalStatus = statusCode;
+  if (err instanceof AppError) {
+    finalStatus = err.statusCode;
+  } else if (
+    (err as any)?.code &&
+    typeof (err as any).code === "string" &&
+    (err as any).code.length === 5
+  ) {
+    finalStatus = statusCode; // Postgres error
+  } else if ((err as any)?.status || (err as any)?.statusCode) {
+    finalStatus = (err as any).status ?? (err as any).statusCode;
+  }
 
   // 4. Mask actual error if it's an unhandled 500
   // Ensure that generic Server Errors DO NOT expose their `message` to the client.
   let safeMessage = message;
-  if (finalStatus === 500) {
+  if (err instanceof AppError) {
+    safeMessage = err.message;
+  } else if (finalStatus === 500) {
     safeMessage = "An internal server error occurred";
   }
 
@@ -61,7 +72,7 @@ export function globalErrorHandler(
       method: req.method,
       path: req.originalUrl,
       statusCode: finalStatus,
-      exceptionType: err?.name ?? typeof err,
+      exceptionType: (err as Error).name ?? typeof err,
       body: req.body, // The logger masks sensitive keys automatically
     },
     err

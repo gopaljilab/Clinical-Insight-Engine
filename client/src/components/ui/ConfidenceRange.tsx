@@ -28,8 +28,8 @@ export default function ConfidenceRange({
     <div className="flex items-center gap-2" title={`${clampedLow.toFixed(1)}% — ${clampedHigh.toFixed(1)}%`} aria-label={`Confidence interval: ${clampedLow.toFixed(1)}% to ${clampedHigh.toFixed(1)}%`}>
       <div style={{ width }} className="relative h-3 rounded-full bg-slate-100">
         <div
-          style={{ left, width: rangeWidth, backgroundColor: "#c7e4ff" }}
-          className="absolute h-3 rounded-full"
+          style={{ left, width: rangeWidth }}
+          className="absolute h-3 rounded-full bg-blue-200 dark:bg-blue-900/40"
         />
         {markerLeft != null && (
           <div

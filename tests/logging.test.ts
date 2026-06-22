@@ -90,4 +90,50 @@ describe("Structured Logger with Context ID Propagation", () => {
       "Test message with object payload"
     );
   });
+
+  it("automatically redacts sensitive keys (authorization, cookie, token, password, session, secret) in log payloads", () => {
+    const sensitivePayload = {
+      extraKey: "extraValue",
+      authorization: "Bearer secret-token",
+      headers: {
+        Cookie: "session-id=123",
+        "Set-Cookie": "auth=abc",
+        host: "localhost",
+      },
+      user: {
+        password: "my-password",
+        secretToken: "some-secret",
+      },
+      err: new Error("Test error with custom properties"),
+    };
+
+    // Add custom property to error
+    (sensitivePayload.err as any).someSecretKey = "super-secret";
+    (sensitivePayload.err as any).normalProperty = "safe-to-log";
+
+    logger.info(sensitivePayload, "Testing sensitive payload redaction");
+
+    expect(mockInfo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extraKey: "extraValue",
+        authorization: "[REDACTED]",
+        headers: expect.objectContaining({
+          Cookie: "[REDACTED]",
+          "Set-Cookie": "[REDACTED]",
+          host: "localhost",
+        }),
+        user: expect.objectContaining({
+          password: "[REDACTED]",
+          secretToken: "[REDACTED]",
+        }),
+        err: expect.objectContaining({
+          name: "Error",
+          message: "Test error with custom properties",
+          someSecretKey: "[REDACTED]",
+          normalProperty: "safe-to-log",
+        }),
+      }),
+      "Testing sensitive payload redaction"
+    );
+  });
 });
