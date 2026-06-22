@@ -11,6 +11,14 @@ import { sanitizeHtml } from "../utils/sanitize";
 
 
 import { generateRecommendations } from "../services/recommendation-engine";
+import { execFile } from "child_process";
+import { getPythonExecutable } from "../queue";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,
@@ -131,14 +139,14 @@ assessmentsRouter.post(
           getPythonExecutable(),
           [analyzePyPath, "counterfactual"],
           { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
-          (error, stdout, stderr) => {
+          (error: any, stdout: string, stderr: string) => {
             if (error) reject(error);
             else resolve(stdout);
           }
         );
 
         if (child.stdin) {
-          child.stdin.on("error", (err) => {
+          child.stdin.on("error", (err: any) => {
             logger.error({ err }, "Error writing to python stdin");
           });
           child.stdin.write(JSON.stringify(payload));
@@ -179,14 +187,14 @@ assessmentsRouter.post(
           getPythonExecutable(),
           [analyzePyPath, "counterfactual_auto"],
           { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
-          (error, stdout, stderr) => {
+          (error: any, stdout: string, stderr: string) => {
             if (error) reject(error);
             else resolve(stdout);
           }
         );
 
         if (child.stdin) {
-          child.stdin.on("error", (err) => {
+          child.stdin.on("error", (err: any) => {
             logger.error({ err }, "Error writing to python stdin");
           });
           child.stdin.write(JSON.stringify(input));
