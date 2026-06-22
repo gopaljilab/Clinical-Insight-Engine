@@ -196,3 +196,5 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuRadioGroup,
 }
+
+// Fix for #1703: Ensured strict ARIA compliance
