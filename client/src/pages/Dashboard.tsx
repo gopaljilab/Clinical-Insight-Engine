@@ -14,6 +14,7 @@ import { insertAssessmentSchema } from "@shared/schema";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { ApiClient } from "@/lib/apiClient";
 const formSchema = insertAssessmentSchema.pick({
   patientName: true,
   gender: true,
@@ -185,19 +186,7 @@ export default function Dashboard() {
         setPreviewPending(true);
         setPreviewError(null);
 
-        const response = await fetch(api.assessments.preview.path, {
-          method: api.assessments.preview.method,
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(parsedForPreview.data),
-          signal: controller.signal,
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data?.message ?? "Failed to generate preview");
-        }
+        const data = await ApiClient.post(api.assessments.preview.path, parsedForPreview.data, { signal: controller.signal });
 
         const parsed = api.assessments.preview.responses[200].parse(data);
         setPreview(parsed);
@@ -302,7 +291,7 @@ export default function Dashboard() {
               onSubmit={handleSubmit(onSubmit)}
               className={`rounded-2xl border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_-2px_rgba(0,0,0,0.3)] transition-all duration-200 md:p-8 ${result ? "opacity-75 pointer-events-none" : ""}`}
             >
-                {error && (
+                {!!error && (
                   <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 rounded-xl flex items-start gap-3 text-red-600 dark:text-red-400">
                     <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                     <div>

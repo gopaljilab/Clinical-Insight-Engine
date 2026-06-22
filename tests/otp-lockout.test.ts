@@ -80,7 +80,7 @@ vi.mock("bcrypt", () => ({
 
 vi.mock("../server/email", () => ({
   sendVerificationEmail: vi.fn().mockResolvedValue(true),
-  validateSmtpConfig: vi.fn(),
+  validateEmailConfig: vi.fn(),
 }));
 
 describe("OTP Brute-Force Lockout Integration", () => {

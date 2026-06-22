@@ -16,9 +16,8 @@ import {
   adminLimiter,
   exportLimiter,
 } from "./middleware/rateLimit";
-import { rateLimit } from "express-rate-limit";
 import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
-import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
+import { getPythonExecutable } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -28,7 +27,6 @@ import { z } from "zod";
 import os from "os";
 import { randomUUID } from "crypto";
 import { writeFile, unlink } from "fs/promises";
-import { validateDTO } from "./middleware/validateDTO";
 import { assessmentsToCsv } from "./utils/csvExport";
 import { searchQuerySchema, assessmentExportQuerySchema } from "./validation/searchValidation";
 import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
@@ -232,6 +230,49 @@ export async function registerRoutes(
     requireAdmin,
     async (_req, res) => {
       try {
+        const input = inputSchema.parse(req.body.assessments);
+        
+        requestFingerprint = generateRequestFingerprint(input, userId);
+        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
+          return res.status(409).json({ message: "Bulk request already processing." });
+        }
+        MLService.activeInferenceRequests.add(requestFingerprint);
+
+        tempFilePath = path.join(os.tmpdir(), `bulk_${randomUUID()}.json`);
+        await writeFile(tempFilePath, JSON.stringify(input));
+
+        let predictions: any[];
+        try {
+          const { stdout } = await execFileAsync(
+            getPythonExecutable(),
+            [analyzePyPath, "predict_file", tempFilePath],
+            { timeout: 60000, maxBuffer: 50 * 1024 * 1024 }
+          );
+
+          predictions = JSON.parse(stdout.trim());
+          if (!Array.isArray(predictions)) {
+            throw new Error("Expected array of predictions");
+          }
+        } catch (error: any) {
+          predictions = calculateClinicalFallback(input) as PredictionResult[];
+        }
+
+        const createdAssessments = await storage.createAssessmentsBatch(
+          input.map((assessment, index) => {
+            const prediction = predictions[index];
+            return {
+              ...assessment,
+              riskScore: Number(prediction.riskScore),
+              riskCategory: prediction.riskCategory,
+              factors: prediction.factors,
+              confidenceInterval: prediction.confidenceInterval ?? null,
+              modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
+              createdBy: userId,
+            };
+          })
+        );
+
+        return res.status(201).json({ count: createdAssessments.length, assessments: createdAssessments });
         const metrics = await getQueueMetrics();
         res.json(metrics);
       } catch (err) {

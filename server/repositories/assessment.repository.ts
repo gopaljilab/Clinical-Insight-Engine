@@ -306,9 +306,13 @@ export class AssessmentRepository {
     return { data: pagedData, nextCursor };
   }
 
-  async getAssessmentById(id: number): Promise<Assessment | undefined> {
+  async getAssessmentById(id: number, createdBy?: string): Promise<Assessment | undefined> {
     const db = getDb();
     const conditions: ReturnType<typeof eq>[] = [eq(assessments.id, id)];
+
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy) as any);
+    }
 
     const [result] = await db
       .select()
@@ -326,6 +330,19 @@ export class AssessmentRepository {
       .values(assessment as any)
       .returning();
     return created;
+  }
+
+  async updateClinicalNote(
+    id: number,
+    clinicalNote: string,
+  ): Promise<Assessment | undefined> {
+    const db = getDb();
+    const [updated] = await db
+      .update(assessments)
+      .set({ clinicalNote } as any)
+      .where(eq(assessments.id, id))
+      .returning();
+    return updated;
   }
 
   async autocompletePatientNames(
@@ -473,6 +490,13 @@ export class AssessmentRepository {
         change: latest && earliest ? Number((latest.riskScore - earliest.riskScore).toFixed(1)) : 0,
       },
     };
+  }
+
+  async createAssessmentsBatch(data: AssessmentCreateInput[]): Promise<Assessment[]> {
+    const db = getDb();
+    return db.transaction(async (tx) => {
+      return tx.insert(assessments).values(data as any).returning();
+    });
   }
 
   async deleteAssessment(id: number): Promise<void> {
