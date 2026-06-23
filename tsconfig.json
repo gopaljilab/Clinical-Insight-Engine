@@ -16,6 +16,7 @@
     "moduleResolution": "bundler",
 
     "types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
 
     "paths": {
