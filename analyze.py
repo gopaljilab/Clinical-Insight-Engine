@@ -43,6 +43,8 @@ def create_synthetic_data():
     bmi = np.random.normal(28, 5, n)
     hba1c_level = np.random.normal(5.5, 1.5, n)
     blood_glucose_level = np.random.normal(130, 40, n)
+    insulin = np.random.normal(80, 20, n)
+    skin_thickness = np.random.normal(20, 5, n)
     
     # Calculate a synthetic risk score 
     risk_score = (age * 0.05 + hypertension * 1.5 + heart_disease * 2.0 + 
@@ -61,6 +63,8 @@ def create_synthetic_data():
         "bmi": bmi,
         "HbA1c_level": hba1c_level,
         "blood_glucose_level": blood_glucose_level,
+        "insulin": insulin,
+        "skin_thickness": skin_thickness,
         "diabetes": diabetes
     })
     df.to_csv(DATA_FILE, index=False)
@@ -110,10 +114,10 @@ def train_model_pipeline():
         return None, None, None, None
     
     # Check for missing values and unrealistic zeros
-    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
+    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness']
     for col in clinical_cols:
-        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50}
-        invalid_mask = (df[col] < thresholds[col]) | (df[col].isna())
+        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50, 'insulin': 0, 'skin_thickness': 0}
+        invalid_mask = (df[col] < thresholds.get(col, 0)) | (df[col].isna())
         if invalid_mask.any():
             df.loc[invalid_mask, col] = df[col].median()
 
@@ -124,7 +128,7 @@ def train_model_pipeline():
     smoking_dummies = pd.get_dummies(df['smoking_history'], prefix='smoke', drop_first=True)
     df = pd.concat([df, smoking_dummies], axis=1)
     
-    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'gender_Male'] + list(smoking_dummies.columns)
+    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness', 'gender_Male'] + list(smoking_dummies.columns)
     
     X = df[features]
     y = df['diabetes']
@@ -328,10 +332,10 @@ def train_and_evaluate():
         print(json.dumps({"error": f"Error loading dataset: {e}"}))
         return None
 
-    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
+    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness']
     for col in clinical_cols:
-        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50}
-        invalid_mask = (df[col] < thresholds[col]) | (df[col].isna())
+        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50, 'insulin': 0, 'skin_thickness': 0}
+        invalid_mask = (df[col] < thresholds.get(col, 0)) | (df[col].isna())
         if invalid_mask.any():
             df.loc[invalid_mask, col] = df[col].median()
 
@@ -341,7 +345,7 @@ def train_and_evaluate():
     smoking_dummies = pd.get_dummies(df['smoking_history'], prefix='smoke', drop_first=True)
     df = pd.concat([df, smoking_dummies], axis=1)
 
-    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'gender_Male'] + list(smoking_dummies.columns)
+    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness', 'gender_Male'] + list(smoking_dummies.columns)
 
     X = df[features].values
     y = df['diabetes'].values
@@ -589,6 +593,8 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
         X_input[i, feature_indices['bmi']] = float(_safe_get(input_data, 'bmi', 25.0, 'BMI'))
         X_input[i, feature_indices['HbA1c_level']] = float(_safe_get(input_data, 'hba1cLevel', 5.5, 'HbA1c Level'))
         X_input[i, feature_indices['blood_glucose_level']] = float(_safe_get(input_data, 'bloodGlucoseLevel', 100.0, 'Blood Glucose Level'))
+        X_input[i, feature_indices['insulin']] = float(_safe_get(input_data, 'insulin', 80.0, 'Insulin Level'))
+        X_input[i, feature_indices['skin_thickness']] = float(_safe_get(input_data, 'skinThickness', 20.0, 'Skin Thickness'))
         
         gender_value = _safe_get(input_data, 'gender', 'Female')
         X_input[i, feature_indices['gender_Male']] = 1 if gender_value == 'Male' else 0
