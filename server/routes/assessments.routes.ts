@@ -28,22 +28,11 @@ import { validateDTO } from "../middleware/validateDTO";
 import { writeFile, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import { randomUUID } from "crypto";
-import { execFile } from "child_process";
-import { fileURLToPath } from "url";
-import path from "path";
 import os from "os";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
-
-function getPythonExecutable() {
-  const candidates =
-    process.platform === "win32"
-      ? [path.resolve(".venv", "Scripts", "python.exe"), path.resolve("venv", "Scripts", "python.exe")]
-      : [path.resolve(".venv", "bin", "python"), path.resolve("venv", "bin", "python")];
-  return candidates.find((candidate) => existsSync(candidate)) ?? (process.platform === "win32" ? "python" : "python3");
-}
 
 const assessmentsRouter = Router();
 
@@ -188,7 +177,11 @@ assessmentsRouter.post(
     } finally {
       try {
         await unlink(tempFile);
+<<<<<<< HEAD
       } catch {}
+=======
+      } catch { }
+>>>>>>> de0afa56 (applying fixes)
     }
   }
 );
@@ -699,4 +692,8 @@ assessmentsRouter.get(
   }
 );
 
+<<<<<<< HEAD
 export default assessmentsRouter;
+=======
+export default assessmentsRouter;
+>>>>>>> de0afa56 (applying fixes)
