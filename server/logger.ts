@@ -26,7 +26,7 @@ const baseLogger = pino({
   timestamp: pino.stdTimeFunctions.isoTime,
 });
 
-function sanitizeSensitiveData(obj: any, seen = new WeakSet()): any {
+export function sanitizeSensitiveData(obj: any, seen = new WeakSet()): any {
   if (obj === null || typeof obj !== "object") {
     return obj;
   }
