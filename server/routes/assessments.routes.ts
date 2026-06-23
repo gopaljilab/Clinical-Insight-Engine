@@ -18,14 +18,6 @@ import { sanitizeHtml } from "../utils/sanitize";
 
 
 import { generateRecommendations } from "../services/recommendation-engine";
-import { execFile } from "child_process";
-import { getPythonExecutable } from "../queue";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,

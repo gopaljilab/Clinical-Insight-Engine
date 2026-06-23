@@ -326,7 +326,7 @@ export function useWhatIfAuto() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
       const validated = api.assessments.create.input.parse(data);
-      return ApiClient.post("/api/assessments/what-if/auto", validated);
+      return ApiClient.post<any>("/api/assessments/what-if/auto", validated);
     },
   });
 }

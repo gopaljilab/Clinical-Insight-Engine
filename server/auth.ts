@@ -9,6 +9,9 @@ import { logger } from "./logger";
 import { validateDTO } from "./middleware/validateDTO";
 import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswordDTOSchema, verifyEmailDTOSchema, verifyOtpDTOSchema } from "./validation/auth.dto";
 import { AuthRepository } from "./repositories/auth.repository";
+import { getDb } from "./db";
+import { passwordResetTokens, users } from "@shared/schema";
+import { eq, and, gte, sql } from "drizzle-orm";
 
 const authRepository = new AuthRepository();
 
