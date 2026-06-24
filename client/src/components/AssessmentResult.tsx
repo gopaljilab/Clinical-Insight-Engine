@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, FileText, CheckCircle2, TrendingUp, TrendingDown, Info, HeartPulse, Activity, UserCircle, Stethoscope, Eye, Share2, Loader2, Printer, Download, MonitorPlay } from "lucide-react";
+import { AlertCircle, FileText, CheckCircle2, TrendingUp, TrendingDown, Info, HeartPulse, Activity, UserCircle, Stethoscope, Eye, Share2, Loader2, Printer, Download, MonitorPlay, Pencil, X, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { HealthBadges } from "@/components/HealthBadges";
@@ -764,7 +764,7 @@ function PathToImprovement({ assessment }: { assessment: AssessmentResponse }) {
     );
   }
 
-  const recommendations = data.recommendations;
+  const recommendations = (data as any)?.recommendations;
   if (!recommendations || recommendations.length === 0) {
     return null;
   }
