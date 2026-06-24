@@ -13,6 +13,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import pickle
+from imblearn.over_sampling import SMOTE
 
 
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
@@ -136,8 +137,11 @@ def train_model_pipeline():
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
-    model = LogisticRegression(class_weight='balanced')
-    model.fit(X_scaled, y)
+    smote = SMOTE(random_state=42)
+    X_resampled, y_resampled = smote.fit_resample(X_scaled, y)
+    
+    model = LogisticRegression()
+    model.fit(X_resampled, y_resampled)
     
     # Compute covariance matrix of coefficients (accounting for balanced class weights)
     X_design = np.hstack([np.ones((X_scaled.shape[0], 1)), X_scaled])
@@ -359,9 +363,12 @@ def train_and_evaluate():
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
+    
+    smote = SMOTE(random_state=42)
+    X_train_resampled, y_train_resampled = smote.fit_resample(X_train_scaled, y_train)
 
-    model = LogisticRegression(class_weight='balanced')
-    model.fit(X_train_scaled, y_train)
+    model = LogisticRegression()
+    model.fit(X_train_resampled, y_train_resampled)
 
     y_pred = model.predict(X_test_scaled)
     y_proba = model.predict_proba(X_test_scaled)[:, 1]
@@ -414,8 +421,12 @@ def train_and_evaluate():
     # Retrain on full data and save
     scaler_full = StandardScaler()
     X_scaled_full = scaler_full.fit_transform(X)
-    model_full = LogisticRegression(class_weight='balanced')
-    model_full.fit(X_scaled_full, y)
+    
+    smote_full = SMOTE(random_state=42)
+    X_scaled_resampled_full, y_resampled_full = smote_full.fit_resample(X_scaled_full, y)
+    
+    model_full = LogisticRegression()
+    model_full.fit(X_scaled_resampled_full, y_resampled_full)
 
     X_design = np.hstack([np.ones((X_scaled_full.shape[0], 1)), X_scaled_full])
     p = model_full.predict_proba(X_scaled_full)[:, 1]

@@ -27,12 +27,13 @@ Implemented cleaning strategies:
   - Gender: Binary encoding (Male=1, Female=0)
   - Smoking history: One-hot encoding with drop_first=True
 - **Feature standardization**: StandardScaler for age, BMI, HbA1c, blood glucose
+- **Class Imbalance**: SMOTE (Synthetic Minority Over-sampling Technique) applied to training data
 - **Train/test split**: Full dataset used for interpretability (can be modified for validation)
 
 ### 3. Model Building ✅
 
 Logistic Regression model with:
-- Balanced class weights to handle class imbalance
+- SMOTE over-sampling to handle class imbalance without discarding data
 - Standardized features for proper coefficient interpretation
 - Predicted probabilities (risk scores as percentages)
 
