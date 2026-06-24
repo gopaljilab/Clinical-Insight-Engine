@@ -19,7 +19,7 @@ const patientAuthLimiter = rateLimit({
   message: { error: "Too many attempts. Please try again later." },
 });
 
-function requirePatientAuth(req: Request, res: Response, next: NextFunction) {
+export function requirePatientAuth(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -28,6 +28,9 @@ function requirePatientAuth(req: Request, res: Response, next: NextFunction) {
   const result = verifyToken(token);
   if (!result.valid) {
     return res.status(401).json({ error: "Unauthorized" });
+  }
+  if (result.payload.role !== "PATIENT") {
+    return res.status(403).json({ error: "Forbidden" });
   }
   req.jwtUser = result.payload;
   next();

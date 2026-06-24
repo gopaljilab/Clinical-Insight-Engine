@@ -41,7 +41,7 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
     doc.setFontSize(8);
     doc.setFont("Helvetica", "italic");
     doc.text(
-      `Clinical Insight Engine — Page ${doc.getCurrentPageInfo().pageNumber}`,
+      `Clinical Insight Engine — Page ${doc.getCurrentPageNumber()}`,
       pw / 2,
       ph - 6,
       { align: "center" }
