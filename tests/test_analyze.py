@@ -395,8 +395,9 @@ def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
 
 def test_validate_assessment_input_rejects_invalid_age():
     from analyze import validate_assessment_input
+    from pydantic import ValidationError
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate_assessment_input(
             {
                 "age": -1,
@@ -413,9 +414,10 @@ def test_validate_assessment_input_rejects_invalid_age():
 
 def test_validate_assessment_input_rejects_invalid_gender():
     from analyze import validate_assessment_input
+    from pydantic import ValidationError
 
     # Rejects non-string gender
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate_assessment_input(
             {
                 "age": 40,
@@ -430,7 +432,7 @@ def test_validate_assessment_input_rejects_invalid_gender():
         )
 
     # Rejects empty gender
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         validate_assessment_input(
             {
                 "age": 40,

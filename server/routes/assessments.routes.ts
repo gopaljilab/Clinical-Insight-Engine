@@ -14,7 +14,6 @@ import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { MLService, isPythonAvailable, calculateClinicalFallback, type PredictionResult } from "../services/mlService";
-import { sanitizeHtml } from "../utils/sanitize";
 
 
 import { generateRecommendations } from "../services/recommendation-engine";
@@ -27,7 +26,6 @@ import { searchQuerySchema, assessmentsQuerySchema, cohortQuerySchema } from "..
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
 import { validateDTO } from "../middleware/validateDTO";
-import { requireAssessmentAccess } from "../middleware/requireAssessmentAccess";
 
 const assessmentsRouter = Router();
 
@@ -111,7 +109,7 @@ assessmentsRouter.post(
           const variant = { ...original, ...p };
           const variantResult = calculateClinicalFallback(variant) as PredictionResult;
           const riskReduction = originalResult.riskScore - variantResult.riskScore;
-          const desc = Object.keys(p).map(k => `${k}:${(original as any)[k] ?? '?'}->${(p as any)[k]}`).join("; ");
+          const desc = Object.keys(p).map(k => `${k}:${(original as Record<string, unknown>)[k] ?? '?'}->${(p as Record<string, unknown>)[k]}`).join("; ");
           return {
             delta: desc,
             riskScore: variantResult.riskScore,
@@ -300,8 +298,8 @@ assessmentsRouter.post(
         }
 
         logger.warn(
-          { err: error },
-          "Python prediction simulation failed, falling back to clinical rule-based model:"
+          { err: error as Error },
+          "Python prediction simulation failed, falling back to clinical rule-based model:",
         );
         prediction = calculateClinicalFallback(input);
       }
@@ -537,25 +535,10 @@ assessmentsRouter.get(
   "/:id",
   requireAuth,
   requireVerified,
-  requireAssessmentAccess,
-  async (req, res) => {
-    try {
-      return res.json(req.assessment);
-    } catch (err) {
-      logger.error({ err }, "Assessment fetch error:");
-      const { statusCode, message } = sanitizeDatabaseError(err);
-      return res.status(statusCode).json({ message });
-    }
-  }
-);
-
-assessmentsRouter.patch(
-  "/:id/note",
-  requireAuth,
-  requireVerified,
   async (req, res) => {
     try {
       const id = parseInt(req.params.id as string, 10);
+
       if (isNaN(id) || id <= 0) {
         return res.status(400).json({ message: "Invalid assessment ID." });
       }
@@ -566,38 +549,29 @@ assessmentsRouter.patch(
       }
 
       const assessment = await storage.getAssessmentById(id);
+
       if (!assessment) {
         return res.status(404).json({ message: "Assessment not found." });
       }
 
-      if (!canAccessPatientRecord(user, assessment)) {
+      if (!canAccessPatientRecord({ id: user.id, email: user.email, role: user.role ?? null }, assessment)) {
         logAccessAttempt(
           user.id,
           "Assessment",
           id,
           false,
-          "IDOR attempt: User not authorized to edit notes on this patient record"
+          "IDOR attempt: User not authorized to access this patient record"
         );
-        return res.status(403).json({ message: "Forbidden" });
+        return res.status(404).json({ message: "Assessment not found." });
       }
 
-      const { clinicalNote } = req.body;
-      if (typeof clinicalNote !== "string") {
-        return res.status(400).json({ message: "clinicalNote must be a string." });
-      }
-
-      const sanitized = sanitizeHtml(clinicalNote);
-
-      const updated = await storage.updateClinicalNote(id, sanitized);
-      if (!updated) {
-        return res.status(500).json({ message: "Failed to update clinical note." });
-      }
-
-      logAccessAttempt(user.id, "Assessment", id, true, "Clinical note updated");
-      return res.json({ clinicalNote: updated.clinicalNote });
+      logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
+      const recommendations = generateRecommendations({ ...assessment, riskCategory: assessment.riskCategory });
+      return res.json({ ...assessment, recommendations });
     } catch (err) {
-      logger.error({ err }, "Clinical note update error:");
-      return res.status(500).json({ message: "Failed to update clinical note." });
+      logger.error({ err }, "Assessment fetch error:");
+      const { statusCode, message } = sanitizeDatabaseError(err);
+      return res.status(statusCode).json({ message });
     }
   }
 );
@@ -606,17 +580,39 @@ assessmentsRouter.delete(
   "/:id",
   requireAuth,
   requireVerified,
-  requireAssessmentAccess,
   async (req, res) => {
     try {
-      await storage.deleteAssessment(req.assessment.id);
-      logAccessAttempt(
-        (req.session.user as any)?.id,
-        "Assessment",
-        req.assessment.id,
-        true,
-        "Assessment deleted successfully"
-      );
+      const id = parseInt(req.params.id as string, 10);
+
+      if (isNaN(id) || id <= 0) {
+        return res.status(400).json({ message: "Invalid assessment ID." });
+      }
+
+      const user = req.session.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const assessment = await storage.getAssessmentById(id);
+
+      if (!assessment) {
+        return res.status(404).json({ message: "Assessment not found." });
+      }
+
+      if (!canAccessPatientRecord({ id: user.id, email: user.email, role: user.role ?? null }, assessment)) {
+        logAccessAttempt(
+          user.id,
+          "Assessment",
+          id,
+          false,
+          "IDOR attempt: User not authorized to delete this patient record"
+        );
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      await storage.deleteAssessment(id);
+      
+      logAccessAttempt(user.id, "Assessment", id, true, "Assessment deleted successfully");
       return res.status(204).send();
     } catch (err) {
       logger.error({ err }, "Assessment delete error:");

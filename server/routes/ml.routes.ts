@@ -47,8 +47,8 @@ mlRouter.post(
         }
       } catch (error: unknown) {
         logger.warn(
-          { err: error },
-          "Python prediction bulk failed or timed out, running clinical rule-based fallback:"
+          { err: error as Error },
+          "Python prediction bulk failed or timed out, running clinical rule-based fallback:",
         );
         predictions = calculateClinicalFallback(input) as PredictionResult[];
       }
@@ -59,10 +59,10 @@ mlRouter.post(
         });
       }
 
-      const createdAssessments = await storage.createAssessmentsBatch(
+      const createdAssessments = await Promise.all(
         input.map((assessment: any, index: number) => {
           const prediction = predictions[index];
-          return {
+          return storage.createAssessment({
             ...assessment,
             riskScore: Number(prediction.riskScore),
             riskCategory: prediction.riskCategory,
@@ -70,7 +70,7 @@ mlRouter.post(
             confidenceInterval: prediction.confidenceInterval ?? null,
             modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
             createdBy: userId,
-          };
+          });
         })
       );
 

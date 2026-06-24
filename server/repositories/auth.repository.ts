@@ -2,6 +2,7 @@ import { eq, and, gte, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
 import type { User } from "@shared/schema";
+import { logger } from "../logger";
 
 export type VerifyOutcome =
   | { success: true }

@@ -126,7 +126,7 @@ export default function ImportData() {
             hba1cLevel: Number(row.hba1cLevel || row.HbA1c_level),
             bloodGlucoseLevel: Number(row.bloodGlucoseLevel || row.blood_glucose_level),
           }));
-          const data = await ApiClient.post("/api/assessments/bulk", { assessments: formattedData });
+          const data = await ApiClient.post("/api/assessments/bulk", { assessments: formattedData }) as any;
           clearInterval(iv); setProgress(100); setResults(data.assessments);
           toast({ title: "Success", description: "Successfully imported " + data.count + " patient records." });
         } catch (error: unknown) {

@@ -43,7 +43,7 @@ export default function CohortDiscovery() {
     return p.toString();
   }, [applied]);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error }: any = useQuery({
     queryKey: ["/api/assessments/cohort", queryString],
     queryFn: async () => {
       if (!queryString) return null;

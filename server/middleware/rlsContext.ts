@@ -1,10 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import { createRlsClient, runWithRlsDb, type RlsUserContext } from "../db-rls";
 import { getDb } from "../db";
-import { patientUsers } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "../logger";
-import pg from "pg";
+import { patientUsers } from "@shared/schema";
 
 async function resolvePatientName(userId: string): Promise<string | undefined> {
   try {
@@ -85,10 +84,10 @@ export async function rlsContextMiddleware(
     }
   }
 
-  const authUser = (req).authenticatedUser as any;
+  const authUser = (req as any).authenticatedUser as { userId: string; email: string; role: string } | undefined;
   if (!context && authUser) {
     context = {
-      userId: authUser.id,
+      userId: authUser.userId,
       email: authUser.email,
       role: authUser.role ?? "provider",
     };
@@ -98,49 +97,22 @@ export async function rlsContextMiddleware(
     return next();
   }
 
-  let client: pg.PoolClient | null = null;
-
   try {
-    const rls = await createRlsClient(context);
-    client = rls.client;
+    const { db, client } = await createRlsClient(context);
 
-    let released = false;
     const releaseClient = () => {
-      if (released) return;
-      released = true;
-      if (client) {
-        try {
-          client.release();
-        } catch (err) {
-          logger.error({ err }, "Failed to release RLS database client");
-        }
-        client = null;
+      try {
+        client.release();
+      } catch (err) {
+        logger.error({ err }, "Failed to release RLS database client");
       }
     };
 
     res.on("finish", releaseClient);
     res.on("close", releaseClient);
 
-    const safetyTimer = setTimeout(() => {
-      if (!released) {
-        logger.warn("RLS client not released within 30s, forcing release");
-        releaseClient();
-      }
-    }, 30000);
-
-    res.on("close", () => clearTimeout(safetyTimer));
-    res.on("finish", () => clearTimeout(safetyTimer));
-
-    try {
-      runWithRlsDb(rls.db, next);
-    } catch (err) {
-      releaseClient();
-      throw err;
-    }
+    runWithRlsDb(db, next);
   } catch (err) {
-    if (client) {
-      try { client.release(); } catch { /* ignore */ }
-    }
     logger.error({ err }, "Failed to set up RLS context");
     next(err);
   }

@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { randomInt, randomBytes, createHash } from "crypto";
+import { randomInt, randomBytes } from "crypto";
 import bcrypt from "bcrypt";
 import { rateLimit } from "express-rate-limit";
 import { issueToken } from "./services/auth/tokenValidator";
@@ -19,6 +19,7 @@ function hashPassword(password: string): string {
 function verifyPassword(password: string, storedHash: string): boolean {
   return bcrypt.compareSync(password, storedHash);
 }
+// Extend express-session to include pending user data
 declare module "express-session" {
   interface SessionData {
     pendingUser?: {
@@ -100,55 +101,7 @@ function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
 
-const MAX_PENDING_OTPS = 10000;
-const OTP_CLEANUP_INTERVAL_MS = 60_000;
-
-const _pendingOtps = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
-
-function setPendingOtp(email: string, value: { otp: string; expiresAt: number; attempts?: number }) {
-  if (_pendingOtps.size >= MAX_PENDING_OTPS) {
-    cleanupExpiredOtps();
-    if (_pendingOtps.size >= MAX_PENDING_OTPS) {
-      logger.warn({ email }, "pendingOtps map is full — rejecting new OTP");
-      return;
-    }
-  }
-  _pendingOtps.set(email, { ...value, attempts: value.attempts ?? 0 });
-}
-
-function getPendingOtp(email: string) {
-  const entry = _pendingOtps.get(email);
-  if (!entry) return undefined;
-  if (Date.now() > entry.expiresAt) {
-    _pendingOtps.delete(email);
-    return undefined;
-  }
-  return entry;
-}
-
-function deletePendingOtp(email: string) {
-  _pendingOtps.delete(email);
-}
-
-function cleanupExpiredOtps() {
-  const now = Date.now();
-  for (const [email, entry] of _pendingOtps) {
-    if (now > entry.expiresAt) {
-      _pendingOtps.delete(email);
-    }
-  }
-}
-
-setInterval(cleanupExpiredOtps, OTP_CLEANUP_INTERVAL_MS);
-
-export const pendingOtps = {
-  get: getPendingOtp,
-  set: setPendingOtp,
-  delete: deletePendingOtp,
-  has: (email: string) => getPendingOtp(email) !== undefined,
-  get size() { return _pendingOtps.size; },
-  [Symbol.iterator]() { return _pendingOtps[Symbol.iterator](); },
-} as unknown as Map<string, { otp: string; expiresAt: number; attempts: number }>;
+export const pendingOtps = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -196,7 +149,7 @@ function saveSession(req: Request): Promise<void> {
 
 async function establishAuthenticatedSession(
   req: Request,
-  user: { id: string; email: string; name: string; role: string | null; emailVerified: boolean },
+  user: { id: string; email: string; name: string; role?: string | null; emailVerified: boolean },
 ): Promise<void> {
   await regenerateSession(req);
   req.session.user = user;
@@ -687,10 +640,9 @@ out
       }
 
       const token = randomBytes(32).toString("hex");
-      const tokenHash = createHash("sha256").update(token).digest("hex");
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-      await authRepository.createPasswordResetToken(user.id, tokenHash, expiresAt);
+      await authRepository.createPasswordResetToken(user.id, token, expiresAt);
 
       const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password?token=${token}`;
 
@@ -714,41 +666,18 @@ out
     const { token, newPassword } = req.body;
 
     try {
-      const db = getDb();
+      const resetToken = await authRepository.findPasswordResetToken(token);
+
+      if (!resetToken) {
+        return res.status(400).json({ message: "Invalid or expired reset token." });
+      }
 
       const passwordHash = hashPassword(newPassword);
 
-      await db.transaction(async (tx) => {
-        const [claimed] = await tx
-          .update(passwordResetTokens)
-          .set({ used: true })
-          .where(
-            and(
-              eq(passwordResetTokens.token, token),
-              eq(passwordResetTokens.used, false),
-              gte(passwordResetTokens.expiresAt, new Date()),
-            ),
-          )
-          .returning();
-
-        if (!claimed) {
-          throw Object.assign(new Error("Invalid or expired reset token."), { statusCode: 400 });
-        }
-
-        await tx.update(users).set({ passwordHash }).where(eq(users.id, claimed.userId));
-
-        try {
-          await tx.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${claimed.userId}`);
-        } catch (sessErr) {
-          logger.error({ err: sessErr, userId: claimed.userId }, "Failed to clear user sessions upon password reset");
-        }
-      });
+      await authRepository.consumePasswordResetToken(resetToken.id, resetToken.userId, passwordHash);
 
       return res.json({ success: true, message: "Password has been reset successfully." });
-    } catch (err: any) {
-      if (err.statusCode === 400) {
-        return res.status(400).json({ message: err.message });
-      }
+    } catch (err) {
       logger.error({ err }, "Reset password error:");
       return res.status(500).json({ message: "Failed to reset password." });
     }

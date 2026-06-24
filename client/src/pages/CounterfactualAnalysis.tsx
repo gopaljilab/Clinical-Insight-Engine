@@ -52,7 +52,7 @@ export default function CounterfactualAnalysis() {
     setLatestAssessment(null);
     try {
       const data = await ApiClient.get(`/api/assessments/patient/${encodeURIComponent(name)}/trends`);
-      const assessments = data.data ?? [];
+      const assessments = (data as any).data ?? [];
       if (assessments.length === 0) {
         setError("No assessments found for this patient.");
         return;

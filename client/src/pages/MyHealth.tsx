@@ -100,7 +100,7 @@ export default function MyHealth() {
       const data = await ApiClient.requestRaw("/api/patient/auth/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setUser(data.user);
+      setUser((data as any).user);
       fetchAssessments(token);
       fetchTrends(token);
     } catch {
@@ -114,7 +114,7 @@ export default function MyHealth() {
       const data = await ApiClient.requestRaw("/api/patient/assessments?limit=50", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setAssessments(data.data ?? []);
+      setAssessments((data as any).data ?? []);
     } catch (err) {
       setError(t("myHealth.loadError"));
     } finally {
@@ -127,7 +127,7 @@ export default function MyHealth() {
       const data = await ApiClient.requestRaw("/api/patient/trends", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setTrends(data ?? []);
+      setTrends((data as any) ?? []);
     } catch {}
   }
 

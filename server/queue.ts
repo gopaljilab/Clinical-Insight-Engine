@@ -106,7 +106,7 @@ export function getAssessmentQueue(): Queue | null {
 
   if (!assessmentQueueInstance) {
     assessmentQueueInstance = new Queue("assessmentQueue", {
-      connection: getRedisConnection() as any,
+      connection: getRedisConnection() as unknown as import("bullmq").ConnectionOptions,
       defaultJobOptions: {
         attempts: QUEUE_MAX_RETRIES,
         backoff,
@@ -274,8 +274,8 @@ export function startAssessmentWorker(): void {
         );
 
         if (
-          (err as any).killed ||
-          (err as any).signal === "SIGTERM" ||
+          (err as Record<string, unknown>).killed ||
+          (err as Record<string, unknown>).signal === "SIGTERM" ||
           (err as Error).message === "Clinical assessment timed out." ||
           (err as Error).message?.includes("timed out")
         ) {
@@ -285,7 +285,7 @@ export function startAssessmentWorker(): void {
       }
     },
     {
-      connection: getRedisConnection() as any,
+      connection: getRedisConnection() as unknown as import("bullmq").ConnectionOptions,
       concurrency: 4,
       lockDuration: QUEUE_LOCK_DURATION,
       stalledInterval: QUEUE_STALLED_INTERVAL,

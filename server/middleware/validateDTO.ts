@@ -9,13 +9,13 @@ export const validateDTO = (schema: ZodTypeAny) => {
       req.body = await schema.parseAsync(req.body);
       next();
     } catch (error) {
-      if (error instanceof ZodError) {
-        logger.warn({ err: error, path: req.path }, "DTO Validation failed");
+    if (error instanceof ZodError) {
+        logger.warn({ err: error as Error, path: req.path }, "DTO Validation failed");
         return res.status(400).json({
           message: "Validation failed",
-          errors: error.errors.map(err => ({
+          errors: (error as any).errors.map((err: any) => ({
             field: err.path.join('.'),
-            message: (err as unknown as Error).message
+            message: err.message
           }))
         });
       }
@@ -32,12 +32,12 @@ export const validateQueryDTO = (schema: ZodTypeAny) => {
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        logger.warn({ err: error, path: req.path }, "Query DTO Validation failed");
+        logger.warn({ err: error as Error, path: req.path }, "Query DTO Validation failed");
         return res.status(400).json({
           message: "Validation failed for query parameters",
-          errors: error.errors.map(err => ({
+          errors: (error as any).errors.map((err: any) => ({
             field: err.path.join('.'),
-            message: (err as unknown as Error).message
+            message: err.message
           }))
         });
       }

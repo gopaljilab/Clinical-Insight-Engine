@@ -282,7 +282,7 @@ export default function History() {
         method: "POST",
         body: formData
       });
-      toast({ title: "Success", description: data.message });
+      toast({ title: "Success", description: (data as any).message });
     } catch (err: unknown) {
       toast({ title: "Upload Error", description: err instanceof Error ? (err as Error).message : String(err), variant: "destructive" });
     }
@@ -316,7 +316,7 @@ export default function History() {
       const params = buildExportParams();
       params.set("limit", "1000");
       const data = await ApiClient.get(`/api/assessments/?${params.toString()}`);
-      downloadBulkAssessmentPdf(data.data ?? []);
+      downloadBulkAssessmentPdf((data as any).data ?? []);
     } catch (err: unknown) {
       toast({ title: "Export Error", description: err instanceof Error ? (err as Error).message : String(err), variant: "destructive" });
     }

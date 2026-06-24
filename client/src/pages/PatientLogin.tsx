@@ -65,7 +65,7 @@ export default function PatientLogin() {
       } else {
         localStorage.removeItem("patient_remember_email");
       }
-      localStorage.setItem("patient_token", data.token);
+      localStorage.setItem("patient_token", (data as any).token);
       navigate("/my-health");
     } catch (err: any) {
       if (err?.status === 429) {
@@ -85,7 +85,7 @@ export default function PatientLogin() {
     setLoading(true);
     try {
       const data = await ApiClient.post("/api/patient/auth/register", { patientName, email, password, phone: phone || undefined });
-      localStorage.setItem("patient_token", data.token);
+      localStorage.setItem("patient_token", (data as any).token);
       navigate("/my-health");
     } catch (err: any) {
       const msg = err?.message || "";
