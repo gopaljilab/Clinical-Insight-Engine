@@ -59,10 +59,10 @@ mlRouter.post(
         });
       }
 
-      const createdAssessments = await Promise.all(
+      const createdAssessments = await storage.createAssessmentsBatch(
         input.map((assessment: any, index: number) => {
           const prediction = predictions[index];
-          return storage.createAssessment({
+          return {
             ...assessment,
             riskScore: Number(prediction.riskScore),
             riskCategory: prediction.riskCategory,
@@ -70,7 +70,7 @@ mlRouter.post(
             confidenceInterval: prediction.confidenceInterval ?? null,
             modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
             createdBy: userId,
-          });
+          };
         })
       );
 

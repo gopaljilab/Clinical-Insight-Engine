@@ -19,6 +19,8 @@ export const assessments = pgTable("assessments", {
   bmi: doublePrecision("bmi").notNull(),
   hba1cLevel: doublePrecision("hba1c_level").notNull(),
   bloodGlucoseLevel: doublePrecision("blood_glucose_level").notNull(),
+  insulin: doublePrecision("insulin"),
+  skinThickness: doublePrecision("skin_thickness"),
 
   // Model Outputs
   riskScore: doublePrecision("risk_score").notNull(), // 0-100 percentage

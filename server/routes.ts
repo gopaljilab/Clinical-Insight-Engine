@@ -16,9 +16,8 @@ import {
   adminLimiter,
   exportLimiter,
 } from "./middleware/rateLimit";
-import { rateLimit } from "express-rate-limit";
 import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
-import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
+import { getPythonExecutable } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -28,12 +27,8 @@ import { z } from "zod";
 import os from "os";
 import { randomUUID } from "crypto";
 import { writeFile, unlink } from "fs/promises";
-import { validateDTO } from "./middleware/validateDTO";
 import { assessmentsToCsv } from "./utils/csvExport";
-import { searchQuerySchema, assessmentExportQuerySchema } from "./validation/searchValidation";
-import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
-import { canAccessPatientRecord } from "./services/authz/patient-access";
-import { logAccessAttempt } from "./security/access-audit";
+import { assessmentExportQuerySchema } from "./validation/searchValidation";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -146,25 +141,6 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  const previewLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    limit: 10,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { error: "Too many preview requests. Please try again later.", retryAfter: 60 },
-  });
-
-  const assessmentLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    limit: 5,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: {
-      error: "Too many assessment requests. Please try again later.",
-      retryAfter: 60,
-    },
-  });
-
   // Support test compatibility — some tests reference lastStatus globally
   app.use((req, res, next) => {
     res.on("finish", () => {
@@ -191,17 +167,8 @@ export async function registerRoutes(
   // Mount auth router
   app.use("/api/auth", authRouter);
   app.use("/api/ingest", fhirRouter);
-  app.post(
-    api.assessments.preview.path,
-    requireAuth,
-    requireVerified,
-    previewLimiter,
-    validateDTO(api.assessments.preview.input),
-    async (req, res) => {
-      try {
-        const input = api.assessments.preview.input.parse(req.body);
-        const { prediction } = await MLService.runAssessmentInference(input);
 
+<<<<<<< HEAD
         logger.info(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
         return res.json({
           riskScore: prediction.riskScore,
@@ -594,6 +561,8 @@ export async function registerRoutes(
     }
   );
   
+=======
+>>>>>>> upstream/main
   // Mount domain-specific routers (after app-level handlers for precedence)
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
@@ -731,7 +700,7 @@ export async function registerRoutes(
       res.json(record);
     } catch (err: any) {
       logger.error({ err }, "Admin model retrain error:");
-      res.status(500).json({ message: err.stderr || "Model retraining failed." });
+      res.status(500).json({ message: (err as { stderr?: string }).stderr || "Model retraining failed." });
     }
   });
 
@@ -760,3 +729,4 @@ export async function registerRoutes(
 
   return httpServer;
 }
+

@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { safeExecML } from "./utils/exec";
-import express, { type Request, Response, NextFunction } from "express";
+import express, { type Request, Response, NextFunction, RequestHandler } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";

@@ -113,53 +113,6 @@ export function getPool() {
     poolInstance.on("error", (err) => {
       logger.error({ err }, "Unexpected error on idle database client");
     });
-
-    const originalQuery = poolInstance.query.bind(poolInstance);
-    poolInstance.query = function (this: pg.Pool, ...args: any[]): any {
-      const lastArg = args[args.length - 1];
-      if (typeof lastArg === "function") {
-        const callback = lastArg;
-        const queryArgs = args.slice(0, -1);
-        withRetry(
-          "pool.query (callback)",
-          () => (originalQuery as any)(...queryArgs)
-        ).then(
-          (res) => callback(null, res),
-          (err) => callback(err)
-        );
-        return;
-      }
-
-      return withRetry(
-        "pool.query",
-        () => (originalQuery as any)(...args)
-      );
-    } as any;
-
-    const originalConnect = poolInstance.connect.bind(poolInstance);
-    poolInstance.connect = function (this: pg.Pool, ...args: any[]): any {
-      const lastArg = args[args.length - 1];
-      if (typeof lastArg === "function") {
-        const callback = lastArg;
-        const connectPromise = () =>
-          new Promise<{ client: pg.PoolClient; release: any }>((resolve, reject) => {
-            originalConnect((err: unknown, client: any, done: any) => {
-              if (err) reject(err);
-              else resolve({ client, release: done });
-            });
-          });
-        withRetry("pool.connect (callback)", connectPromise).then(
-          ({ client, release }) => callback(null, client, release),
-          (err) => callback(err)
-        );
-        return;
-      }
-
-      return withRetry(
-        "pool.connect",
-        () => originalConnect()
-      );
-    } as any;
   }
 
   return poolInstance;

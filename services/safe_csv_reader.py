@@ -14,14 +14,23 @@ def read_csv_safely(filepath, chunksize=10000, max_rows=150000, timeout_seconds=
         # 2. Resource Guard
         guard = ResourceGuard(max_rows=max_rows, timeout_seconds=timeout_seconds)
         
+        # Read the file as raw bytes and sanitize
+        try:
+            with open(filepath, 'rb') as f:
+                content_bytes = f.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_content = sanitize_text(content_bytes, fallback_to_cp1252=True)
+        except Exception as e:
+            raise SafeCSVError(f"Failed to read and sanitize CSV: {str(e)}")
+        
         # 3. Read Headers first to validate
+        import io
         try:
             df_preview = pd.read_csv(
-                filepath, 
+                io.StringIO(sanitized_content), 
                 nrows=0,
                 engine='c',
                 on_bad_lines='error',
-                encoding='utf-8',
                 low_memory=True
             )
             validate_headers(df_preview.columns)
@@ -35,11 +44,10 @@ def read_csv_safely(filepath, chunksize=10000, max_rows=150000, timeout_seconds=
         try:
             from app.utils.csv_sanitizer import sanitize_csv_value
             for chunk in pd.read_csv(
-                filepath, 
+                io.StringIO(sanitized_content), 
                 chunksize=chunksize,
                 engine='c',
                 on_bad_lines='error',
-                encoding='utf-8',
                 low_memory=True
             ):
                 guard.check_resource_limits(len(chunk))
@@ -54,8 +62,6 @@ def read_csv_safely(filepath, chunksize=10000, max_rows=150000, timeout_seconds=
             
         except ResourceExhaustedError as e:
             raise SafeCSVError(str(e))
-        except UnicodeDecodeError:
-            raise SafeCSVError("Unsupported file encoding")
         except pd.errors.ParserError as e:
             raise SafeCSVError(f"Malformed CSV structure: {str(e)}")
         except SyntaxError as e:

@@ -11,6 +11,7 @@ import jwt from "jsonwebtoken";
 import { verifyToken, issueToken, getJwtSecret } from "../../server/services/auth/tokenValidator";
 import type { Request, Response, NextFunction } from "express";
 import { requireJwtAuth } from "../../server/middleware/jwtVerification";
+import { requirePatientAuth } from "../../server/routes/patient.routes";
 
 vi.mock("../../server/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../server/auth")>();
@@ -176,5 +177,82 @@ describe("JWT Middleware (requireJwtAuth)", () => {
     expect(res.statusCode).toBe(401);
     // Ensure we don't leak internals like "jwt malformed"
     expect(res.body).toEqual({ message: "Unauthorized" });
+  });
+
+  it("Valid Bearer token with incorrect role PATIENT returns 403 Forbidden", async () => {
+    const token = issueToken("user-999", "provider@example.com", "PATIENT");
+    const req = mockReq(`Bearer ${token}`);
+    const res = mockRes();
+    const { next, wasCalled } = mockNext();
+
+    await requireJwtAuth(req, res, next);
+
+    expect(wasCalled()).toBe(false);
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toEqual({ message: "Forbidden" });
+  });
+});
+
+describe("Patient JWT Middleware (requirePatientAuth)", () => {
+  const mockReq = (authHeader?: string) => ({
+    headers: { authorization: authHeader }
+  } as Request);
+  
+  const mockRes = () => {
+    const res: any = {};
+    res.status = (code: number) => {
+      res.statusCode = code;
+      return res;
+    };
+    res.json = (data: any) => {
+      res.body = data;
+      return res;
+    };
+    return res as Response & { statusCode?: number, body?: any };
+  };
+
+  const mockNext = () => {
+    let called = false;
+    const next: NextFunction = () => { called = true; };
+    return { next, wasCalled: () => called };
+  };
+
+  it("Missing token returns 401 Unauthorized", () => {
+    const req = mockReq();
+    const res = mockRes();
+    const { next, wasCalled } = mockNext();
+
+    requirePatientAuth(req, res, next);
+
+    expect(wasCalled()).toBe(false);
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toEqual({ error: "Unauthorized" });
+  });
+
+  it("Valid Bearer token with PATIENT role calls next() and attaches user payload", () => {
+    const token = issueToken("user-123", "patient@example.com", "PATIENT");
+    const req = mockReq(`Bearer ${token}`);
+    const res = mockRes();
+    const { next, wasCalled } = mockNext();
+
+    requirePatientAuth(req, res, next);
+
+    expect(wasCalled()).toBe(true);
+    expect(req.jwtUser).toBeDefined();
+    expect(req.jwtUser?.sub).toBe("user-123");
+    expect(req.jwtUser?.role).toBe("PATIENT");
+  });
+
+  it("Valid Bearer token with incorrect role provider returns 403 Forbidden", () => {
+    const token = issueToken("user-999", "provider@example.com", "provider");
+    const req = mockReq(`Bearer ${token}`);
+    const res = mockRes();
+    const { next, wasCalled } = mockNext();
+
+    requirePatientAuth(req, res, next);
+
+    expect(wasCalled()).toBe(false);
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toEqual({ error: "Forbidden" });
   });
 });

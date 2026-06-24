@@ -7,6 +7,7 @@ vi.mock("@/hooks/use-assessments", () => ({
   useWhatIfAuto: () => ({ mutate: vi.fn(), data: null, isPending: false }),
   useWhatIfAssessment: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useWhatIfBatch: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  useUpdateClinicalNote: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("recharts", () => ({
