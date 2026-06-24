@@ -40,14 +40,17 @@ vi.mock("bullmq", () => {
 });
 
 vi.mock("express-rate-limit", () => {
+  let limiterIdCounter = 0;
   const rateLimit = (options: any) => {
+    const id = limiterIdCounter++;
     return (req: any, res: any, next: any) => {
-      const key = req.ip || "test";
+      const key = `${id}:${req.ip || "test"}`;
       const count = (rateLimitCounters.get(key) || 0) + 1;
       rateLimitCounters.set(key, count);
-      if (count > (options.limit || 5)) {
+      const limit = options.limit || options.max || 5;
+      if (count > limit) {
         return res.status(429).json({
-          error: options.message?.error || "Too many requests",
+          error: options.message?.error || options.message?.message || "Too many requests",
         });
       }
       next();

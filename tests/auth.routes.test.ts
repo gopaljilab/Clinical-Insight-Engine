@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
 import session from "express-session";
-import { createAuthRouter, pendingOtps } from "../server/auth";
+import { createAuthRouter } from "../server/auth";
 
 // Mock rate limiting to prevent test blocks
 vi.mock("express-rate-limit", () => {
@@ -26,6 +26,10 @@ vi.mock("../server/db", () => {
   };
 });
 
+// Mock email services
+const mockSendVerificationEmail = vi.fn().mockResolvedValue(true);
+vi.mock("../server/email", () => ({
+  sendVerificationEmail: (email: string, otp: string) => mockSendVerificationEmail(email, otp),
 // Mock email services — auth.ts uses sendVerificationEmail
 const { mockSendVerificationEmail } = vi.hoisted(() => ({
   mockSendVerificationEmail: vi.fn().mockResolvedValue(true),
@@ -94,6 +98,12 @@ describe("Auth Router - Resend OTP integration tests", () => {
     expect(res.body).toHaveProperty("message", "Email is required.");
   });
 
+  it("returns 404 when user is not found in database", async () => {
+    // Mock db select to return empty array (user not found)
+    const mockLimit = vi.fn().mockResolvedValue([]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockDb.select.mockImplementation(() => ({ from: mockFrom }));
   describe("login mode resend", () => {
     it("resends OTP for existing user", async () => {
       mockSelectDbUser([{ id: "user-1", emailVerified: true }]);
@@ -133,11 +143,51 @@ describe("Auth Router - Resend OTP integration tests", () => {
         .post("/api/auth/resend-otp")
         .send({ email: "expired@clinic.com", mode: "login" });
 
-      expect(res.status).toBe(400);
-      expect(res.body).toHaveProperty("message", "OTP has expired. Please sign in again.");
-      expect(pendingOtps.has("expired@clinic.com")).toBe(false);
+    const res = await request(app)
+      .post("/api/auth/resend-otp")
+      .send({ email: "nonexistent@clinic.com" });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toHaveProperty("message", "User not found.");
+  });
+
+  it("invalidates old tokens and inserts new verification token on success", async () => {
+    // Mock db select to return unverified user
+    const mockLimit = vi.fn().mockResolvedValue([{ id: "user-id-2", emailVerified: false }]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockDb.select.mockImplementation(() => ({ from: mockFrom }));
+
+    // Mock transaction
+    mockDb.transaction.mockImplementation(async (callback) => {
+      const mockTx = {
+        update: vi.fn(() => ({
+          set: vi.fn(() => ({
+            where: vi.fn().mockResolvedValue(undefined),
+          })),
+        })),
+        insert: vi.fn(() => ({
+          values: vi.fn().mockResolvedValue(undefined),
+        })),
+      };
+      return callback(mockTx);
     });
 
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "development";
+
+    try {
+      const res = await request(app)
+        .post("/api/auth/resend-otp")
+        .send({ email: "unverified@clinic.com" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("success", true);
+      expect(res.body).toHaveProperty("pendingEmail", "unverified@clinic.com");
+      expect(mockSendVerificationEmail).toHaveBeenCalledTimes(1);
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
     it("updates pending OTP and returns devOtp in dev environment on success", async () => {
       // Set valid pending OTP
       pendingOtps.set("valid@clinic.com", {

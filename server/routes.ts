@@ -1,4 +1,5 @@
 import mlRouter from "./routes/ml.routes";
+import { api } from "@shared/routes";
 import exportsRouter from "./routes/exports.routes";
 import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
@@ -166,6 +167,9 @@ export async function registerRoutes(
 
   // Mount auth router
   app.use("/api/auth", authRouter);
+  app.use("/api/assessments", mlRouter);
+  app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", generalLimiter, analyticsRouter);
   app.use("/api/ingest", fhirRouter);
 
   // Mount domain-specific routers (after app-level handlers for precedence)

@@ -112,6 +112,17 @@ app.use(
   })
 );
 
+// Custom parser for bulk assessments before the global strict limit
+app.use(
+  "/api/assessments/bulk",
+  express.json({
+    limit: "1mb",
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
+
 app.use(
   express.json({
     limit: REQUEST_BODY_LIMIT,

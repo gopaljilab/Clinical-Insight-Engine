@@ -11,6 +11,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
 import { requireAuth, requireVerified } from "../auth";
+import { previewLimiter, assessmentLimiter } from "../middleware/rateLimit";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { MLService, isPythonAvailable, calculateClinicalFallback, type PredictionResult } from "../services/mlService";
@@ -18,6 +19,9 @@ import { sanitizeHtml } from "../utils/sanitize";
 
 
 import { generateRecommendations } from "../services/recommendation-engine";
+import { generatePredictionExplanation } from "../services/prediction-explainer";
+import { generateQualityAlerts } from "../services/assessment-quality-checker";
+import { generateAttentionNavigator } from "../services/clinical-attention-navigator";
 import {
   sanitizeDatabaseError,
   analyzeSearchInput,
@@ -71,6 +75,7 @@ assessmentsRouter.post(
   requireAuth,
   requireVerified,
   previewLimiter,
+  validateDTO(api.assessments.whatIf.input),
   validateDTO(api.assessments.simulate.input),
   async (req, res) => {
     try {
@@ -100,6 +105,7 @@ assessmentsRouter.post(
   "/what-if/batch",
   requireAuth,
   requireVerified,
+  previewLimiter,
   async (req, res) => {
     try {
       const parsed = api.assessments.whatIfBatch.input.parse(req.body);
@@ -534,13 +540,70 @@ assessmentsRouter.get(
 );
 
 assessmentsRouter.get(
+  "/patient/:patientName/trends",
+  requireAuth,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
+      const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+      return res.json(result);
+    } catch (err) {
+      logger.error({ err }, "Patient trends fetch error:");
+      return res.status(500).json({ message: "Failed to fetch patient trends." });
+    }
+  }
+);
+
+assessmentsRouter.get(
   "/:id",
   requireAuth,
   requireVerified,
   requireAssessmentAccess,
   async (req, res) => {
     try {
-      return res.json(req.assessment);
+      const id = parseInt(req.params.id as string, 10);
+
+      if (isNaN(id) || id <= 0) {
+        return res.status(400).json({ message: "Invalid assessment ID." });
+      }
+
+      const user = req.session.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const assessment = await storage.getAssessmentById(id);
+
+      if (!assessment) {
+        return res.status(404).json({ message: "Assessment not found." });
+      }
+
+      if (!canAccessPatientRecord(user as any, assessment)) {
+        logAccessAttempt(
+          (user as any).id,
+          "Assessment",
+          id,
+          false,
+          "IDOR attempt: User not authorized to access this patient record"
+        );
+        return res.status(404).json({ message: "Assessment not found." });
+      }
+
+      logAccessAttempt((user as any).id, "Assessment", id, true, "Authorized access");
+      const recommendations = generateRecommendations({ ...assessment, riskCategory: assessment.riskCategory });
+      const qualityAlerts = generateQualityAlerts({ ...assessment, factors: assessment.factors });
+      const explanation = generatePredictionExplanation({
+        ...assessment,
+        riskCategory: assessment.riskCategory,
+        factors: assessment.factors,
+      });
+      const attentionNavigator = generateAttentionNavigator({
+        ...assessment,
+        riskCategory: assessment.riskCategory,
+        factors: assessment.factors,
+      });
+      return res.json({ ...assessment, recommendations, qualityAlerts, explanation, attentionNavigator });
     } catch (err) {
       logger.error({ err }, "Assessment fetch error:");
       const { statusCode, message } = sanitizeDatabaseError(err);
@@ -626,6 +689,35 @@ assessmentsRouter.delete(
   }
 );
 
+assessmentsRouter.post(
+  "/simulate",
+  requireAuth,
+  requireVerified,
+  previewLimiter,
+  validateDTO(api.assessments.simulate.input),
+  async (req, res) => {
+    try {
+      const input = req.body;
+      const { prediction } = await MLService.runAssessmentInference(input);
+      
+      logger.info(
+        `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+      );
+
+      return res.json({
+        simulatedRisk: prediction.riskScore,
+        riskCategory: prediction.riskCategory as "LOW" | "MODERATE" | "HIGH",
+        confidence: prediction.modelConfidence ?? null,
+        factorContributions: prediction.factors ?? [],
+      });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      }
+      if (err.message === "Clinical assessment timed out." || err.message.includes("timed out")) {
+        return res.status(408).json({ message: "Clinical assessment simulation timed out." });
+      }
+      return res.status(500).json({ message: err.message || "Internal server error" });
 assessmentsRouter.get(
   "/cohort",
   requireAuth,

@@ -7,10 +7,11 @@ import { HealthBadges } from "@/components/HealthBadges";
 import { CopySummaryButton } from "@/components/CopySummaryButton";
 import { useAssessments, useWhatIfAuto, useUpdateClinicalNote } from "@/hooks/use-assessments";
 import { calculateHealthBadges } from "@/utils/healthBadges";
-import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { Recommendations } from "./Recommendations";
+import { DataQualityAlerts } from "./DataQualityAlerts";
+import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
 import { PredictionExplanation } from "./PredictionExplanation";
 import { DataQualityAlerts } from "./DataQualityAlerts";
 import { BiomarkerAlerts } from "./BiomarkerAlerts";
@@ -450,6 +451,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
               </div>
 
+              <div className="space-y-4">
               <div className="mt-4 space-y-4">
                 <DataQualityAlerts alerts={assessment.qualityAlerts} />
                 <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />

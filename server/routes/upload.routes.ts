@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import { requireAuth, requireVerified } from "../auth";
+import { uploadLimiter } from "../middleware/rateLimit";
 import Papa from "papaparse";
 import { insertAssessmentSchema, type InsertAssessment } from "@shared/schema";
 import { MLService } from "../services/mlService";
@@ -36,6 +37,7 @@ uploadRouter.post(
   "/lab-results",
   requireAuth,
   requireVerified,
+  uploadLimiter,
   (req, res) => {
     upload.single("file")(req, res, async (err: unknown) => {
       if (err) {

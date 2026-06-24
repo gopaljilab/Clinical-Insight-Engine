@@ -6,11 +6,12 @@ import { createServer } from "http";
 import patientsRouter from "../server/routes/patients";
 import { issueToken } from "../server/services/auth/tokenValidator";
 
-const { mockExecFile, rateLimitCounters, mockCreateAssessment, mockGetAssessments } = vi.hoisted(() => ({
+const { mockExecFile, rateLimitCounters, mockCreateAssessment, mockGetAssessments, mockGetAssessmentById } = vi.hoisted(() => ({
   mockExecFile: vi.fn(),
   rateLimitCounters: new Map<string, number>(),
   mockCreateAssessment: vi.fn(),
   mockGetAssessments: vi.fn(),
+  mockGetAssessmentById: vi.fn(),
 }));
 
 vi.mock("child_process", () => ({
@@ -48,8 +49,9 @@ vi.mock("bullmq", () => {
         riskScore: 12.3,
         riskCategory: "LOW",
         factors: [{ name: "Age", impact: "positive", description: "Increases risk" }],
-        createdBy: "test-user-id",
+        createdBy: "test@example.com",
         createdAt: new Date(),
+        attentionNavigator: { priorities: [] },
       },
     }),
   };
@@ -67,7 +69,8 @@ vi.mock("express-rate-limit", () => {
       const key = req.ip || "test";
       const count = (rateLimitCounters.get(key) || 0) + 1;
       rateLimitCounters.set(key, count);
-      if (count > (options.limit || 5)) {
+      const limit = options.limit || options.max || 5;
+      if (count > limit) {
         return res.status(429).json({
           error: options.message?.error || "Too many requests",
         });
@@ -83,6 +86,7 @@ vi.mock("../server/storage", () => {
     getAssessments: mockGetAssessments,
     createAssessment: mockCreateAssessment,
     searchAssessments: vi.fn().mockResolvedValue([]),
+    getAssessmentById: mockGetAssessmentById,
     getAssessmentById: vi.fn().mockResolvedValue(undefined),
     deleteAssessment: vi.fn().mockResolvedValue(undefined),
     getUserByEmail: vi.fn().mockResolvedValue({ id: "admin-id" }),
@@ -136,6 +140,7 @@ vi.mock("fs/promises", () => ({
   unlink: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { storage } from "../server/storage";
 import { registerRoutes } from "../server/routes";
 import { pythonDaemon } from "../server/services/mlService";
 
@@ -199,6 +204,7 @@ beforeEach(() => {
     data: [],
     nextCursor: null,
   });
+  mockGetAssessmentById.mockResolvedValue(undefined);
   mockExecFile.mockImplementation((cmd, args, opts, cb) => {
     if (typeof opts === "function") {
       cb = opts;
@@ -244,6 +250,47 @@ describe("Auth gating", () => {
 
     expect(res.status).toBe(401);
     expect(res.body).toHaveProperty("message");
+  });
+
+  it("returns clinician workflow metadata for queued job status result", async () => {
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app).get("/api/assessments/jobs/mock-job-id");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("status", "completed");
+    expect(res.body.result).toHaveProperty("attentionNavigator");
+    expect(Array.isArray(res.body.result.attentionNavigator.priorities)).toBe(true);
+  });
+
+  it("returns clinician workflow metadata for GET /api/assessments/:id", async () => {
+    mockGetAssessmentById.mockResolvedValue({
+      id: 1,
+      patientName: "John Doe",
+      gender: "Male",
+      age: 45,
+      hypertension: false,
+      heartDisease: false,
+      smokingHistory: "never",
+      bmi: 24.5,
+      hba1cLevel: 5.2,
+      bloodGlucoseLevel: 95,
+      riskScore: 12.3,
+      riskCategory: "LOW",
+      factors: [{ name: "Age", impact: "positive", description: "Increases risk" }],
+      createdBy: "test@example.com",
+      createdAt: new Date(),
+    });
+
+    const app = createAuthenticatedApp();
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app).get("/api/assessments/1");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("attentionNavigator");
+    expect(Array.isArray(res.body.attentionNavigator.priorities)).toBe(true);
   });
 
   it("returns 401 for GET /api/assessments without session", async () => {

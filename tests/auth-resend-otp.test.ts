@@ -19,6 +19,16 @@ vi.mock("../server/email", () => ({
   sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
 }));
 
+const mockSelect = vi.fn();
+const mockTransaction = vi.fn();
+
+const mockDb = {
+  select: mockSelect,
+  transaction: mockTransaction,
+};
+
+vi.mock("../server/db", () => ({
+  getDb: () => mockDb,
 const mockDb = {
   select: vi.fn(),
   transaction: vi.fn(),
@@ -30,6 +40,8 @@ vi.mock("../server/db", () => ({
 
 vi.mock("../server/storage", () => ({
   storage: {
+    getUserByEmail: vi.fn(),
+    createUser: vi.fn(),
     recordLoginAudit: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -78,6 +90,11 @@ describe("POST /api/auth/resend-otp", () => {
     expect(res.body.message).toMatch(/email is required/i);
   });
 
+  it("returns 404 when no user exists in database", async () => {
+    const mockLimit = vi.fn().mockResolvedValue([]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockSelect.mockImplementation(() => ({ from: mockFrom }));
   it("returns 404 when user is not found (no pending otp scenario)", async () => {
     await setMockDb({
       select: () => ({
@@ -114,6 +131,18 @@ describe("POST /api/auth/resend-otp", () => {
     expect(res.body.message).toMatch(/user not found/i);
   });
 
+  it("does not require password — only email", async () => {
+    const mockLimit = vi.fn().mockResolvedValue([]);
+    const mockWhere = vi.fn(() => ({ limit: mockLimit }));
+    const mockFrom = vi.fn(() => ({ where: mockWhere }));
+    mockSelect.mockImplementation(() => ({ from: mockFrom }));
+
+    const app = await buildApp();
+    const res = await request(app)
+      .post("/api/auth/resend-otp")
+      .send({ email: "test@clinic.com" });
+    // The 404 should be for "user not found", not for missing password
+    expect(res.body.message).not.toMatch(/password/i);
   it("resends OTP successfully when user exists (does not ask for password)", async () => {
     await setMockDb({
       select: () => ({
