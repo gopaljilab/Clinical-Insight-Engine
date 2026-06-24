@@ -1,15 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AssessmentProvider, useAssessmentContext } from "./assessment/AssessmentContext";
 import { ExplainabilityPanel } from "./assessment/ExplainabilityPanel";
 import { PathToImprovement } from "./assessment/PathToImprovement";
 import { FactorBreakdown, RiskFactor } from "./assessment/types";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2, Pencil, Save, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { HealthBadges } from "@/components/HealthBadges";
 import { CopySummaryButton } from "@/components/CopySummaryButton";
-import { useAssessments, useWhatIfAuto } from "@/hooks/use-assessments";
+import { useAssessments, useWhatIfAuto, useUpdateClinicalNote } from "@/hooks/use-assessments";
 import { calculateHealthBadges } from "@/utils/healthBadges";
 import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
@@ -22,6 +22,7 @@ import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
 import { ClinicalCopilot } from "./ClinicalCopilot";
 import { ClinicalNoteViewer } from "./ClinicalNoteViewer";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "react-i18next";
 
 interface AssessmentResultProps {
@@ -69,6 +70,9 @@ function AssessmentResultInner({ assessment }: AssessmentResultProps) {
     pdfError, setPdfError,
     whatIfFactors, setWhatIfFactors
   } = useAssessmentContext();
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [editNoteText, setEditNoteText] = useState("");
+  const updateNoteMutation = useUpdateClinicalNote();
 
   const generatePDF = async () => {
     setPdfError("");
@@ -556,14 +560,82 @@ function AssessmentResultInner({ assessment }: AssessmentResultProps) {
 
               <ClinicalCopilot assessment={assessment} />
 
-              {assessment.clinicalNote && assessment.explainableInsights && (
-                <div className="mt-6">
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    {t("patientResult.yourHealthAssessment")}
+                  </h3>
+                  {!isEditingNote && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditNoteText(assessment.clinicalNote ?? "");
+                        setIsEditingNote(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      {assessment.clinicalNote ? t("patientResult.editNote") || "Edit" : t("patientResult.addNote") || "Add Note"}
+                    </button>
+                  )}
+                </div>
+
+                {isEditingNote ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      value={editNoteText}
+                      onChange={(e) => setEditNoteText(e.target.value)}
+                      placeholder="Enter clinical notes..."
+                      className="min-h-[120px] font-mono text-sm"
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingNote(false);
+                          setEditNoteText("");
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border hover:bg-muted transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateNoteMutation.mutate(
+                            { id: assessment.id!, clinicalNote: editNoteText },
+                            { onSuccess: () => setIsEditingNote(false) }
+                          );
+                        }}
+                        disabled={updateNoteMutation.isPending}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      >
+                        {updateNoteMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : assessment.clinicalNote && assessment.explainableInsights ? (
                   <ClinicalNoteViewer
                     noteText={assessment.clinicalNote}
                     insights={assessment.explainableInsights as any}
                   />
-                </div>
-              )}
+                ) : assessment.clinicalNote ? (
+                  <div className="rounded-xl border border-border bg-muted/30 p-4">
+                    <p className="whitespace-pre-wrap leading-relaxed text-sm">{assessment.clinicalNote}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">
+                    {t("patientResult.noClinicalNotes") || "No clinical notes recorded for this assessment."}
+                  </p>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
