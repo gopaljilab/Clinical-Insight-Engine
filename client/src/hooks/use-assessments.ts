@@ -1,5 +1,6 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type AssessmentInput, type AssessmentResponse, type AssessmentSimulationResponse, type AssessmentWhatIfResponse, type AssessmentWhatIfBatchResponse, type AssessmentsListResponse } from "@shared/routes";
+import { ApiClient } from "../lib/apiClient";
 import { useToast } from "./use-toast";
 
 // Parse with logging to catch silent Zod JSON translation errors
@@ -44,9 +45,7 @@ export function useAssessments(params?: {
           }
         });
       }
-      const res = await fetch(url.toString(), { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch assessments");
-      const data = await res.json();
+      const data = await ApiClient.get<AssessmentsListResponse>(url.toString());
       return parseWithLogging<AssessmentsListResponse>(api.assessments.list.responses[200], data, "assessments.list");
     },
   });
@@ -85,9 +84,7 @@ export function usePatientAssessments(patientName: string | null | undefined) {
       }
       url.searchParams.set("limit", "50");
 
-      const res = await fetch(url.toString(), { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch patient assessments");
-      const data = await res.json();
+      const data = await ApiClient.get<AssessmentsListResponse>(url.toString());
 
       // Ensure the returned records actually belong to this patient.
       // This is a client-side safety guard in addition to server-side scoping.
@@ -133,20 +130,7 @@ export function useDeleteAssessment() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/assessments/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!res.ok) {
-        let errorData;
-        try {
-          errorData = await res.json();
-        } catch {
-          throw new Error("Failed to delete assessment");
-        }
-        throw new Error(errorData.message || "Failed to delete assessment");
-      }
+      await ApiClient.delete(`/api/assessments/${id}`);
       return true;
     },
     onSuccess: () => {
@@ -183,11 +167,10 @@ export function useCreateAssessment() {
       const timeoutId = setTimeout(() => controller.abort(), 75000); // 75s overall timeout
 
       try {
-        const res = await fetch(api.assessments.create.path, {
+        const res = await ApiClient.requestRaw(api.assessments.create.path, {
           method: api.assessments.create.method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(validated),
-          credentials: "include",
           signal: controller.signal,
         });
 
@@ -225,12 +208,10 @@ export function useCreateAssessment() {
 
               if (controller.signal.aborted) return;
               try {
-                const jobRes = await fetch(`/api/assessments/jobs/${responseData.jobId}`, {
-                  credentials: "include",
-                  signal: controller.signal,
-                });
-                if (!jobRes.ok) throw new Error("Failed to check job status");
-                const jobData = await jobRes.json();
+                const jobData = await ApiClient.get<{ status: string; error?: string; result?: unknown }>(
+                  `/api/assessments/jobs/${responseData.jobId}`,
+                  { signal: controller.signal }
+                );
 
                 if (jobData.status === "completed") {
                   resolve(parseWithLogging<AssessmentResponse>(api.assessments.create.responses[201], jobData.result, "assessments.create.job"));
@@ -279,19 +260,10 @@ export function useSimulateAssessment() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
       const validated = api.assessments.simulate.input.parse(data);
-      const res = await fetch(api.assessments.simulate.path, {
-        method: api.assessments.simulate.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validated),
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.message || "Failed to simulate assessment");
-      }
-
-      const responseData = await res.json();
+      const responseData = await ApiClient.post<AssessmentSimulationResponse>(
+        api.assessments.simulate.path,
+        validated
+      );
       return parseWithLogging<AssessmentSimulationResponse>(
         api.assessments.simulate.responses[200],
         responseData,
@@ -309,19 +281,10 @@ export function useWhatIfAssessment() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
       const validated = api.assessments.whatIf.input.parse(data);
-      const res = await fetch(api.assessments.whatIf.path, {
-        method: api.assessments.whatIf.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validated),
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.message || "Failed to run what-if analysis");
-      }
-
-      const responseData = await res.json();
+      const responseData = await ApiClient.post<AssessmentWhatIfResponse>(
+        api.assessments.whatIf.path,
+        validated
+      );
       return parseWithLogging<AssessmentWhatIfResponse>(
         api.assessments.whatIf.responses[200],
         responseData,
@@ -342,19 +305,10 @@ export function useWhatIfBatch() {
       perturbations: Record<string, string | number | boolean>[];
     }) => {
       const validated = api.assessments.whatIfBatch.input.parse(data);
-      const res = await fetch(api.assessments.whatIfBatch.path, {
-        method: api.assessments.whatIfBatch.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validated),
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.message || "Failed to run batch what-if analysis");
-      }
-
-      const responseData = await res.json();
+      const responseData = await ApiClient.post<AssessmentWhatIfBatchResponse>(
+        api.assessments.whatIfBatch.path,
+        validated
+      );
       return parseWithLogging<AssessmentWhatIfBatchResponse>(
         api.assessments.whatIfBatch.responses[200],
         responseData,
@@ -371,21 +325,44 @@ export function useWhatIfBatch() {
 export function useWhatIfAuto() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
-      // Validate input using the base create schema
       const validated = api.assessments.create.input.parse(data);
-      const res = await fetch("/api/assessments/what-if/auto", {
-        method: "POST",
+      return ApiClient.post("/api/assessments/what-if/auto", validated);
+    },
+  });
+}
+
+export function useUpdateClinicalNote() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      clinicalNote,
+    }: {
+      id: number;
+      clinicalNote: string;
+    }) => {
+      const res = await fetch(`/api/assessments/${id}/note`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validated),
+        body: JSON.stringify({ clinicalNote }),
         credentials: "include",
       });
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.message || "Failed to run auto what-if analysis");
+        throw new Error(errorData?.message || "Failed to update clinical note");
       }
 
-      return await res.json();
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [ASSESSMENTS_LIST_QUERY_KEY] });
+      toast({ title: "Clinical note updated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update clinical note", description: error.message, variant: "destructive" });
     },
   });
 }

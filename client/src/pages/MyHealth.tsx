@@ -13,6 +13,7 @@ import { formatReadableDate } from "@/utils/dateFormat";
 import { EmptyState } from "@/components/EmptyState";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
+import { ApiClient } from "@/lib/apiClient";
 
 interface PatientUser {
   id: string;
@@ -96,11 +97,9 @@ export default function MyHealth() {
 
   async function fetchUser(token: string) {
     try {
-      const res = await fetch("/api/patient/auth/me", {
+      const data = await ApiClient.get("/api/patient/auth/me", {
         headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Unauthorized");
-      const data = await res.json();
+      }) as { user: any };
       setUser(data.user);
       fetchAssessments(token);
       fetchTrends(token);
@@ -112,11 +111,9 @@ export default function MyHealth() {
 
   async function fetchAssessments(token: string) {
     try {
-      const res = await fetch("/api/patient/assessments?limit=50", {
+      const data = await ApiClient.get("/api/patient/assessments?limit=50", {
         headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed");
-      const data = await res.json();
+      }) as { data: Assessment[] };
       setAssessments(data.data ?? []);
     } catch (err) {
       setError(t("myHealth.loadError"));
@@ -127,11 +124,9 @@ export default function MyHealth() {
 
   async function fetchTrends(token: string) {
     try {
-      const res = await fetch("/api/patient/trends", {
+      const data = await ApiClient.get("/api/patient/trends", {
         headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
+      }) as TrendPoint[];
       setTrends(data ?? []);
     } catch {}
   }

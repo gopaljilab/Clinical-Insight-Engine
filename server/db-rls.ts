@@ -10,6 +10,8 @@ export interface RlsUserContext {
   patientName?: string;
 }
 
+const rlsStorage = dbRlsStorage;
+
 export function getRlsDb(): NodePgDatabase<typeof schema> | undefined {
   return dbRlsStorage.getStore();
 }

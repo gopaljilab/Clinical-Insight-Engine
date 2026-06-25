@@ -257,6 +257,40 @@ describe("Auth gating", () => {
   });
 });
 
+describe("IDOR Prevention", () => {
+  const unauthorizedAssessment = {
+    id: 999,
+    patientName: "Someone Else",
+    createdBy: "other-doctor@example.com",
+    userId: "other-patient-uuid",
+    createdAt: new Date(),
+  };
+
+  it("returns 404 (not 403) for GET /api/assessments/:id on unauthorized record", async () => {
+    const app = createAuthenticatedApp();
+    const module = await import("../server/storage");
+    (module.storage.getAssessmentById as any).mockResolvedValue(unauthorizedAssessment);
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app).get("/api/assessments/999");
+
+    expect(res.status).toBe(404);
+    expect(res.body).toHaveProperty("message");
+  });
+
+  it("returns 404 (not 403) for DELETE /api/assessments/:id on unauthorized record", async () => {
+    const app = createAuthenticatedApp();
+    const module = await import("../server/storage");
+    (module.storage.getAssessmentById as any).mockResolvedValue(unauthorizedAssessment);
+    await registerRoutes(createServer(), app);
+
+    const res = await request(app).delete("/api/assessments/999");
+
+    expect(res.status).toBe(404);
+    expect(res.body).toHaveProperty("message");
+  });
+});
+
 describe("Health Check Endpoint", () => {
   it("returns 200 OK and valid JSON with status, timestamp, and uptime", async () => {
     const app = createUnauthenticatedApp();
