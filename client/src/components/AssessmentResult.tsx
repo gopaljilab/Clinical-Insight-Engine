@@ -762,7 +762,7 @@ function PathToImprovement({ assessment }: { assessment: AssessmentResponse }) {
     );
   }
 
-  const recommendations = (data as any).recommendations;
+  const recommendations = (data as any)?.recommendations;
   if (!recommendations || recommendations.length === 0) {
     return null;
   }
