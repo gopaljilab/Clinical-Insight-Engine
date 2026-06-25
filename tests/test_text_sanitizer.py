@@ -232,5 +232,85 @@ class TestTextSanitizer(unittest.TestCase):
                 os.remove(temp_path)
 
 
+from app.utils.text_sanitizer import decode_bytes, normalize_unicode_preserving_sub_super
+
+
+class TestDecodeBytes(unittest.TestCase):
+    """Test suite for decode_bytes function."""
+
+    def test_valid_utf8(self):
+        """Valid UTF-8 bytes decode correctly."""
+        raw = b"Patient name: John Doe"
+        self.assertEqual(decode_bytes(raw), "Patient name: John Doe")
+
+    def test_utf8_with_bom(self):
+        """UTF-8 with BOM (EF BB BF) is decoded and BOM is removed."""
+        raw = b"\xef\xbb\xbfPatient name: John Doe"
+        self.assertEqual(decode_bytes(raw), "Patient name: John Doe")
+
+    def test_invalid_utf8_with_fallback_cp1252(self):
+        """Invalid UTF-8 falls back to CP1252 when fallback_to_cp1252=True."""
+        # \xb0 is degree symbol in CP1252 / Latin-1
+        raw = b"Temp: 37\xb0C"
+        result = decode_bytes(raw, fallback_to_cp1252=True)
+        self.assertEqual(result, "Temp: 37°C")
+
+    def test_invalid_utf8_with_fallback_latin1(self):
+        """Invalid UTF-8 falls back to Latin-1 when CP1252 also fails."""
+        raw = b"Test\xffvalue"
+        result = decode_bytes(raw, fallback_to_cp1252=True)
+        self.assertIsInstance(result, str)
+
+    def test_invalid_utf8_ignore_mode(self):
+        """With fallback_to_cp1252=False, invalid bytes are ignored."""
+        raw = b"Valid\xff\xfe\x00text"
+        result = decode_bytes(raw, fallback_to_cp1252=False)
+        self.assertIn("Valid", result)
+        self.assertNotIn("\xff", result)
+
+    def test_empty_bytes(self):
+        """Empty byte string returns empty string."""
+        self.assertEqual(decode_bytes(b""), "")
+
+    def test_already_valid_utf8_with_bom_false(self):
+        """With fallback_to_cp1252=False, valid UTF-8 still works."""
+        raw = b"Normal text"
+        self.assertEqual(decode_bytes(raw, fallback_to_cp1252=False), "Normal text")
+
+
+class TestNormalizeUnicodePreservingSubSuper(unittest.TestCase):
+    """Test suite for normalize_unicode_preserving_sub_super."""
+
+    def test_nfkc_normalization_applies(self):
+        """NFKC normalization converts compatible characters to composed form."""
+        # a + combining diaeresis = ä (composed)
+        result = normalize_unicode_preserving_sub_super("a\u0308")
+        self.assertEqual(result, "ä")
+
+    def test_superscript_preserved(self):
+        """Superscript characters are preserved through normalization."""
+        result = normalize_unicode_preserving_sub_super("SpO\u00b2")
+        self.assertEqual(result, "SpO\u00b2")
+
+    def test_subscript_preserved(self):
+        """Subscript characters are preserved through normalization."""
+        result = normalize_unicode_preserving_sub_super("H\u2082O")
+        self.assertEqual(result, "H\u2082O")
+
+    def test_mixed_normalized_and_preserved(self):
+        """Mixed text: normalization applied, subscripts/superscripts preserved."""
+        result = normalize_unicode_preserving_sub_super("Na\u00b9 + Cl\u207b")
+        self.assertEqual(result, "Na\u00b9 + Cl\u207b")
+
+    def test_plain_text_unchanged(self):
+        """Plain ASCII text is unchanged."""
+        result = normalize_unicode_preserving_sub_super("Patient name: John Doe")
+        self.assertEqual(result, "Patient name: John Doe")
+
+    def test_empty_string(self):
+        """Empty string returns empty string."""
+        self.assertEqual(normalize_unicode_preserving_sub_super(""), "")
+
+
 if __name__ == "__main__":
     unittest.main()
