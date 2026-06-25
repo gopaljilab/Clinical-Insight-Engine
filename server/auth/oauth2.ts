@@ -28,7 +28,7 @@ if (
         // Do NOT replace this with a hardcoded identity — every OAuth2 user would
         // share the same account and see all other users' patient records.
         // Implement a real DB lookup (e.g. by profile.emails[0].value) before enabling.
-        return (cb as (err: Error) => void)(new Error("OAuth2 authentication is not yet configured for this application."));
+        return cb(new Error("OAuth2 authentication is not yet configured for this application."));
       }
     )
   );

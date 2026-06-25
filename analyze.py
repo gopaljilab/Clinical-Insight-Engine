@@ -13,7 +13,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import pickle
-
+import gc
 
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
 
@@ -154,6 +154,12 @@ def train_model_pipeline():
     I_reg[0, 0] = 0.0  # Do not regularize intercept
     I += (1.0 / C) * I_reg
     cov_beta = np.linalg.inv(I)
+    
+    try:
+        del df, X, y, X_scaled, X_design, D, I, I_reg
+        gc.collect()
+    except Exception:
+        pass
     
     return model, scaler, features, cov_beta
 
@@ -437,6 +443,13 @@ def train_and_evaluate():
     print(f"Model saved to {MODEL_FILE}", file=sys.stderr)
 
     print(json.dumps(result))
+    
+    try:
+        del df, X, y, X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled, X_scaled_full, X_design, D, I_mat, I_reg
+        gc.collect()
+    except Exception:
+        pass
+        
     return result
 
 
@@ -742,6 +755,18 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
             cache.set(input_data, result)
             results[original_idx] = result
             
+    try:
+        del X_input, imputed_fields_list
+        if 'X_uncached' in locals():
+            del X_uncached
+        if 'X_scaled' in locals():
+            del X_scaled
+        if 'probs' in locals():
+            del probs
+        gc.collect()
+    except Exception:
+        pass
+        
     return results
 
 @phi_redaction_middleware

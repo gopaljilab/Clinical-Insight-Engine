@@ -1,5 +1,6 @@
 import { type AssessmentResponse } from "@shared/routes";
 import { formatReadableDate } from "@/utils/dateFormat";
+import { cn } from "@/lib/utils";
 
 interface AssessmentSelectorProps {
   label: string;
@@ -34,11 +35,12 @@ export default function AssessmentSelector({
         value={selectedId ?? ""}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        className={`w-full rounded-2xl border px-4 py-3 text-sm transition-colors focus:outline-none focus:ring-4 ${
+        className={cn(
+          "w-full rounded-2xl border px-4 py-3 text-sm transition-colors focus:outline-none focus:ring-4",
           disabled
             ? "border-dashed border-border bg-muted/30 text-muted-foreground cursor-not-allowed opacity-60"
             : "border-border bg-card text-foreground focus:border-blue-600 focus:ring-blue-600/20"
-        }`}
+        )}
       >
         <option value="" disabled>
           Select assessment

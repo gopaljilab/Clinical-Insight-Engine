@@ -3,6 +3,7 @@ import { type AssessmentResponse } from "@shared/routes";
 import { X, UserCircle, Target, CheckCircle2, TrendingDown } from "lucide-react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 interface Props {
   assessment: AssessmentResponse;
@@ -89,9 +90,10 @@ export function PatientPresentationMode({ assessment, onClose }: Props) {
 
           <div className="py-6 sm:py-8 md:py-12">
             <div
-              className={`mx-auto flex flex-col items-center justify-center w-40 h-40 sm:w-56 sm:h-56 md:w-72 md:h-72 rounded-full border-[8px] sm:border-[12px] ring-4 ring-offset-4 ${getRiskColor(
-                assessment.riskCategory
-              )}`}
+              className={cn(
+                "mx-auto flex flex-col items-center justify-center w-40 h-40 sm:w-56 sm:h-56 md:w-72 md:h-72 rounded-full border-[8px] sm:border-[12px] ring-4 ring-offset-4",
+                getRiskColor(assessment.riskCategory)
+              )}
             >
               <span className="text-xs sm:text-base md:text-lg font-bold uppercase tracking-widest opacity-80 mb-1 sm:mb-2">
                 {t("patientPresentation.riskLevel")}

@@ -1,6 +1,7 @@
 import { Info, TrendingUp, TrendingDown } from "lucide-react";
 import type { PredictionExplanation as PredictionExplanationType } from "@shared/routes";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 export function PredictionExplanation({
   explanation,
@@ -46,20 +47,22 @@ export function PredictionExplanation({
                     <p className="text-sm text-muted-foreground mt-1">{factor.description}</p>
                   </div>
                   <span
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    className={cn(
+                      "rounded-full px-2.5 py-1 text-[11px] font-semibold",
                       factor.impact === "positive"
                         ? "bg-amber-100 text-amber-800"
                         : "bg-emerald-100 text-emerald-800"
-                    }`}
+                    )}
                   >
                     {factor.impact === "positive" ? t("predictionExplanation.risk") : t("predictionExplanation.protective")}
                   </span>
                 </div>
                 <div className="mt-3 rounded-full bg-slate-100 h-2 overflow-hidden">
                   <div
-                    className={`h-full ${
+                    className={cn(
+                      "h-full",
                       factor.impact === "positive" ? "bg-amber-500" : "bg-emerald-500"
-                    }`}
+                    )}
                     style={{ width: `${factor.strength}%` }}
                   />
                 </div>
