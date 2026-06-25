@@ -18,8 +18,9 @@ mlRouter.post(
   mlLimiter,
   validateDTO(z.object({ assessments: z.array(api.assessments.create.input) })),
   async (req, res) => {
-    const userId = (req.session.user)?.id;
-    if (!userId) {
+    const userId = (req.session.user as any)?.id;
+    const userEmail = req.session.user?.email;
+    if (!userId || !userEmail) {
       return res.status(401).json({ message: "Authentication required." });
     }
 
@@ -36,21 +37,11 @@ mlRouter.post(
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
         return res.status(409).json({ message: "Bulk request already processing." });
       }
-      MLService.activeInferenceRequests.add(requestFingerprint);
 
-      let predictions: any[];
-      try {
-        const result = await MLService.runAssessmentInferenceBatch(input);
-        predictions = result.predictions;
-        if (!Array.isArray(predictions)) {
-          throw new Error("Expected array of predictions");
-        }
-      } catch (error: unknown) {
-        logger.warn(
-          { err: error },
-          "Python prediction bulk failed or timed out, running clinical rule-based fallback:"
-        );
-        predictions = calculateClinicalFallback(input) as PredictionResult[];
+      const { getAssessmentQueue } = await import("../queue");
+      const assessmentQueue = getAssessmentQueue();
+      if (!assessmentQueue) {
+        return res.status(503).json({ message: "Assessment queue is not available." });
       }
 
       if (predictions.length !== input.length) {
@@ -69,22 +60,24 @@ mlRouter.post(
             factors: prediction.factors,
             confidenceInterval: prediction.confidenceInterval ?? null,
             modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
+            createdBy: userEmail,
+          });
             createdBy: userId,
           };
         })
       );
 
-      return res.status(201).json({ count: createdAssessments.length, batchId, assessments: createdAssessments });
+      return res.status(202).json({ 
+        message: "Bulk request accepted and is being processed.", 
+        jobId: job.id, 
+        batchId 
+      });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid bulk input data format." });
       }
       logger.error({ err, batchId }, "Bulk create error");
-      return res.status(500).json({ message: "Failed to generate bulk assessments." });
-    } finally {
-      if (requestFingerprint) {
-        MLService.activeInferenceRequests.delete(requestFingerprint);
-      }
+      return res.status(500).json({ message: "Failed to queue bulk assessments." });
     }
   }
 );

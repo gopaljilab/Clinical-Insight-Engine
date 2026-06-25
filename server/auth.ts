@@ -9,6 +9,9 @@ import { logger } from "./logger";
 import { validateDTO } from "./middleware/validateDTO";
 import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswordDTOSchema, verifyEmailDTOSchema, verifyOtpDTOSchema } from "./validation/auth.dto";
 import { AuthRepository } from "./repositories/auth.repository";
+import { getDb } from "./db";
+import { passwordResetTokens, users } from "@shared/schema";
+import { eq, and, gte, sql } from "drizzle-orm";
 
 const authRepository = new AuthRepository();
 
@@ -718,7 +721,7 @@ out
 
       const passwordHash = hashPassword(newPassword);
 
-      await db.transaction(async (tx) => {
+      await db.transaction(async (tx: any) => {
         const [claimed] = await tx
           .update(passwordResetTokens)
           .set({ used: true })

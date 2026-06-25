@@ -157,11 +157,9 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     setError(null);
     setIsLoading(true);
     try {
-      if (mode === "login") {
-        await ApiClient.post("/api/auth/verify-otp", { email, otp });
-      } else {
-        await ApiClient.post("/api/auth/verify-email", { email, code: otp });
-      }
+      // Both login and register use the DB-backed verify-email endpoint.
+      // verify-otp was checking an in-memory map never populated by the login route.
+      await ApiClient.post("/api/auth/verify-email", { email, code: otp });
       
       if (rememberMe) {
         localStorage.setItem("auth_remember_email", email);

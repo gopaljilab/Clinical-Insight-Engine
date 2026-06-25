@@ -61,7 +61,7 @@ const normalizeFactors = (rawFactors: AssessmentResponse["factors"]): RiskFactor
 };
 
 const getFactorReason = (factor: RiskFactor, t: (key: string) => string) => {
-  const key = factor.name.trim().toLowerCase();
+  const key = factor?.name?.trim()?.toLowerCase() || "";
   const translatedKey = factorReasoning[key];
   return translatedKey ? t(translatedKey) : factor.description;
 };
@@ -100,7 +100,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     URL.revokeObjectURL(url);
   };
 
-  const getRiskColor = (category: string) => {
+  const getRiskColor = (category?: string | null) => {
+    if (!category) return "text-blue-600 bg-blue-50 border-blue-200";
     switch (category.toUpperCase()) {
       case "LOW": return "text-green-600 bg-green-50 border-green-200";
       case "MODERATE": return "text-amber-600 bg-amber-50 border-amber-200";
@@ -318,7 +319,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   <span className="text-3xl sm:text-4xl font-display font-black">{assessment.riskCategory}</span>
                 </div>
                 <p className="text-muted-foreground text-lg">
-                  {t("patientResult.basedOnInfo")}<strong>{assessment.riskCategory.toLowerCase()}</strong>.
+                  {t("patientResult.basedOnInfo")}<strong>{assessment?.riskCategory?.toLowerCase() ?? "unknown"}</strong>.
                 </p>
               </div>
 
@@ -398,8 +399,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                       {t("patientResult.clinicianViewDesc")}
                     </p>
                   </div>
-                  <div className={`inline-flex w-fit rounded-full border px-3 py-1 text-sm font-bold ${getRiskColor(assessment.riskCategory)}`}>
-                    {assessment.riskCategory} {t("patientResult.riskLabel")}
+                  <div className={`inline-flex w-fit rounded-full border px-3 py-1 text-sm font-bold ${getRiskColor(assessment?.riskCategory)}`}>
+                    {assessment?.riskCategory ?? "Unknown"} {t("patientResult.riskLabel")}
                   </div>
                 </div>
               </div>
@@ -422,8 +423,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
                   <p className="text-sm font-medium text-muted-foreground mb-1">{t("assessment.riskCategory")}</p>
-                  <div className={`inline-flex px-3 py-1 rounded-full text-sm font-bold mt-1 ${getRiskColor(assessment.riskCategory)}`}>
-                    {assessment.riskCategory}
+                  <div className={`inline-flex px-3 py-1 rounded-full text-sm font-bold mt-1 ${getRiskColor(assessment?.riskCategory)}`}>
+                    {assessment?.riskCategory ?? "Unknown"}
                   </div>
                   {assessment.modelConfidence && (
                     <p className="text-[10px] text-muted-foreground mt-2 italic">
@@ -436,15 +437,15 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   <div className="flex flex-col sm:flex-row gap-4 mt-2">
                     <div>
                       <p className="text-xs text-muted-foreground">BMI</p>
-                      <p className="font-semibold">{assessment.bmi}</p>
+                      <p className="font-semibold">{assessment?.bmi ?? "--"}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">HbA1c</p>
-                      <p className="font-semibold">{assessment.hba1cLevel}%</p>
+                      <p className="font-semibold">{assessment?.hba1cLevel ? `${assessment.hba1cLevel}%` : "--"}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Glucose</p>
-                      <p className="font-semibold">{assessment.bloodGlucoseLevel}</p>
+                      <p className="font-semibold">{assessment?.bloodGlucoseLevel ?? "--"}</p>
                     </div>
                   </div>
                 </div>
@@ -738,18 +739,19 @@ function PathToImprovement({ assessment }: { assessment: AssessmentResponse }) {
   const { mutate, data, isPending } = useWhatIfAuto();
 
   useEffect(() => {
+    if (!assessment) return;
     mutate({
-      patientName: assessment.patientName,
-      gender: assessment.gender as "Male" | "Female",
-      age: assessment.age,
-      hypertension: assessment.hypertension,
-      heartDisease: assessment.heartDisease,
-      smokingHistory: assessment.smokingHistory as "current" | "never" | "No Info" | "former",
+      patientName: assessment.patientName ?? "Unknown",
+      gender: (assessment.gender as "Male" | "Female") || "Male",
+      age: assessment.age ?? 0,
+      hypertension: assessment.hypertension ?? false,
+      heartDisease: assessment.heartDisease ?? false,
+      smokingHistory: (assessment.smokingHistory as "current" | "never" | "No Info" | "former") || "No Info",
       bmi: assessment.bmi ?? 25,
       hba1cLevel: assessment.hba1cLevel ?? 5.5,
       bloodGlucoseLevel: assessment.bloodGlucoseLevel ?? 100,
     });
-  }, [assessment]);
+  }, [assessment, mutate]);
 
   if (isPending || !data) {
     return (
