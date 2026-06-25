@@ -59,7 +59,7 @@ export default function PatientLogin() {
     if (!validateLogin()) return;
     setLoading(true);
     try {
-      const data = await ApiClient.post("/api/patient/auth/login", { email, password });
+      const data = await ApiClient.post<any>("/api/patient/auth/login", { email, password });
       if (rememberMe) {
         localStorage.setItem("patient_remember_email", email);
       } else {
@@ -84,7 +84,7 @@ export default function PatientLogin() {
     if (!validateRegister()) return;
     setLoading(true);
     try {
-      const data = await ApiClient.post("/api/patient/auth/register", { patientName, email, password, phone: phone || undefined });
+      const data = await ApiClient.post<any>("/api/patient/auth/register", { patientName, email, password, phone: phone || undefined });
       localStorage.setItem("patient_token", data.token);
       navigate("/my-health");
     } catch (err: any) {
