@@ -156,10 +156,6 @@ export class DatabaseStorage implements IStorage {
     return this.assessmentRepository.getAssessmentById(id, createdBy); 
   }
 
-  async getAssessmentById(id: number) {
-    return this.assessmentRepository.getAssessmentById(id);
-  }
-
   async createAssessment(assessment: any) {
     return this.assessmentRepository.createAssessment(assessment);
   }
@@ -174,6 +170,10 @@ export class DatabaseStorage implements IStorage {
 
   async createAssessmentsBatch(data: AssessmentCreateInput[]) {
     return this.assessmentRepository.createAssessmentsBatch(data);
+  }
+
+  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: "LOW" | "MODERATE" | "HIGH", limit?: number, cursor?: number) {
+    return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor);
   }
 
   async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {

@@ -1,5 +1,12 @@
 import { logger } from "../logger";
-import { getAssessmentQueue } from "../queue";
+import { getAssessmentQueue, getPythonExecutable } from "../queue";
+import { execFile } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
 import { Router } from "express";
 import { z } from "zod";
 import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
@@ -131,14 +138,14 @@ assessmentsRouter.post(
           getPythonExecutable(),
           [analyzePyPath, "counterfactual"],
           { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
-          (error, stdout, stderr) => {
+          (error: any, stdout: any, stderr: any) => {
             if (error) reject(error);
             else resolve(stdout);
           }
         );
 
         if (child.stdin) {
-          child.stdin.on("error", (err) => {
+          child.stdin.on("error", (err: any) => {
             logger.error({ err }, "Error writing to python stdin");
           });
           child.stdin.write(JSON.stringify(payload));
@@ -179,14 +186,14 @@ assessmentsRouter.post(
           getPythonExecutable(),
           [analyzePyPath, "counterfactual_auto"],
           { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
-          (error, stdout, stderr) => {
+          (error: any, stdout: any, stderr: any) => {
             if (error) reject(error);
             else resolve(stdout);
           }
         );
 
         if (child.stdin) {
-          child.stdin.on("error", (err) => {
+          child.stdin.on("error", (err: any) => {
             logger.error({ err }, "Error writing to python stdin");
           });
           child.stdin.write(JSON.stringify(input));
@@ -226,7 +233,7 @@ assessmentsRouter.post(
     let requestFingerprint: string | undefined;
     try {
       const input = req.body;
-      const requestId = (req).id as string | undefined;
+      const requestId = (req as any).id as string | undefined;
 
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
@@ -237,23 +244,56 @@ assessmentsRouter.post(
       MLService.activeInferenceRequests.add(requestFingerprint);
 
       const queue = getAssessmentQueue();
-      if (!queue) {
-        return res.status(503).json({
-          message: "Assessment queue is temporarily unavailable.",
+
+      // --- Redis available: use async queue ---
+      if (queue) {
+        const job = await queue.add("predict", {
+          input,
+          userId,
+          userEmail,
+          requestId,
+        });
+        return res.status(202).json({
+          message: "Assessment request accepted and is being processed.",
+          jobId: job.id,
+          requestId,
         });
       }
 
-      const job = await queue.add("predict", {
-        input,
-        userId,
-        userEmail,
-        requestId,
+      // --- Redis unavailable: run synchronously using clinical fallback ---
+      logger.warn("Redis unavailable — running assessment synchronously via clinical fallback");
+
+      const prediction = calculateClinicalFallback(input) as PredictionResult;
+
+      const assessment = await storage.createAssessment({
+        patientName: input.patientName,
+        age: input.age,
+        gender: input.gender,
+        hypertension: input.hypertension ?? false,
+        heartDisease: input.heartDisease ?? false,
+        smokingHistory: input.smokingHistory,
+        bmi: input.bmi,
+        hba1cLevel: input.hba1cLevel,
+        bloodGlucoseLevel: input.bloodGlucoseLevel,
+        insulin: input.insulin ?? null,
+        skinThickness: input.skinThickness ?? null,
+        riskScore: prediction.riskScore,
+        riskCategory: prediction.riskCategory as "LOW" | "MODERATE" | "HIGH",
+        factors: prediction.factors ?? [],
+        confidenceInterval: prediction.confidenceInterval ?? null,
+        modelConfidence: prediction.modelConfidence ?? null,
+        createdBy: userEmail,
       });
 
-      return res.status(202).json({
-        message: "Assessment request accepted and is being processed.",
-        jobId: job.id,
-        requestId,
+
+      logger.info(
+        `[AUDIT] assessment created synchronously by=${userEmail} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+      );
+
+      return res.status(201).json({
+        message: "Assessment completed successfully.",
+        assessment,
+        isFallback: true,
       });
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
@@ -264,7 +304,7 @@ assessmentsRouter.post(
       logger.error({ err }, "Assessment creation error:");
       return res
         .status(500)
-        .json({ message: "Failed to queue clinical assessment." });
+        .json({ message: "Failed to create assessment." });
     } finally {
       if (requestFingerprint) {
         MLService.activeInferenceRequests.delete(requestFingerprint);
