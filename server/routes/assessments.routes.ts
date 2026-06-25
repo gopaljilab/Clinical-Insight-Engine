@@ -233,7 +233,7 @@ assessmentsRouter.post(
     let requestFingerprint: string | undefined;
     try {
       const input = req.body;
-      const requestId = (req).id as string | undefined;
+      const requestId = (req as any).id as string | undefined;
 
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
@@ -244,23 +244,56 @@ assessmentsRouter.post(
       MLService.activeInferenceRequests.add(requestFingerprint);
 
       const queue = getAssessmentQueue();
-      if (!queue) {
-        return res.status(503).json({
-          message: "Assessment queue is temporarily unavailable.",
+
+      // --- Redis available: use async queue ---
+      if (queue) {
+        const job = await queue.add("predict", {
+          input,
+          userId,
+          userEmail,
+          requestId,
+        });
+        return res.status(202).json({
+          message: "Assessment request accepted and is being processed.",
+          jobId: job.id,
+          requestId,
         });
       }
 
-      const job = await queue.add("predict", {
-        input,
-        userId,
-        userEmail,
-        requestId,
+      // --- Redis unavailable: run synchronously using clinical fallback ---
+      logger.warn("Redis unavailable — running assessment synchronously via clinical fallback");
+
+      const prediction = calculateClinicalFallback(input) as PredictionResult;
+
+      const assessment = await storage.createAssessment({
+        patientName: input.patientName,
+        age: input.age,
+        gender: input.gender,
+        hypertension: input.hypertension ?? false,
+        heartDisease: input.heartDisease ?? false,
+        smokingHistory: input.smokingHistory,
+        bmi: input.bmi,
+        hba1cLevel: input.hba1cLevel,
+        bloodGlucoseLevel: input.bloodGlucoseLevel,
+        insulin: input.insulin ?? null,
+        skinThickness: input.skinThickness ?? null,
+        riskScore: prediction.riskScore,
+        riskCategory: prediction.riskCategory as "LOW" | "MODERATE" | "HIGH",
+        factors: prediction.factors ?? [],
+        confidenceInterval: prediction.confidenceInterval ?? null,
+        modelConfidence: prediction.modelConfidence ?? null,
+        createdBy: userEmail,
       });
 
-      return res.status(202).json({
-        message: "Assessment request accepted and is being processed.",
-        jobId: job.id,
-        requestId,
+
+      logger.info(
+        `[AUDIT] assessment created synchronously by=${userEmail} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
+      );
+
+      return res.status(201).json({
+        message: "Assessment completed successfully.",
+        assessment,
+        isFallback: true,
       });
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
@@ -271,7 +304,7 @@ assessmentsRouter.post(
       logger.error({ err }, "Assessment creation error:");
       return res
         .status(500)
-        .json({ message: "Failed to queue clinical assessment." });
+        .json({ message: "Failed to create assessment." });
     } finally {
       if (requestFingerprint) {
         MLService.activeInferenceRequests.delete(requestFingerprint);

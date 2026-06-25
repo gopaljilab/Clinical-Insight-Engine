@@ -13,6 +13,19 @@ import { EmptyState } from "@/components/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ApiClient } from "@/lib/apiClient";
 
+interface CohortData {
+  riskDistribution: { category: string; count: number }[];
+  ageDistribution: { range: string; count: number }[];
+  genderDistribution: { gender: string; count: number }[];
+  smokingDistribution: { history: string; count: number }[];
+  total: number;
+  avgRiskScore: number | string;
+  avgBmi: number | string;
+  avgHba1c: number | string;
+  avgGlucose: number | string;
+  comorbidityRate: number | string;
+}
+
 const COLORS = {
   LOW: "#10b981",
   MODERATE: "#f59e0b",
