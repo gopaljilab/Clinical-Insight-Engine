@@ -12,9 +12,10 @@ import {
 } from "recharts";
 import type { Assessment } from "@shared/schema";
 import { formatCompactDate } from "@/utils/dateFormat";
-// Vite's specific syntax to import as a web worker
 import ChartWorker from "@/utils/chartWorker?worker";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
+
 interface PatientGroup {
   patientName: string;
   assessments: Assessment[];
@@ -42,6 +43,7 @@ function getRiskColor(score: number) {
 }
 
 export default function RiskTrendChart({ assessments, patientGroups }: Props) {
+  const { t } = useTranslation();
   const [activeMetrics, setActiveMetrics] = useState<Record<string, boolean>>(
     Object.fromEntries(METRICS.map(m => [m.key, m.active]))
   );
@@ -86,8 +88,8 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
     return (
       <div className="bg-card border border-border rounded-2xl p-6 text-center text-muted-foreground text-sm">
         {isComparisonMode
-          ? "Selected patients need at least 2 assessments each to display trend analytics."
-          : "At least 2 assessments are needed to display trend analytics."}
+          ? t("charts.needsMoreDataComparison")
+          : t("charts.needsMoreData")}
       </div>
     );
   }
@@ -97,12 +99,12 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-lg font-black text-foreground">
-            {isComparisonMode ? "Patient Comparison — Risk Trend" : "Risk Trend Analytics"}
+            {isComparisonMode ? t("charts.comparisonTitle") : t("charts.trendTitle")}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {isComparisonMode
-              ? "Comparing risk trajectories across selected patients"
-              : "Historical metabolic vector trends over time"}
+              ? t("charts.comparisonDesc")
+              : t("charts.trendDesc")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -130,7 +132,7 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
       <ResponsiveContainer width="100%" height={isComparisonMode ? 320 : 280}>
         {isProcessing ? (
           <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-             Processing high-frequency metrics...
+             {t("charts.processing")}
           </div>
         ) : (
           <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -155,8 +157,8 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
             <Legend wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }} />
             {activeMetrics["riskScore"] && !isComparisonMode && (
               <>
-                <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="4 4" label={{ value: "High Risk", fontSize: 10, fill: "#EF4444" }} />
-                <ReferenceLine y={20} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "Moderate Risk", fontSize: 10, fill: "#F59E0B" }} />
+                <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="4 4" label={{ value: t("charts.highRisk"), fontSize: 10, fill: "#EF4444" }} />
+                <ReferenceLine y={20} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: t("charts.moderateRisk"), fontSize: 10, fill: "#F59E0B" }} />
               </>
             )}
             {isComparisonMode
