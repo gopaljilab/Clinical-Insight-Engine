@@ -58,7 +58,17 @@ def read_csv_safely(filepath, chunksize=10000, max_rows=150000, timeout_seconds=
             
             if not chunks:
                 return pd.DataFrame(columns=list(df_preview.columns))
-            return pd.concat(chunks, ignore_index=True)
+            
+            result_df = pd.concat(chunks, ignore_index=True)
+            try:
+                del chunks, df_preview
+                if 'chunk' in locals():
+                    del chunk
+                import gc
+                gc.collect()
+            except Exception:
+                pass
+            return result_df
             
         except ResourceExhaustedError as e:
             raise SafeCSVError(str(e))

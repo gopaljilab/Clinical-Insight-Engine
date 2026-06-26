@@ -540,7 +540,9 @@ describe("Python inference", () => {
     expect(res.body).toHaveProperty("assessments");
     expect(Array.isArray(res.body.assessments)).toBe(true);
     expect(res.body.assessments[0]).toHaveProperty("riskScore");
+    expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
     expect(res.body.assessments[1]).toHaveProperty("riskScore");
+    expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
   });
 
   it("bulk route returns 201 and falls back to rule-based model on python process timeout", async () => {
@@ -564,7 +566,9 @@ describe("Python inference", () => {
       expect(res.body).toHaveProperty("assessments");
       expect(Array.isArray(res.body.assessments)).toBe(true);
       expect(res.body.assessments[0]).toHaveProperty("riskScore");
+      expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
       expect(res.body.assessments[1]).toHaveProperty("riskScore");
+      expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
     } finally {
       predictSpy.mockRestore();
     }
@@ -594,7 +598,9 @@ describe("Python inference", () => {
       expect(res.body).toHaveProperty("assessments");
       expect(Array.isArray(res.body.assessments)).toBe(true);
       expect(res.body.assessments[0]).toHaveProperty("riskScore", 12.3);
+      expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
       expect(res.body.assessments[1]).toHaveProperty("riskScore", 12.3);
+      expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
     } finally {
       predictSpy.mockRestore();
     }

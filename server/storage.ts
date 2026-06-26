@@ -156,6 +156,10 @@ export class DatabaseStorage implements IStorage {
     return this.assessmentRepository.getAssessmentById(id, createdBy); 
   }
 
+  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: RiskCategory, limit?: number, cursor?: number) {
+    return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor);
+  }
+
   async createAssessment(assessment: any) {
     const sanitizedAssessment = redactForStorage(assessment);
     return this.assessmentRepository.createAssessment(sanitizedAssessment);
@@ -171,10 +175,6 @@ export class DatabaseStorage implements IStorage {
 
   async createAssessmentsBatch(data: AssessmentCreateInput[]) {
     return this.assessmentRepository.createAssessmentsBatch(data);
-  }
-
-  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: "LOW" | "MODERATE" | "HIGH", limit?: number, cursor?: number) {
-    return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor);
   }
 
   async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {

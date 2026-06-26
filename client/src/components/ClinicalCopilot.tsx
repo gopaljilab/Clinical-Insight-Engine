@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { AssessmentResponse } from "@shared/routes";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 interface CopilotSuggestion {
   id: string;
@@ -242,7 +243,7 @@ export function ClinicalCopilot({ assessment }: { assessment: AssessmentResponse
             className="overflow-hidden"
           >
             <div className="px-4 md:px-5 pb-5 space-y-4">
-              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${severityColor}`}>
+              <div className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold", severityColor)}>
                 <TrendingUp className="w-3.5 h-3.5" />
                 {rc === "HIGH" ? t("copilot.intensiveManagement") :
                  rc === "MODERATE" ? t("copilot.preventiveMeasures") :
@@ -274,11 +275,12 @@ export function ClinicalCopilot({ assessment }: { assessment: AssessmentResponse
                   <button
                     key={cat.key}
                     onClick={() => setActiveCategory(activeCategory === cat.key ? null : cat.key)}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-all ${
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-all",
                       activeCategory === cat.key
                         ? cat.color + " ring-2 ring-offset-1"
                         : "text-muted-foreground border-border hover:border-muted-foreground/30"
-                    }`}
+                    )}
                   >
                     <cat.icon className="w-3.5 h-3.5" />
                     {cat.label}
@@ -294,9 +296,9 @@ export function ClinicalCopilot({ assessment }: { assessment: AssessmentResponse
                 if (catSuggestions.length === 0) return null;
                 const isActive = activeCategory === null || activeCategory === cat.key;
                 return (
-                  <div key={cat.key} className={`space-y-2 ${isActive ? "" : "hidden"}`}>
-                    <div className={`flex items-center gap-2 border-b border-border pb-1.5`}>
-                      <cat.icon className={`w-4 h-4 ${cat.color.split(" ")[0]}`} />
+                  <div key={cat.key} className={cn("space-y-2", isActive ? "" : "hidden")}>
+                    <div className="flex items-center gap-2 border-b border-border pb-1.5">
+                      <cat.icon className={cn("w-4 h-4", cat.color.split(" ")[0])} />
                       <h4 className="text-sm font-bold text-foreground">{cat.label}</h4>
                     </div>
                     <div className="space-y-2">

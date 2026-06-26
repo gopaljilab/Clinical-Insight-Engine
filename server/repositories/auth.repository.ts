@@ -1,5 +1,6 @@
 import { eq, and, gte, sql } from "drizzle-orm";
 import { getDb } from "../db";
+import { logger } from "../logger";
 import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
 import type { User } from "@shared/schema";
 

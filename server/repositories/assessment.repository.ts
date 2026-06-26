@@ -386,7 +386,8 @@ export class AssessmentRepository {
     offset: number = 0,
     createdBy?: string,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    createdBy?: string,
   ): Promise<{ data: Assessment[]; total: number }> {
     const db = getDb();
     const filters: any[] = [eq(assessments.patientName, patientName)];
