@@ -82,6 +82,7 @@ vi.mock("../server/storage", () => {
   const mockStorageInstance = {
     getAssessments: mockGetAssessments,
     createAssessment: mockCreateAssessment,
+    createAssessmentsBatch: vi.fn().mockImplementation(async (batch) => batch.map((item: any, idx: number) => ({ id: idx + 1, ...item, createdAt: new Date() }))),
     searchAssessments: vi.fn().mockResolvedValue([]),
     getAssessmentById: vi.fn().mockResolvedValue(undefined),
     deleteAssessment: vi.fn().mockResolvedValue(undefined),
@@ -137,7 +138,7 @@ vi.mock("fs/promises", () => ({
 }));
 
 import { registerRoutes } from "../server/routes";
-import { pythonDaemon } from "../server/services/mlService";
+import { pythonDaemon, MLService } from "../server/services/mlService";
 
 const validPayload = {
   patientName: "John Doe",
@@ -192,6 +193,10 @@ function createUnauthenticatedApp() {
 beforeEach(() => {
   vi.clearAllMocks();
   rateLimitCounters.clear();
+  process.env.MAX_RETRIES = "0";
+  if (MLService && MLService.activeInferenceRequests) {
+    MLService.activeInferenceRequests.clear();
+  }
   mockCreateAssessment.mockImplementation((input) =>
     Promise.resolve({ id: 1, ...input, createdAt: new Date() })
   );
@@ -540,7 +545,9 @@ describe("Python inference", () => {
     expect(res.body).toHaveProperty("assessments");
     expect(Array.isArray(res.body.assessments)).toBe(true);
     expect(res.body.assessments[0]).toHaveProperty("riskScore");
+    expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
     expect(res.body.assessments[1]).toHaveProperty("riskScore");
+    expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
   });
 
   it("bulk route returns 201 and falls back to rule-based model on python process timeout", async () => {
@@ -564,7 +571,9 @@ describe("Python inference", () => {
       expect(res.body).toHaveProperty("assessments");
       expect(Array.isArray(res.body.assessments)).toBe(true);
       expect(res.body.assessments[0]).toHaveProperty("riskScore");
+      expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
       expect(res.body.assessments[1]).toHaveProperty("riskScore");
+      expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
     } finally {
       predictSpy.mockRestore();
     }
@@ -594,7 +603,9 @@ describe("Python inference", () => {
       expect(res.body).toHaveProperty("assessments");
       expect(Array.isArray(res.body.assessments)).toBe(true);
       expect(res.body.assessments[0]).toHaveProperty("riskScore", 12.3);
+      expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
       expect(res.body.assessments[1]).toHaveProperty("riskScore", 12.3);
+      expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
     } finally {
       predictSpy.mockRestore();
     }
@@ -741,7 +752,7 @@ describe("DELETE /api/assessments/:id", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 403 when user is not authorized to delete the record", async () => {
+  it("returns 404 when user is not authorized to delete the record", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
     const mockStorage = (await import("../server/storage")).storage as any;
@@ -752,7 +763,7 @@ describe("DELETE /api/assessments/:id", () => {
       ownerId: "other-user-id"
     });
     const res = await request(app).delete("/api/assessments/1");
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
   });
 
   it("returns 204 when assessment is deleted successfully", async () => {

@@ -31,7 +31,8 @@
     "coverage/",
     "node_modules/",
     "*.config.js",
-    "*.config.ts"
+    "*.config.ts",
+    "docs/typedoc/"
   ],
   "rules": {
     "react/react-in-jsx-scope": "off",

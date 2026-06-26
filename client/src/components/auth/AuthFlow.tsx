@@ -8,6 +8,7 @@ import { FormField } from "./FormField";
 import { AuthButton } from "./AuthButton";
 import { PasswordStrength } from "./PasswordStrength";
 import { OtpInput } from "./OtpInput";
+import { cn } from "@/lib/utils";
 
 export type AuthMode = "login" | "register";
 type Step = "form" | "otp" | "forgot";
@@ -157,11 +158,9 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     setError(null);
     setIsLoading(true);
     try {
-      if (mode === "login") {
-        await ApiClient.post("/api/auth/verify-otp", { email, otp });
-      } else {
-        await ApiClient.post("/api/auth/verify-email", { email, code: otp });
-      }
+      // Both login and register use the DB-backed verify-email endpoint.
+      // verify-otp was checking an in-memory map never populated by the login route.
+      await ApiClient.post("/api/auth/verify-email", { email, code: otp });
       
       if (rememberMe) {
         localStorage.setItem("auth_remember_email", email);
@@ -418,7 +417,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
                   className="!mb-1"
                 />
                 {confirmPassword && !fieldErrors.confirmPassword && (
-                  <p className={`text-xs ${password === confirmPassword ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                  <p className={cn("text-xs", password === confirmPassword ? "text-emerald-600 dark:text-emerald-400" : "text-red-500")}>
                     {password === confirmPassword ? "Passwords match" : "Passwords do not match"}
                   </p>
                 )}
