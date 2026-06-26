@@ -718,7 +718,7 @@ out
 
       const passwordHash = hashPassword(newPassword);
 
-      await db.transaction(async (tx) => {
+      await db.transaction(async (tx: any) => {
         const [claimed] = await tx
           .update(passwordResetTokens)
           .set({ used: true })

@@ -24,6 +24,7 @@ import Terms from "./pages/Terms";
 import MyHealth from "./pages/MyHealth";
 import PatientLogin from "./pages/PatientLogin";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { LoadingScreen } from "./components/LoadingScreen";
 import "./i18n";
 
 function Router() {
@@ -87,7 +88,7 @@ function App() {
       <TooltipProvider>
         <Toaster />
         <ErrorBoundary>
-          <Suspense fallback={null}>
+          <Suspense fallback={<LoadingScreen />}>
             <Router />
           </Suspense>
         </ErrorBoundary>

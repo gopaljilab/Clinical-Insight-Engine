@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2, Pencil, Save, X } from "lucide-react";
+import { AlertCircle, FileText, CheckCircle2, TrendingUp, TrendingDown, Info, HeartPulse, Activity, UserCircle, Stethoscope, Eye, Share2, Loader2, Printer, Download, MonitorPlay, Pencil, X, Save } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { HealthBadges } from "@/components/HealthBadges";
 import { CopySummaryButton } from "@/components/CopySummaryButton";
@@ -17,6 +18,8 @@ import { BiomarkerAlerts } from "./BiomarkerAlerts";
 import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
 import { ClinicalCopilot } from "./ClinicalCopilot";
 import { ClinicalNoteViewer } from "./ClinicalNoteViewer";
+import { ExplainabilityPanel } from "./assessment/ExplainabilityPanel";
+import { PathToImprovement } from "./assessment/PathToImprovement";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "react-i18next";
@@ -31,7 +34,7 @@ interface RiskFactor {
   description: string;
 }
 
-interface FactorBreakdown extends RiskFactor {
+export interface FactorBreakdown extends RiskFactor {
   strength: number;
   plainReason: string;
 }
@@ -61,7 +64,7 @@ const normalizeFactors = (rawFactors: AssessmentResponse["factors"]): RiskFactor
 };
 
 const getFactorReason = (factor: RiskFactor, t: (key: string) => string) => {
-  const key = factor.name.trim().toLowerCase();
+  const key = factor?.name?.trim()?.toLowerCase() || "";
   const translatedKey = factorReasoning[key];
   return translatedKey ? t(translatedKey) : factor.description;
 };
@@ -100,7 +103,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     URL.revokeObjectURL(url);
   };
 
-  const getRiskColor = (category: string) => {
+  const getRiskColor = (category?: string | null) => {
+    if (!category) return "text-blue-600 bg-blue-50 border-blue-200";
     switch (category.toUpperCase()) {
       case "LOW": return "text-green-600 bg-green-50 border-green-200";
       case "MODERATE": return "text-amber-600 bg-amber-50 border-amber-200";
@@ -182,11 +186,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
         <div className="relative flex flex-1 max-w-md bg-muted/65 p-1 gap-1 rounded-xl">
           <button
             onClick={() => setView("patient")}
-            className={`relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none ${
+            className={cn(
+              "relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none",
               view === "patient" 
                 ? "text-primary" 
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+            )}
           >
             <UserCircle className="w-4 h-4" />
             {t("patientResult.patientView")}
@@ -200,11 +205,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
           </button>
           <button
             onClick={() => setView("clinician")}
-            className={`relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none ${
+            className={cn(
+              "relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none",
               view === "clinician" 
                 ? "text-primary" 
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+            )}
           >
             <Stethoscope className="w-4 h-4" />
             {t("patientResult.clinicianView")}
@@ -313,12 +319,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   {t("patientResult.plainLanguage")}
                 </div>
                 <h2 className="text-xl sm:text-2xl font-bold text-foreground">{t("patientResult.yourHealthAssessment")}</h2>
-                <div className={`inline-flex flex-col items-center justify-center w-36 h-36 sm:w-48 sm:h-48 rounded-full border-8 shadow-inner ${getRiskColor(assessment.riskCategory)}`}>
+                <div className={cn("inline-flex flex-col items-center justify-center w-36 h-36 sm:w-48 sm:h-48 rounded-full border-8 shadow-inner", getRiskColor(assessment.riskCategory))}>
                   <span className="text-sm font-bold uppercase tracking-widest opacity-80 mb-1">{t("patientResult.riskLevel")}</span>
                   <span className="text-3xl sm:text-4xl font-display font-black">{assessment.riskCategory}</span>
                 </div>
                 <p className="text-muted-foreground text-lg">
-                  {t("patientResult.basedOnInfo")}<strong>{assessment.riskCategory.toLowerCase()}</strong>.
+                  {t("patientResult.basedOnInfo")}<strong>{assessment?.riskCategory?.toLowerCase() ?? "unknown"}</strong>.
                 </p>
               </div>
 
@@ -398,7 +404,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                       {t("patientResult.clinicianViewDesc")}
                     </p>
                   </div>
-                  <div className={`inline-flex w-fit rounded-full border px-3 py-1 text-sm font-bold ${getRiskColor(assessment.riskCategory)}`}>
+                  <div className={cn("inline-flex w-fit rounded-full border px-3 py-1 text-sm font-bold", getRiskColor(assessment.riskCategory))}>
                     {assessment.riskCategory} {t("patientResult.riskLabel")}
                   </div>
                 </div>
@@ -422,7 +428,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
                   <p className="text-sm font-medium text-muted-foreground mb-1">{t("assessment.riskCategory")}</p>
-                  <div className={`inline-flex px-3 py-1 rounded-full text-sm font-bold mt-1 ${getRiskColor(assessment.riskCategory)}`}>
+                  <div className={cn("inline-flex px-3 py-1 rounded-full text-sm font-bold mt-1", getRiskColor(assessment.riskCategory))}>
                     {assessment.riskCategory}
                   </div>
                   {assessment.modelConfidence && (
@@ -436,15 +442,15 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   <div className="flex flex-col sm:flex-row gap-4 mt-2">
                     <div>
                       <p className="text-xs text-muted-foreground">BMI</p>
-                      <p className="font-semibold">{assessment.bmi}</p>
+                      <p className="font-semibold">{assessment?.bmi ?? "--"}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">HbA1c</p>
-                      <p className="font-semibold">{assessment.hba1cLevel}%</p>
+                      <p className="font-semibold">{assessment?.hba1cLevel ? `${assessment.hba1cLevel}%` : "--"}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Glucose</p>
-                      <p className="font-semibold">{assessment.bloodGlucoseLevel}</p>
+                      <p className="font-semibold">{assessment?.bloodGlucoseLevel ?? "--"}</p>
                     </div>
                   </div>
                 </div>
@@ -518,7 +524,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                                         <p className="font-bold mb-1">{data.name}</p>
                                         <p className="text-muted-foreground">{data.description}</p>
                                         {!data.isWhatIf && <p className="text-muted-foreground mt-2">{data.plainReason}</p>}
-                                        <p className={`mt-2 font-semibold ${data.impact === 'positive' ? 'text-red-500' : 'text-green-500'}`}>
+                                        <p className={cn("mt-2 font-semibold", data.impact === 'positive' ? 'text-red-500' : 'text-green-500')}>
                                           {t("patientResult.impactLabel")}: {data.impact === 'positive' ? t("patientResult.increasesRisk") : t("patientResult.reducesRisk")}
                                         </p>
                               </div>
@@ -647,143 +653,3 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   );
 }
 
-function ExplainabilityPanel({
-  factors,
-  increasedRiskFactors,
-  reducedRiskFactors,
-}: {
-  factors: FactorBreakdown[];
-  increasedRiskFactors: FactorBreakdown[];
-  reducedRiskFactors: FactorBreakdown[];
-}) {
-  const { t } = useTranslation();
-  if (factors.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-sm">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-5">
-        <div>
-          <h3 className="font-bold text-lg flex items-center gap-2">
-            <Info className="w-5 h-5 text-primary" /> {t("patientResult.explainability")}
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("patientResult.explainabilityDesc")}
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
-          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-red-700">
-            <TrendingUp className="w-3.5 h-3.5" />
-            {increasedRiskFactors.length} {t("patientResult.raised")}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-green-700">
-            <TrendingDown className="w-3.5 h-3.5" />
-            {reducedRiskFactors.length} {t("patientResult.reduced")}
-          </span>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {factors.map((factor) => {
-          const increasesRisk = factor.impact === "positive";
-          return (
-            <div
-              key={`${factor.name}-${factor.impact}`}
-              className="rounded-lg border border-border/70 bg-muted/20 p-4"
-            >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="font-semibold text-foreground">{factor.name}</p>
-                  <p className="text-sm text-muted-foreground mt-1">{factor.plainReason}</p>
-                </div>
-                <span
-                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
-                    increasesRisk
-                      ? "bg-red-50 text-red-700 border border-red-200"
-                      : "bg-green-50 text-green-700 border border-green-200"
-                  }`}
-                >
-                  {increasesRisk ? (
-                    <TrendingUp className="w-3.5 h-3.5" />
-                  ) : (
-                    <TrendingDown className="w-3.5 h-3.5" />
-                  )}
-                  {increasesRisk ? t("patientResult.increasesRisk") : t("patientResult.reducesRisk")}
-                </span>
-              </div>
-
-              <div className="mt-4">
-                <div className="flex items-center justify-between text-xs font-medium text-muted-foreground mb-1.5">
-                  <span>{t("patientResult.relativeContribution")}</span>
-                  <span>{factor.strength}%</span>
-                </div>
-                <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className={`h-full rounded-full w-[var(--factor-strength)] ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
-                    style={{ '--factor-strength': `${factor.strength}%` } as React.CSSProperties}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function PathToImprovement({ assessment }: { assessment: AssessmentResponse }) {
-  const { t } = useTranslation();
-  const { mutate, data, isPending } = useWhatIfAuto();
-
-  useEffect(() => {
-    mutate({
-      patientName: assessment.patientName,
-      gender: assessment.gender as "Male" | "Female",
-      age: assessment.age,
-      hypertension: assessment.hypertension,
-      heartDisease: assessment.heartDisease,
-      smokingHistory: assessment.smokingHistory as "current" | "never" | "No Info" | "former",
-      bmi: assessment.bmi ?? 25,
-      hba1cLevel: assessment.hba1cLevel ?? 5.5,
-      bloodGlucoseLevel: assessment.bloodGlucoseLevel ?? 100,
-    });
-  }, [assessment]);
-
-  if (isPending || !data) {
-    return (
-      <div className="bg-card border border-border rounded-xl p-5 shadow-sm animate-pulse flex items-center justify-center min-h-[100px]">
-        <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
-        <span className="text-muted-foreground text-sm">{t("patientResult.analyzing")}</span>
-      </div>
-    );
-  }
-
-  const recommendations = data.recommendations;
-  if (!recommendations || recommendations.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-xl p-6 shadow-sm relative overflow-hidden">
-      <div className="absolute top-0 right-0 p-4 opacity-10">
-        <TrendingDown className="w-24 h-24 text-green-700" />
-      </div>
-      <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-900 relative z-10">
-        <TrendingDown className="w-5 h-5" /> {t("patientResult.pathToImprovement")}
-      </h3>
-      <div className="space-y-4 relative z-10">
-        {recommendations.map((rec: any, idx: number) => (
-          <div key={idx} className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border border-green-200/50 flex gap-3 shadow-sm">
-            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-green-900">{rec.action}</p>
-              <p className="text-green-800/80 text-sm mt-1">{rec.message}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}

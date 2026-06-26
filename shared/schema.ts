@@ -48,13 +48,13 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   // Restricted to Male/Female — the ML model was trained on binary gender data only.
   // Submitting "Other" would silently encode as Female; we reject it explicitly instead.
   patientName: z
-    .string({ invalid_type_error: "Patient name must be a string" })
+    .string({ invalid_type_error: "validation.patientNameString" })
     .trim()
-    .min(1, "Patient name cannot be empty if provided")
+    .min(1, "validation.patientNameEmpty")
     .optional(),
   gender: z.enum(["Male", "Female"], {
-    required_error: "Gender is required",
-    invalid_type_error: "Gender must be 'Male' or 'Female'",
+    required_error: "validation.genderRequired",
+    invalid_type_error: "validation.genderInvalid",
   }),
   age: z.preprocess(
     (v) => {
@@ -64,16 +64,16 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "Age is required", invalid_type_error: "Age must be a number" })
-      .int("Age must be a whole number")
-      .min(1, "Age must be at least 1")
-      .max(120, "Age must be 120 or below"),
+      .number({ required_error: "validation.ageRequired", invalid_type_error: "validation.ageNumber" })
+      .int("validation.ageWhole")
+      .min(1, "validation.ageMin")
+      .max(120, "validation.ageMax"),
   ),
-  hypertension: z.boolean({ invalid_type_error: "Hypertension must be true or false" }).default(false),
-  heartDisease: z.boolean({ invalid_type_error: "Heart disease must be true or false" }).default(false),
+  hypertension: z.boolean({ invalid_type_error: "validation.hypertensionBoolean" }).default(false),
+  heartDisease: z.boolean({ invalid_type_error: "validation.heartDiseaseBoolean" }).default(false),
   smokingHistory: z.enum(["never", "No Info", "current", "former"], {
-    required_error: "Smoking history is required",
-    invalid_type_error: "Invalid smoking history value",
+    required_error: "validation.smokingHistoryRequired",
+    invalid_type_error: "validation.smokingHistoryInvalid",
   }),
   bmi: z.preprocess(
     (v) => {
@@ -83,9 +83,9 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "BMI is required", invalid_type_error: "BMI must be a number" })
-      .min(10, "BMI must be at least 10")
-      .max(60, "BMI must be 60 or below"),
+      .number({ required_error: "validation.bmiRequired", invalid_type_error: "validation.bmiNumber" })
+      .min(10, "validation.bmiMin")
+      .max(60, "validation.bmiMax"),
   ),
   hba1cLevel: z.preprocess(
     (v) => {
@@ -95,9 +95,9 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "HbA1c level is required", invalid_type_error: "HbA1c level must be a number" })
-      .min(3, "HbA1c must be at least 3")
-      .max(15, "HbA1c must be 15 or below"),
+      .number({ required_error: "validation.hba1cRequired", invalid_type_error: "validation.hba1cNumber" })
+      .min(3, "validation.hba1cMin")
+      .max(15, "validation.hba1cMax"),
   ),
   bloodGlucoseLevel: z.preprocess(
     (v) => {
@@ -107,9 +107,9 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "Blood glucose level is required", invalid_type_error: "Blood glucose level must be a number" })
-      .min(50, "Blood glucose must be at least 50")
-      .max(500, "Blood glucose must be 500 or below"),
+      .number({ required_error: "validation.bloodGlucoseRequired", invalid_type_error: "validation.bloodGlucoseNumber" })
+      .min(50, "validation.bloodGlucoseMin")
+      .max(500, "validation.bloodGlucoseMax"),
   ),
   insulin: z.preprocess(
     (v) => {
@@ -119,9 +119,9 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ invalid_type_error: "Insulin must be a number" })
-      .min(0, "Insulin must be at least 0")
-      .max(1000, "Insulin must be 1000 or below")
+      .number({ invalid_type_error: "validation.insulinNumber" })
+      .min(0, "validation.insulinMin")
+      .max(1000, "validation.insulinMax")
       .optional(),
   ),
   skinThickness: z.preprocess(
@@ -132,12 +132,12 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ invalid_type_error: "Skin thickness must be a number" })
-      .min(0, "Skin thickness must be at least 0")
-      .max(100, "Skin thickness must be 100 or below")
+      .number({ invalid_type_error: "validation.skinThicknessNumber" })
+      .min(0, "validation.skinThicknessMin")
+      .max(100, "validation.skinThicknessMax")
       .optional(),
   ),
-  createdBy: z.string().email("createdBy must be a valid email").optional(),
+  createdBy: z.string().email("validation.createdByEmail").optional(),
   clinicalNote: z.string().optional().nullable(),
   explainableInsights: z.array(z.object({
     insight: z.string(),

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { FileText, ShieldAlert, Sparkles, HelpCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface ExplainableInsight {
   insight: string;
@@ -131,13 +132,14 @@ export function ClinicalNoteViewer({ noteText, insights }: ClinicalNoteViewerPro
                     type="button"
                     onClick={() => setSelectedIndex(isSelected ? null : idx)}
                     disabled={!hasCitation}
-                    className={`flex flex-col items-start text-left p-3.5 rounded-xl border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    className={cn(
+                      "flex flex-col items-start text-left p-3.5 rounded-xl border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500",
                       isSelected
                         ? "bg-blue-50/70 border-blue-500 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200 shadow-sm"
                         : hasCitation
                         ? "bg-white dark:bg-gray-800/40 border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800/80 cursor-pointer"
                         : "bg-slate-50 dark:bg-gray-950/20 border-slate-100 dark:border-gray-900/40 text-slate-400 dark:text-slate-600 opacity-60 cursor-not-allowed"
-                    }`}
+                    )}
                   >
                     <div className="flex items-center gap-2 w-full">
                       {hasCitation ? (
