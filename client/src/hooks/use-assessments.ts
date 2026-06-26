@@ -1,6 +1,7 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type AssessmentInput, type AssessmentResponse, type AssessmentSimulationResponse, type AssessmentWhatIfResponse, type AssessmentWhatIfBatchResponse, type AssessmentsListResponse } from "@shared/routes";
 import { ApiClient } from "../lib/apiClient";
+import { TypedApiClient } from "../lib/typedApiClient";
 import { useToast } from "./use-toast";
 
 // Parse with logging to catch silent Zod JSON translation errors
@@ -37,15 +38,7 @@ export function useAssessments(params?: {
   return useQuery({
     queryKey: [ASSESSMENTS_LIST_QUERY_KEY, params],
     queryFn: async () => {
-      const url = new URL(api.assessments.list.path, window.location.origin);
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== "") {
-            url.searchParams.set(key, String(value));
-          }
-        });
-      }
-      const data = await ApiClient.get<AssessmentsListResponse>(url.toString());
+      const data = await TypedApiClient.assessments.list(params);
       return parseWithLogging<AssessmentsListResponse>(api.assessments.list.responses[200], data, "assessments.list");
     },
   });
@@ -73,18 +66,11 @@ export function usePatientAssessments(patientName: string | null | undefined) {
     queryKey: ["assessments-patient", patientName ?? ""],
     enabled: Boolean(patientName),
     queryFn: async ({ pageParam }) => {
-      const url = new URL("/api/assessments/search", window.location.origin);
+      const params: Record<string, string | number> = { limit: 50 };
+      if (patientName) params.q = patientName;
+      if (pageParam !== undefined) params.cursor = pageParam;
 
-      // Filter strictly by patient name on the backend.
-      if (patientName) {
-        url.searchParams.set("q", patientName);
-      }
-      if (pageParam !== undefined) {
-        url.searchParams.set("cursor", String(pageParam));
-      }
-      url.searchParams.set("limit", "50");
-
-      const data = await ApiClient.get<AssessmentsListResponse>(url.toString());
+      const data = await TypedApiClient.assessments.search(params);
 
       // Ensure the returned records actually belong to this patient.
       // This is a client-side safety guard in addition to server-side scoping.
@@ -260,10 +246,7 @@ export function useSimulateAssessment() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
       const validated = api.assessments.simulate.input.parse(data);
-      const responseData = await ApiClient.post<AssessmentSimulationResponse>(
-        api.assessments.simulate.path,
-        validated
-      );
+      const responseData = await TypedApiClient.assessments.simulate(validated);
       return parseWithLogging<AssessmentSimulationResponse>(
         api.assessments.simulate.responses[200],
         responseData,
@@ -281,10 +264,7 @@ export function useWhatIfAssessment() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
       const validated = api.assessments.whatIf.input.parse(data);
-      const responseData = await ApiClient.post<AssessmentWhatIfResponse>(
-        api.assessments.whatIf.path,
-        validated
-      );
+      const responseData = await TypedApiClient.assessments.whatIf(validated);
       return parseWithLogging<AssessmentWhatIfResponse>(
         api.assessments.whatIf.responses[200],
         responseData,
@@ -305,10 +285,7 @@ export function useWhatIfBatch() {
       perturbations: Record<string, string | number | boolean>[];
     }) => {
       const validated = api.assessments.whatIfBatch.input.parse(data);
-      const responseData = await ApiClient.post<AssessmentWhatIfBatchResponse>(
-        api.assessments.whatIfBatch.path,
-        validated
-      );
+      const responseData = await TypedApiClient.assessments.whatIfBatch(validated);
       return parseWithLogging<AssessmentWhatIfBatchResponse>(
         api.assessments.whatIfBatch.responses[200],
         responseData,
