@@ -64,9 +64,9 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "validation.ageRequired", invalid_type_error: "validation.ageNumber" })
+      .number({ required_error: "Age is required", invalid_type_error: "validation.ageNumber" })
       .int("validation.ageWhole")
-      .min(1, "validation.ageMin")
+      .min(1, "Age must be at least 1")
       .max(120, "validation.ageMax"),
   ),
   hypertension: z.boolean({ invalid_type_error: "validation.hypertensionBoolean" }).default(false),
@@ -83,8 +83,8 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "validation.bmiRequired", invalid_type_error: "validation.bmiNumber" })
-      .min(10, "validation.bmiMin")
+      .number({ required_error: "BMI is required", invalid_type_error: "validation.bmiNumber" })
+      .min(10, "BMI must be at least 10")
       .max(60, "validation.bmiMax"),
   ),
   hba1cLevel: z.preprocess(
@@ -95,7 +95,7 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "validation.hba1cRequired", invalid_type_error: "validation.hba1cNumber" })
+      .number({ required_error: "HbA1c level is required", invalid_type_error: "validation.hba1cNumber" })
       .min(3, "validation.hba1cMin")
       .max(15, "validation.hba1cMax"),
   ),
@@ -107,8 +107,8 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       return Number.isNaN(n) ? v : n;
     },
     z
-      .number({ required_error: "validation.bloodGlucoseRequired", invalid_type_error: "validation.bloodGlucoseNumber" })
-      .min(50, "validation.bloodGlucoseMin")
+      .number({ required_error: "Blood glucose level is required", invalid_type_error: "validation.bloodGlucoseNumber" })
+      .min(50, "Blood glucose must be at least 50")
       .max(500, "validation.bloodGlucoseMax"),
   ),
   insulin: z.preprocess(
