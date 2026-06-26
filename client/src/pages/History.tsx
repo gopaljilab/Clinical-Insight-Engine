@@ -521,6 +521,13 @@ export default function History() {
     setCurrentPage(1);
   }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate, sortBy]);
 
+  // 4. Pagination (Server-Side)
+  const totalRecords = assessmentsData?.total ?? 0;
+  const filteredRecords = assessmentsData?.total ?? 0;
+  const totalPages = assessmentsData?.totalPages ?? 1;
+  const safePage = currentPage;
+  const sortedAssessments = assessments;
+  const paginatedAssessments = assessments;
 
 
   const formatAssessmentDate = (dateVal: string | Date | null | undefined) => {
@@ -1154,3 +1161,5 @@ export default function History() {
     </AppLayout>
   );
 }
+
+

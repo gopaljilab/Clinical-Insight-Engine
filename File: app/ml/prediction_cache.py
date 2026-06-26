@@ -1,6 +1,5 @@
 from collections import OrderedDict
 import time
-from typing import Optional
 
 class PredictionLRUCache:
     """Thread-safe LRU cache for prediction results."""
