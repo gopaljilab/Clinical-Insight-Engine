@@ -24,7 +24,8 @@ import {
 } from "../controllers/assessments.controller";
 import { storage } from "../storage";
 import sanitizeHtml from "sanitize-html";
-import { canAccessPatientRecord, logAccessAttempt } from "../auth";
+import { canAccessPatientRecord } from "../services/authz/patient-access";
+import { logAccessAttempt } from "../security/access-audit";
 import { logger } from "../logger";
 
 const assessmentsRouter = Router();
@@ -112,10 +113,9 @@ assessmentsRouter.post(
       return res.json(result);
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+        return res.status(400).json({ message: err.errors[0]?.message ?? "api.errors.invalidInput" });
       }
-      logger.error({ err }, "What-if batch analysis failed");
-      return res.status(500).json({ message: "What-if batch analysis failed. Please try again." });
+      return res.status(500).json({ message: "api.errors.whatIfBatchFailed" });
     }
   }
 );
@@ -128,8 +128,8 @@ assessmentsRouter.post(
     try {
       const input = api.assessments.create.input.parse(req.body);
 
-      if (!isPythonAvailable) {
-        return res.status(503).json({ message: "Python service is required for counterfactual auto analysis." });
+      if (!MLService.isPythonServiceAvailable()) {
+        return res.status(503).json({ message: "api.errors.pythonServiceRequired" });
       }
 
       const stdout = await new Promise<string>((resolve, reject) => {
@@ -160,10 +160,9 @@ assessmentsRouter.post(
       return res.json(result);
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+        return res.status(400).json({ message: err.errors[0]?.message ?? "api.errors.invalidInput" });
       }
-      logger.error({ err }, "What-if auto analysis failed");
-      return res.status(500).json({ message: "What-if auto analysis failed. Please try again." });
+      return res.status(500).json({ message: "api.errors.whatIfAutoFailed" });
     }
   }
 );
@@ -177,8 +176,8 @@ assessmentsRouter.post(
   async (req, res) => {
     const userId = (req.session.user)?.id;
     const userEmail = req.session.user?.email;
-    if (!userId) {
-      return res.status(401).json({ message: "Authentication required." });
+    if (!userId || !userEmail) {
+      return res.status(401).json({ message: "api.errors.authRequired" });
     }
 
     let requestFingerprint: string | undefined;
@@ -189,7 +188,7 @@ assessmentsRouter.post(
       requestFingerprint = MLService.generateRequestFingerprint(input, userId);
       if (MLService.activeInferenceRequests.has(requestFingerprint)) {
         return res.status(409).json({
-          message: "An identical assessment request is already being processed.",
+          message: "api.errors.identicalAssessmentProcessing"
         });
       }
       MLService.activeInferenceRequests.add(requestFingerprint);
@@ -205,7 +204,7 @@ assessmentsRouter.post(
           requestId,
         });
         return res.status(202).json({
-          message: "Assessment request accepted and is being processed.",
+          message: "api.messages.assessmentRequestAccepted",
           jobId: job.id,
           requestId,
         });
@@ -242,7 +241,7 @@ assessmentsRouter.post(
       );
 
       return res.status(201).json({
-        message: "Assessment completed successfully.",
+        message: "api.messages.assessmentCompleted",
         assessment,
         isFallback: true,
       });
@@ -250,12 +249,12 @@ assessmentsRouter.post(
       if (err instanceof z.ZodError) {
         return res
           .status(400)
-          .json({ message: err.errors[0]?.message ?? "Invalid input data" });
+          .json({ message: err.errors[0]?.message ?? "api.errors.invalidInputData" });
       }
       logger.error({ err }, "Assessment creation error:");
       return res
         .status(500)
-        .json({ message: "Failed to create assessment." });
+        .json({ message: "api.errors.failedToCreateAssessment" });
     } finally {
       if (requestFingerprint) {
         MLService.activeInferenceRequests.delete(requestFingerprint);
@@ -337,17 +336,17 @@ assessmentsRouter.patch(
     try {
       const id = parseInt(req.params.id as string, 10);
       if (isNaN(id) || id <= 0) {
-        return res.status(400).json({ message: "Invalid assessment ID." });
+        return res.status(400).json({ message: "api.errors.invalidAssessmentId" });
       }
 
       const user = req.session.user;
       if (!user) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "api.errors.unauthorized" });
       }
 
       const assessment = await storage.getAssessmentById(id);
       if (!assessment) {
-        return res.status(404).json({ message: "Assessment not found." });
+        return res.status(404).json({ message: "api.errors.assessmentNotFound" });
       }
 
       if (!canAccessPatientRecord(user, assessment)) {
@@ -362,22 +361,22 @@ assessmentsRouter.patch(
       }
 
       const { clinicalNote } = req.body;
-      if (typeof clinicalNote !== "string") {
-        return res.status(400).json({ message: "clinicalNote must be a string." });
+      if (typeof clinicalNote !== 'string' && clinicalNote !== null && clinicalNote !== undefined) {
+        return res.status(400).json({ message: "api.errors.clinicalNoteString" });
       }
 
       const sanitized = sanitizeHtml(clinicalNote);
 
       const updated = await storage.updateClinicalNote(id, sanitized);
       if (!updated) {
-        return res.status(500).json({ message: "Failed to update clinical note." });
+        return res.status(500).json({ message: "api.errors.updateClinicalNoteFailed" });
       }
 
       logAccessAttempt(user.id, "Assessment", id, true, "Clinical note updated");
       return res.json({ clinicalNote: updated.clinicalNote });
     } catch (err) {
       logger.error({ err }, "Clinical note update error:");
-      return res.status(500).json({ message: "Failed to update clinical note." });
+      return res.status(500).json({ message: "api.errors.updateClinicalNoteFailed" });
     }
   }
 );
