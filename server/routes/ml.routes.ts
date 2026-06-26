@@ -61,8 +61,6 @@ mlRouter.post(
             confidenceInterval: prediction.confidenceInterval ?? null,
             modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
             createdBy: userEmail,
-          });
-            createdBy: userId,
           };
         })
       );
