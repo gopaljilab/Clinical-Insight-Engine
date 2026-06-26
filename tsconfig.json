@@ -16,13 +16,14 @@
     "moduleResolution": "bundler",
 
     "types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
-    "baseUrl": ".",
+    
 
     "paths": {
       "@/*": ["./client/src/*"],
       "@shared/*": ["./shared/*"],
       "@assets/*": ["./attached_assets/*"]
-    }
+    },
+    
   }
 }
 

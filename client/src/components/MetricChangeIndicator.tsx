@@ -1,5 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
-
+import { cn } from "@/lib/utils";
 type ChangeType = "improved" | "regressed" | "stable" | "neutral" | "unknown";
 
 interface MetricChangeIndicatorProps {
@@ -44,7 +44,7 @@ export default function MetricChangeIndicator({
   const meta = CHANGE_META[type] ?? CHANGE_META.unknown;
   const Icon = meta.Icon;
   return (
-    <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${meta.classes}`}>
+    <div className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold", meta.classes)}>
       <Icon className="w-3.5 h-3.5" />
       <span>{label ?? meta.text}{value !== undefined && value !== null ? ` ${value}` : ""}</span>
     </div>
