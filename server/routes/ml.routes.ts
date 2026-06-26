@@ -44,26 +44,11 @@ mlRouter.post(
         return res.status(503).json({ message: "api.errors.assessmentQueueUnavailable" });
       }
 
-      if (predictions.length !== input.length) {
-        return res.status(500).json({
-          message: "api.errors.predictionCountMismatch"
-        });
-      }
-
-      const createdAssessments = await storage.createAssessmentsBatch(
-        input.map((assessment: any, index: number) => {
-          const prediction = predictions[index];
-          return {
-            ...assessment,
-            riskScore: Number(prediction.riskScore),
-            riskCategory: prediction.riskCategory,
-            factors: prediction.factors,
-            confidenceInterval: prediction.confidenceInterval ?? null,
-            modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
-            createdBy: userId,
-          };
-        })
-      );
+      const job = await assessmentQueue.add("predictBatch", {
+        assessments: input,
+        userId,
+        batchId
+      });
 
       return res.status(202).json({ 
         message: "api.messages.bulkRequestAccepted", 

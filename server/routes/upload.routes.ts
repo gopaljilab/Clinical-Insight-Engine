@@ -42,7 +42,6 @@ uploadRouter.post(
         return res.status(400).json({ message: (err as Error).message });
       }
       
-      const file = (req).file;
       if (!req.file) {
         return res.status(400).json({ message: "api.errors.noFileUploaded" });
       }
@@ -54,7 +53,7 @@ uploadRouter.post(
       }
 
       try {
-        const csvString = file.buffer.toString("utf-8");
+        const csvString = req.file.buffer.toString("utf-8");
         const parsed = Papa.parse(csvString, { header: true, skipEmptyLines: true });
 
         if (parsed.data.length > 100) {

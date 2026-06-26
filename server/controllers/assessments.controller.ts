@@ -259,8 +259,8 @@ export const simulateFallback = async (req: Request, res: Response) => {
       }
 
       logger.warn(
-        "Python prediction simulation failed, falling back to clinical rule-based model:",
-        error
+        { err: error },
+        "Python prediction simulation failed, falling back to clinical rule-based model:"
       );
       prediction = calculateClinicalFallback(input);
     }
