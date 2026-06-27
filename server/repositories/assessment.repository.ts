@@ -565,7 +565,7 @@ export class AssessmentRepository {
       .groupBy(assessments.riskCategory)
       .orderBy(assessments.riskCategory);
 
-    const ageBuckets = `
+    const ageBuckets = sql<unknown>`
       CASE
         WHEN ${assessments.age} < 30 THEN 'Under 30'
         WHEN ${assessments.age} BETWEEN 30 AND 39 THEN '30-39'
@@ -577,11 +577,11 @@ export class AssessmentRepository {
     `;
 
     const ageDist = await db
-      .select({ range: sql<string>`${sql.raw(ageBuckets)}`, count: sql<number>`count(*)` })
+      .select({ range: sql<string>`${ageBuckets}`, count: sql<number>`count(*)` })
       .from(assessments)
       .where(where)
-      .groupBy(sql.raw(ageBuckets))
-      .orderBy(sql.raw(ageBuckets));
+      .groupBy(ageBuckets)
+      .orderBy(ageBuckets);
 
     const genderDist = await db
       .select({ gender: assessments.gender, count: sql<number>`count(*)` })
