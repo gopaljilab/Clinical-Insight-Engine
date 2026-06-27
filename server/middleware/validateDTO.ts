@@ -12,10 +12,10 @@ export const validateDTO = (schema: ZodTypeAny) => {
       if (error instanceof ZodError) {
         logger.warn({ err: error, path: req.path }, "DTO Validation failed");
         return res.status(400).json({
-          message: "Validation failed",
+          message: "Validation failed.",
           errors: error.errors.map(err => ({
             field: err.path.join('.'),
-            message: (err as Error).message
+            message: (err as unknown as Error).message
           }))
         });
       }
@@ -34,10 +34,10 @@ export const validateQueryDTO = (schema: ZodTypeAny) => {
       if (error instanceof ZodError) {
         logger.warn({ err: error, path: req.path }, "Query DTO Validation failed");
         return res.status(400).json({
-          message: "Validation failed for query parameters",
+          message: "Validation failed.",
           errors: error.errors.map(err => ({
             field: err.path.join('.'),
-            message: (err as Error).message
+            message: (err as unknown as Error).message
           }))
         });
       }

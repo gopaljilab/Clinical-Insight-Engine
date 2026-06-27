@@ -52,7 +52,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     }, WARNING_TIMEOUT);
 
     logoutTimerRef.current = window.setTimeout(() => {
-      fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+      ApiClient.post("/api/auth/logout")
         .finally(() => {
           queryClient.clear();
           setLocation("/");
