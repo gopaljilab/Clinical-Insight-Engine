@@ -1,5 +1,6 @@
 import { ButtonHTMLAttributes, ReactNode } from "react";
 import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface AuthButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
@@ -27,7 +28,7 @@ export function AuthButton({
 
   return (
     <button
-      className={`${baseStyles} ${variants[variant]} ${className}`}
+      className={cn(baseStyles, variants[variant], className)}
       disabled={isLoading || disabled}
       {...props}
     >

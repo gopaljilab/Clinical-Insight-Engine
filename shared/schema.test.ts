@@ -133,3 +133,39 @@ describe("insertAssessmentSchema", () => {
     }
   });
 });
+it("rejects null age value", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    age: null,
+  });
+
+  expect(result.success).toBe(false);
+});
+
+it("rejects undefined gender value", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    gender: undefined,
+  });
+
+  expect(result.success).toBe(false);
+});
+
+it("rejects missing required gender field", () => {
+  const { gender, ...assessmentWithoutGender } = validAssessment;
+
+  const result = insertAssessmentSchema.safeParse(
+    assessmentWithoutGender
+  );
+
+  expect(result.success).toBe(false);
+});
+
+it("rejects null blood glucose value", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    bloodGlucoseLevel: null,
+  });
+
+  expect(result.success).toBe(false);
+});
