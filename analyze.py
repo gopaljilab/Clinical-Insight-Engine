@@ -546,45 +546,19 @@ def get_model():
     finally:
         _release_lock()
 
+from pydantic import ValidationError
+from app.schemas.patient_input import PatientInput
+
 def validate_assessment_input(data):
     if not isinstance(data, dict):
         raise ValueError("Input must be an object")
 
-    validators = {
-        "age": {"type": (int, float), "min": 0, "max": 130},
-        "gender": {"type": str},
-        "hypertension": {"type": (bool, int), "in": (False, True, 0, 1)},
-        "heartDisease": {"type": (bool, int), "in": (False, True, 0, 1)},
-        "bmi": {"type": (int, float), "min": 0, "max": 100},
-        "hba1cLevel": {"type": (int, float), "min": 0, "max": 15},
-        "bloodGlucoseLevel": {"type": (int, float), "min": 0, "max": 500},
-        "smokingHistory": {
-            "type": str,
-            "in": ("never", "former", "current", "not specified", "ever", "No Info"),
-        },
-    }
-
-    for field, rules in validators.items():
-        if field not in data or data[field] is None:
-            raise ValueError(f"Missing or null field: {field}")
-
-        value = data[field]
-        if not isinstance(value, rules["type"]):
-            raise ValueError(f"Invalid type for {field}")
-
-        if isinstance(value, str) and not value:
-            raise ValueError(f"Invalid value for {field}")
-
-        if "in" in rules and value not in rules["in"]:
-            raise ValueError(f"Invalid value for {field}")
-
-        if "min" in rules and value < rules["min"]:
-            raise ValueError(f"Invalid value for {field}")
-
-        if "max" in rules and value > rules["max"]:
-            raise ValueError(f"Invalid value for {field}")
-
-    return data
+    try:
+        # Strict validation using Pydantic schema
+        patient = PatientInput(**data)
+        return patient.model_dump()
+    except ValidationError as e:
+        raise ValueError(f"Validation failed: {e}")
 
 @phi_redaction_middleware
 def interpret_predictions_batch(model, scaler, features, input_data_list, cov_beta=None):
@@ -964,10 +938,12 @@ if __name__ == "__main__":
             data = json.loads(sanitized_str)
         model, scaler, features, cov_beta = get_model()
         if isinstance(data, list):
-            results = interpret_predictions_batch(model, scaler, features, data, cov_beta)
+            validated_data = [validate_assessment_input(item) for item in data]
+            results = interpret_predictions_batch(model, scaler, features, validated_data, cov_beta)
             print(json.dumps(results))
         else:
-            result = interpret_prediction(model, scaler, features, data, cov_beta)
+            validated_data = validate_assessment_input(data)
+            result = interpret_prediction(model, scaler, features, validated_data, cov_beta)
             print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "daemon":
         model, scaler, features, cov_beta = get_model()
