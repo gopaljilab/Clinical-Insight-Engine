@@ -1,3 +1,5 @@
+import { escapeCsvCell } from "./csvSanitizer";
+
 /**
  * Converts an array of assessment records into CSV format.
  *
@@ -10,16 +12,13 @@
  *   { name: "Jane", age: 38 }
  * ]);
  */
-export function assessmentsToCsv(data: any[]): string {
+export function assessmentsToCsv(data: Record<string, any>[]): string {
   if (!data || data.length === 0) return "";
   
   const headers = Object.keys(data[0]);
   const rows = data.map(row => 
-    headers.map(header => {
-      const cell = row[header] === null || row[header] === undefined ? '' : String(row[header]);
-      return `"${cell.replace(/"/g, '""')}"`;
-    }).join(',')
+    headers.map(header => escapeCsvCell(row[header])).join(',')
   );
   
-  return [headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','), ...rows].join('\n');
+  return [headers.join(','), ...rows].join('\n');
 }
