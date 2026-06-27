@@ -1,7 +1,29 @@
 import React from "react";
 import type { Recommendation } from "@shared/routes";
-import { CheckCircle2, Clipboard, Heart } from "lucide-react";
+import { Heart, CalendarClock, TestTube, Pill, Activity } from "lucide-react";
 import { useTranslation } from "react-i18next";
+
+function getRecommendationIcon(title: string) {
+  const text = title.toLowerCase();
+
+  if (text.includes("appointment") || text.includes("follow-up")) {
+    return <CalendarClock className="w-4 h-4 text-blue-600" />;
+  }
+
+  if (text.includes("hba1c") || text.includes("test")) {
+    return <TestTube className="w-4 h-4 text-purple-600" />;
+  }
+
+  if (text.includes("medication")) {
+    return <Pill className="w-4 h-4 text-red-600" />;
+  }
+
+  if (text.includes("glucose") || text.includes("lifestyle")) {
+    return <Activity className="w-4 h-4 text-green-600" />;
+  }
+
+  return <Heart className="w-4 h-4 text-primary" />;
+}
 
 export function Recommendations({
   recommendations,
@@ -31,7 +53,7 @@ export function Recommendations({
         {filtered.map((rec) => (
           <label
             key={rec.id}
-            className="flex items-start gap-3 p-4 rounded-lg border border-border/60 bg-muted/10"
+            className="flex items-start gap-3 p-4 rounded-lg border border-primary/20 bg-primary/5 hover:shadow-md transition-all"
           >
             <input
               aria-label={rec.title}
@@ -40,7 +62,10 @@ export function Recommendations({
             />
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <div className="font-semibold text-foreground">{rec.title}</div>
+                <div className="flex items-center gap-2 font-semibold text-foreground">
+                  {getRecommendationIcon(rec.title)}
+                  <span>{rec.title}</span>
+                </div>
                 {rec.urgency === "high" && (
                   <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">{t("recommendations.high")}</span>
                 )}

@@ -193,3 +193,118 @@ describe("extractDatesFromText", () => {
     expect(extracted[0].offset).toBe(9); // "Admitted " is 9 chars
   });
 });
+
+// ---------------------------------------------------------------------------
+// Edge cases that lock down the documented boundaries of parseClinicalDate.
+//
+// These cases document inputs the original test matrix missed. Any change
+// to the supported format set MUST come with a deliberate test update.
+// ---------------------------------------------------------------------------
+
+describe("parseClinicalDate edge cases", () => {
+  it("rejects a year-only input with confidence 0", () => {
+    const r = parseClinicalDate("2024");
+    expect(r.date).toBeNull();
+    expect(r.confidence).toBe(0);
+    expect(r.ambiguous).toBe(false);
+    expect(r.isoString).toBeNull();
+  });
+
+  it("rejects a dotted DD.MM.YYYY input (format not currently supported)", () => {
+    // The parser does not currently support the German/EU dotted format.
+    // This test guards against accidental support being added silently.
+    const r = parseClinicalDate("1.1.2024");
+    expect(r.date).toBeNull();
+    expect(r.confidence).toBe(0);
+    expect(r.ambiguous).toBe(false);
+  });
+
+  it("rejects a 2-digit year slashed input", () => {
+    // 2-digit years are a known HIPAA/compliance pitfall (Y2K-style ambiguity).
+    // The parser must NOT accept them implicitly.
+    const r = parseClinicalDate("01/02/24");
+    expect(r.date).toBeNull();
+    expect(r.confidence).toBe(0);
+    expect(r.ambiguous).toBe(false);
+  });
+
+  it("rejects a lowercase-T/Z ISO 8601 timestamp", () => {
+    // The regex is strict about uppercase T and Z (per RFC 3339).
+    // Lowercase forms must be rejected.
+    const r = parseClinicalDate("2024-01-15t12:00:00z");
+    expect(r.date).toBeNull();
+    expect(r.confidence).toBe(0);
+    expect(r.ambiguous).toBe(false);
+  });
+
+  it("flags Feb 30 with confidence 0 (neither interpretation is a valid calendar date)", () => {
+    // MM/DD interpretation: month=2, day=30 -> makeUtcDate returns null (rolls over to March, then rejected).
+    // DD/MM interpretation: day=30, month=2 -> same null.
+    // Both interpretations fail -> confidence 0, ambiguous=false.
+    const r = parseClinicalDate("02/30/2024");
+    expect(r.date).toBeNull();
+    expect(r.confidence).toBe(0);
+    expect(r.ambiguous).toBe(false);
+    expect(r.isoString).toBeNull();
+  });
+
+  it("flags Feb 29 in a non-leap year with confidence 0", () => {
+    const r = parseClinicalDate("29/02/2023");
+    expect(r.date).toBeNull();
+    expect(r.confidence).toBe(0);
+  });
+
+  it("accepts Feb 29 in a leap year with confidence 0.7 (DD/MM/YYYY interpretation)", () => {
+    const r = parseClinicalDate("29/02/2024");
+    expect(r.date).not.toBeNull();
+    expect(r.confidence).toBe(0.7);
+    expect(r.ambiguous).toBe(false);
+    expect(r.isoString).toBe("2024-02-29");
+  });
+
+  it("accepts April 31 with confidence 0 (neither interpretation valid)", () => {
+    const r = parseClinicalDate("31/04/2024");
+    expect(r.date).toBeNull();
+    expect(r.confidence).toBe(0);
+    expect(r.ambiguous).toBe(false);
+  });
+
+  it("rejects a zero month/day with confidence 0", () => {
+    const r = parseClinicalDate("00/01/2024");
+    expect(r.date).toBeNull();
+    expect(r.confidence).toBe(0);
+  });
+
+  it("rejects an empty string with confidence 0", () => {
+    const r = parseClinicalDate("");
+    expect(r.date).toBeNull();
+    expect(r.confidence).toBe(0);
+    expect(r.ambiguous).toBe(false);
+  });
+
+  it("flags slashed dates where both interpretations are valid AND distinct as ambiguous", () => {
+    // 02/01/2024 -> Feb 1 (US) vs Jan 2 (UK) -> distinct -> ambiguous.
+    const r = parseClinicalDate("02/01/2024");
+    expect(r.date).toBeNull();
+    expect(r.confidence).toBe(0.3);
+    expect(r.ambiguous).toBe(true);
+  });
+
+  it("flags slashed dates where only DD/MM/YYYY is valid with confidence 0.7 (no ambiguity)", () => {
+    // 13/01/2024 -> US: MM=13 invalid; UK: 13 Jan valid -> 0.7, not ambiguous.
+    const r = parseClinicalDate("13/01/2024");
+    expect(r.date).not.toBeNull();
+    expect(r.confidence).toBe(0.7);
+    expect(r.ambiguous).toBe(false);
+    expect(r.isoString).toBe("2024-01-13");
+  });
+
+  it("flags slashed dates where only MM/DD/YYYY is valid with confidence 0.7 (no ambiguity)", () => {
+    // 01/15/2024 -> US: Jan 15 valid; UK: MM=15 invalid -> 0.7, not ambiguous.
+    const r = parseClinicalDate("01/15/2024");
+    expect(r.date).not.toBeNull();
+    expect(r.confidence).toBe(0.7);
+    expect(r.ambiguous).toBe(false);
+    expect(r.isoString).toBe("2024-01-15");
+  });
+});

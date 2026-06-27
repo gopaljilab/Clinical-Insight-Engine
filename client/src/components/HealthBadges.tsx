@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { HealthBadge } from "@/utils/healthBadges";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 const ICON_MAP: Record<HealthBadge["id"], typeof HeartPulse> = {
   "improved-bmi": HeartPulse,
@@ -91,7 +92,7 @@ export const HealthBadges: FC<HealthBadgesProps> = ({
                   <TooltipTrigger asChild>
                     <div className="group rounded-3xl border border-border bg-background p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md cursor-help">
                       <div className="flex items-center gap-3">
-                        <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border ${colorClass}`}>
+                        <span className={cn("inline-flex h-11 w-11 items-center justify-center rounded-2xl border", colorClass)}>
                           <Icon className="h-5 w-5" />
                         </span>
                         <div className="min-w-0">
