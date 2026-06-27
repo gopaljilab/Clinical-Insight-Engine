@@ -175,6 +175,8 @@ export class AssessmentRepository {
           bmi: assessments.bmi,
           hba1cLevel: assessments.hba1cLevel,
           bloodGlucoseLevel: assessments.bloodGlucoseLevel,
+          insulin: assessments.insulin,
+          skinThickness: assessments.skinThickness,
           riskScore: assessments.riskScore,
           riskCategory: assessments.riskCategory,
           factors: assessments.factors,
@@ -222,6 +224,8 @@ export class AssessmentRepository {
         bmi: assessments.bmi,
         hba1cLevel: assessments.hba1cLevel,
         bloodGlucoseLevel: assessments.bloodGlucoseLevel,
+        insulin: assessments.insulin,
+        skinThickness: assessments.skinThickness,
         riskScore: assessments.riskScore,
         riskCategory: assessments.riskCategory,
         factors: assessments.factors,
@@ -306,9 +310,13 @@ export class AssessmentRepository {
     return { data: pagedData, nextCursor };
   }
 
-  async getAssessmentById(id: number): Promise<Assessment | undefined> {
+  async getAssessmentById(id: number, createdBy?: string): Promise<Assessment | undefined> {
     const db = getDb();
     const conditions: ReturnType<typeof eq>[] = [eq(assessments.id, id)];
+
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy) as any);
+    }
 
     const [result] = await db
       .select()
@@ -326,6 +334,19 @@ export class AssessmentRepository {
       .values(assessment as any)
       .returning();
     return created;
+  }
+
+  async updateClinicalNote(
+    id: number,
+    clinicalNote: string,
+  ): Promise<Assessment | undefined> {
+    const db = getDb();
+    const [updated] = await db
+      .update(assessments)
+      .set({ clinicalNote } as any)
+      .where(eq(assessments.id, id))
+      .returning();
+    return updated;
   }
 
   async autocompletePatientNames(
@@ -359,34 +380,22 @@ export class AssessmentRepository {
     return rows.map((r) => r.patientName).filter(Boolean) as string[];
   }
 
-  async getPatientTrends(patientName: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]> {
-    const db = getDb();
-    const rows = await db
-      .select({
-        date: assessments.createdAt,
-        riskScore: assessments.riskScore,
-        riskCategory: assessments.riskCategory,
-      })
-      .from(assessments)
-      .where(eq(assessments.patientName, patientName))
-      .orderBy(asc(assessments.createdAt));
-    return rows.map((r) => ({
-      date: r.date?.toISOString() ?? "",
-      riskScore: r.riskScore,
-      riskCategory: r.riskCategory,
-    }));
-  }
-
   async getAssessmentsByPatientName(
     patientName: string,
     limit: number = 100,
     offset: number = 0,
+    createdBy?: string,
     startDate?: string,
     endDate?: string
   ): Promise<{ data: Assessment[]; total: number }> {
     const db = getDb();
     const filters: any[] = [eq(assessments.patientName, patientName)];
-    if (startDate && !isNaN(Date.parse(startDate))) filters.push(gte(assessments.createdAt, new Date(startDate)));
+    if (createdBy) {
+      filters.push(eq(assessments.createdBy, createdBy));
+    }
+    if (startDate && !isNaN(Date.parse(startDate))) {
+      filters.push(gte(assessments.createdAt, new Date(startDate)));
+    }
     if (endDate && !isNaN(Date.parse(endDate))) {
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
@@ -406,6 +415,28 @@ export class AssessmentRepository {
       .limit(limit)
       .offset(offset);
     return { data, total };
+  }
+
+  async getPatientTrends(patientName: string, createdBy?: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]> {
+    const db = getDb();
+    const conditions: ReturnType<typeof eq>[] = [eq(assessments.patientName, patientName)];
+    if (createdBy) {
+      conditions.push(eq(assessments.createdBy, createdBy));
+    }
+    const rows = await db
+      .select({
+        date: assessments.createdAt,
+        riskScore: assessments.riskScore,
+        riskCategory: assessments.riskCategory,
+      })
+      .from(assessments)
+      .where(and(...conditions))
+      .orderBy(asc(assessments.createdAt));
+    return rows.map((r) => ({
+      date: r.date?.toISOString() ?? "",
+      riskScore: r.riskScore,
+      riskCategory: r.riskCategory,
+    }));
   }
 
   async getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string) {
@@ -463,6 +494,13 @@ export class AssessmentRepository {
         change: latest && earliest ? Number((latest.riskScore - earliest.riskScore).toFixed(1)) : 0,
       },
     };
+  }
+
+  async createAssessmentsBatch(data: AssessmentCreateInput[]): Promise<Assessment[]> {
+    const db = getDb();
+    return db.transaction(async (tx) => {
+      return tx.insert(assessments).values(data as any).returning();
+    });
   }
 
   async deleteAssessment(id: number): Promise<void> {

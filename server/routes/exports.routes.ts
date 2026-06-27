@@ -19,7 +19,7 @@ exportsRouter.get(
       const parseResult = assessmentExportQuerySchema.safeParse(req.query);
       if (!parseResult.success) {
         return res.status(400).json({
-          message: parseResult.error.errors[0]?.message ?? "Invalid export query parameters.",
+          message: parseResult.error.errors[0]?.message ?? "api.errors.invalidExportParams",
         });
       }
 
@@ -36,8 +36,8 @@ exportsRouter.get(
       res.attachment("assessments.csv");
       return res.send(csv);
     } catch (err) {
-      logger.error({ err }, "Export error");
-      return res.status(500).json({ message: "Failed to export data" });
+      logger.error({ err }, "Export failed");
+      return res.status(500).json({ message: "api.errors.failedToExport" });
     }
   }
 );
