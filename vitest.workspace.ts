@@ -23,10 +23,10 @@ export default defineWorkspace([
   {
     extends: "./vitest.config.ts",
     test: {
-      name: "shared",
+      name: "tests",
       environment: "node",
-      include: ["shared/**/*.test.ts"],
-      exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**"],
+      include: ["tests/**/*.test.ts"],
+      exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**", "tests/security/**", "tests/e2e/**"],
     },
   },
 ]);
