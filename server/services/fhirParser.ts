@@ -422,15 +422,8 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Ins
     }
 
     // 5. Heart Disease
-    if (
-      display.includes("heart disease") ||
-      display.includes("coronary artery disease") ||
-      display.includes("cad") ||
-      display.includes("myocardial infarction") ||
-      display.includes("mi") ||
-      display.includes("heart failure") ||
-      display.includes("atrial fibrillation")
-    ) {
+    const _hd = display.includes("heart disease") || display.includes("coronary artery disease") || display.includes("cad") || display.includes("myocardial infarction") || display.includes("mi") || display.includes("heart failure") || display.includes("atrial fibrillation");
+    if (_hd) {
       if (obs.valueString) {
         const valStr = obs.valueString.toLowerCase();
         if (valStr.includes("yes") || valStr.includes("true") || valStr.includes("active") || valStr.includes("present")) {
