@@ -429,6 +429,56 @@ def test_validate_assessment_input_rejects_invalid_gender():
             }
         )
 
+
+def test_validate_assessment_input_accepts_complete_valid_payload():
+    from analyze import validate_assessment_input
+
+    payload = {
+        "age": 40,
+        "gender": "Female",
+        "hypertension": False,
+        "heartDisease": 0,
+        "bmi": 25,
+        "hba1cLevel": 5.5,
+        "bloodGlucoseLevel": 100,
+        "smokingHistory": "never",
+    }
+
+    assert validate_assessment_input(payload) == payload
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("hba1cLevel", 16),
+        ("bloodGlucoseLevel", 501),
+        ("smokingHistory", "invalid"),
+        ("hypertension", 2),
+        ("heartDisease", -1),
+    ],
+)
+def test_validate_assessment_input_rejects_invalid_clinical_fields(field, value):
+    from analyze import validate_assessment_input
+
+    payload = {
+        "age": 40,
+        "gender": "Female",
+        "hypertension": False,
+        "heartDisease": False,
+        "bmi": 25,
+        "hba1cLevel": 5.5,
+        "bloodGlucoseLevel": 100,
+        "smokingHistory": "never",
+    }
+    payload[field] = value
+
+    with pytest.raises(ValueError):
+        validate_assessment_input(payload)
+
+
+def test_validate_assessment_input_rejects_empty_gender():
+    from analyze import validate_assessment_input
+
     # Rejects empty gender
     with pytest.raises(ValueError):
         validate_assessment_input(
@@ -443,6 +493,23 @@ def test_validate_assessment_input_rejects_invalid_gender():
                 "smokingHistory": "never",
             }
         )
+
+
+def test_validate_assessment_input_rejects_missing_clinical_field():
+    from analyze import validate_assessment_input
+
+    payload = {
+        "age": 40,
+        "gender": "Female",
+        "hypertension": False,
+        "heartDisease": False,
+        "bmi": 25,
+        "bloodGlucoseLevel": 100,
+        "smokingHistory": "never",
+    }
+
+    with pytest.raises(ValueError, match="hba1cLevel"):
+        validate_assessment_input(payload)
 
 
 def test_validate_assessment_input_allows_other_genders_and_warns():
