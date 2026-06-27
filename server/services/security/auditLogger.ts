@@ -14,7 +14,7 @@ export interface AuditLogDetails {
  * Masks sensitive payload values like SSN, medical conditions, names, or emails
  * to prevent PII leakage into server logs.
  */
-function maskSensitiveData(data: Record<string, any>): Record<string, any> {
+export function maskSensitiveData(data: Record<string, any>): Record<string, any> {
   const masked = { ...data };
   const sensitiveKeys = ["ssn", "password", "passwordhash", "email", "fullname", "medicallicensenumber", "patientname"];
 
