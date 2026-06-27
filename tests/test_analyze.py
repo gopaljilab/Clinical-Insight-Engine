@@ -149,17 +149,18 @@ def test_interpret_prediction_personalized_advice():
     mock_model = MagicMock()
     mock_model.predict_proba.return_value = np.array([[0.1, 0.8]]) # 80% risk -> HIGH
     # index 4 is HbA1c_level in our features list below
-    coefs = np.zeros((1, 10))
+    coefs = np.zeros((1, 12))
     coefs[0, 4] = 2.0 
     mock_model.coef_ = coefs
     mock_model.decision_function.return_value = np.array([1.5])
     
     mock_scaler = MagicMock()
-    # features: age, hypertension, heart_disease, bmi, HbA1c_level, blood_glucose_level, gender_Male, ...
     # Let's say index 4 is HbA1c_level
-    mock_scaler.transform.return_value = np.array([[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]])
+    arr = np.zeros((1, 12))
+    arr[0, 4] = 1.0
+    mock_scaler.transform.return_value = arr
     
-    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'gender_Male', 'smoke_current', 'smoke_former', 'smoke_never']
+    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness', 'gender_Male', 'smoke_current', 'smoke_former', 'smoke_never']
     
     input_data = {
         "age": 45,
@@ -295,9 +296,9 @@ def test_get_model_metadata_caching(tmp_path, monkeypatch):
     
     # Write dummy dataset with both classes
     with open(test_data_file, "w") as f:
-        f.write("gender,age,hypertension,heart_disease,smoking_history,bmi,HbA1c_level,blood_glucose_level,diabetes\n")
-        f.write("Male,45,0,0,never,25.0,5.5,100,0\n")
-        f.write("Female,50,1,0,never,30.0,6.5,140,1\n")
+        f.write("gender,age,hypertension,heart_disease,smoking_history,bmi,HbA1c_level,blood_glucose_level,insulin,skin_thickness,diabetes\n")
+        f.write("Male,45,0,0,never,25.0,5.5,100,80.0,20.0,0\n")
+        f.write("Female,50,1,0,never,30.0,6.5,140,85.0,25.0,1\n")
         
     # Monkeypatch constants in analyze module
     monkeypatch.setattr(analyze, "DATA_FILE", test_data_file)
@@ -362,9 +363,9 @@ def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
     test_model_file = os.path.join(tmp_path, "test_diabetes_model.pkl")
     
     with open(test_data_file, "w") as f:
-        f.write("gender,age,hypertension,heart_disease,smoking_history,bmi,HbA1c_level,blood_glucose_level,diabetes\n")
-        f.write("Male,45,0,0,never,25.0,5.5,100,0\n")
-        f.write("Female,50,1,0,never,30.0,6.5,140,1\n")
+        f.write("gender,age,hypertension,heart_disease,smoking_history,bmi,HbA1c_level,blood_glucose_level,insulin,skin_thickness,diabetes\n")
+        f.write("Male,45,0,0,never,25.0,5.5,100,80.0,20.0,0\n")
+        f.write("Female,50,1,0,never,30.0,6.5,140,85.0,25.0,1\n")
         
     monkeypatch.setattr(analyze, "DATA_FILE", test_data_file)
     monkeypatch.setattr(analyze, "MODEL_FILE", test_model_file)
@@ -413,11 +414,12 @@ def test_validate_assessment_input_rejects_invalid_age():
 def test_validate_assessment_input_rejects_invalid_gender():
     from analyze import validate_assessment_input
 
+    # Rejects non-string gender
     with pytest.raises(ValueError):
         validate_assessment_input(
             {
                 "age": 40,
-                "gender": "Robot",
+                "gender": 123,
                 "hypertension": False,
                 "heartDisease": False,
                 "bmi": 25,
@@ -426,3 +428,41 @@ def test_validate_assessment_input_rejects_invalid_gender():
                 "smokingHistory": "never",
             }
         )
+
+    # Rejects empty gender
+    with pytest.raises(ValueError):
+        validate_assessment_input(
+            {
+                "age": 40,
+                "gender": "",
+                "hypertension": False,
+                "heartDisease": False,
+                "bmi": 25,
+                "hba1cLevel": 5.5,
+                "bloodGlucoseLevel": 100,
+                "smokingHistory": "never",
+            }
+        )
+
+
+def test_validate_assessment_input_allows_other_genders_and_warns():
+    from analyze import validate_assessment_input, interpret_predictions_batch, get_model
+
+    # Validates successfully for custom gender
+    input_data = {
+        "age": 40,
+        "gender": "Other",
+        "hypertension": False,
+        "heartDisease": False,
+        "bmi": 25,
+        "hba1cLevel": 5.5,
+        "bloodGlucoseLevel": 100,
+        "smokingHistory": "never",
+    }
+    assert validate_assessment_input(input_data) == input_data
+
+    # Check that interpret_predictions_batch returns warning for custom gender
+    model, scaler, features, cov_beta = get_model()
+    results = interpret_predictions_batch(model, scaler, features, [input_data], cov_beta)
+    assert "warning" in results[0]
+    assert "Gender value 'Other' was not present in the model's training data" in results[0]["warning"]
