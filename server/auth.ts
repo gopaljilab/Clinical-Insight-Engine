@@ -394,6 +394,7 @@ export function createAuthRouter(): Router {
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
       await authRepository.replaceVerificationToken(dbUser.id, otp, expiresAt);
+      pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime(), attempts: 0 });
 
       const emailSent = await sendVerificationEmail(email, otp);
       if (!emailSent) {
