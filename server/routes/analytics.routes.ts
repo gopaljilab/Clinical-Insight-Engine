@@ -13,13 +13,13 @@ analyticsRouter.get(
     try {
       const userEmail = req.session.user?.email;
       if (!userEmail) {
-         return res.status(401).json({ message: "Unauthorized" });
+         return res.status(401).json({ message: "api.errors.unauthorized" });
       }
       const stats = await storage.getAnalyticsStats(userEmail);
       return res.json(stats);
     } catch (err) {
       logger.error({ err }, "Analytics fetch error");
-      return res.status(500).json({ message: "Failed to fetch analytics" });
+      return res.status(500).json({ message: "api.errors.failedToFetchAnalytics" });
     }
   }
 );

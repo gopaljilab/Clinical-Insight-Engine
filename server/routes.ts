@@ -16,8 +16,9 @@ import {
   adminLimiter,
   exportLimiter,
 } from "./middleware/rateLimit";
+import { rateLimit } from "express-rate-limit";
 import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
-import { getPythonExecutable } from "./queue";
+import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -27,8 +28,12 @@ import { z } from "zod";
 import os from "os";
 import { randomUUID } from "crypto";
 import { writeFile, unlink } from "fs/promises";
+import { validateDTO } from "./middleware/validateDTO";
 import { assessmentsToCsv } from "./utils/csvExport";
-import { assessmentExportQuerySchema } from "./validation/searchValidation";
+import { searchQuerySchema, assessmentExportQuerySchema } from "./validation/searchValidation";
+import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./security/sqlProtection";
+import { canAccessPatientRecord } from "./services/authz/patient-access";
+import { logAccessAttempt } from "./security/access-audit";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -141,6 +146,25 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const previewLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 10,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Too many preview requests. Please try again later.", retryAfter: 60 },
+  });
+
+  const assessmentLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 5,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: {
+      error: "Too many assessment requests. Please try again later.",
+      retryAfter: 60,
+    },
+  });
+
   // Support test compatibility — some tests reference lastStatus globally
   app.use((req, res, next) => {
     res.on("finish", () => {
@@ -209,49 +233,6 @@ export async function registerRoutes(
     requireAdmin,
     async (_req, res) => {
       try {
-        const input = inputSchema.parse(req.body.assessments);
-        
-        requestFingerprint = generateRequestFingerprint(input, userId);
-        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
-          return res.status(409).json({ message: "Bulk request already processing." });
-        }
-        MLService.activeInferenceRequests.add(requestFingerprint);
-
-        tempFilePath = path.join(os.tmpdir(), `bulk_${randomUUID()}.json`);
-        await writeFile(tempFilePath, JSON.stringify(input));
-
-        let predictions: any[];
-        try {
-          const { stdout } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFilePath],
-            { timeout: 60000, maxBuffer: 50 * 1024 * 1024 }
-          );
-
-          predictions = JSON.parse(stdout.trim());
-          if (!Array.isArray(predictions)) {
-            throw new Error("Expected array of predictions");
-          }
-        } catch (error: any) {
-          predictions = calculateClinicalFallback(input) as PredictionResult[];
-        }
-
-        const createdAssessments = await storage.createAssessmentsBatch(
-          input.map((assessment, index) => {
-            const prediction = predictions[index];
-            return {
-              ...assessment,
-              riskScore: Number(prediction.riskScore),
-              riskCategory: prediction.riskCategory,
-              factors: prediction.factors,
-              confidenceInterval: prediction.confidenceInterval ?? null,
-              modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
-              createdBy: userId,
-            };
-          })
-        );
-
-        return res.status(201).json({ count: createdAssessments.length, assessments: createdAssessments });
         const metrics = await getQueueMetrics();
         res.json(metrics);
       } catch (err) {
@@ -260,6 +241,8 @@ export async function registerRoutes(
       }
     }
   );
+
+
   app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
     try {
       const userEmail = req.session.user?.email;
@@ -462,7 +445,7 @@ export async function registerRoutes(
         }
 
         // Object-Level Authorization Check
-        if (!canAccessPatientRecord(user, assessment)) {
+        if (!canAccessPatientRecord(user as any, assessment)) {
           // Log unauthorized access attempt (IDOR/Enumeration attempt)
           logAccessAttempt(
             user.id,
@@ -626,7 +609,7 @@ export async function registerRoutes(
       res.json(record);
     } catch (err: unknown) {
       logger.error({ err }, "Admin model retrain error:");
-      res.status(500).json({ message: (err as { stderr?: string }).stderr || "Model retraining failed." });
+      res.status(500).json({ message: (err as any).stderr || "Model retraining failed." });
     }
   });
 
@@ -655,3 +638,4 @@ export async function registerRoutes(
 
   return httpServer;
 }
+

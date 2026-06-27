@@ -1,4 +1,5 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { eq } from 'drizzle-orm';
 import pkg from 'pg';
 import bcrypt from 'bcrypt';
 import * as schema from '../shared/schema.js';
@@ -25,28 +26,36 @@ async function seed() {
   const licenseNumber = 'MD123456789';
 
   try {
-    const passwordHash = await bcrypt.hash(devPassword, 10);
+    const existingUsers = await db.select().from(schema.users).where(eq(schema.users.email, devEmail));
+    let userId: string;
 
-    const [user] = await db.insert(schema.users).values({
-      fullName,
-      email: devEmail,
-      passwordHash,
-      medicalLicenseNumber: licenseNumber,
-      isActive: true,
-      emailVerified: true,
-      role: 'provider'
-    }).returning();
+    if (existingUsers.length === 0) {
+      const passwordHash = await bcrypt.hash(devPassword, 10);
+      const [user] = await db.insert(schema.users).values({
+        fullName,
+        email: devEmail,
+        passwordHash,
+        medicalLicenseNumber: licenseNumber,
+        isActive: true,
+        emailVerified: true,
+        role: 'provider'
+      }).returning();
 
-    console.log(`✅ Seeded clinician user: ${user.email} (${user.id})`);
-    
-    // Seed terms acceptance
-    await db.insert(schema.userTermsAcceptance).values({
-      userId: user.id,
-      accepted: true,
-      termsVersion: '1.0'
-    });
-    
-    console.log('✅ Seeded terms acceptance record');
+      userId = user.id;
+      console.log(`✅ Seeded clinician user: ${user.email} (${user.id})`);
+      
+      // Seed terms acceptance
+      await db.insert(schema.userTermsAcceptance).values({
+        userId: user.id,
+        accepted: true,
+        termsVersion: '1.0'
+      });
+      
+      console.log('✅ Seeded terms acceptance record');
+    } else {
+      userId = existingUsers[0].id;
+      console.log(`ℹ️ Clinician user already exists: ${devEmail} (${userId})`);
+    }
 
     const samples = [
       {
@@ -354,9 +363,11 @@ async function seed() {
       }
     ];
 
+    let patientCounter = 1;
     for (const sample of samples) {
       await db.insert(schema.assessments).values({
         ...sample,
+        patientName: `Patient ${patientCounter++}`,
         createdBy: devEmail
       });
     }

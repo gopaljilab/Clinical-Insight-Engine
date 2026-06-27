@@ -34,8 +34,10 @@ import { registerOpenApiDocs } from "./openapi";
 import { initAssessmentSocket } from "./socket/assessmentSocket";
 import { rlsContextMiddleware } from "./middleware/rlsContext";
 
+import compression from "compression";
 
 const app = express();
+app.use(compression());
 const httpServer = createServer(app);
 
 // CORS configuration - hardened to reject requests missing the Origin header
