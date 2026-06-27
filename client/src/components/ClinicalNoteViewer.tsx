@@ -1,3 +1,5 @@
+import { clinicalTerminology } from "@/lib/clinicalTerminology";
+import { MedicalTermTooltip } from "@/components/MedicalTermTooltip";
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { FileText, ShieldAlert, Sparkles, HelpCircle } from "lucide-react";
@@ -57,18 +59,44 @@ export function ClinicalNoteViewer({ noteText, insights }: ClinicalNoteViewerPro
       setSelectedIndex(null);
     }
   };
+const renderMedicalTerms = (text: string) => {
+  return text.split(/(\b)/).map((part, index) => {
+    const key = part.toLowerCase() as keyof typeof clinicalTerminology;
 
+    if (clinicalTerminology[key]) {
+      return (
+        <MedicalTermTooltip key={index} term={key}>
+          {part}
+        </MedicalTermTooltip>
+      );
+    }
+
+    return part;
+  });
+};
   const renderNoteWithHighlight = () => {
-    if (selectedIndex === null) return <p className="whitespace-pre-wrap leading-relaxed">{noteText}</p>;
+    if (selectedIndex === null) return (
+  <p className="whitespace-pre-wrap leading-relaxed">
+    {renderMedicalTerms(noteText)}
+  </p>
+);
 
     const selectedInsight = insights[selectedIndex];
     if (!selectedInsight || !selectedInsight.source_index) {
-      return <p className="whitespace-pre-wrap leading-relaxed">{noteText}</p>;
+      return (
+  <p className="whitespace-pre-wrap leading-relaxed">
+    {renderMedicalTerms(noteText)}
+  </p>
+);
     }
 
     const [start, end] = selectedInsight.source_index;
     if (start < 0 || end > noteText.length || start > end) {
-      return <p className="whitespace-pre-wrap leading-relaxed">{noteText}</p>;
+      return (
+  <p className="whitespace-pre-wrap leading-relaxed">
+    {renderMedicalTerms(noteText)}
+  </p>
+);
     }
 
     const before = noteText.substring(0, start);
