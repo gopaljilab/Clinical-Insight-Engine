@@ -529,23 +529,19 @@ def get_model():
     finally:
         _release_lock()
 
+from pydantic import ValidationError
+from app.schemas.patient_input import PatientInput
+
 def validate_assessment_input(data):
     if not isinstance(data, dict):
         raise ValueError("Input must be an object")
 
-    age = data.get("age")
-    if age is None or age < 0 or age > 130:
-        raise ValueError("Invalid age")
-
-    gender = data.get("gender")
-    if gender not in ("Male", "Female"):
-        raise ValueError("Invalid gender")
-
-    bmi = data.get("bmi")
-    if bmi is not None and (bmi < 0 or bmi > 100):
-        raise ValueError("Invalid BMI")
-
-    return data
+    try:
+        # Strict validation using Pydantic schema
+        patient = PatientInput(**data)
+        return patient.model_dump()
+    except ValidationError as e:
+        raise ValueError(f"Validation failed: {e}")
 
 @phi_redaction_middleware
 def interpret_predictions_batch(model, scaler, features, input_data_list, cov_beta=None):
@@ -911,10 +907,12 @@ if __name__ == "__main__":
             data = json.loads(sanitized_str)
         model, scaler, features, cov_beta = get_model()
         if isinstance(data, list):
-            results = interpret_predictions_batch(model, scaler, features, data, cov_beta)
+            validated_data = [validate_assessment_input(item) for item in data]
+            results = interpret_predictions_batch(model, scaler, features, validated_data, cov_beta)
             print(json.dumps(results))
         else:
-            result = interpret_prediction(model, scaler, features, data, cov_beta)
+            validated_data = validate_assessment_input(data)
+            result = interpret_prediction(model, scaler, features, validated_data, cov_beta)
             print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "daemon":
         model, scaler, features, cov_beta = get_model()
