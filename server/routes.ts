@@ -414,6 +414,12 @@ export async function registerRoutes(
     }
   );
 
+  // Mount domain-specific routers to allow static routes (like /cohort) to match before dynamic /:id fallback
+  app.use("/api/assessments", mlRouter);
+  app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", analyticsRouter);
+  app.use("/api/assessments", generalLimiter, assessmentsRouter);
+
   /**
    * GET /api/assessments/:id
    *
@@ -471,12 +477,6 @@ export async function registerRoutes(
       }
     }
   );
-  
-  // Mount domain-specific routers (after app-level handlers for precedence)
-  app.use("/api/assessments", mlRouter);
-  app.use("/api/assessments", exportsRouter);
-  app.use("/api/assessments", analyticsRouter);
-  app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   // ─── Admin Routes ────────────────────────────────────────────────
 
