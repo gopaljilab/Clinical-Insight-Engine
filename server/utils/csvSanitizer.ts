@@ -16,9 +16,13 @@ function flattenCellValue(value: unknown): string {
 }
 
 /**
- * Sanitize Csv Cell.
- * @param value - The value parameter.
- * @returns The result of the operation.
+ * Sanitizes a value before CSV export.
+ *
+ * Handles null values, arrays, objects, dates, and protects against
+ * CSV formula injection attacks by prefixing dangerous values.
+ *
+ * @param value - The value to sanitize.
+ * @returns A safe string representation suitable for CSV output.
  */
 export function sanitizeCsvCell(value: unknown): string {
   if (value === null || value === undefined) {
@@ -38,8 +42,6 @@ export function sanitizeCsvCell(value: unknown): string {
     text = String(value);
   }
 
-  // If the text can be parsed as a valid number, do not prepend a quote
-  // This avoids converting negative numbers (e.g. -12.5) or standard integer fields to strings.
   const trimmed = text.trim();
   if (trimmed !== "" && !isNaN(Number(trimmed))) {
     return text;
@@ -53,9 +55,13 @@ export function sanitizeCsvCell(value: unknown): string {
 }
 
 /**
- * Escape Csv Cell.
- * @param value - The value parameter.
- * @returns The result of the operation.
+ * Escapes a CSV cell according to CSV formatting rules.
+ *
+ * Wraps values containing commas, quotes, or line breaks in quotes
+ * and escapes embedded quotation marks.
+ *
+ * @param value - The value to escape.
+ * @returns A properly escaped CSV cell value.
  */
 export function escapeCsvCell(value: unknown): string {
   const sanitized = sanitizeCsvCell(value);

@@ -166,6 +166,15 @@ const rules: Rule[] = [
         description:
           "Follow a balanced diet rich in vegetables, whole grains, lean protein, and fiber while reducing sugar and processed foods.",
         urgency: "medium",
+    const risk = (a.riskCategory || "").toString().toUpperCase();
+
+    if (risk === "HIGH" || risk === "MODERATE") {
+      recs.push({
+        id: uuidv4(),
+        title: "Schedule Follow-up Appointment",
+        description:
+          "Book a medical consultation within the next 30 days to review diabetes risk and health progress.",
+        urgency: "high",
         audience: "both",
         checklist: true,
       });
@@ -185,6 +194,22 @@ const rules: Rule[] = [
       audience: "both",
       checklist: true,
     });
+    const hba1c =
+      typeof a.hba1cLevel === "number"
+        ? a.hba1cLevel
+        : Number(a.hba1cLevel || 0);
+
+    if (hba1c >= 5.7) {
+      recs.push({
+        id: uuidv4(),
+        title: "HbA1c Follow-up Test Reminder",
+        description:
+          "Plan your next HbA1c test within 3 months to monitor long-term glucose control.",
+        urgency: "medium",
+        audience: "both",
+        checklist: true,
+      });
+    }
 
     return recs;
   },
@@ -200,6 +225,17 @@ const rules: Rule[] = [
         title: "Diabetes Risk Reduction Milestone",
         description:
           "Aim to improve HbA1c levels, maintain a healthy BMI, avoid smoking, and achieve measurable lifestyle improvements over the next 3-6 months.",
+    const glucose =
+      typeof a.bloodGlucoseLevel === "number"
+        ? a.bloodGlucoseLevel
+        : Number(a.bloodGlucoseLevel || 0);
+
+    if (glucose >= 140) {
+      recs.push({
+        id: uuidv4(),
+        title: "Regular Blood Glucose Monitoring",
+        description:
+          "Track blood glucose levels regularly and maintain a monitoring schedule recommended by your healthcare provider.",
         urgency: "medium",
         audience: "both",
         checklist: true,
@@ -216,6 +252,9 @@ const rules: Rule[] = [
       title: "Lifestyle Progress Tracking",
       description:
         "Monitor daily physical activity, diet quality, blood glucose trends, and weight changes to support long-term diabetes prevention.",
+      title: "Medication and Lifestyle Check",
+      description:
+        "Review medications, maintain a healthy diet, stay physically active, and follow your personalized health plan.",
       urgency: "low",
       audience: "both",
       checklist: true,

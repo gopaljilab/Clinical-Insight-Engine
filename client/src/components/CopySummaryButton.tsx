@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AssessmentSummaryFormatter } from "@/components/AssessmentSummaryFormatter";
 import { CopySuccessToast } from "@/components/CopySuccessToast";
 import type { AssessmentResponse } from "@shared/routes";
+import { cn } from "@/lib/utils";
 
 interface CopySummaryButtonProps {
   assessment: AssessmentResponse;
@@ -46,11 +47,12 @@ export function CopySummaryButton({ assessment, iconOnly = false }: CopySummaryB
             onClick={() => void handleCopy(summary)}
             disabled={isCopying}
             aria-label="Copy assessment summary to clipboard"
-            className={`flex items-center justify-center rounded-xl transition-all duration-200 active:scale-[0.98] ${
+            className={cn(
+              "flex items-center justify-center rounded-xl transition-all duration-200 active:scale-[0.98]",
               iconOnly 
                 ? "w-9 h-9 p-0 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm" 
                 : "gap-2 px-4 py-2 text-sm font-semibold"
-            }`}
+            )}
           >
             {isCopying ? (
               <LoaderPlaceholder />
