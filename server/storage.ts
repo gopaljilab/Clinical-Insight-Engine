@@ -156,8 +156,8 @@ export class DatabaseStorage implements IStorage {
     return this.assessmentRepository.getAssessmentById(id, createdBy); 
   }
 
-  async getAssessmentById(id: number) {
-    return this.assessmentRepository.getAssessmentById(id);
+  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: RiskCategory, limit?: number, cursor?: number) {
+    return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor);
   }
 
   async createAssessment(assessment: any) {

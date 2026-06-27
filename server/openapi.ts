@@ -17,6 +17,7 @@ try {
 
 import { z } from "zod";
 import { loginDTOSchema } from "./validation/auth.dto";
+import { api } from "../shared/routes";
 
 if (extendZodWithOpenApi) {
   extendZodWithOpenApi(z);
@@ -170,6 +171,80 @@ registry?.registerPath({
     },
   },
 });
+function registerEndpoint(operationId: string, endpoint: any) {
+  const responses: any = {};
+  
+  if (endpoint.responses) {
+    for (const [statusCode, schema] of Object.entries(endpoint.responses)) {
+      responses[statusCode] = {
+        description: `${statusCode} Response`,
+        content: {
+          "application/json": {
+            schema: schema as z.ZodTypeAny
+          }
+        }
+      };
+    }
+  }
+
+  // Parse path parameters (e.g., :id -> {id})
+  const pathParams: Record<string, z.ZodString> = {};
+  let openApiPath = endpoint.path;
+  
+  const pathParamMatches = endpoint.path.match(/:([a-zA-Z0-9_]+)/g);
+  if (pathParamMatches) {
+    for (const match of pathParamMatches) {
+      const paramName = match.substring(1);
+      openApiPath = openApiPath.replace(match, `{${paramName}}`);
+      pathParams[paramName] = z.string();
+    }
+  }
+
+  const request: any = {};
+  if (Object.keys(pathParams).length > 0) {
+    request.params = z.object(pathParams);
+  }
+  
+  if (endpoint.input) {
+    request.body = {
+      content: {
+        "application/json": {
+          schema: endpoint.input as z.ZodTypeAny
+        }
+      }
+    };
+  }
+
+  registry?.registerPath({
+    method: endpoint.method.toLowerCase(),
+    path: openApiPath,
+    operationId,
+    request: Object.keys(request).length > 0 ? request : undefined,
+    responses,
+  });
+}
+
+function registerRoutes(apiObj: any) {
+  for (const groupKey of Object.keys(apiObj)) {
+    const group = apiObj[groupKey];
+    for (const endpointKey of Object.keys(group)) {
+      const endpoint = group[endpointKey];
+      
+      if (!endpoint.method && !endpoint.path) {
+        for (const subKey of Object.keys(endpoint)) {
+           const subEndpoint = endpoint[subKey];
+           if (subEndpoint.method && subEndpoint.path) {
+              registerEndpoint(`${groupKey}.${endpointKey}.${subKey}`, subEndpoint);
+           }
+        }
+      } else {
+        registerEndpoint(`${groupKey}.${endpointKey}`, endpoint);
+      }
+    }
+  }
+}
+
+registerRoutes(api);
 
 const generator = OpenApiGeneratorV3 ? new OpenApiGeneratorV3(registry?.definitions || []) : null;
 
