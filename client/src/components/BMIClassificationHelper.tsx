@@ -1,6 +1,6 @@
 import { AlertCircle, CheckCircle2, Info, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-
+import { cn } from "@/lib/utils";
 interface BMIClassificationHelperProps {
   bmi: number | undefined;
 }
@@ -73,14 +73,14 @@ export function BMIClassificationHelper({
 
   return (
     <div
-      className={`mt-3 p-4 rounded-xl flex items-start gap-3 ${category.containerClass} transition-all duration-200`}
+      className={cn("mt-3 p-4 rounded-xl flex items-start gap-3 transition-all duration-200", category.containerClass)}
     >
-      <div className={`shrink-0 ${category.textClass}`}>
+      <div className={cn("shrink-0", category.textClass)}>
         {category.icon}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-2">
-          <p className={`font-semibold text-sm ${category.textClass}`}>
+          <p className={cn("font-semibold text-sm", category.textClass)}>
             Category: {category.label}
           </p>
           <Badge
@@ -90,7 +90,7 @@ export function BMIClassificationHelper({
             {numericBmi.toFixed(1)}
           </Badge>
         </div>
-        <p className={`text-xs ${category.textClass} opacity-90`}>
+        <p className={cn("text-xs opacity-90", category.textClass)}>
           <span className="font-medium">Healthy BMI Range:</span> 18.5 – 24.9
         </p>
       </div>

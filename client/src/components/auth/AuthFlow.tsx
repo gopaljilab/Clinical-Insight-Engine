@@ -8,6 +8,7 @@ import { FormField } from "./FormField";
 import { AuthButton } from "./AuthButton";
 import { PasswordStrength } from "./PasswordStrength";
 import { OtpInput } from "./OtpInput";
+import { cn } from "@/lib/utils";
 
 export type AuthMode = "login" | "register";
 type Step = "form" | "otp" | "forgot";
@@ -89,9 +90,9 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     setFieldErrors({});
   }
 
-  function handleServerErrors(err: any) {
+  function handleServerErrors(err: unknown) {
     clearAllFieldErrors();
-    const fieldErrs = err.fieldErrors as Array<{ field: string; message: string }> | undefined;
+    const fieldErrs = (err as any).fieldErrors as Array<{ field: string; message: string }> | undefined;
     if (fieldErrs && fieldErrs.length > 0) {
       const mapped: FieldErrors = {};
       for (const fe of fieldErrs) {
@@ -104,10 +105,10 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       }
       setFieldErrors(mapped);
       if (Object.keys(mapped).length === 0) {
-        setError(err.message || "Validation failed.");
+        setError((err as Error).message || "Validation failed.");
       }
     } else {
-      setError(err.message || "Authentication failed. Please try again.");
+      setError((err as Error).message || "Authentication failed. Please try again.");
     }
   }
 
@@ -143,7 +144,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       setCountdown(600);
       setResendCooldown(60);
       setOtp(responseData?.devOtp || "");
-    } catch (err: any) {
+    } catch (err: unknown) {
       handleServerErrors(err);
     } finally {
       setIsLoading(false);
@@ -157,11 +158,9 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     setError(null);
     setIsLoading(true);
     try {
-      if (mode === "login") {
-        await ApiClient.post("/api/auth/verify-otp", { email, otp });
-      } else {
-        await ApiClient.post("/api/auth/verify-email", { email, code: otp });
-      }
+      // Both login and register use the DB-backed verify-email endpoint.
+      // verify-otp was checking an in-memory map never populated by the login route.
+      await ApiClient.post("/api/auth/verify-email", { email, code: otp });
       
       if (rememberMe) {
         localStorage.setItem("auth_remember_email", email);
@@ -175,8 +174,8 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       } else {
         setLocation("/dashboard");
       }
-    } catch (err: any) {
-      setError(err.message || "Verification failed. Please check the code and try again.");
+    } catch (err: unknown) {
+      setError((err as Error).message || "Verification failed. Please check the code and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -209,8 +208,8 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
         setDevOtp(undefined);
         setOtp("");
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setIsLoading(false);
     }
@@ -225,8 +224,8 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     try {
       await ApiClient.post("/api/auth/forgot-password", { email });
       setForgotSent(true);
-    } catch (err: any) {
-      setError(err.message || "Failed to send reset email.");
+    } catch (err: unknown) {
+      setError((err as Error).message || "Failed to send reset email.");
     } finally {
       setIsLoading(false);
     }
@@ -418,7 +417,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
                   className="!mb-1"
                 />
                 {confirmPassword && !fieldErrors.confirmPassword && (
-                  <p className={`text-xs ${password === confirmPassword ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                  <p className={cn("text-xs", password === confirmPassword ? "text-emerald-600 dark:text-emerald-400" : "text-red-500")}>
                     {password === confirmPassword ? "Passwords match" : "Passwords do not match"}
                   </p>
                 )}

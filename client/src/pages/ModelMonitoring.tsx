@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/EmptyState";
 import { formatReadableDate } from "@/utils/dateFormat";
+import { ApiClient } from "@/lib/apiClient";
 
 type ModelVersion = {
   id: number;
@@ -353,9 +354,7 @@ export default function ModelMonitoring() {
   const versionsQuery = useQuery<ModelVersion[]>({
     queryKey: ["/api/admin/model/versions"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/model/versions", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch model versions");
-      return res.json();
+      return ApiClient.get("/api/admin/model/versions");
     },
     refetchInterval: 30000,
   });
@@ -363,21 +362,20 @@ export default function ModelMonitoring() {
   const datasetStatsQuery = useQuery<DatasetStats>({
     queryKey: ["/api/admin/model/dataset-stats"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/model/dataset-stats", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch dataset stats");
-      return res.json();
+      return ApiClient.get("/api/admin/model/dataset-stats");
     },
   });
 
   const retrainMutation = useMutation({
     mutationFn: async () => {
+      return ApiClient.post("/api/admin/model/retrain");
       const res = await fetch("/api/admin/model/retrain", {
         method: "POST",
         credentials: "include",
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.message || "Retrain failed");
+        throw new Error((err as Error).message || "Retrain failed");
       }
       return res.json();
     },

@@ -1,5 +1,7 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type AssessmentInput, type AssessmentResponse, type AssessmentSimulationResponse, type AssessmentWhatIfResponse, type AssessmentWhatIfBatchResponse, type AssessmentsListResponse } from "@shared/routes";
+import { ApiClient } from "../lib/apiClient";
+import { TypedApiClient } from "../lib/typedApiClient";
 import { useToast } from "./use-toast";
 
 // Parse with logging to catch silent Zod JSON translation errors
@@ -15,6 +17,11 @@ function parseWithLogging<T>(schema: any, data: unknown, label: string): T {
 // The base query key for all assessments list queries.
 const ASSESSMENTS_LIST_QUERY_KEY = api.assessments.list.path;
 
+/**
+ * A React hook to query the assessments list, supporting pagination, sorting, search term, and range filters.
+ * @param params - The params parameter.
+ * @returns The result of the operation.
+ */
 export function useAssessments(params?: {
   page?: number;
   limit?: number;
@@ -31,17 +38,7 @@ export function useAssessments(params?: {
   return useQuery({
     queryKey: [ASSESSMENTS_LIST_QUERY_KEY, params],
     queryFn: async () => {
-      const url = new URL(api.assessments.list.path, window.location.origin);
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== "") {
-            url.searchParams.set(key, String(value));
-          }
-        });
-      }
-      const res = await fetch(url.toString(), { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch assessments");
-      const data = await res.json();
+      const data = await TypedApiClient.assessments.list(params);
       return parseWithLogging<AssessmentsListResponse>(api.assessments.list.responses[200], data, "assessments.list");
     },
   });
@@ -69,20 +66,11 @@ export function usePatientAssessments(patientName: string | null | undefined) {
     queryKey: ["assessments-patient", patientName ?? ""],
     enabled: Boolean(patientName),
     queryFn: async ({ pageParam }) => {
-      const url = new URL("/api/assessments/search", window.location.origin);
+      const params: Record<string, string | number> = { limit: 50 };
+      if (patientName) params.q = patientName;
+      if (pageParam !== undefined) params.cursor = pageParam;
 
-      // Filter strictly by patient name on the backend.
-      if (patientName) {
-        url.searchParams.set("q", patientName);
-      }
-      if (pageParam !== undefined) {
-        url.searchParams.set("cursor", String(pageParam));
-      }
-      url.searchParams.set("limit", "50");
-
-      const res = await fetch(url.toString(), { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch patient assessments");
-      const data = await res.json();
+      const data = await TypedApiClient.assessments.search(params);
 
       // Ensure the returned records actually belong to this patient.
       // This is a client-side safety guard in addition to server-side scoping.
@@ -118,26 +106,17 @@ export function useClearPatientCache() {
   };
 }
 
+/**
+ * A React hook to remove a specific patient assessment and invalidate associated queries.
+ * @returns The result of the operation.
+ */
 export function useDeleteAssessment() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/assessments/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!res.ok) {
-        let errorData;
-        try {
-          errorData = await res.json();
-        } catch {
-          throw new Error("Failed to delete assessment");
-        }
-        throw new Error(errorData.message || "Failed to delete assessment");
-      }
+      await ApiClient.delete(`/api/assessments/${id}`);
       return true;
     },
     onSuccess: () => {
@@ -151,12 +130,16 @@ export function useDeleteAssessment() {
     onError: (error: Error) => {
       toast({
         title: "Deletion failed",
-        description: error.message || "An unexpected error occurred while deleting.",
+        description: (error as Error).message || "An unexpected error occurred while deleting.",
         variant: "destructive",
       });
     },
   });
 }
+/**
+ * A React hook to submit a new patient assessment and automatically refresh the assessments list cache.
+ * @returns The result of the operation.
+ */
 export function useCreateAssessment() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -170,11 +153,10 @@ export function useCreateAssessment() {
       const timeoutId = setTimeout(() => controller.abort(), 75000); // 75s overall timeout
 
       try {
-        const res = await fetch(api.assessments.create.path, {
+        const res = await ApiClient.requestRaw(api.assessments.create.path, {
           method: api.assessments.create.method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(validated),
-          credentials: "include",
           signal: controller.signal,
         });
 
@@ -212,12 +194,10 @@ export function useCreateAssessment() {
 
               if (controller.signal.aborted) return;
               try {
-                const jobRes = await fetch(`/api/assessments/jobs/${responseData.jobId}`, {
-                  credentials: "include",
-                  signal: controller.signal,
-                });
-                if (!jobRes.ok) throw new Error("Failed to check job status");
-                const jobData = await jobRes.json();
+                const jobData = await ApiClient.get<{ status: string; error?: string; result?: unknown }>(
+                  `/api/assessments/jobs/${responseData.jobId}`,
+                  { signal: controller.signal }
+                );
 
                 if (jobData.status === "completed") {
                   resolve(parseWithLogging<AssessmentResponse>(api.assessments.create.responses[201], jobData.result, "assessments.create.job"));
@@ -246,35 +226,27 @@ export function useCreateAssessment() {
       queryClient.invalidateQueries({ queryKey: [ASSESSMENTS_LIST_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ["assessments-patient"] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Assessment Failed",
-        description: error.message?.includes("timed out")
+        description: (error as Error).message?.includes("timed out")
           ? "The analysis took too long. Please try again."
-          : error.message || "An unexpected error occurred during the assessment.",
+          : (error as Error).message || "An unexpected error occurred during the assessment.",
         variant: "destructive",
       });
     },
   });
 }
 
+/**
+ * A React hook to simulate a diabetes risk score based on what-if updates to patient parameters.
+ * @returns The result of the operation.
+ */
 export function useSimulateAssessment() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
       const validated = api.assessments.simulate.input.parse(data);
-      const res = await fetch(api.assessments.simulate.path, {
-        method: api.assessments.simulate.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validated),
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.message || "Failed to simulate assessment");
-      }
-
-      const responseData = await res.json();
+      const responseData = await TypedApiClient.assessments.simulate(validated);
       return parseWithLogging<AssessmentSimulationResponse>(
         api.assessments.simulate.responses[200],
         responseData,
@@ -284,23 +256,15 @@ export function useSimulateAssessment() {
   });
 }
 
+/**
+ * React hook for  what if assessment.
+ * @returns The result of the operation.
+ */
 export function useWhatIfAssessment() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
       const validated = api.assessments.whatIf.input.parse(data);
-      const res = await fetch(api.assessments.whatIf.path, {
-        method: api.assessments.whatIf.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validated),
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.message || "Failed to run what-if analysis");
-      }
-
-      const responseData = await res.json();
+      const responseData = await TypedApiClient.assessments.whatIf(validated);
       return parseWithLogging<AssessmentWhatIfResponse>(
         api.assessments.whatIf.responses[200],
         responseData,
@@ -310,6 +274,10 @@ export function useWhatIfAssessment() {
   });
 }
 
+/**
+ * React hook for  what if batch.
+ * @returns The result of the operation.
+ */
 export function useWhatIfBatch() {
   return useMutation({
     mutationFn: async (data: {
@@ -317,19 +285,7 @@ export function useWhatIfBatch() {
       perturbations: Record<string, string | number | boolean>[];
     }) => {
       const validated = api.assessments.whatIfBatch.input.parse(data);
-      const res = await fetch(api.assessments.whatIfBatch.path, {
-        method: api.assessments.whatIfBatch.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validated),
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.message || "Failed to run batch what-if analysis");
-      }
-
-      const responseData = await res.json();
+      const responseData = await TypedApiClient.assessments.whatIfBatch(validated);
       return parseWithLogging<AssessmentWhatIfBatchResponse>(
         api.assessments.whatIfBatch.responses[200],
         responseData,
@@ -339,24 +295,51 @@ export function useWhatIfBatch() {
   });
 }
 
+/**
+ * React hook for  what if auto.
+ * @returns The result of the operation.
+ */
 export function useWhatIfAuto() {
   return useMutation({
     mutationFn: async (data: AssessmentInput) => {
-      // Validate input using the base create schema
       const validated = api.assessments.create.input.parse(data);
-      const res = await fetch("/api/assessments/what-if/auto", {
-        method: "POST",
+      return ApiClient.post<any>("/api/assessments/what-if/auto", validated);
+    },
+  });
+}
+
+export function useUpdateClinicalNote() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      clinicalNote,
+    }: {
+      id: number;
+      clinicalNote: string;
+    }) => {
+      const res = await fetch(`/api/assessments/${id}/note`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validated),
+        body: JSON.stringify({ clinicalNote }),
         credentials: "include",
       });
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.message || "Failed to run auto what-if analysis");
+        throw new Error(errorData?.message || "Failed to update clinical note");
       }
 
-      return await res.json();
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [ASSESSMENTS_LIST_QUERY_KEY] });
+      toast({ title: "Clinical note updated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update clinical note", description: error.message, variant: "destructive" });
     },
   });
 }

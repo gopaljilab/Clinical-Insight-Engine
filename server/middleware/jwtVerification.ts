@@ -100,6 +100,17 @@ export async function requireJwtAuth(req: Request, res: Response, next: NextFunc
 
   req.jwtUser = result.payload;
 
+  if (result.payload.role !== "provider") {
+    logSecurityEvent(
+      "UNAUTHORIZED_SEARCH_ACCESS",
+      `JWT verification failed: Invalid role '${result.payload.role}', expected 'provider'`,
+      req,
+      { userId: result.payload.sub }
+    );
+    res.status(403).json({ message: "Forbidden" });
+    return;
+  }
+
   const { getAuthenticatedUser } = await import("../auth");
   const authUser = await getAuthenticatedUser(req);
   if (!authUser) {
@@ -108,6 +119,6 @@ export async function requireJwtAuth(req: Request, res: Response, next: NextFunc
     return;
   }
 
-  (req as any).authenticatedUser = authUser;
+  (req).authenticatedUser = authUser;
   next();
 }

@@ -10,15 +10,20 @@ export default function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [, setLocation] = useLocation();
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get("token");
+  const queryToken = new URLSearchParams(window.location.search).get("token");
+  const hashToken = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token");
+  const token = hashToken || queryToken;
 
   useEffect(() => {
     document.title = "Reset Password - Clinical Insight Engine";
     if (!token) {
       setError("Invalid or missing reset token.");
+      return;
     }
-  }, [token]);
+    if (hashToken) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [hashToken, token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,8 +55,8 @@ export default function ResetPassword() {
       await ApiClient.post("/api/auth/reset-password", { token, newPassword: password });
       setSuccess("Password has been reset successfully!");
       setTimeout(() => setLocation("/login"), 2000);
-    } catch (err: any) {
-      setError(err.message || "Unable to connect to server. Please try again.");
+    } catch (err: unknown) {
+      setError((err as Error).message || "Unable to connect to server. Please try again.");
     } finally {
       setIsLoading(false);
     }

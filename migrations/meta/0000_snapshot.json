@@ -14,6 +14,12 @@
           "primaryKey": true,
           "notNull": true
         },
+        "patient_name": {
+          "name": "patient_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "gender": {
           "name": "gender",
           "type": "text",

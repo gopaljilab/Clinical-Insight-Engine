@@ -15,6 +15,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 import { MedicalLoader } from "@/components/ui/medical-loader";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { ApiClient } from "@/lib/apiClient";
 const formSchema = insertAssessmentSchema.pick({
   patientName: true,
   gender: true,
@@ -25,6 +26,8 @@ const formSchema = insertAssessmentSchema.pick({
   bmi: true,
   hba1cLevel: true,
   bloodGlucoseLevel: true,
+  insulin: true,
+  skinThickness: true,
 });
 
 type AssessmentFormData = z.infer<typeof formSchema>;
@@ -186,27 +189,15 @@ export default function Dashboard() {
         setPreviewPending(true);
         setPreviewError(null);
 
-        const response = await fetch(api.assessments.preview.path, {
-          method: api.assessments.preview.method,
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(parsedForPreview.data),
-          signal: controller.signal,
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data?.message ?? "Failed to generate preview");
-        }
+        const data = await ApiClient.post(api.assessments.preview.path, parsedForPreview.data, { signal: controller.signal });
 
         const parsed = api.assessments.preview.responses[200].parse(data);
         setPreview(parsed);
-      } catch (previewErr: any) {
-        if (previewErr.name === "AbortError") {
+      } catch (previewErr: unknown) {
+        if ((previewErr as Error).name === "AbortError") {
           return;
         }
-        setPreviewError(previewErr.message ?? "Failed to generate preview");
+        setPreviewError((previewErr as Error).message ?? "Failed to generate preview");
       } finally {
         setPreviewPending(false);
       }
@@ -303,12 +294,12 @@ export default function Dashboard() {
               onSubmit={handleSubmit(onSubmit)}
               className={`rounded-2xl border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_-2px_rgba(0,0,0,0.3)] transition-all duration-200 md:p-8 ${result ? "opacity-75 pointer-events-none" : ""}`}
             >
-                {error && (
+                {!!error && (
                   <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 rounded-xl flex items-start gap-3 text-red-600 dark:text-red-400">
                     <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold">Assessment Failed</p>
-                      <p className="text-sm opacity-90">{error.message}</p>
+                      <p className="text-sm opacity-90">{(error as Error).message}</p>
                     </div>
                   </div>
                 )}
@@ -538,6 +529,52 @@ export default function Dashboard() {
                         </div>
                         <p id="bloodGlucoseLevel-guidance" className="text-xs text-slate-500 dark:text-slate-400">Use mg/dL from the most recent fasting or clinical glucose reading.</p>
                         {errors.bloodGlucoseLevel && <p className="text-sm text-red-600 mt-1">{errors.bloodGlucoseLevel.message}</p>}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <label htmlFor="insulin" className={labelClass}>Insulin (mu U/ml)</label>
+                          <span className="text-xs text-slate-400 font-normal ml-1">(Optional)</span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            id="insulin"
+                            type="number"
+                            {...register("insulin")}
+                            className={getInputClass(!!errors.insulin)}
+                            placeholder="e.g. 80"
+                            aria-label="Insulin level"
+                          />
+                          {watchedValues.insulin && (
+                            <button type="button" onClick={() => setValue("insulin", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        {errors.insulin && <p className="text-sm text-red-600 mt-1">{errors.insulin.message}</p>}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <label htmlFor="skinThickness" className={labelClass}>Skin Thickness (mm)</label>
+                          <span className="text-xs text-slate-400 font-normal ml-1">(Optional)</span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            id="skinThickness"
+                            type="number"
+                            {...register("skinThickness")}
+                            className={getInputClass(!!errors.skinThickness)}
+                            placeholder="e.g. 20"
+                            aria-label="Skin thickness"
+                          />
+                          {watchedValues.skinThickness && (
+                            <button type="button" onClick={() => setValue("skinThickness", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        {errors.skinThickness && <p className="text-sm text-red-600 mt-1">{errors.skinThickness.message}</p>}
                       </div>
                     </div>
                   </section>

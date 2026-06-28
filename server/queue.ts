@@ -162,6 +162,86 @@ export function startAssessmentWorker(): void {
   assessmentWorkerInstance = new Worker(
     "assessmentQueue",
     async (job: Job) => {
+      if (job.name === "predictBatch") {
+        const { assessments, userId } = job.data;
+        const startedAt = Date.now();
+        const requestId = (job.data as any).requestFingerprint ?? job.id;
+        
+        try {
+          emitAssessmentProgress(job.id ?? "", 10, "Validating Batch");
+          await new Promise((r) => setTimeout(r, 0)); // yield event loop
+
+          // Process in smaller chunks to avoid memory spikes
+          const CHUNK_SIZE = 50;
+          const createdAssessments: any[] = [];
+          
+          for (let i = 0; i < assessments.length; i += CHUNK_SIZE) {
+            const chunk = assessments.slice(i, i + CHUNK_SIZE);
+            const progress = 10 + Math.floor((i / assessments.length) * 80);
+            emitAssessmentProgress(job.id ?? "", progress, `Processing Batch (${i + 1}/${assessments.length})`);
+            
+            let predictions: any[];
+            try {
+              const { predictions: batchPredictions } = await MLService.runAssessmentInferenceBatch(chunk);
+              predictions = batchPredictions;
+            } catch (error) {
+              logger.warn({ error }, "Batch prediction failed, using fallback");
+              predictions = calculateClinicalFallback(chunk) as any[];
+            }
+
+            const chunkCreated = await Promise.all(
+              chunk.map(async (assessment: any, index: number) => {
+                const prediction = predictions[index];
+                const pool = getPool();
+                const client = await pool.connect();
+                try {
+                  await client.query("BEGIN");
+                  const result = await client.query(
+                    `INSERT INTO assessments (
+                      "patientName", "age", "gender", "hypertension", "heartDisease",
+                      "smokingHistory", "bmi", "hba1cLevel", "bloodGlucoseLevel",
+                      "riskScore", "riskCategory", "factors", "confidenceInterval",
+                      "modelConfidence", "createdBy", "userId"
+                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+                    RETURNING *`,
+                    [
+                      assessment.patientName, assessment.age, assessment.gender, assessment.hypertension,
+                      assessment.heartDisease, assessment.smokingHistory, assessment.bmi,
+                      assessment.hba1cLevel, assessment.bloodGlucoseLevel,
+                      Number(prediction.riskScore),
+                      prediction.riskCategory,
+                      JSON.stringify(prediction.factors || []),
+                      prediction.confidenceInterval ?? null,
+                      prediction.modelConfidence == null ? null : Number(prediction.modelConfidence),
+                      userId,
+                      userId,
+                    ]
+                  );
+                  await client.query("COMMIT");
+                  return result.rows[0];
+                } catch (err) {
+                  await client.query("ROLLBACK").catch(() => {});
+                  throw err;
+                } finally {
+                  client.release();
+                }
+              })
+            );
+            createdAssessments.push(...chunkCreated);
+          }
+          
+          logger.info({ jobId: job.id, durationMs: Date.now() - startedAt, count: createdAssessments.length }, "Batch processing completed");
+          emitAssessmentProgress(job.id ?? "", 100, "Assessment Complete");
+          
+          const result = { status: "completed", assessments: createdAssessments };
+          emitAssessmentCompleted(job.id ?? "", result);
+          return result;
+        } catch (err: any) {
+          logger.error({ jobId: job.id, requestId, durationMs: Date.now() - startedAt, err }, "Assessment batch failed");
+          throw err;
+        }
+      }
+
       const { input, userId, userEmail } = job.data;
 
       const startedAt = Date.now();
@@ -172,7 +252,7 @@ export function startAssessmentWorker(): void {
       await new Promise((r) => setTimeout(r, 0)); // yield event loop
 
       emitAssessmentProgress(job.id ?? "", 30, "Feature Preparation");
-      const { prediction } = await MLService.runAssessmentInference(input);
+      const { prediction } = await MLService.runAssessmentInference(input, job.id ?? "", { throwOnFailure: true });
       emitAssessmentProgress(job.id ?? "", 60, "Running Prediction Model");
         let resolvedPrediction: any = prediction;
 
@@ -262,7 +342,7 @@ export function startAssessmentWorker(): void {
         emitAssessmentProgress(job.id ?? "", 100, "Assessment Complete");
         emitAssessmentCompleted(job.id ?? "", result);
         return result;
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error(
           {
             jobId: job.id,
@@ -274,10 +354,10 @@ export function startAssessmentWorker(): void {
         );
 
         if (
-          err.killed ||
-          err.signal === "SIGTERM" ||
-          err.message === "Clinical assessment timed out." ||
-          err.message?.includes("timed out")
+          (err as any).killed ||
+          (err as any).signal === "SIGTERM" ||
+          (err as Error).message === "Clinical assessment timed out." ||
+          (err as Error).message?.includes("timed out")
         ) {
           throw new Error("Clinical assessment generation timed out.");
         }

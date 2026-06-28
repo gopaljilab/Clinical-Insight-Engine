@@ -1,5 +1,6 @@
 import { ChangeEvent, InputHTMLAttributes, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -13,16 +14,18 @@ export function FormField({ label, error, type = "text", className = "", ...prop
   const inputType = isPassword ? (showPassword ? "text" : "password") : type;
 
   return (
-    <div className={`mb-5 ${className}`}>
+    <div className={cn("mb-5", className)}>
       <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
         {label}
       </label>
       <div className="relative">
         <input
           type={inputType}
-          className={`block w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500 dark:focus:border-blue-500 ${
-            error ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-slate-200"
-          } ${isPassword ? "pr-10" : ""}`}
+          className={cn(
+            "block w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder-slate-500 dark:focus:border-blue-500",
+            error ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-slate-200",
+            isPassword && "pr-10"
+          )}
           {...props}
         />
         {isPassword && (
