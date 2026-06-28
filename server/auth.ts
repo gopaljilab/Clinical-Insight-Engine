@@ -692,7 +692,7 @@ out
 
       await authRepository.createPasswordResetToken(user.id, tokenHash, expiresAt);
 
-      const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password?token=${token}`;
+      const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password#token=${token}`;
 
       const emailSent = await sendPasswordResetEmail(email, resetLink);
       if (!emailSent) {
@@ -805,6 +805,5 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
   return res.status(403).json({ message: "Admin access required." });
 }
-
 
 
