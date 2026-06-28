@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { EmptyState } from "@/components/EmptyState";
 import { AssessmentResult } from "@/components/AssessmentResult";
 import { BMIClassificationHelper } from "@/components/BMIClassificationHelper";
+import { SkeletonCard, SkeletonChart } from "@/components/LoadingSkeleton";
 import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
 import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UploadCloud, UserCircle, Info, X } from "lucide-react";
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
@@ -648,30 +649,14 @@ export default function Dashboard() {
 
             <aside className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
               {isPending ? (
-                <div className="rounded-2xl border border-slate-100 bg-white p-8 shadow-sm shadow-slate-900/3 flex flex-col items-center justify-center min-h-[500px]" aria-live="polite">
-                  <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-6" aria-hidden="true" />
-                  <h2 className="text-2xl font-black text-[#1E293B] mb-3">Analyzing Patient Data...</h2>
-                  <p className="text-slate-500 text-center max-w-md mb-10 text-lg">
+                <div className="rounded-2xl border bg-card p-8 shadow-sm flex flex-col items-center justify-center min-h-[500px]" aria-live="polite" aria-busy="true">
+                  <h2 className="mb-3 text-2xl font-black text-foreground">Analyzing Patient Data...</h2>
+                  <p className="mb-10 max-w-md text-center text-lg text-muted-foreground">
                     Processing clinical indicators, computing vital correlations, and generating risk prediction.
                   </p>
-                  
-                  <div className="w-full max-w-3xl space-y-6 opacity-60">
-                    {/* Header Skeleton */}
-                    <div className="flex items-center gap-4">
-                      <div className="h-16 w-16 bg-slate-100 rounded-full animate-pulse"></div>
-                      <div className="space-y-2 flex-1">
-                        <div className="h-6 w-1/3 bg-slate-100 rounded-lg animate-pulse"></div>
-                        <div className="h-4 w-1/4 bg-slate-50 rounded-lg animate-pulse"></div>
-                      </div>
-                    </div>
-                    {/* Metrics Cards Skeleton */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="h-32 bg-slate-50 border border-slate-100 rounded-2xl animate-pulse"></div>
-                      ))}
-                    </div>
-                    {/* Main Content Skeleton */}
-                    <div className="h-64 bg-slate-50 border border-slate-100 rounded-2xl animate-pulse w-full"></div>
+                  <div className="flex w-full max-w-3xl flex-col items-center gap-6">
+                    <SkeletonCard count={3} />
+                    <SkeletonChart />
                   </div>
                 </div>
               ) : result ? (

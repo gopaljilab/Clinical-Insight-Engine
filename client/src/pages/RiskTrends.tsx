@@ -5,9 +5,10 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { SkeletonChart } from "@/components/LoadingSkeleton";
 import {
   Search, TrendingUp, TrendingDown, Minus, Activity,
-  HeartPulse, Loader2, AlertCircle, Calendar,
+  HeartPulse, AlertCircle, Calendar,
 } from "lucide-react";
 import { formatCompactDate, formatReadableDate } from "@/utils/dateFormat";
 import { ApiClient } from "@/lib/apiClient";
@@ -179,8 +180,8 @@ export default function RiskTrends() {
         )}
 
         {loading && (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="py-4" aria-busy="true" aria-label="Loading trends">
+            <SkeletonChart />
           </div>
         )}
 
