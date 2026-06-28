@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -202,3 +203,4 @@ export function ClinicalCopilot({ assessment }: { assessment: AssessmentResponse
 }
 
 export default ClinicalCopilot;
+

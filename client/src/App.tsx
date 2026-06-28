@@ -1,3 +1,4 @@
+import React from 'react';
 import { Suspense } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
@@ -97,3 +98,4 @@ function App() {
   );
 }
 export default App;
+

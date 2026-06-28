@@ -1,3 +1,4 @@
+import React from 'react';
 import { useAuth } from "@/hooks/use-auth";
 import AdminDashboard from "./AdminDashboard";
 import NurseDashboard from "./NurseDashboard";
@@ -31,3 +32,4 @@ export default function RoleRouter() {
   // Default for DOCTOR, PROVIDER, or others
   return <Dashboard />;
 }
+

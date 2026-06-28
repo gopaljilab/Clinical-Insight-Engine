@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect } from "react";
 import jsPDF from "jspdf";
 import { useLocation } from "wouter";
@@ -398,3 +399,4 @@ export default function MyHealth() {
     </div>
   );
 }
+

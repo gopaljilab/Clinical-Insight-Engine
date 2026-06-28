@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useMemo } from "react";
 import { useAssessments } from "@/hooks/use-assessments";
 import { formatReadableDate } from "@/utils/dateFormat";
@@ -128,3 +129,4 @@ export default function NurseDashboard() {
     </AppLayout>
   );
 }
+
