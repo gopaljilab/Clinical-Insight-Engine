@@ -1,7 +1,9 @@
 import { eq, and, gte, sql } from "drizzle-orm";
 import { getDb } from "../db";
+import { logger } from "../logger";
 import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
 import type { User } from "@shared/schema";
+import { logger } from "../logger";
 
 export type VerifyOutcome =
   | { success: true }
@@ -213,6 +215,38 @@ export class AuthRepository {
         await tx.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${userId}`);
       } catch (sessErr) {
         console.error("Failed to clear user sessions upon password reset", sessErr);
+      }
+    });
+  }
+
+  async claimPasswordResetToken(
+    token: string,
+    passwordHash: string
+  ): Promise<void> {
+    const db = getDb();
+    await db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(passwordResetTokens)
+        .set({ used: true })
+        .where(
+          and(
+            eq(passwordResetTokens.token, token),
+            eq(passwordResetTokens.used, false),
+            gte(passwordResetTokens.expiresAt, new Date()),
+          ),
+        )
+        .returning();
+
+      if (!claimed) {
+        throw Object.assign(new Error("Invalid or expired reset token."), { statusCode: 400 });
+      }
+
+      await tx.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, claimed.userId));
+
+      try {
+        await tx.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${claimed.userId}`);
+      } catch (sessErr) {
+        logger.error({ err: sessErr, userId: claimed.userId }, "Failed to clear user sessions upon password reset");
       }
     });
   }

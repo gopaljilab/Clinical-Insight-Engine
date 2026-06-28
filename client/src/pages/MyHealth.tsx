@@ -13,6 +13,7 @@ import { formatReadableDate } from "@/utils/dateFormat";
 import { EmptyState } from "@/components/EmptyState";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
+import { ApiClient } from "@/lib/apiClient";
 
 interface PatientUser {
   id: string;
@@ -79,11 +80,9 @@ export default function MyHealth() {
 
   async function fetchUser() {
     try {
-      const res = await fetch("/api/patient/auth/me", {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Unauthorized");
-      const data = await res.json();
+      const response = await ApiClient.requestRaw("/api/patient/auth/me");
+      if (!response.ok) throw new Error("Unauthorized");
+      const data = await response.json();
       setUser(data.user);
       fetchAssessments();
       fetchTrends();
@@ -94,11 +93,9 @@ export default function MyHealth() {
 
   async function fetchAssessments() {
     try {
-      const res = await fetch("/api/patient/assessments?limit=50", {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed");
-      const data = await res.json();
+      const response = await ApiClient.requestRaw("/api/patient/assessments?limit=50");
+      if (!response.ok) throw new Error("Failed");
+      const data = await response.json();
       setAssessments(data.data ?? []);
     } catch (err) {
       setError(t("myHealth.loadError"));
@@ -109,11 +106,9 @@ export default function MyHealth() {
 
   async function fetchTrends() {
     try {
-      const res = await fetch("/api/patient/trends", {
-        credentials: "include",
-      });
-      if (!res.ok) return;
-      const data = await res.json();
+      const response = await ApiClient.requestRaw("/api/patient/trends");
+      if (!response.ok) return;
+      const data = await response.json();
       setTrends(data ?? []);
     } catch {}
   }
@@ -294,14 +289,11 @@ export default function MyHealth() {
                     icon={FileText}
                     title={t('myHealth.emptyAssessments.title')}
                     description={t('myHealth.emptyAssessments.description')}
-                    actionLabel={t('myHealth.emptyAssessments.actionLabel')}  
+                    actionLabel={t('myHealth.emptyAssessments.actionLabel')}
                     actionOnClick={() => {
-                      const token = getToken();
-                      if (token) {
-                        setLoading(true);
-                        fetchAssessments(token);
-                        fetchTrends(token);
-                      }
+                      setLoading(true);
+                      fetchAssessments();
+                      fetchTrends();
                     }}
                     secondaryActionLabel={t('myHealth.emptyAssessments.secondaryActionLabel')}
                     secondaryActionOnClick={handleLogout}
@@ -357,10 +349,7 @@ export default function MyHealth() {
                     }
                     actionLabel={t('myHealth.emptyTrends.actionLabel')}
                     actionOnClick={() => {
-                      const token = getToken();
-                      if (token) {
-                        fetchTrends(token);
-                      }
+                      fetchTrends();
                     }}
                   />
                 ) : (

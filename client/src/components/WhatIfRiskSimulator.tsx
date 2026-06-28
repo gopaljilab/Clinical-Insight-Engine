@@ -4,6 +4,7 @@ import { type AssessmentResponse, type AssessmentWhatIfResponse, type Assessment
 import { useWhatIfAssessment, useWhatIfBatch } from "@/hooks/use-assessments";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
@@ -194,11 +195,12 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
             type="button"
             onClick={toggleComparison}
             disabled={!simulationResult}
-            className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={cn(
+              "inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40",
               showComparison
                 ? "bg-primary text-white border-primary"
                 : "bg-card text-foreground border-border hover:bg-secondary/50"
-            }`}
+            )}
           >
             <BarChart3 className="h-4 w-4" />
             {showComparison ? t("simulator.showingWhatIf") : t("simulator.compareCharts")}
@@ -282,7 +284,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
                 <p className="text-sm font-semibold text-muted-foreground">{t("simulator.currentRisk")}</p>
                 <p className="mt-2 text-3xl font-bold text-foreground">{formatPercent(currentRisk)}</p>
               </div>
-              <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getRiskBadgeClasses(assessment.riskCategory)}`}>
+              <span className={cn("inline-flex rounded-full border px-3 py-1 text-xs font-semibold", getRiskBadgeClasses(assessment.riskCategory))}>
                 {assessment.riskCategory}
               </span>
             </div>
@@ -296,13 +298,13 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
                   {simulationResult ? formatPercent(simulatedRisk) : "--"}
                 </p>
               </div>
-              <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${simulationResult ? getRiskBadgeClasses(simulationResult.riskCategory) : "text-slate-500 bg-slate-100 border-slate-200"}`}>
+              <span className={cn("inline-flex rounded-full border px-3 py-1 text-xs font-semibold", simulationResult ? getRiskBadgeClasses(simulationResult.riskCategory) : "text-slate-500 bg-slate-100 border-slate-200")}>
                 {simulationResult?.riskCategory ?? t("simulator.pending")}
               </span>
             </div>
           </div>
 
-          <div className={`rounded-3xl border ${getDeltaStyles(riskDifference)} p-5`}>
+          <div className={cn("rounded-3xl border p-5", getDeltaStyles(riskDifference))}>
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-2xl bg-current/5 grid place-items-center text-current">
                 {riskDifference < 0 ? <TrendingDown className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
@@ -339,7 +341,7 @@ export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfR
                       </p>
                     </div>
                   </div>
-                  <div className={`flex items-center gap-1 font-bold ${isReduction ? "text-green-600" : "text-red-500"}`}>
+                  <div className={cn("flex items-center gap-1 font-bold", isReduction ? "text-green-600" : "text-red-500")}>
                     {isReduction ? <ArrowDown className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
                     {Math.abs(item.riskReduction).toFixed(1)}%
                   </div>
