@@ -3,9 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
   Activity, Brain, RefreshCw, Clock, TrendingUp, Target,
-  CheckCircle2, XCircle, Loader2, BarChart3, Database,
+  CheckCircle2, XCircle, BarChart3, Database,
   AlertTriangle, ArrowUpDown
 } from "lucide-react";
+import { SkeletonCard } from "@/components/LoadingSkeleton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -428,8 +429,8 @@ export default function ModelMonitoring() {
         <Card>
           <CardContent className="pt-6">
             {versionsQuery.isLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <div className="py-8" aria-busy="true" aria-label="Loading model data">
+                <SkeletonCard count={3} />
               </div>
             ) : (
               <>

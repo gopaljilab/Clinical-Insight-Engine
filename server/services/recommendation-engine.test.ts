@@ -47,10 +47,11 @@ describe("generateRecommendations", () => {
       expect(hba1cRecs.length).toBeGreaterThanOrEqual(1);
     });
 
-    it("yields no rec when HbA1c < 7", () => {
+    it("yields follow-up reminder when HbA1c between 5.7 and 7", () => {
       const recs = generateRecommendations({ ...emptyInput(), hba1cLevel: 6.5 });
-      const hba1cRecs = recs.filter((r) => r.title.toLowerCase().includes("hba1c") || r.title.toLowerCase().includes("medication"));
-      expect(hba1cRecs).toEqual([]);
+      const hba1cRecs = recs.filter((r) => r.title.toLowerCase().includes("hba1c"));
+      expect(hba1cRecs.length).toBeGreaterThanOrEqual(1);
+      expect(hba1cRecs[0].urgency).toBe("medium");
     });
   });
 

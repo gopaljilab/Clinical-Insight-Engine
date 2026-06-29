@@ -16,6 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/comp
 import { ScrollArea } from "@/components/ui/scroll-area";
 import RiskTrendChart, { PATIENT_COLORS } from "@/components/RiskTrendChart";
 import { EmptyState } from "@/components/EmptyState";
+import { SkeletonTable } from "@/components/LoadingSkeleton";
 import HealthBadges from "@/components/HealthBadges";
 import { formatReadableDate } from "@/utils/dateFormat";
 import { calculateHealthBadges } from "@/utils/healthBadges";
@@ -682,28 +683,12 @@ export default function History() {
         </div>
 
         {isLoading ? (
-          <div className="space-y-6 animate-pulse">
+          <div className="space-y-6" aria-busy="true" aria-label="Loading history">
             <div className="grid gap-6">
-              <div className="h-48 rounded-3xl bg-card border border-border"></div>
-              <div className="h-64 rounded-3xl bg-card border border-border"></div>
+              <div className="skeleton-shimmer h-48 rounded-3xl border border-border"></div>
+              <div className="skeleton-shimmer h-64 rounded-3xl border border-border"></div>
             </div>
-            <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-              <div className="h-12 bg-muted/50 border-b border-border"></div>
-              <div className="divide-y divide-border">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="flex items-center justify-between p-4 h-16">
-                    <div className="h-4 bg-muted rounded w-24"></div>
-                    <div className="h-4 bg-muted rounded w-32"></div>
-                    <div className="h-4 bg-muted rounded w-16"></div>
-                    <div className="h-4 bg-muted rounded w-16"></div>
-                    <div className="h-4 bg-muted rounded w-16"></div>
-                    <div className="h-4 bg-muted rounded w-16"></div>
-                    <div className="h-4 bg-muted rounded w-20"></div>
-                    <div className="h-6 bg-muted rounded-full w-24"></div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <SkeletonTable rows={5} columns={8} />
           </div>
         ) : error ? (
           <div className="p-6 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-center">
