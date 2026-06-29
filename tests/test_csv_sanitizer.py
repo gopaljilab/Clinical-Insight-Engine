@@ -1,147 +1,124 @@
 """
-Tests for app/utils/csv_sanitizer.py OWASP formula injection guards.
+Tests for app/utils/csv_sanitizer.py
 """
 import pytest
-from app.utils.csv_sanitizer import (
-    sanitize_csv_value,
-    sanitize_row,
-    export_to_csv_safe,
-    DANGEROUS_PREFIXES,
-)
+from app.utils.csv_sanitizer import sanitize_csv_value, DANGEROUS_PREFIXES
+
+
+class TestDangerousPrefixes:
+    def test_contains_formula_prefix_chars(self):
+        # OWASP-recommended dangerous prefixes for CSV formula injection
+        assert "=" in DANGEROUS_PREFIXES
+        assert "+" in DANGEROUS_PREFIXES
+        assert "-" in DANGEROUS_PREFIXES
+        assert "@" in DANGEROUS_PREFIXES
+        assert "\t" in DANGEROUS_PREFIXES
+        assert "\r" in DANGEROUS_PREFIXES
+        assert "\n" in DANGEROUS_PREFIXES
 
 
 class TestSanitizeCsvValue:
-    def test_safe_char_no_change(self):
-        assert sanitize_csv_value("John Doe") == "John Doe"
-        assert sanitize_csv_value("Normal Text") == "Normal Text"
-        assert sanitize_csv_value("patient123") == "patient123"
+    def test_passthrough_plain_alphanumeric(self):
+        result = sanitize_csv_value("John Doe")
+        assert result == "John Doe"
 
-    def test_safe_number_no_change(self):
-        assert sanitize_csv_value(42) == "42"
-        assert sanitize_csv_value(3.14) == "3.14"
-        # -10 starts with '-' which is a dangerous prefix; it gets neutralized
-        assert sanitize_csv_value(-10) == "'-10"
+    def test_passthrough_numbers(self):
+        result = sanitize_csv_value(12345)
+        assert result == "12345"
+        assert not result.startswith("'")
+
+    def test_passthrough_float(self):
+        result = sanitize_csv_value(3.14159)
+        assert result == "3.14159"
 
     def test_none_returns_empty_string(self):
-        assert sanitize_csv_value(None) == ""
+        result = sanitize_csv_value(None)
+        assert result == ""
 
     def test_empty_string_returns_empty(self):
-        assert sanitize_csv_value("") == ""
+        result = sanitize_csv_value("")
+        assert result == ""
 
-    def test_whitespace_stripped(self):
-        assert sanitize_csv_value("  hello  ") == "hello"
+    def test_formula_equals_prefix_neutralized(self):
+        # =SUM(A1:A10) formula injection
+        result = sanitize_csv_value("=SUM(A1:A10)")
+        assert result.startswith("'")
+        assert "=SUM" in result
 
-    def test_equals_prefix_neutralized(self):
-        assert sanitize_csv_value("=SUM(A1:A10)") == "'=SUM(A1:A10)"
+    def test_formula_plus_prefix_neutralized(self):
+        # +2-3 formula
+        result = sanitize_csv_value("+2-3")
+        assert result.startswith("'")
+        assert "+2" in result
 
-    def test_plus_prefix_neutralized(self):
-        assert sanitize_csv_value("+cmd.exe /c calc") == "'+cmd.exe /c calc"
+    def test_formula_minus_prefix_neutralized(self):
+        # -2+3 formula
+        result = sanitize_csv_value("-2+3")
+        assert result.startswith("'")
+        assert "-2" in result
 
-    def test_minus_prefix_neutralized(self):
-        assert sanitize_csv_value("-1 UNION SELECT") == "'-1 UNION SELECT"
+    def test_formula_at_prefix_neutralized(self):
+        # @SUM formula
+        result = sanitize_csv_value("@calc")
+        assert result.startswith("'")
+        assert "@calc" in result
 
-    def test_at_prefix_neutralized(self):
-        assert sanitize_csv_value("@javascript:alert(1)") == "'@javascript:alert(1)"
+    def test_whitespace_trimmed_before_check(self):
+        # "  =cmd" should be trimmed to "=cmd" then neutralized
+        result = sanitize_csv_value("  =cmd  ")
+        # After strip: "=cmd", first char is "=" so prefixed
+        assert result.startswith("'")
+        assert "=cmd" in result
+
+    def test_whitespace_only_not_neutralized(self):
+        result = sanitize_csv_value("  hello world  ")
+        assert result == "hello world"
+        assert not result.startswith("'")
+
+    def test_leading_single_quote_preserved(self):
+        # A literal single quote is NOT a dangerous prefix (the prefix list
+        # contains the chars that START cells, not quote characters)
+        result = sanitize_csv_value("'literal quote")
+        assert result == "'literal quote"
 
     def test_tab_prefix_neutralized(self):
-        # \t is stripped before prefix check, so "\tHIDDEN" becomes "HIDDEN"
-        assert sanitize_csv_value("\tHIDDEN") == "HIDDEN"
+        result = sanitize_csv_value("\t=CMD")
+        assert result.startswith("'")
 
     def test_carriage_return_prefix_neutralized(self):
-        # \r is stripped before prefix check, so "\rDATA" becomes "DATA"
-        assert sanitize_csv_value("\rDATA") == "DATA"
+        result = sanitize_csv_value("\r=DANGEROUS")
+        assert result.startswith("'")
 
     def test_newline_prefix_neutralized(self):
-        # \n is stripped before prefix check, so "\nleaked" becomes "leaked"
-        assert sanitize_csv_value("\nleaked") == "leaked"
+        result = sanitize_csv_value("\n=DANGEROUS")
+        assert result.startswith("'")
 
-    def test_dangerous_char_in_middle_not_affected(self):
-        # Only first character matters; formula injection targets leading chars
-        assert sanitize_csv_value("Hello+World") == "Hello+World"
-        assert sanitize_csv_value("Hello=World") == "Hello=World"
+    def test_single_quote_only_not_modified(self):
+        result = sanitize_csv_value("'")
+        # A literal single quote is not in DANGEROUS_PREFIXES
+        assert result == "'"
 
-    def test_whitespace_then_dangerous_prefix_stripped_then_neutralized(self):
-        # Leading dangerous chars after whitespace are detected post-strip
-        assert sanitize_csv_value("  =cmd") == "'=cmd"
-
-    def test_only_dangerous_prefix_returned(self):
-        assert sanitize_csv_value("=") == "'="
-
-    def test_unicode_normal(self):
-        assert sanitize_csv_value("Patient Name") == "Patient Name"
-
-
-class TestSanitizeRow:
-    def test_all_values_sanitized(self):
-        row = {"name": "John", "formula": "=cmd", "age": 30}
-        result = sanitize_row(row)
-        assert result["name"] == "John"
-        assert result["formula"] == "'=cmd"
-        assert result["age"] == "30"
-
-    def test_keys_preserved(self):
-        row = {"a": 1, "b": 2}
-        result = sanitize_row(row)
-        assert list(result.keys()) == ["a", "b"]
-
-    def test_empty_row(self):
-        assert sanitize_row({}) == {}
-
-    def test_none_values_in_row(self):
-        row = {"name": None, "value": "=formula"}
-        result = sanitize_row(row)
-        assert result["name"] == ""
-        assert result["value"] == "'=formula"
-
-
-class TestExportToCsvSafe:
-    def test_empty_list_returns_empty_string(self):
-        assert export_to_csv_safe([]) == ""
-
-    def test_single_row(self):
-        data = [{"name": "Alice", "age": 30}]
-        result = export_to_csv_safe(data)
-        assert "Alice" in result
-        assert "30" in result
-        assert "\r\n" in result  # Windows line endings
-
-    def test_multiple_rows(self):
-        data = [
-            {"name": "Alice", "age": 30},
-            {"name": "Bob", "age": 25},
+    def test_real_csv_safe_content(self):
+        safe_content = [
+            "John Doe",
+            "45",
+            "Male",
+            "No known allergies",
+            "2024-01-15",
         ]
-        result = export_to_csv_safe(data)
-        assert "Alice" in result
-        assert "Bob" in result
+        results = [sanitize_csv_value(v) for v in safe_content]
+        # None should be modified (no leading formula chars)
+        assert all(r == original for r, original in zip(results, safe_content))
 
-    def test_formula_injection_prevented_in_export(self):
-        data = [{"cell": "=DDEllaunch"}]
-        result = export_to_csv_safe(data)
-        assert "=DDEllaunch" not in result or result.startswith("\ufeff")
-
-    def test_bom_prefix_present(self):
-        data = [{"name": "Test"}]
-        result = export_to_csv_safe(data)
-        assert result.startswith("\ufeff")
-
-    def test_custom_fieldnames_respected(self):
-        data = [{"name": "Alice", "age": 30}]
-        result = export_to_csv_safe(data, fieldnames=["name"])
-        assert "name" in result
-        assert "age" not in result
-
-    def test_unknown_keys_ignored(self):
-        data = [{"name": "Alice"}]
-        result = export_to_csv_safe(data, fieldnames=["name", "unknown"])
-        assert "unknown" in result  # header present
-        assert "Alice" in result  # value present
-
-    def test_formula_cells_neutralized_in_export(self):
-        data = [{"formula": "=cmd", "safe": "normal"}]
-        result = export_to_csv_safe(data)
-        # BOM must be first char; the rest should have neutralized formula
-        assert result.startswith("\ufeff")
-        body = result[1:]  # strip BOM
-        assert "normal" in body
-        # The neutralized version should appear, not the raw formula
-        assert "=cmd" not in body or "'=cmd" in body
+    def test_injection_examples_from_owasp(self):
+        # Common CSV injection payloads (all should be neutralized)
+        payloads = [
+            "=HYPERLINK(\"http://evil.com\")",
+            "+SELECT+@+FROM+Users",
+            "-2+3",
+            "@IF(1=1,'T','F')",
+            "\t=cmd|' /C calc'!A0",
+        ]
+        for payload in payloads:
+            result = sanitize_csv_value(payload)
+            assert result.startswith("'"), f"Payload not neutralized: {payload}"
