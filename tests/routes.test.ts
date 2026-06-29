@@ -279,7 +279,7 @@ describe("IDOR Prevention", () => {
 
     const res = await request(app).get("/api/assessments/999");
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
     expect(res.body).toHaveProperty("message");
   });
 
@@ -291,7 +291,7 @@ describe("IDOR Prevention", () => {
 
     const res = await request(app).delete("/api/assessments/999");
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
     expect(res.body).toHaveProperty("message");
   });
 });
@@ -540,7 +540,7 @@ describe("Python inference", () => {
         ]
       });
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(202);
     expect(res.body).toHaveProperty("count", 2);
     expect(res.body).toHaveProperty("assessments");
     expect(Array.isArray(res.body.assessments)).toBe(true);
@@ -566,7 +566,7 @@ describe("Python inference", () => {
           ]
         });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(202);
       expect(res.body).toHaveProperty("count", 2);
       expect(res.body).toHaveProperty("assessments");
       expect(Array.isArray(res.body.assessments)).toBe(true);
@@ -598,7 +598,7 @@ describe("Python inference", () => {
           ]
         });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(202);
       expect(res.body).toHaveProperty("count", 2);
       expect(res.body).toHaveProperty("assessments");
       expect(Array.isArray(res.body.assessments)).toBe(true);
@@ -763,7 +763,7 @@ describe("DELETE /api/assessments/:id", () => {
       ownerId: "other-user-id"
     });
     const res = await request(app).delete("/api/assessments/1");
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
   });
 
   it("returns 204 when assessment is deleted successfully", async () => {

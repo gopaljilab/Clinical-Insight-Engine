@@ -10,7 +10,6 @@ const baseResolve = {
 };
 
 export default defineConfig({
-  plugins: [react()],
   resolve: baseResolve,
   test: {
     globals: true,
@@ -28,6 +27,7 @@ export default defineConfig({
     projects: [
       {
         name: "client",
+        plugins: [react()],
         test: {
           include: ["client/src/**/*.test.{ts,tsx}"],
           globals: true,
