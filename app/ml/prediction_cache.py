@@ -84,6 +84,8 @@ class PredictionLRUCache:
     def clear(self) -> None:
         with self._lock:
             self._cache.clear()
+            self._hits = 0
+            self._misses = 0
 
 
 # Module-level singleton
