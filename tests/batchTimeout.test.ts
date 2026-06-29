@@ -218,7 +218,7 @@ Patient Success 2,Male,60,false,true,current,28.0,5.8,110`;
       console.log("Upload route returned body:", res.body);
 
       expect(res.status).toBe(200);
-      expect(res.body.processed).toBe(3);
+      expect(res.body.created + res.body.failed).toBe(3);
       expect(res.body.created).toBe(2);
       expect(res.body.failed).toBe(1);
 

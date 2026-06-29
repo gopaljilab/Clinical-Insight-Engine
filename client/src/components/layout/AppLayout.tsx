@@ -3,11 +3,12 @@ import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "@/lib/queryClient";
 import { ApiClient } from "@/lib/apiClient";
-import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, TrendingUp, UploadCloud, User, GitCompare } from "lucide-react";
+import { Activity, ClipboardList, HeartPulse, LogOut, PieChart, TrendingUp, UploadCloud, User, GitCompare } from "lucide-react";
 import ThemeToggle from "../ThemeToggle";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { MedicalLoader } from "@/components/ui/medical-loader";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -99,7 +100,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   if (checking) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
+        <MedicalLoader type="heartbeat" size="lg" className="w-8 h-8 text-blue-600 dark:text-blue-400" />
       </div>
     );
   }
@@ -189,9 +190,9 @@ export function AppLayout({ children }: AppLayoutProps) {
               title={t("nav.signOut")}
             >
               {isSigningOut ? (
-                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                <MedicalLoader type="cross" size="sm" className="w-4 h-4 mr-2" aria-hidden="true" />
               ) : (
-                <LogOut className="w-4 h-4" aria-hidden="true" />
+                <LogOut className="w-4 h-4 mr-2" aria-hidden="true" />
               )}
               {isSigningOut ? t("nav.signingOut") : t("nav.signOut")}
             </button>
