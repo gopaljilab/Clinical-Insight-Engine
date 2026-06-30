@@ -1,3 +1,5 @@
+import { escapeCsvCell } from "./csvSanitizer";
+
 /**
  * Converts an array of assessment records into CSV format.
  *
