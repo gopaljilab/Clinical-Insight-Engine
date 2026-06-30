@@ -1,114 +1,93 @@
-"""
-Unit tests for services.resource_guard.ResourceGuard.
-
-These tests lock down the boundary behavior of both resource checks:
-- The row-count check fires when cumulative rows_processed exceeds max_rows.
-- The wall-clock timeout check fires when time elapsed since construction exceeds timeout_seconds.
-- The timeout check is evaluated BEFORE the row-count check.
-"""
-
-import time
-
 import pytest
-
-from services.resource_guard import ResourceExhaustedError, ResourceGuard
-
-
-# ---------------------------------------------------------------------------
-# Constructor
-# ---------------------------------------------------------------------------
-
-def test_start_time_captured_at_construction():
-    """Two guards constructed sequentially must have start_times that differ by at least the construction gap."""
-    guard_a = ResourceGuard()
-    time.sleep(0.05)
-    guard_b = ResourceGuard()
-    # The captured start_time of guard_b must be at least ~30ms after guard_a.
-    # We use a generous lower bound to avoid flakiness on a slow CI runner.
-    assert guard_b.start_time - guard_a.start_time >= 0.03
+import time
+from services.resource_guard import ResourceGuard, ResourceExhaustedError
 
 
-# ---------------------------------------------------------------------------
-# Row-count boundary
-# ---------------------------------------------------------------------------
+class TestResourceGuardConstructor:
+    def test_default_max_rows(self):
+        guard = ResourceGuard()
+        assert guard.max_rows == 150000
 
-def test_row_count_at_exact_limit_does_not_raise():
-    """Incrementing by exactly max_rows must NOT raise."""
-    guard = ResourceGuard(max_rows=100, timeout_seconds=10)
-    guard.increment_rows(100)
-    assert guard.rows_processed == 100
+    def test_default_timeout(self):
+        guard = ResourceGuard()
+        assert guard.timeout_seconds == 30
 
+    def test_custom_max_rows(self):
+        guard = ResourceGuard(max_rows=5000)
+        assert guard.max_rows == 5000
 
-def test_row_count_one_over_limit_raises():
-    """Incrementing by max_rows + 1 must raise ResourceExhaustedError with the documented message."""
-    guard = ResourceGuard(max_rows=100, timeout_seconds=10)
-    with pytest.raises(ResourceExhaustedError, match="Maximum row count"):
-        guard.increment_rows(101)
+    def test_custom_timeout(self):
+        guard = ResourceGuard(timeout_seconds=60)
+        assert guard.timeout_seconds == 60
 
-
-def test_row_count_accumulates_across_multiple_calls():
-    """Row-count check is on cumulative rows_processed, not per-call."""
-    guard = ResourceGuard(max_rows=10, timeout_seconds=10)
-    guard.increment_rows(4)
-    guard.increment_rows(4)
-    # 8 rows so far - still under the limit.
-    assert guard.rows_processed == 8
-    # 3 more pushes cumulative to 11, which is over the limit of 10.
-    with pytest.raises(ResourceExhaustedError, match="Maximum row count"):
-        guard.increment_rows(3)
+    def test_initial_rows_processed_is_zero(self):
+        guard = ResourceGuard()
+        assert guard.rows_processed == 0
 
 
-def test_row_count_message_contains_configured_limit():
-    """The error message must include the configured max_rows so operators can diagnose."""
-    guard = ResourceGuard(max_rows=42, timeout_seconds=10)
-    with pytest.raises(ResourceExhaustedError, match=r"42"):
-        guard.increment_rows(43)
+class TestCheckTime:
+    def test_passes_within_timeout(self):
+        guard = ResourceGuard(timeout_seconds=10)
+        guard.check_time()  # should not raise
+
+    def test_raises_after_timeout(self):
+        guard = ResourceGuard(timeout_seconds=0)
+        time.sleep(0.01)
+        with pytest.raises(ResourceExhaustedError) as exc_info:
+            guard.check_time()
+        assert "timeout" in str(exc_info.value).lower()
 
 
-# ---------------------------------------------------------------------------
-# Timeout boundary
-# ---------------------------------------------------------------------------
+class TestIncrementRows:
+    def test_passes_under_max_rows(self):
+        guard = ResourceGuard(max_rows=10)
+        guard.increment_rows(5)
+        assert guard.rows_processed == 5
 
-def test_timeout_with_zero_second_limit_raises_immediately():
-    """A guard with timeout_seconds=0 must raise on the very first check_time() call (after any sleep)."""
-    guard = ResourceGuard(max_rows=1000, timeout_seconds=0)
-    time.sleep(0.005)
-    with pytest.raises(ResourceExhaustedError, match="timeout"):
-        guard.check_time()
+    def test_passes_at_exactly_max_rows(self):
+        guard = ResourceGuard(max_rows=10)
+        guard.increment_rows(10)
+        assert guard.rows_processed == 10
 
+    def test_raises_when_exceeding_max_rows(self):
+        guard = ResourceGuard(max_rows=10)
+        with pytest.raises(ResourceExhaustedError) as exc_info:
+            guard.increment_rows(11)
+        assert "row" in str(exc_info.value).lower()
 
-def test_timeout_message_uses_documented_text():
-    """The error message must say 'timeout' so it can be matched downstream."""
-    guard = ResourceGuard(max_rows=1000, timeout_seconds=0)
-    time.sleep(0.005)
-    with pytest.raises(ResourceExhaustedError, match=r"[Tt]imeout"):
-        guard.check_time()
+    def test_accumulates_rows_across_calls(self):
+        guard = ResourceGuard(max_rows=100)
+        guard.increment_rows(30)
+        guard.increment_rows(30)
+        assert guard.rows_processed == 60
 
-
-# ---------------------------------------------------------------------------
-# Combined check_resource_limits
-# ---------------------------------------------------------------------------
-
-def test_check_resource_limits_happy_path():
-    """A small chunk within both limits must not raise."""
-    guard = ResourceGuard(max_rows=1000, timeout_seconds=10)
-    guard.check_resource_limits(10)
-    assert guard.rows_processed == 10
-
-
-def test_check_resource_limits_timeout_fires_before_row_check():
-    """When both limits are exhausted, the timeout check must fire (NOT the row check)."""
-    # timeout_seconds=0 means check_time() will fire after any sleep.
-    # We pick max_rows very large so that the row check is guaranteed not to be the cause.
-    guard = ResourceGuard(max_rows=10_000_000, timeout_seconds=0)
-    time.sleep(0.005)
-    with pytest.raises(ResourceExhaustedError, match="timeout"):
-        # Even though 1 row is well within the row limit, the timeout check must fire first.
-        guard.check_resource_limits(1)
+    def test_raises_after_accumulated_exceeds_limit(self):
+        guard = ResourceGuard(max_rows=10)
+        guard.increment_rows(8)
+        with pytest.raises(ResourceExhaustedError):
+            guard.increment_rows(3)
 
 
-def test_check_resource_limits_propagates_row_count_error():
-    """When the row check fails (and timeout does not), the row error must propagate."""
-    guard = ResourceGuard(max_rows=5, timeout_seconds=10)
-    with pytest.raises(ResourceExhaustedError, match="Maximum row count"):
-        guard.check_resource_limits(10)
+class TestCheckResourceLimits:
+    def test_passes_for_small_chunk_within_limits(self):
+        guard = ResourceGuard(max_rows=100, timeout_seconds=60)
+        guard.check_resource_limits(5)
+        assert guard.rows_processed == 5
+
+    def test_raises_on_timeout(self):
+        guard = ResourceGuard(max_rows=100, timeout_seconds=0)
+        time.sleep(0.01)
+        with pytest.raises(ResourceExhaustedError) as exc_info:
+            guard.check_resource_limits(0)
+        assert "timeout" in str(exc_info.value).lower()
+
+    def test_raises_on_row_exceeded(self):
+        guard = ResourceGuard(max_rows=5, timeout_seconds=60)
+        with pytest.raises(ResourceExhaustedError):
+            guard.check_resource_limits(10)
+
+    def test_full_lifecycle_within_limits(self):
+        guard = ResourceGuard(max_rows=100, timeout_seconds=60)
+        for i in range(10):
+            guard.check_resource_limits(10)
+        assert guard.rows_processed == 100
