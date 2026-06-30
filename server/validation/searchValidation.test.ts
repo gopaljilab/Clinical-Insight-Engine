@@ -49,7 +49,7 @@ describe("isIso8601Date", () => {
 
   it("returns false for invalid dates", () => {
     expect(isIso8601Date("not-a-date")).toBe(false);
-    expect(isIso8601Date("")).toBe(false);
+    expect(isIso8601Date("12/31/2023")).toBe(false);
   });
 
   it("returns true for undefined", () => {
