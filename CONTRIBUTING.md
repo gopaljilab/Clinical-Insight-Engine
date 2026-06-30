@@ -128,6 +128,46 @@ If you cannot run a check because of a local dependency such as PostgreSQL, ment
 - Keep accessibility in mind: labels, button text, keyboard focus, contrast, and non-color state cues all matter.
 - Maintain the enterprise healthcare SaaS tone: minimal, clinical, trustworthy, spacious, and polished.
 
+## Accessibility Contribution Guidelines
+
+Changes that affect UI components or user interaction must meet these accessibility standards:
+
+### Focus & Keyboard
+- Modals and dialogs **must** trap focus (Tab/Shift+Tab cycle) and close on Escape
+- Dropdowns, menus, and autocomplete widgets **must** support ArrowDown/ArrowUp navigation and Escape dismiss
+- Interactive elements **must** have visible `:focus-visible` outlines (minimum 2px offset)
+- Tab order must follow the visual layout (logical DOM order)
+
+### ARIA
+- Use semantic HTML elements or apply explicit ARIA roles (`dialog`, `combobox`, `listbox`, `option`, `alert`, `alertdialog`)
+- Interactive search/combobox inputs must include:
+  - `role="combobox"`, `aria-expanded`, `aria-controls`, `aria-activedescendant` on the input
+  - `role="listbox"` on the suggestion container
+  - `role="option"` and `aria-selected` on each suggestion item
+- Use `aria-describedby` for error messages, `aria-invalid` for validation state
+- Dynamic content changes must use `role="alert"` or `aria-live` regions
+
+### Navigation
+- Every page **must** include a "Skip to main content" link as the first focusable element
+- The skip link must be hidden (`sr-only`) by default and visible on keyboard focus
+- A `#main-content` anchor must wrap the primary page content
+
+### Visual & Contrast
+- Color is never the sole indicator of state (use text, icons, or patterns alongside color)
+- Text must meet WCAG 2.1 AA contrast ratio (4.5:1, 3:1 for large text)
+- Interactive focus indicators must have contrast of at least 3:1 against adjacent colors
+
+### Reduced Motion
+- Use `prefers-reduced-motion` media queries for animations and transitions
+- Avoid automatic movement, blinking, or auto-playing content
+
+### Testing
+- Run Playwright E2E tests before opening a pull request for UI changes:
+  ```bash
+  npx playwright test tests/e2e/keyboard-navigation.spec.ts
+  ```
+- New UI features should include Playwright tests that verify keyboard interaction and use `@axe-core/playwright` for automated WCAG auditing
+
 ## Community Expectations
 
 Be respectful, patient, and constructive in issues, reviews, and pull requests. Assume good intent, explain technical tradeoffs clearly, and help keep the project welcoming for new contributors.

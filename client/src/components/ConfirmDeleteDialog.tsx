@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 import {
   AlertDialog,
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface ConfirmDeleteDialogProps {
   patientName: string;
@@ -30,6 +31,9 @@ export function ConfirmDeleteDialog({
   const { t } = useTranslation();
   const [isDeleting, setIsDeleting] = useState(false);
   const [open, setOpen] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(contentRef, open, () => setOpen(false));
 
   const handleConfirm = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -55,7 +59,7 @@ export function ConfirmDeleteDialog({
           </Button>
         )}
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent ref={contentRef}>
         <AlertDialogHeader>
           <AlertDialogTitle>{t("assessment.deleteTitle")}</AlertDialogTitle>
           <AlertDialogDescription>

@@ -292,6 +292,11 @@
   }
 }
 
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
 @keyframes dash {
   0% {
     stroke-dashoffset: 264;
