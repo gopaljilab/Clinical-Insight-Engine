@@ -81,7 +81,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Age is required");
+      expect(result.error.issues[0].message).toBe("Age is required.");
     }
   });
 
@@ -93,7 +93,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("BMI is required");
+      expect(result.error.issues[0].message).toBe("BMI is required.");
     }
   });
 
@@ -105,7 +105,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("HbA1c level is required");
+      expect(result.error.issues[0].message).toBe("HbA1c level is required.");
     }
   });
 
@@ -117,7 +117,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Blood glucose level is required");
+      expect(result.error.issues[0].message).toBe("Blood glucose level is required.");
     }
   });
 
@@ -132,4 +132,48 @@ describe("insertAssessmentSchema", () => {
       expect(result.error.issues[0]?.message).toBe("Age must be at least 1");
     }
   });
+});
+it("rejects whitespace-only patient name", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    patientName: "     ",
+  });
+
+  expect(result.success).toBe(false);
+});
+
+it("accepts patient name at minimum valid length", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    patientName: "A",
+  });
+
+  expect(result.success).toBe(true);
+});
+
+it("accepts special characters in patient name", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    patientName: "John O'Connor-Smith",
+  });
+
+  expect(result.success).toBe(true);
+});
+
+it("rejects invalid gender value", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    gender: "Unknown",
+  });
+
+  expect(result.success).toBe(false);
+});
+
+it("rejects extremely large age value", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    age: 999999,
+  });
+
+  expect(result.success).toBe(false);
 });

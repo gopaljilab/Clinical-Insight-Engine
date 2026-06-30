@@ -1,5 +1,7 @@
 import mlRouter from "./routes/ml.routes";
 import exportsRouter from "./routes/exports.routes";
+import { insertAssessmentNoteSchema } from "@shared/schema";
+import { broadcastNote } from "./socket/notesSocket";
 import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
 import authRouter from "./routes/auth.routes";
@@ -241,6 +243,8 @@ export async function registerRoutes(
       }
     }
   );
+
+
   app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
     try {
       const userEmail = req.session.user?.email;
@@ -443,7 +447,7 @@ export async function registerRoutes(
         }
 
         // Object-Level Authorization Check
-        if (!canAccessPatientRecord(user, assessment)) {
+        if (!canAccessPatientRecord(user as any, assessment)) {
           // Log unauthorized access attempt (IDOR/Enumeration attempt)
           logAccessAttempt(
             user.id,
@@ -466,6 +470,77 @@ export async function registerRoutes(
         logger.error({ err }, "Assessment search error");
         const { statusCode, message } = sanitizeDatabaseError(err);
         return res.status(statusCode).json({ message });
+      }
+    }
+  );
+
+  app.get(
+    "/api/assessments/:id/notes",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id as string, 10);
+        if (isNaN(id) || id <= 0) {
+          return res.status(400).json({ message: "Invalid assessment ID." });
+        }
+        
+        const assessment = await storage.getAssessmentById(id);
+        if (!assessment) {
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+        
+        // Ensure user can access
+        if (!canAccessPatientRecord(req.session.user as any, assessment)) {
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+        
+        const notes = await storage.getAssessmentNotes(id);
+        return res.json(notes);
+      } catch (err) {
+        logger.error({ err }, "Error fetching notes");
+        return res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/assessments/:id/notes",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id as string, 10);
+        if (isNaN(id) || id <= 0) {
+          return res.status(400).json({ message: "Invalid assessment ID." });
+        }
+        
+        const assessment = await storage.getAssessmentById(id);
+        if (!assessment) {
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+        
+        if (!canAccessPatientRecord(req.session.user as any, assessment)) {
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+        
+        const noteData = insertAssessmentNoteSchema.parse({
+          assessmentId: id,
+          userId: req.session.user!.id,
+          section: req.body.section || "general",
+          content: req.body.content,
+        });
+        
+        const note = await storage.addAssessmentNote(noteData);
+        
+        // Broadcast the new note to connected clients
+        broadcastNote(id, note);
+        
+        return res.status(201).json(note);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: err.errors });
+        }
+        logger.error({ err }, "Error adding note");
+        return res.status(500).json({ message: "Internal server error" });
       }
     }
   );
@@ -607,7 +682,7 @@ export async function registerRoutes(
       res.json(record);
     } catch (err: unknown) {
       logger.error({ err }, "Admin model retrain error:");
-      res.status(500).json({ message: err.stderr || "Model retraining failed." });
+      res.status(500).json({ message: (err as any).stderr || "Model retraining failed." });
     }
   });
 
@@ -636,3 +711,4 @@ export async function registerRoutes(
 
   return httpServer;
 }
+

@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { safeExecML } from "./utils/exec";
-import express, { type Request, Response, NextFunction } from "express";
+import express, { type Request, Response, NextFunction, RequestHandler } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
@@ -32,10 +32,13 @@ import { EmailConfigurationError, validateEmailConfig } from "./email";
 import { generalLimiter } from "./middleware/rateLimit";
 import { registerOpenApiDocs } from "./openapi";
 import { initAssessmentSocket } from "./socket/assessmentSocket";
+import { initNotesSocket } from "./socket/notesSocket";
 import { rlsContextMiddleware } from "./middleware/rlsContext";
 
+import compression from "compression";
 
 const app = express();
+app.use(compression());
 const httpServer = createServer(app);
 
 // CORS configuration - hardened to reject requests missing the Origin header
@@ -132,9 +135,9 @@ app.use((_req, res, next) => {
 });
 
 // Security headers via helmet
-const scriptSrcDirective: Array<string | ((req: Parameters<RequestHandler>[0], res: Parameters<RequestHandler>[0]) => string)> = [
+const scriptSrcDirective: any[] = [
   "'self'",
-  (_req: any, res: Parameters<RequestHandler>[0]) => `'nonce-${res.locals.cspNonce}'`,
+  (_req: any, res: any) => `'nonce-${res.locals.cspNonce}'`,
 ];
 
 
@@ -260,6 +263,7 @@ registerOpenApiDocs(app);
     .then(() => logger.info({ source: "ml" }, "ML model ready."))
     .catch((err: unknown) => logger.warn({ source: "ml" }, `ML warmup warning: ${(err as Error).message}`));
   initAssessmentSocket(httpServer);
+  initNotesSocket(httpServer);
   await registerRoutes(httpServer, app);
 
   // Global error handler — must be the LAST middleware.

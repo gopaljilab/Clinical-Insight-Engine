@@ -1,4 +1,4 @@
-import { loginAuditLogs, patientAccessAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser, type ModelVersion, type InsertModelVersion, type InsertPatientUser, type PatientUser } from "@shared/schema";
+import { loginAuditLogs, patientAccessAuditLogs, type Assessment, type InsertAssessment, type AssessmentFactor, type User, type InsertUser, type ModelVersion, type InsertModelVersion, type InsertPatientUser, type PatientUser, type AssessmentNote, type InsertAssessmentNote } from "@shared/schema";
 import { assessments, users } from "@shared/schema";
 
 import { getDb } from "./db";
@@ -46,8 +46,9 @@ export interface IStorage {
     limit?: number,
     cursor?: number
   ): Promise<{ data: Assessment[]; nextCursor: number | null }>;
-  getAssessmentById(id: number): Promise<Assessment | undefined>;
+  getAssessmentById(id: number, createdBy?: string): Promise<Assessment | undefined>;
   createAssessment(assessment: any): Promise<Assessment>;
+  updateClinicalNote(id: number, clinicalNote: string): Promise<Assessment | undefined>;
   deleteAssessment(id: number): Promise<void>;
   autocompletePatientNames(query: string, createdBy?: string, limit?: number): Promise<string[]>;
   createUser(data: InsertUser): Promise<User>;
@@ -97,6 +98,9 @@ export interface IStorage {
     assessments: any[];
     summary: { total: number; latestRiskScore: number | null; latestRiskCategory: string | null; earliestRiskScore: number | null; trend: string; avgRiskScore: number; change: number };
   }>;
+  createAssessmentsBatch(data: AssessmentCreateInput[]): Promise<Assessment[]>;
+  getAssessmentNotes(assessmentId: number): Promise<(AssessmentNote & { user: { fullName: string } })[]>;
+  addAssessmentNote(note: InsertAssessmentNote): Promise<AssessmentNote & { user: { fullName: string } }>;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
@@ -149,33 +153,37 @@ export class DatabaseStorage implements IStorage {
       createdBy: limitOrParams?.createdBy ?? createdBy,
     });
   }
-
-  async searchAssessments(
-    searchTerm: string,
-    createdBy?: string,
-    riskCategory?: RiskCategory,
-    limit?: number,
-    cursor?: number,
-  ) {
-    return this.assessmentRepository.searchAssessments(
-      searchTerm,
-      createdBy,
-      riskCategory,
-      limit,
-      cursor,
-    );
+  
+  async getAssessmentById(id: number, createdBy?: string) { 
+    return this.assessmentRepository.getAssessmentById(id, createdBy); 
   }
 
-  async getAssessmentById(id: number) {
-    return this.assessmentRepository.getAssessmentById(id);
+  async searchAssessments(searchTerm: string, createdBy?: string, riskCategory?: RiskCategory, limit?: number, cursor?: number) {
+    return this.assessmentRepository.searchAssessments(searchTerm, createdBy, riskCategory, limit, cursor);
   }
 
   async createAssessment(assessment: any) {
     return this.assessmentRepository.createAssessment(assessment);
   }
 
+  async updateClinicalNote(id: number, clinicalNote: string) {
+    return this.assessmentRepository.updateClinicalNote(id, clinicalNote);
+  }
+
   async deleteAssessment(id: number) {
     return this.assessmentRepository.deleteAssessment(id);
+  }
+
+  async createAssessmentsBatch(data: AssessmentCreateInput[]) {
+    return this.assessmentRepository.createAssessmentsBatch(data);
+  }
+
+  async getAssessmentNotes(assessmentId: number) {
+    return this.assessmentRepository.getNotes(assessmentId);
+  }
+
+  async addAssessmentNote(note: InsertAssessmentNote) {
+    return this.assessmentRepository.addNote(note);
   }
 
   async autocompletePatientNames(query: string, createdBy?: string, limit?: number) {
