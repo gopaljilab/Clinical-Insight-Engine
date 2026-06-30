@@ -25,7 +25,7 @@ const factorStrengthMap: Record<string, number> = {
 
 function normalizeFactors(factors?: AssessmentFactor[]): AssessmentFactor[] {
   if (!Array.isArray(factors)) return [];
-  return factors;
+  return factors.filter((f): f is AssessmentFactor => f != null);
 }
 
 function getFactorWeight(factor: AssessmentFactor, index: number): number {
