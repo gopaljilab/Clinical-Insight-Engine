@@ -23,6 +23,7 @@ import { MLService, calculateClinicalFallback, generateRequestFingerprint, type 
 import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
+import { escapeCsvCell } from "./utils/csvSanitizer";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
 import { api } from "@shared/routes";
@@ -572,11 +573,62 @@ export async function registerRoutes(
     try {
       const page = Math.max(1, parseInt(req.query.page as string) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-      const result = await storage.getLoginAuditLogs(page, limit);
+      
+      const filters = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        userId: req.query.userId as string,
+        ipAddress: req.query.ipAddress as string,
+        status: req.query.status as string,
+      };
+
+      const result = await storage.getLoginAuditLogs(page, limit, filters);
       res.json(result);
     } catch (err) {
       logger.error({ err }, "Admin audit logs fetch error:");
       res.status(500).json({ message: "Failed to fetch audit logs." });
+    }
+  });
+
+  app.get("/api/admin/audit-logs/export", requireAuth, requireAdmin, exportLimiter, async (req, res) => {
+    try {
+      const filters = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        userId: req.query.userId as string,
+        ipAddress: req.query.ipAddress as string,
+        status: req.query.status as string,
+      };
+
+      // Fetch all logs matching the filters (limit up to 10000 to prevent OOM)
+      const result = await storage.getLoginAuditLogs(1, 10000, filters);
+      const logs = result.data;
+
+      if (!logs || logs.length === 0) {
+        return res.status(404).json({ message: "No audit logs found to export." });
+      }
+
+      // Generate CSV
+      const headers = ["ID", "Timestamp", "User ID", "IP Address", "User Agent", "Login Status"];
+      const rows = logs.map(log => {
+        return [
+          log.id,
+          log.createdAt?.toISOString() ?? "",
+          log.userId ?? "",
+          log.ipAddress ?? "",
+          log.userAgent ?? "",
+          log.loginStatus ?? ""
+        ].map(escapeCsvCell).join(",");
+      });
+
+      const csvContent = [headers.join(","), ...rows].join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename=audit-logs-export-${new Date().toISOString().split('T')[0]}.csv`);
+      res.send(csvContent);
+    } catch (err) {
+      logger.error({ err }, "Admin audit logs export error:");
+      res.status(500).json({ message: "Failed to export audit logs." });
     }
   });
 
