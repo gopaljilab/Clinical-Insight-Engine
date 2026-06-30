@@ -16,7 +16,7 @@ import { parseClinicalDate } from "@shared/dateParser";
  * Rejects ambiguous formats such as MM/DD/YYYY or DD/MM/YYYY and returns
  * a human-readable error directing callers to use YYYY-MM-DD.
  */
-function isIso8601Date(val: string | undefined): boolean {
+export function isIso8601Date(val: string | undefined): boolean {
   if (!val) return true;
   const result = parseClinicalDate(val);
   // Only accept with full confidence (1.0) — i.e. unambiguous ISO-like input
