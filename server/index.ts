@@ -36,6 +36,13 @@ import { initNotesSocket } from "./socket/notesSocket";
 import { rlsContextMiddleware } from "./middleware/rlsContext";
 
 import compression from "compression";
+import { validateEnv } from "./config/envValidator";
+
+const { valid: envValid, missing: envMissing } = validateEnv();
+if (!envValid) {
+  logger.error({ missing: envMissing }, "Server will not start. Fix the above missing environment variables.");
+  process.exit(1);
+}
 
 const app = express();
 app.use(compression());
