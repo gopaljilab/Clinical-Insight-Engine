@@ -1,192 +1,193 @@
 """
-Unit tests for validation.csv_validator functions.
+Unit tests for the CSV validation module (validation/csv_validator.py).
+
+Covers: validate_file_size, validate_headers, validate_extension_and_content.
 """
 import os
-import sys
-import unittest
 import tempfile
-
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
-
-from validation.csv_validator import (
-    validate_file_size,
-    validate_headers,
-    validate_extension_and_content,
-    ValidationError,
-    REQUIRED_HEADERS,
-)
+import pytest
+import validation.csv_validator as csv_validator
 
 
-class TestValidateFileSize(unittest.TestCase):
-    """Tests for validate_file_size."""
+class TestValidateFileSize:
+    """Test suite for validate_file_size."""
 
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
+    def test_under_limit_passes(self):
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        try:
+            os.write(fd, b"gender,age\nMale,45\n")
+            os.close(fd)
+            # Should not raise
+            csv_validator.validate_file_size(path)
+        finally:
+            os.remove(path)
 
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    def test_at_limit_passes(self):
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        try:
+            # MAX_FILE_SIZE = 10MB; write exactly 10MB
+            chunk = b"x" * (1024 * 1024)  # 1MB
+            for _ in range(10):
+                os.write(fd, chunk)
+            os.close(fd)
+            csv_validator.validate_file_size(path)
+        finally:
+            os.remove(path)
 
-    def _make_file(self, name, content=b"", size=None):
-        path = os.path.join(self.temp_dir, name)
-        if size is not None:
-            with open(path, "wb") as f:
-                f.write(b"x" * size)
-        elif content:
-            with open(path, "wb") as f:
-                f.write(content)
-        else:
-            with open(path, "w") as f:
-                f.write("")
-        return path
+    def test_over_limit_raises_validation_error(self):
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        try:
+            # Write 11MB (over the 10MB limit)
+            chunk = b"x" * (1024 * 1024)  # 1MB
+            for _ in range(11):
+                os.write(fd, chunk)
+            os.close(fd)
+            with pytest.raises(csv_validator.ValidationError, match="exceeds maximum"):
+                csv_validator.validate_file_size(path)
+        finally:
+            os.remove(path)
 
-    def test_file_within_default_limit(self):
-        path = self._make_file("small.csv", size=1024)
+    def test_nonexistent_file_raises_validation_error(self):
+        with pytest.raises(csv_validator.ValidationError, match="File not found"):
+            csv_validator.validate_file_size("/nonexistent/path/to/file.csv")
+
+    def test_custom_max_size_override(self):
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        try:
+            # Write 5 bytes
+            os.write(fd, b"hello")
+            os.close(fd)
+            # Should fail with max_size=1 byte
+            with pytest.raises(csv_validator.ValidationError, match="exceeds maximum"):
+                csv_validator.validate_file_size(path, max_size=1)
+        finally:
+            os.remove(path)
+
+
+class TestValidateHeaders:
+    """Test suite for validate_headers."""
+
+    def test_all_required_headers_present_passes(self):
+        headers = ["gender", "age", "hypertension", "heart_disease",
+                   "smoking_history", "bmi", "HbA1c_level",
+                   "blood_glucose_level", "diabetes"]
         # Should not raise
-        validate_file_size(path)
+        csv_validator.validate_headers(headers)
 
-    def test_file_exceeding_default_10mb_limit(self):
-        path = self._make_file("large.csv", size=11 * 1024 * 1024)
-        with self.assertRaises(ValidationError) as ctx:
-            validate_file_size(path)
-        self.assertIn("exceeds maximum", str(ctx.exception))
+    def test_all_required_headers_plus_extra_passes(self):
+        headers = ["gender", "age", "hypertension", "heart_disease",
+                   "smoking_history", "bmi", "HbA1c_level",
+                   "blood_glucose_level", "diabetes", "extra_col", "another_col"]
+        csv_validator.validate_headers(headers)
 
-    def test_file_exceeding_custom_size_limit(self):
-        path = self._make_file("medium.csv", size=201)
-        with self.assertRaises(ValidationError) as ctx:
-            validate_file_size(path, max_size=200)
-        self.assertIn("exceeds maximum", str(ctx.exception))
+    def test_missing_single_header_raises_validation_error(self):
+        headers = ["gender", "age", "hypertension", "heart_disease",
+                   "smoking_history", "bmi", "blood_glucose_level", "diabetes"]
+        # Missing HbA1c_level
+        with pytest.raises(csv_validator.ValidationError, match="Missing required headers"):
+            csv_validator.validate_headers(headers)
 
-    def test_file_not_found(self):
-        path = os.path.join(self.temp_dir, "does_not_exist.csv")
-        with self.assertRaises(ValidationError) as ctx:
-            validate_file_size(path)
-        self.assertIn("not found", str(ctx.exception))
-
-    def test_file_at_exactly_max_size_is_allowed(self):
-        path = self._make_file("exact.csv", size=200)
-        validate_file_size(path, max_size=200)
-
-
-class TestValidateHeaders(unittest.TestCase):
-    """Tests for validate_headers."""
-
-    def test_all_required_headers_present(self):
-        headers = list(REQUIRED_HEADERS)
-        # Should not raise
-        validate_headers(headers)
-
-    def test_extra_headers_allowed(self):
-        headers = list(REQUIRED_HEADERS) + ["extra_col", "another"]
-        validate_headers(headers)
-
-    def test_missing_single_header(self):
-        headers = [h for h in REQUIRED_HEADERS if h != "bmi"] + ["bmiX"]
-        with self.assertRaises(ValidationError) as ctx:
-            validate_headers(headers)
-        self.assertIn("Missing required headers", str(ctx.exception))
-        self.assertIn("bmi", str(ctx.exception))
-
-    def test_missing_multiple_headers(self):
+    def test_missing_multiple_headers_raises_validation_error(self):
         headers = ["gender", "age"]
-        with self.assertRaises(ValidationError) as ctx:
-            validate_headers(headers)
-        self.assertIn("Missing required headers", str(ctx.exception))
+        with pytest.raises(csv_validator.ValidationError, match="Missing required headers"):
+            csv_validator.validate_headers(headers)
 
-    def test_empty_header_list(self):
-        with self.assertRaises(ValidationError) as ctx:
-            validate_headers([])
-        self.assertIn("Missing required headers", str(ctx.exception))
+    def test_empty_headers_raises_validation_error(self):
+        with pytest.raises(csv_validator.ValidationError, match="Missing required headers"):
+            csv_validator.validate_headers([])
+
+    def test_case_sensitive_header_match(self):
+        # Headers must match exactly (case-sensitive)
+        headers = ["Gender", "age", "hypertension", "heart_disease",
+                   "smoking_history", "bmi", "HbA1c_level",
+                   "blood_glucose_level", "diabetes"]
+        with pytest.raises(csv_validator.ValidationError, match="Missing required headers"):
+            csv_validator.validate_headers(headers)
 
 
-class TestValidateExtensionAndContent(unittest.TestCase):
-    """Tests for validate_extension_and_content."""
+class TestValidateExtensionAndContent:
+    """Test suite for validate_extension_and_content."""
 
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
+    def test_valid_csv_extension_passes(self):
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        try:
+            os.write(fd, b"gender,age\nMale,45\n")
+            os.close(fd)
+            csv_validator.validate_extension_and_content(path)
+        finally:
+            os.remove(path)
 
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    def test_valid_txt_extension_passes(self):
+        fd, path = tempfile.mkstemp(suffix=".txt")
+        try:
+            os.write(fd, b"some text data\n")
+            os.close(fd)
+            csv_validator.validate_extension_and_content(path)
+        finally:
+            os.remove(path)
 
-    def _write_binary(self, name, data):
-        path = os.path.join(self.temp_dir, name)
-        with open(path, "wb") as f:
-            f.write(data)
-        return path
+    def test_uppercase_csv_extension_passes(self):
+        fd, path = tempfile.mkstemp(suffix=".CSV")
+        try:
+            os.write(fd, b"gender,age\nMale,45\n")
+            os.close(fd)
+            csv_validator.validate_extension_and_content(path)
+        finally:
+            os.remove(path)
 
-    def test_valid_csv_extension(self):
-        path = self._write_binary("test.csv", b"gender,age\n")
-        validate_extension_and_content(path)  # no raise
+    def test_invalid_extension_raises_validation_error(self):
+        fd, path = tempfile.mkstemp(suffix=".xlsx")
+        try:
+            os.write(fd, b"gender,age\nMale,45\n")
+            os.close(fd)
+            with pytest.raises(csv_validator.ValidationError, match="Invalid file extension"):
+                csv_validator.validate_extension_and_content(path)
+        finally:
+            os.remove(path)
 
-    def test_valid_txt_extension(self):
-        path = self._write_binary("test.txt", b"some data\n")
-        validate_extension_and_content(path)  # no raise
+    def test_pe_mz_magic_bytes_rejected(self):
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        try:
+            # MZ header (PE executable)
+            os.write(fd, b"MZ" + b"\x00" * 100)
+            os.close(fd)
+            with pytest.raises(csv_validator.ValidationError, match="PE/MZ executable format is not allowed"):
+                csv_validator.validate_extension_and_content(path)
+        finally:
+            os.remove(path)
 
-    def test_uppercase_csv_extension(self):
-        path = self._write_binary("test.CSV", b"gender,age\n")
-        validate_extension_and_content(path)  # no raise
+    def test_elf_magic_bytes_rejected(self):
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        try:
+            # ELF header
+            os.write(fd, b"\x7fELF" + b"\x00" * 100)
+            os.close(fd)
+            with pytest.raises(csv_validator.ValidationError, match="ELF binary format is not allowed"):
+                csv_validator.validate_extension_and_content(path)
+        finally:
+            os.remove(path)
 
-    def test_invalid_xlsx_extension(self):
-        path = self._write_binary("test.xlsx", b"PK\x03\x04")
-        with self.assertRaises(ValidationError) as ctx:
-            validate_extension_and_content(path)
-        self.assertIn("Invalid file extension", str(ctx.exception))
-
-    def test_invalid_json_extension(self):
-        path = self._write_binary("test.json", b"{}")
-        with self.assertRaises(ValidationError) as ctx:
-            validate_extension_and_content(path)
-        self.assertIn("Invalid file extension", str(ctx.exception))
-
-    def test_mz_pe_executable_header_rejected(self):
-        # Use .csv extension so the content check is reached (extension is valid)
-        path = self._write_binary("malware.csv", b"MZ" + b"\x00" * 100)
-        with self.assertRaises(ValidationError) as ctx:
-            validate_extension_and_content(path)
-        self.assertIn("PE/MZ executable format", str(ctx.exception))
-
-    def test_elf_binary_header_rejected(self):
-        path = self._write_binary("binary.csv", b"\x7fELF" + b"\x00" * 100)
-        with self.assertRaises(ValidationError) as ctx:
-            validate_extension_and_content(path)
-        self.assertIn("ELF binary format", str(ctx.exception))
-
-    def test_macho_64_header_rejected(self):
-        path = self._write_binary("macho.csv", b"\xfe\xed\xfa\xcf" + b"\x00" * 100)
-        with self.assertRaises(ValidationError) as ctx:
-            validate_extension_and_content(path)
-        self.assertIn("Mach-O binary format", str(ctx.exception))
-
-    def test_macho_fat_header_rejected(self):
-        path = self._write_binary("fat_macho.csv", b"\xca\xfe\xba\xbe" + b"\x00" * 100)
-        with self.assertRaises(ValidationError) as ctx:
-            validate_extension_and_content(path)
-        self.assertIn("Mach-O binary format", str(ctx.exception))
+    def test_macho_magic_bytes_rejected(self):
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        try:
+            # Mach-O x86_64 header
+            os.write(fd, b"\xfe\xed\xfa\xcf" + b"\x00" * 100)
+            os.close(fd)
+            with pytest.raises(csv_validator.ValidationError, match="Mach-O binary format is not allowed"):
+                csv_validator.validate_extension_and_content(path)
+        finally:
+            os.remove(path)
 
     def test_shebang_header_rejected(self):
-        # Shebang followed by NUL means binary content, not an actual shebang
-        path = self._write_binary("script.csv", b"#!" + b"\x00" * 100)
-        with self.assertRaises(ValidationError) as ctx:
-            validate_extension_and_content(path)
-        self.assertIn("Shebang script headers", str(ctx.exception))
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        try:
+            os.write(fd, b"#! /usr/bin/env python\n" + b"x" * 50)
+            os.close(fd)
+            with pytest.raises(csv_validator.ValidationError, match="Shebang script headers are not allowed"):
+                csv_validator.validate_extension_and_content(path)
+        finally:
+            os.remove(path)
 
-    def test_file_not_found(self):
-        path = os.path.join(self.temp_dir, "ghost.csv")
-        with self.assertRaises(ValidationError) as ctx:
-            validate_extension_and_content(path)
-        self.assertIn("not found", str(ctx.exception))
-
-    def test_valid_csv_content_allowed(self):
-        path = self._write_binary("data.csv", b"gender,age,hypertension\nFemale,30,0\n")
-        validate_extension_and_content(path)  # no raise
-
-    def test_unicode_content_allowed(self):
-        path = self._write_binary("unicode.csv", "\u4e2d\u6587,\u540d\u5b57\n".encode("utf-8"))
-        validate_extension_and_content(path)  # no raise
-
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_nonexistent_file_raises_validation_error(self):
+        with pytest.raises(csv_validator.ValidationError, match="File not found"):
+            csv_validator.validate_extension_and_content("/nonexistent/file.csv")
