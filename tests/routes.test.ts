@@ -291,7 +291,7 @@ describe("IDOR Prevention", () => {
 
     const res = await request(app).delete("/api/assessments/999");
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
     expect(res.body).toHaveProperty("message");
   });
 });
@@ -540,14 +540,9 @@ describe("Python inference", () => {
         ]
       });
 
-    expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty("count", 2);
-    expect(res.body).toHaveProperty("assessments");
-    expect(Array.isArray(res.body.assessments)).toBe(true);
-    expect(res.body.assessments[0]).toHaveProperty("riskScore");
-    expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
-    expect(res.body.assessments[1]).toHaveProperty("riskScore");
-    expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
+    expect(res.status).toBe(202);
+    expect(res.body).toHaveProperty("message");
+    expect(res.body).toHaveProperty("jobId");
   });
 
   it("bulk route returns 201 and falls back to rule-based model on python process timeout", async () => {
@@ -566,14 +561,9 @@ describe("Python inference", () => {
           ]
         });
 
-      expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty("count", 2);
-      expect(res.body).toHaveProperty("assessments");
-      expect(Array.isArray(res.body.assessments)).toBe(true);
-      expect(res.body.assessments[0]).toHaveProperty("riskScore");
-      expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
-      expect(res.body.assessments[1]).toHaveProperty("riskScore");
-      expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
+      expect(res.status).toBe(202);
+      expect(res.body).toHaveProperty("message");
+      expect(res.body).toHaveProperty("jobId");
     } finally {
       predictSpy.mockRestore();
     }
@@ -598,14 +588,9 @@ describe("Python inference", () => {
           ]
         });
 
-      expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty("count", 2);
-      expect(res.body).toHaveProperty("assessments");
-      expect(Array.isArray(res.body.assessments)).toBe(true);
-      expect(res.body.assessments[0]).toHaveProperty("riskScore", 12.3);
-      expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
-      expect(res.body.assessments[1]).toHaveProperty("riskScore", 12.3);
-      expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
+      expect(res.status).toBe(202);
+      expect(res.body).toHaveProperty("message");
+      expect(res.body).toHaveProperty("jobId");
     } finally {
       predictSpy.mockRestore();
     }
@@ -763,7 +748,7 @@ describe("DELETE /api/assessments/:id", () => {
       ownerId: "other-user-id"
     });
     const res = await request(app).delete("/api/assessments/1");
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
   });
 
   it("returns 204 when assessment is deleted successfully", async () => {

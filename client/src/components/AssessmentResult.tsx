@@ -19,6 +19,7 @@ import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
 import { ClinicalCopilot } from "./ClinicalCopilot";
 import { ClinicalNoteViewer } from "./ClinicalNoteViewer";
 import { ExplainabilityPanel } from "./assessment/ExplainabilityPanel";
+import { CollaborativeNotes } from "./CollaborativeNotes";
 import { PathToImprovement } from "./assessment/PathToImprovement";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
@@ -550,6 +551,10 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               />
 
               <PredictionExplanation explanation={assessment.explanation} view="clinician" />
+              
+              <div className="mt-8">
+                <CollaborativeNotes assessmentId={assessment.id} />
+              </div>
 
               <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
 
