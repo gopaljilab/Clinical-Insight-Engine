@@ -149,7 +149,7 @@
     "bufferutil": "^4.1.0",
     "drizzle-kit": "^0.31.8",
     "esbuild": "^0.28.1",
-    "eslint": "^8.57.0",
+    "eslint": "^10.6.0",
     "eslint-plugin-react": "^7.37.0",
     "jsdom": "^29.1.1",
     "jsonwebtoken": "^9.0.3",
