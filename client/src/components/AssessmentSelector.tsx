@@ -1,3 +1,4 @@
+import React from 'react';
 import { type AssessmentResponse } from "@shared/routes";
 import { formatReadableDate } from "@/utils/dateFormat";
 import { cn } from "@/lib/utils";
@@ -58,3 +59,4 @@ export default function AssessmentSelector({
     </label>
   );
 }
+

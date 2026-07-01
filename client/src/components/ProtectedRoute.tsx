@@ -1,3 +1,4 @@
+import React from 'react';
 import { type ReactNode } from "react";
 import { Redirect } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -29,3 +30,4 @@ export function ProtectedRoute({ children, requireAdmin }: ProtectedRouteProps) 
 
   return <>{children}</>;
 }
+

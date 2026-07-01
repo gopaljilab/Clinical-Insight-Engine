@@ -1,3 +1,4 @@
+import React from 'react';
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
@@ -212,4 +213,5 @@ export function AppLayout({ children }: AppLayoutProps) {
     </div>
   );
 }
+
 

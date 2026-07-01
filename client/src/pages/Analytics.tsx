@@ -1,3 +1,4 @@
+import React from 'react';
 import { useMemo } from "react";
 import { useAnalytics, type CriticalAlert } from "@/hooks/use-analytics";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -186,3 +187,4 @@ export default function Analytics() {
     </AppLayout>
   );
 }
+

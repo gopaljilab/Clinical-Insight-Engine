@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -321,3 +322,4 @@ export default function AdminDashboard() {
     </AppLayout>
   );
 }
+
