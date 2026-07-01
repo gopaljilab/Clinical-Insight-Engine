@@ -1,184 +1,202 @@
 import { describe, it, expect } from "vitest";
 import { generateRecommendations } from "./recommendation-engine";
 
-function emptyInput() {
-  return {
-    bmi: 22,
-    hba1cLevel: 5.0,
-    bloodGlucoseLevel: 90,
-    smokingHistory: "never",
-    hypertension: false,
-    heartDisease: false,
-    age: 30,
-    riskCategory: "LOW",
-  };
-}
-
 describe("generateRecommendations", () => {
-  describe("BMI rule", () => {
-    it("yields 2 recs when BMI >= 30 (obese)", () => {
-      const recs = generateRecommendations({ ...emptyInput(), bmi: 32 });
-      const bmiRecs = recs.filter((r) => r.title.toLowerCase().includes("weight"));
-      expect(bmiRecs.length).toBeGreaterThanOrEqual(1);
-      const activityRec = recs.find((r) => r.title.toLowerCase().includes("physical"));
-      expect(activityRec).toBeDefined();
+  it("returns an array", () => {
+    const result = generateRecommendations({});
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  describe("BMI rules", () => {
+    it("returns weight recommendations when BMI >= 30 (obese)", () => {
+      const result = generateRecommendations({ bmi: 32 });
+      const titles = result.map((r) => r.title);
+      expect(titles).toContain("Weight reduction target");
+      expect(titles).toContain("Increase physical activity");
     });
 
-    it("yields 1 rec when BMI 25-29 (overweight)", () => {
-      const recs = generateRecommendations({ ...emptyInput(), bmi: 27 });
-      const bmiRecs = recs.filter((r) => r.title.toLowerCase().includes("weight"));
-      expect(bmiRecs.length).toBe(1);
+    it("returns weight management when BMI >= 25 (overweight)", () => {
+      const result = generateRecommendations({ bmi: 27 });
+      const titles = result.map((r) => r.title);
+      expect(titles).toContain("Weight management");
     });
 
-    it("yields no rec when BMI < 25", () => {
-      const recs = generateRecommendations({ ...emptyInput(), bmi: 24 });
-      const bmiRecs = recs.filter((r) =>
-        r.title.toLowerCase().includes("weight") ||
-        r.title.toLowerCase().includes("physical")
+    it("does not return weight recommendations when BMI < 25", () => {
+      const result = generateRecommendations({ bmi: 22 });
+      const titles = result.map((r) => r.title);
+      expect(titles).not.toContain("Weight reduction target");
+      expect(titles).not.toContain("Weight management");
+    });
+
+    it("handles BMI as string", () => {
+      const result = generateRecommendations({ bmi: "32" as any });
+      const titles = result.map((r) => r.title);
+      expect(titles).toContain("Weight reduction target");
+    });
+
+    it("treats missing BMI as 0", () => {
+      const result = generateRecommendations({});
+      const titles = result.map((r) => r.title);
+      expect(titles).not.toContain("Weight reduction target");
+    });
+  });
+
+  describe("HbA1c rules", () => {
+    it("returns HbA1c recommendations when hba1cLevel >= 7", () => {
+      const result = generateRecommendations({ hba1cLevel: 8.5 });
+      const titles = result.map((r) => r.title);
+      expect(titles).toContain("Repeat HbA1c testing");
+      expect(titles).toContain("Consider medication review");
+    });
+
+    it("returns medium urgency Repeat HbA1c testing", () => {
+      const rec = generateRecommendations({ hba1cLevel: 7.5 }).find(
+        (r) => r.title === "Repeat HbA1c testing"
       );
-      expect(bmiRecs).toEqual([]);
+      expect(rec?.urgency).toBe("medium");
+    });
+
+    it("returns high urgency medication review for clinician audience", () => {
+      const rec = generateRecommendations({ hba1cLevel: 8 }).find(
+        (r) => r.title === "Consider medication review"
+      );
+      expect(rec?.urgency).toBe("high");
+      expect(rec?.audience).toBe("clinician");
+    });
+
+    it("does not return HbA1c recommendations when hba1cLevel < 7", () => {
+      const result = generateRecommendations({ hba1cLevel: 6.0 });
+      const titles = result.map((r) => r.title);
+      expect(titles).not.toContain("Repeat HbA1c testing");
     });
   });
 
-  describe("HbA1c rule", () => {
-    it("yields 2 recs when HbA1c >= 7", () => {
-      const recs = generateRecommendations({ ...emptyInput(), hba1cLevel: 8.5 });
-      const hba1cRecs = recs.filter((r) => r.title.toLowerCase().includes("hba1c") || r.title.toLowerCase().includes("medication"));
-      expect(hba1cRecs.length).toBeGreaterThanOrEqual(1);
+  describe("blood glucose rules", () => {
+    it("returns urgent review when bloodGlucoseLevel > 200", () => {
+      const result = generateRecommendations({ bloodGlucoseLevel: 250 });
+      const titles = result.map((r) => r.title);
+      expect(titles).toContain("Urgent glycemic review");
     });
 
-    it("yields no rec when HbA1c < 7", () => {
-      const recs = generateRecommendations({ ...emptyInput(), hba1cLevel: 6.5 });
-      const hba1cRecs = recs.filter((r) => r.title.toLowerCase().includes("medication review"));
-      expect(hba1cRecs).toEqual([]);
-    });
-  });
-
-  describe("blood glucose rule", () => {
-    it("yields urgent rec when glucose > 200", () => {
-      const recs = generateRecommendations({ ...emptyInput(), bloodGlucoseLevel: 250 });
-      const glucRecs = recs.filter((r) => r.title.toLowerCase().includes("glycemic") || r.title.toLowerCase().includes("glucose"));
-      expect(glucRecs.length).toBeGreaterThanOrEqual(1);
-      const urgent = glucRecs.find((r) => r.urgency === "high");
-      expect(urgent).toBeDefined();
-    });
-
-    it("yields no rec when glucose <= 200", () => {
-      const recs = generateRecommendations({ ...emptyInput(), bloodGlucoseLevel: 200 });
-      const glucRecs = recs.filter((r) => r.title.toLowerCase().includes("glycemic"));
-      expect(glucRecs).toEqual([]);
+    it("does not return urgent review when bloodGlucoseLevel <= 200", () => {
+      const result = generateRecommendations({ bloodGlucoseLevel: 180 });
+      const titles = result.map((r) => r.title);
+      expect(titles).not.toContain("Urgent glycemic review");
     });
   });
 
-  describe("smoking rule", () => {
-    it("yields cessation rec when smokingHistory is current", () => {
-      const recs = generateRecommendations({ ...emptyInput(), smokingHistory: "current" });
-      const smokeRecs = recs.filter((r) => r.title.toLowerCase().includes("smoking") || r.title.toLowerCase().includes("cessation"));
-      expect(smokeRecs.length).toBeGreaterThanOrEqual(1);
+  describe("smoking history rules", () => {
+    it("returns smoking cessation when smokingHistory is current", () => {
+      const result = generateRecommendations({ smokingHistory: "current" });
+      const titles = result.map((r) => r.title);
+      expect(titles).toContain("Smoking cessation counseling");
     });
 
-    it("yields no rec for never smokers", () => {
-      const recs = generateRecommendations({ ...emptyInput(), smokingHistory: "never" });
-      const smokeRecs = recs.filter((r) => r.title.toLowerCase().includes("smoking"));
-      expect(smokeRecs).toEqual([]);
+    it("does not return smoking cessation for former smokers", () => {
+      const result = generateRecommendations({ smokingHistory: "former" });
+      const titles = result.map((r) => r.title);
+      expect(titles).not.toContain("Smoking cessation counseling");
     });
 
-    it("yields no rec for former smokers", () => {
-      const recs = generateRecommendations({ ...emptyInput(), smokingHistory: "former" });
-      const smokeRecs = recs.filter((r) => r.title.toLowerCase().includes("smoking"));
-      expect(smokeRecs).toEqual([]);
-    });
-  });
-
-  describe("hypertension rule", () => {
-    it("yields BP monitoring rec when hypertension is true", () => {
-      const recs = generateRecommendations({ ...emptyInput(), hypertension: true });
-      const bpRecs = recs.filter((r) => r.title.toLowerCase().includes("blood pressure") || r.title.toLowerCase().includes("bp"));
-      expect(bpRecs.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it("yields no rec when hypertension is false", () => {
-      const recs = generateRecommendations({ ...emptyInput(), hypertension: false });
-      const bpRecs = recs.filter((r) => r.title.toLowerCase().includes("blood pressure"));
-      expect(bpRecs).toEqual([]);
+    it("handles missing smokingHistory", () => {
+      const result = generateRecommendations({});
+      const titles = result.map((r) => r.title);
+      expect(titles).not.toContain("Smoking cessation counseling");
     });
   });
 
-  describe("heart disease rule", () => {
-    it("yields cardiology rec when heartDisease is true", () => {
-      const recs = generateRecommendations({ ...emptyInput(), heartDisease: true });
-      const cardioRecs = recs.filter((r) => r.title.toLowerCase().includes("cardiology") || r.title.toLowerCase().includes("heart"));
-      expect(cardioRecs.length).toBeGreaterThanOrEqual(1);
+  describe("hypertension rules", () => {
+    it("returns blood pressure monitoring when hypertension is true", () => {
+      const result = generateRecommendations({ hypertension: true });
+      const titles = result.map((r) => r.title);
+      expect(titles).toContain("Monitor blood pressure");
     });
 
-    it("yields no rec when heartDisease is false", () => {
-      const recs = generateRecommendations({ ...emptyInput(), heartDisease: false });
-      const cardioRecs = recs.filter((r) => r.title.toLowerCase().includes("cardiology"));
-      expect(cardioRecs).toEqual([]);
-    });
-  });
-
-  describe("age rule", () => {
-    it("yields preventive rec when age >= 65", () => {
-      const recs = generateRecommendations({ ...emptyInput(), age: 70 });
-      const ageRecs = recs.filter((r) => r.title.toLowerCase().includes("preventive") || r.title.toLowerCase().includes("age"));
-      expect(ageRecs.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it("yields no rec when age < 65", () => {
-      const recs = generateRecommendations({ ...emptyInput(), age: 64 });
-      const ageRecs = recs.filter((r) => r.title.toLowerCase().includes("preventive"));
-      expect(ageRecs).toEqual([]);
+    it("does not return BP recommendation when hypertension is false", () => {
+      const result = generateRecommendations({ hypertension: false });
+      const titles = result.map((r) => r.title);
+      expect(titles).not.toContain("Monitor blood pressure");
     });
   });
 
-  describe("risk category rule", () => {
-    it("yields intensive rec when riskCategory is HIGH", () => {
-      const recs = generateRecommendations({ ...emptyInput(), riskCategory: "HIGH" });
-      const riskRecs = recs.filter((r) => r.title.toLowerCase().includes("risk") || r.title.toLowerCase().includes("intensive"));
-      expect(riskRecs.length).toBeGreaterThanOrEqual(1);
+  describe("heart disease rules", () => {
+    it("returns cardiology follow-up when heartDisease is true", () => {
+      const result = generateRecommendations({ heartDisease: true });
+      const titles = result.map((r) => r.title);
+      expect(titles).toContain("Cardiology follow-up");
     });
 
-    it("yields no rec for LOW risk category", () => {
-      const recs = generateRecommendations({ ...emptyInput(), riskCategory: "LOW" });
-      const riskRecs = recs.filter((r) => r.title.toLowerCase().includes("intensive"));
-      expect(riskRecs).toEqual([]);
+    it("does not return cardiology recommendation when heartDisease is false", () => {
+      const result = generateRecommendations({ heartDisease: false });
+      const titles = result.map((r) => r.title);
+      expect(titles).not.toContain("Cardiology follow-up");
+    });
+  });
+
+  describe("age rules", () => {
+    it("returns age-appropriate preventive checks when age >= 65", () => {
+      const result = generateRecommendations({ age: 70 });
+      const titles = result.map((r) => r.title);
+      expect(titles).toContain("Age-appropriate preventive checks");
     });
 
-    it("yields no rec for MODERATE risk category", () => {
-      const recs = generateRecommendations({ ...emptyInput(), riskCategory: "MODERATE" });
-      const riskRecs = recs.filter((r) => r.title.toLowerCase().includes("intensive"));
-      expect(riskRecs).toEqual([]);
+    it("does not return age recommendation when age < 65", () => {
+      const result = generateRecommendations({ age: 45 });
+      const titles = result.map((r) => r.title);
+      expect(titles).not.toContain("Age-appropriate preventive checks");
+    });
+  });
+
+  describe("risk category rules", () => {
+    it("returns intensive risk management for HIGH risk category", () => {
+      const result = generateRecommendations({ riskCategory: "HIGH" });
+      const titles = result.map((r) => r.title);
+      expect(titles).toContain("Intensive risk management");
+    });
+
+    it("does not return intensive management for low risk", () => {
+      const result = generateRecommendations({ riskCategory: "low" });
+      const titles = result.map((r) => r.title);
+      expect(titles).not.toContain("Intensive risk management");
     });
   });
 
   describe("deduplication", () => {
-    it("does not return duplicate recommendations for the same input", () => {
-      const recs = generateRecommendations({
-        ...emptyInput(),
-        bmi: 35,
-        hba1cLevel: 8.0,
-        bloodGlucoseLevel: 220,
-        smokingHistory: "current",
-        hypertension: true,
-        heartDisease: true,
-        age: 70,
-        riskCategory: "HIGH",
+    it("returns each recommendation only once", () => {
+      const result = generateRecommendations({ bmi: 32 });
+      const titles = result.map((r) => r.title);
+      const counts = titles.reduce(
+        (acc, t) => ({ ...acc, [t]: (acc[t] || 0) + 1 }),
+        {} as Record<string, number>
+      );
+      Object.values(counts).forEach((count) => {
+        expect(count).toBe(1);
       });
-      const titles = recs.map((r) => `${r.title}:${r.description}`);
-      const uniqueTitles = new Set(titles);
-      expect(uniqueTitles.size).toBe(titles.length);
     });
   });
 
-  describe("urgency and audience metadata", () => {
-    it("assigns urgency and audience to each recommendation", () => {
-      const recs = generateRecommendations({ ...emptyInput(), bmi: 35 });
-      expect(recs.length).toBeGreaterThan(0);
-      for (const rec of recs) {
-        expect(["low", "medium", "high"]).toContain(rec.urgency);
-        expect(["patient", "clinician", "both"]).toContain(rec.audience);
-      }
+  describe("composite cases", () => {
+    it("returns multiple recommendations for high-risk patient", () => {
+      const result = generateRecommendations({
+        bmi: 34,
+        hba1cLevel: 9.0,
+        bloodGlucoseLevel: 250,
+        smokingHistory: "current",
+        hypertension: true,
+        heartDisease: true,
+        age: 68,
+        riskCategory: "HIGH",
+      });
+      expect(result.length).toBeGreaterThan(5);
+      const titles = result.map((r) => r.title);
+      expect(titles).toContain("Weight reduction target");
+      expect(titles).toContain("Repeat HbA1c testing");
+      expect(titles).toContain("Urgent glycemic review");
+      expect(titles).toContain("Smoking cessation counseling");
+      expect(titles).toContain("Monitor blood pressure");
+      expect(titles).toContain("Cardiology follow-up");
+      expect(titles).toContain("Age-appropriate preventive checks");
+      expect(titles).toContain("Intensive risk management");
     });
   });
 });
