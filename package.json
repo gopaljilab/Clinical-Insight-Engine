@@ -19,7 +19,7 @@
     "docs:generate": "typedoc --options typedoc.json"
   },
   "dependencies": {
-    "@asteasolutions/zod-to-openapi": "^7.3.4",
+    "@asteasolutions/zod-to-openapi": "^8.5.0",
     "@hookform/resolvers": "^5.4.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@radix-ui/react-accordion": "^1.2.4",
