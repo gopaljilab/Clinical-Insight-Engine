@@ -1,12 +1,12 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, FileText, CheckCircle2, TrendingUp, TrendingDown, Info, HeartPulse, Activity, UserCircle, Stethoscope, Eye, Share2, Loader2, Printer, Download, MonitorPlay, Pencil, X, Save } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
+import { AlertCircle, FileText, CheckCircle2, TrendingUp, TrendingDown, Info, HeartPulse, Activity, UserCircle, Stethoscope, Eye, Share2, Loader2, Printer, Download, MonitorPlay, Pencil, X, Save, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { HealthBadges } from "@/components/HealthBadges";
 import { CopySummaryButton } from "@/components/CopySummaryButton";
-import { useAssessments, useWhatIfAuto, useUpdateClinicalNote } from "@/hooks/use-assessments";
+import { useAssessments, useWhatIfAuto, useUpdateClinicalNote, usePatientAssessments } from "@/hooks/use-assessments";
 import { calculateHealthBadges } from "@/utils/healthBadges";
 import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
@@ -129,6 +129,28 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     () => calculateHealthBadges(assessment, assessmentHistory),
     [assessment, assessmentHistory]
   );
+
+  const { data: patientAssessmentsResponse } = usePatientAssessments(assessment.patientName);
+  const patientHistory = useMemo(() => {
+    const history = patientAssessmentsResponse?.pages.flatMap(page => page.data) ?? [];
+    return history.sort((a, b) => new Date(a.createdAt!).getTime() - new Date(b.createdAt!).getTime());
+  }, [patientAssessmentsResponse]);
+
+  const timelineData = useMemo(() => {
+    return patientHistory.map(a => {
+      // Extract interventions from clinicianAdvice or patientAdvice if it's the current one, else standard
+      const interventions = a.prediction?.clinicianAdvice ?? [];
+      const hasIntervention = interventions.length > 0;
+      return {
+        date: new Date(a.createdAt!).toLocaleDateString(),
+        riskScore: Number(a.riskScore).toFixed(1),
+        hba1cLevel: (a as any).hba1cLevel ?? 0,
+        interventions,
+        hasIntervention,
+        riskCategory: a.riskCategory
+      };
+    });
+  }, [patientHistory]);
 
   const factors = normalizeFactors(assessment.factors);
   const totalFactors = Math.max(factors.length, 1);
@@ -543,6 +565,89 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   </ResponsiveContainer>
                 </div>
               </div>
+
+              {/* Longitudinal Risk Tracking Chart */}
+              {timelineData.length > 0 && (
+                <div className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm overflow-hidden">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-primary" /> Longitudinal Patient Risk Tracking
+                    </h3>
+                  </div>
+                  <div className="h-64 sm:h-80 w-full overflow-x-auto">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={timelineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                        <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} dy={10} />
+                        <YAxis yAxisId="left" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} label={{ value: 'Risk Score (%)', angle: -90, position: 'insideLeft', style: { fill: 'hsl(var(--muted-foreground))' } }} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} label={{ value: 'HbA1c', angle: 90, position: 'insideRight', style: { fill: 'hsl(var(--muted-foreground))' } }} />
+                        <Tooltip 
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="bg-popover text-popover-foreground border border-border p-3 rounded-lg shadow-xl text-sm max-w-xs z-50">
+                                  <p className="font-bold mb-2 text-primary">{label}</p>
+                                  <p className="font-semibold flex justify-between gap-4">
+                                    <span>Risk Score:</span>
+                                    <span className={getRiskColor(data.riskCategory)}>{data.riskScore}%</span>
+                                  </p>
+                                  <p className="font-semibold flex justify-between gap-4 mt-1">
+                                    <span>HbA1c Level:</span>
+                                    <span>{data.hba1cLevel}</span>
+                                  </p>
+                                  {data.hasIntervention && (
+                                    <div className="mt-3 pt-3 border-t border-border">
+                                      <p className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-1">Interventions / Recommendations</p>
+                                      <ul className="list-disc pl-4 space-y-1 text-xs">
+                                        {data.interventions.map((intervention: string, i: number) => (
+                                          <li key={i}>{intervention}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                        <Line 
+                          yAxisId="left" 
+                          type="monotone" 
+                          dataKey="riskScore" 
+                          name="Risk Score" 
+                          stroke="#3b82f6" 
+                          strokeWidth={3}
+                          activeDot={{ r: 8 }}
+                          dot={(props: any) => {
+                            const { cx, cy, payload } = props;
+                            if (payload.hasIntervention) {
+                              return (
+                                <svg x={cx - 6} y={cy - 6} width={12} height={12} fill="#ef4444" viewBox="0 0 24 24">
+                                  <circle cx="12" cy="12" r="10" />
+                                </svg>
+                              );
+                            }
+                            return <circle cx={cx} cy={cy} r={4} fill="#3b82f6" />;
+                          }}
+                        />
+                        <Line 
+                          yAxisId="right" 
+                          type="monotone" 
+                          dataKey="hba1cLevel" 
+                          name="HbA1c" 
+                          stroke="#8b5cf6" 
+                          strokeDasharray="5 5" 
+                          strokeWidth={2}
+                          dot={{ r: 3, fill: '#8b5cf6' }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
 
               <ExplainabilityPanel
                 factors={factorBreakdown}
