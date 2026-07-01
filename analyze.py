@@ -179,10 +179,12 @@ class FileLock:
     def __init__(self, filepath):
         self.filepath = filepath
         self.fd = None
+        self._depth = 0
 
     def acquire(self, timeout=LOCK_TIMEOUT):
         if self.fd is not None:
-            return False
+            self._depth += 1
+            return True
 
         end_time = time.time() + timeout
         while True:
@@ -219,6 +221,9 @@ class FileLock:
         return False
 
     def release(self):
+        if self._depth > 0:
+            self._depth -= 1
+            return
         if self.fd is not None:
             try:
                 if sys.platform == "win32":
@@ -471,7 +476,46 @@ def get_model():
 
     from app.ml.security import verify_signature, safe_pickle_load
 
-    if os.path.exists(MODEL_FILE):
+    try:
+        if not verify_signature(MODEL_FILE):
+            raise PermissionError(
+                f"Signature verification failed for: {MODEL_FILE}. "
+                "Refusing to load untrusted model file to prevent Remote Code Execution."
+            )
+        with open(MODEL_FILE, 'rb') as f:
+            model_data = safe_pickle_load(f)
+        if isinstance(model_data, tuple) and len(model_data) >= 3:
+            model, scaler, features = model_data[:3]
+            cached_hash = model_data[3] if len(model_data) >= 4 else None
+            cov_beta = model_data[4] if len(model_data) >= 5 else None
+            cached_mtime = model_data[5] if len(model_data) >= 6 else None
+            cached_size = model_data[6] if len(model_data) >= 7 else None
+
+            if (current_mtime is not None and current_size is not None and
+                cached_mtime == current_mtime and cached_size == current_size and
+                cov_beta is not None):
+                return model, scaler, features, cov_beta
+
+            h = get_current_hash()
+            if h is not None and h == cached_hash and cov_beta is not None:
+                if _acquire_lock():
+                    try:
+                        _atomic_write(MODEL_FILE, (model, scaler, features, h, cov_beta, current_mtime, current_size))
+                    finally:
+                        _release_lock()
+                return model, scaler, features, cov_beta
+
+            print("Dataset has changed. Retraining model...", file=sys.stderr)
+    except (FileNotFoundError, OSError):
+        pass
+    except Exception as e:
+        print(f"Failed to load pre-trained model: {e}", file=sys.stderr)
+
+    if not _acquire_lock():
+        print("Could not acquire lock for model retraining.", file=sys.stderr)
+        return None, None, None, None
+
+    try:
         try:
             if not verify_signature(MODEL_FILE):
                 raise PermissionError(
@@ -481,7 +525,6 @@ def get_model():
             with open(MODEL_FILE, 'rb') as f:
                 model_data = safe_pickle_load(f)
             if isinstance(model_data, tuple) and len(model_data) >= 3:
-                model, scaler, features = model_data[:3]
                 cached_hash = model_data[3] if len(model_data) >= 4 else None
                 cov_beta = model_data[4] if len(model_data) >= 5 else None
                 cached_mtime = model_data[5] if len(model_data) >= 6 else None
@@ -490,52 +533,16 @@ def get_model():
                 if (current_mtime is not None and current_size is not None and
                     cached_mtime == current_mtime and cached_size == current_size and
                     cov_beta is not None):
-                    return model, scaler, features, cov_beta
+                    return model_data[0], model_data[1], model_data[2], cov_beta
 
                 h = get_current_hash()
                 if h is not None and h == cached_hash and cov_beta is not None:
-                    if _acquire_lock():
-                        try:
-                            _atomic_write(MODEL_FILE, (model, scaler, features, h, cov_beta, current_mtime, current_size))
-                        finally:
-                            _release_lock()
-                    return model, scaler, features, cov_beta
-
-                print("Dataset has changed. Retraining model...", file=sys.stderr)
-        except Exception as e:
-            print(f"Failed to load pre-trained model: {e}", file=sys.stderr)
-
-    if not _acquire_lock():
-        print("Could not acquire lock for model retraining.", file=sys.stderr)
-        return None, None, None, None
-
-    try:
-        if os.path.exists(MODEL_FILE):
-            try:
-                if not verify_signature(MODEL_FILE):
-                    raise PermissionError(
-                        f"Signature verification failed for: {MODEL_FILE}. "
-                        "Refusing to load untrusted model file to prevent Remote Code Execution."
-                    )
-                with open(MODEL_FILE, 'rb') as f:
-                    model_data = safe_pickle_load(f)
-                if isinstance(model_data, tuple) and len(model_data) >= 3:
-                    cached_hash = model_data[3] if len(model_data) >= 4 else None
-                    cov_beta = model_data[4] if len(model_data) >= 5 else None
-                    cached_mtime = model_data[5] if len(model_data) >= 6 else None
-                    cached_size = model_data[6] if len(model_data) >= 7 else None
-
-                    if (current_mtime is not None and current_size is not None and
-                        cached_mtime == current_mtime and cached_size == current_size and
-                        cov_beta is not None):
-                        return model_data[0], model_data[1], model_data[2], cov_beta
-
-                    h = get_current_hash()
-                    if h is not None and h == cached_hash and cov_beta is not None:
-                        _atomic_write(MODEL_FILE, (model_data[0], model_data[1], model_data[2], h, cov_beta, current_mtime, current_size))
-                        return model_data[0], model_data[1], model_data[2], cov_beta
-            except Exception:
-                pass
+                    _atomic_write(MODEL_FILE, (model_data[0], model_data[1], model_data[2], h, cov_beta, current_mtime, current_size))
+                    return model_data[0], model_data[1], model_data[2], cov_beta
+        except (FileNotFoundError, OSError):
+            pass
+        except Exception:
+            pass
 
         model, scaler, features, cov_beta = train_model_pipeline()
         if model is not None:
