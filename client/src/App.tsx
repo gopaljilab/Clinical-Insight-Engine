@@ -1,3 +1,4 @@
+import React from 'react';
 import { Suspense } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
@@ -8,7 +9,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import NotFound from "@/pages/not-found";
 import Landing from "./pages/Landing";
-import Dashboard from "./pages/Dashboard";
+import RoleRouter from "./pages/RoleRouter";
 import History from "./pages/History";
 import Analytics from "./pages/Analytics";
 import ImportData from "./pages/ImportData";
@@ -16,6 +17,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import ModelMonitoring from "./pages/ModelMonitoring";
 import ProgressTracking from "./pages/ProgressTracking";
 import CounterfactualAnalysis from "./pages/CounterfactualAnalysis";
+import Settings from "./pages/Settings";
 
 import LoginPage from "./pages/LoginPage";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -34,7 +36,7 @@ function Router() {
       <Route path="/" component={Landing} />
       <Route path="/dashboard">
         <ProtectedRoute>
-          <Dashboard />
+          <RoleRouter />
         </ProtectedRoute>
       </Route>
       <Route path="/analytics">
@@ -72,6 +74,11 @@ function Router() {
           <CounterfactualAnalysis />
         </ProtectedRoute>
       </Route>
+      <Route path="/settings">
+        <ProtectedRoute>
+          <Settings />
+        </ProtectedRoute>
+      </Route>
       <Route path="/login" component={LoginPage} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
@@ -100,3 +107,4 @@ function App() {
   );
 }
 export default App;
+

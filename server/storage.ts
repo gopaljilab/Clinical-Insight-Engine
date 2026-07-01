@@ -7,7 +7,7 @@ import type { RiskCategory } from "./validation/searchValidation";
 
 import { UserRepository } from "./repositories/user.repository";
 import { AssessmentRepository } from "./repositories/assessment.repository";
-import { AuditRepository } from "./repositories/audit.repository";
+import { AuditRepository, type AuditLogFilters } from "./repositories/audit.repository";
 import { AnalyticsRepository } from "./repositories/analytics.repository";
 import { ModelVersionRepository } from "./repositories/model-version.repository";
 import { PatientUserRepository } from "./repositories/patient-user.repository";
@@ -55,7 +55,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
   getAllUsers(page: number, limit: number): Promise<{ data: User[]; total: number }>;
-  getLoginAuditLogs(page: number, limit: number): Promise<{ data: typeof loginAuditLogs.$inferSelect[]; total: number }>;
+  getLoginAuditLogs(page: number, limit: number, filters?: AuditLogFilters): Promise<{ data: typeof loginAuditLogs.$inferSelect[]; total: number }>;
   updateUser(id: string, data: Partial<Pick<User, "isActive" | "role">>): Promise<User>;
   getSystemStats(): Promise<{ totalUsers: number; totalAssessments: number; riskDistribution: { category: string; count: number }[]; }>;
   recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }): Promise<void>;
@@ -212,8 +212,8 @@ export class DatabaseStorage implements IStorage {
     return this.userRepository.updateUser(id, data);
   }
 
-  async getLoginAuditLogs(page: number, limit: number) {
-    return this.auditRepository.getLoginAuditLogs(page, limit);
+  async getLoginAuditLogs(page: number, limit: number, filters?: AuditLogFilters) {
+    return this.auditRepository.getLoginAuditLogs(page, limit, filters);
   }
 
   async recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }): Promise<void> {

@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { FileText, ShieldAlert, Sparkles, HelpCircle } from "lucide-react";
@@ -167,3 +168,4 @@ export function ClinicalNoteViewer({ noteText, insights }: ClinicalNoteViewerPro
     </Card>
   );
 }
+
