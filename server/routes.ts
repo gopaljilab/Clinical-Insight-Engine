@@ -5,6 +5,7 @@ import { broadcastNote } from "./socket/notesSocket";
 import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
 import authRouter from "./routes/auth.routes";
+import settingsRouter from "./routes/settings.routes";
 import type { Express } from "express";
 import type { Server } from "http";
 
@@ -13,6 +14,7 @@ import fhirRouter from "./routes/fhir.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { logger } from "./logger";
+import { reportScheduler } from "./services/report-scheduler";
 import {
   generalLimiter,
   adminLimiter,
@@ -194,6 +196,10 @@ export async function registerRoutes(
   // Mount auth router
   app.use("/api/auth", authRouter);
   app.use("/api/ingest", fhirRouter);
+  app.use("/api/settings", settingsRouter);
+
+  // Initialize the report scheduler
+  reportScheduler.init();
   app.post(
     api.assessments.preview.path,
     requireAuth,

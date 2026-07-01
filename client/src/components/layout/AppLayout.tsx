@@ -4,7 +4,7 @@ import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "@/lib/queryClient";
 import { ApiClient } from "@/lib/apiClient";
-import { Activity, ClipboardList, HeartPulse, LogOut, PieChart, TrendingUp, UploadCloud, User, GitCompare } from "lucide-react";
+import { Activity, ClipboardList, HeartPulse, LogOut, PieChart, TrendingUp, UploadCloud, User, GitCompare, Settings as SettingsIcon } from "lucide-react";
 import ThemeToggle from "../ThemeToggle";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useToast } from "@/hooks/use-toast";
@@ -96,6 +96,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { href: "/import", label: t("nav.bulkImport"), icon: UploadCloud },
     { href: "/progress", label: t("nav.progressTracking"), icon: TrendingUp },
     { href: "/counterfactual-analysis", label: "Counterfactual Analysis", icon: GitCompare },
+    { href: "/settings", label: "Settings", icon: SettingsIcon },
   ];
 
   if (checking) {

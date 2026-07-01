@@ -16,6 +16,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import ModelMonitoring from "./pages/ModelMonitoring";
 import ProgressTracking from "./pages/ProgressTracking";
 import CounterfactualAnalysis from "./pages/CounterfactualAnalysis";
+import Settings from "./pages/Settings";
 
 import LoginPage from "./pages/LoginPage";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -70,6 +71,11 @@ function Router() {
       <Route path="/counterfactual-analysis">
         <ProtectedRoute>
           <CounterfactualAnalysis />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/settings">
+        <ProtectedRoute>
+          <Settings />
         </ProtectedRoute>
       </Route>
       <Route path="/login" component={LoginPage} />

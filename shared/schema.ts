@@ -158,6 +158,7 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").default(false),
   emailVerifiedAt: timestamp("email_verified_at"),
   role: varchar("role", { length: 50 }).default("provider"),
+  reportFrequency: varchar("report_frequency", { length: 20 }).default("none"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
