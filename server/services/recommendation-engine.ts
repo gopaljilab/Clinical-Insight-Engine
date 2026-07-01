@@ -150,6 +150,22 @@ const rules: Rule[] = [
   },
     (a) => {
     const recs: Recommendation[] = [];
+
+    const bmi =
+      typeof a.bmi === "number" ? a.bmi : Number(a.bmi || 0);
+
+    const glucose =
+      typeof a.bloodGlucoseLevel === "number"
+        ? a.bloodGlucoseLevel
+        : Number(a.bloodGlucoseLevel || 0);
+
+    if (bmi >= 25 || glucose >= 140) {
+      recs.push({
+        id: uuidv4(),
+        title: "AI Personalized Diet Plan",
+        description:
+          "Follow a balanced diet rich in vegetables, whole grains, lean protein, and fiber while reducing sugar and processed foods.",
+        urgency: "medium",
     const risk = (a.riskCategory || "").toString().toUpperCase();
 
     if (risk === "HIGH" || risk === "MODERATE") {
@@ -169,6 +185,15 @@ const rules: Rule[] = [
     (a) => {
     const recs: Recommendation[] = [];
 
+    recs.push({
+      id: uuidv4(),
+      title: "Weekly Health Improvement Goal",
+      description:
+        "Complete at least 150 minutes of exercise per week, maintain proper hydration, sleep 7-8 hours, and track body weight.",
+      urgency: "low",
+      audience: "both",
+      checklist: true,
+    });
     const hba1c =
       typeof a.hba1cLevel === "number"
         ? a.hba1cLevel
@@ -191,6 +216,15 @@ const rules: Rule[] = [
     (a) => {
     const recs: Recommendation[] = [];
 
+    const risk =
+      (a.riskCategory || "").toString().toUpperCase();
+
+    if (risk === "HIGH" || risk === "MEDIUM") {
+      recs.push({
+        id: uuidv4(),
+        title: "Diabetes Risk Reduction Milestone",
+        description:
+          "Aim to improve HbA1c levels, maintain a healthy BMI, avoid smoking, and achieve measurable lifestyle improvements over the next 3-6 months.",
     const glucose =
       typeof a.bloodGlucoseLevel === "number"
         ? a.bloodGlucoseLevel
@@ -215,6 +249,9 @@ const rules: Rule[] = [
 
     recs.push({
       id: uuidv4(),
+      title: "Lifestyle Progress Tracking",
+      description:
+        "Monitor daily physical activity, diet quality, blood glucose trends, and weight changes to support long-term diabetes prevention.",
       title: "Medication and Lifestyle Check",
       description:
         "Review medications, maintain a healthy diet, stay physically active, and follow your personalized health plan.",
