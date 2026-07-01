@@ -256,3 +256,14 @@ export const insertUserSchema = createInsertSchema(users).omit({
 });
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export const deadLetterJobs = pgTable("dead_letter_jobs", {
+  id: serial("id").primaryKey(),
+  originalJobId: text("original_job_id"),
+  payload: jsonb("payload").notNull(),
+  errorReason: text("error_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type DeadLetterJob = typeof deadLetterJobs.$inferSelect;
+export type InsertDeadLetterJob = typeof deadLetterJobs.$inferInsert;
