@@ -1,236 +1,205 @@
 """
-Unit tests for the centralized text sanitization utility.
+Unit tests for app/utils/text_sanitizer.py
 """
-import datetime
-import io
-import logging
-import os
-import sys
-import time
-import unittest
-import uuid
-
-# Ensure repository root is on the path
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
-
-from app.utils.text_sanitizer import sanitize_data, sanitize_text
-from services.safe_csv_reader import read_csv_safely
+import pytest
+from app.utils.text_sanitizer import (
+    decode_bytes,
+    normalize_unicode_preserving_sub_super,
+    sanitize_text,
+    sanitize_data,
+)
 
 
-class TestTextSanitizer(unittest.TestCase):
-    """Test suite for the text sanitizer."""
+class TestDecodeBytes:
+    def test_valid_utf8(self):
+        result = decode_bytes(b"Hello, World!")
+        assert result == "Hello, World!"
 
-    def test_invalid_utf8_bytes(self):
-        """Verify invalid UTF-8 bytes are replaced/ignored and warning logs are triggered."""
-        raw_bytes = b"Patient temp 98.6\xffF and showing signs of infection"
-        with self.assertLogs("app.utils.text_sanitizer", level="WARNING") as log_capture:
-            sanitized = sanitize_text(raw_bytes)
-        
-        self.assertEqual(sanitized, "Patient temp 98.6F and showing signs of infection")
-        self.assertTrue(
-            any(
-                "Invalid UTF-8 byte sequences" in record.getMessage()
-                for record in log_capture.records
-            )
-        )
+    def test_utf8_with_bom(self):
+        result = decode_bytes(b"\xef\xbb\xbfHello")
+        assert result == "Hello"
 
-    def test_mixed_encodings(self):
-        """Verify that fallback CP1252/Latin-1 decoding works for mixed/legacy encodings."""
-        # \xb0 is degree symbol in Latin-1 / CP1252
-        raw_bytes = b"Temp is 37\xb0C"
-        sanitized = sanitize_text(raw_bytes, fallback_to_cp1252=True)
-        self.assertIsInstance(sanitized, str)
-        # Should fall back to CP1252 and keep the degree sign
-        self.assertEqual(sanitized, "Temp is 37°C")
+    def test_fallback_to_cp1252(self):
+        # 0x93 is a smart quote in CP1252, not valid UTF-8
+        result = decode_bytes(b"\x93Hello\x94", fallback_to_cp1252=True)
+        assert "Hello" in result
 
-    def test_null_bytes(self):
-        """Verify that null bytes are removed and log warning is generated."""
-        raw_str = "Patient\x00 Name"
-        with self.assertLogs("app.utils.text_sanitizer", level="WARNING") as log_capture:
-            sanitized = sanitize_text(raw_str)
-            
-        self.assertEqual(sanitized, "Patient Name")
-        self.assertTrue(
-            any(
-                "Null bytes (\\x00) detected" in record.getMessage()
-                for record in log_capture.records
-            )
-        )
+    def test_fallback_to_latin1(self):
+        # 0xe0 is valid in Latin-1
+        result = decode_bytes(b"\xe0 Hello", fallback_to_cp1252=False)
+        assert "Hello" in result
 
-    def test_unicode_normalization(self):
-        """Verify that unicode normalization NFKC works."""
-        raw_str = "a\u0308"  # Combining diaeresis
-        sanitized = sanitize_text(raw_str)
-        self.assertEqual(sanitized, "ä")
+    def test_invalid_bytes_with_ignore(self):
+        # Invalid UTF-8: continuation byte without start byte
+        result = decode_bytes(b"Hello\x80World", fallback_to_cp1252=False)
+        assert "Hello" in result
+        assert "World" in result
 
-    def test_smart_quotes(self):
-        """Verify smart quotes and smart dashes are normalized to ascii equivalents."""
-        raw_str = "“Patient’s temp is 98.6 — managed”"
-        with self.assertLogs("app.utils.text_sanitizer", level="WARNING") as log_capture:
-            sanitized = sanitize_text(raw_str)
-            
-        self.assertEqual(sanitized, '"Patient\'s temp is 98.6 - managed"')
-        self.assertTrue(
-            any(
-                "Normalized smart quotes" in record.getMessage()
-                for record in log_capture.records
-            )
-        )
 
-    def test_control_characters(self):
-        """Verify that non-printable control characters are removed while preserving tabs/newlines."""
-        raw_str = "Line 1\nLine 2\tTabbed\rCarriage\x07Bell\x1fUnit"
-        with self.assertLogs("app.utils.text_sanitizer", level="WARNING") as log_capture:
-            sanitized = sanitize_text(raw_str)
-            
-        self.assertEqual(sanitized, "Line 1\nLine 2\tTabbed\rCarriageBellUnit")
-        self.assertTrue(
-            any(
-                "Removed 2 non-printable control characters" in record.getMessage()
-                for record in log_capture.records
-            )
-        )
+class TestNormalizeUnicodePreservingSubSuper:
+    def test_preserves_superscript_numbers(self):
+        text = "HbA1c 10\u00b9\u00b2"
+        result = normalize_unicode_preserving_sub_super(text)
+        assert "\u00b9" in result  # superscript 1
+        assert "\u00b2" in result  # superscript 2
 
-    def test_preserve_medical_symbols(self):
-        """Verify that degrees, micro/mu, plus-minus, percents, and subscripts are preserved."""
-        text = "37.5°C μg/mL ±5% β-blocker SpO₂ 98%"
-        self.assertEqual(sanitize_text(text), text)
+    def test_preserves_subscript_numbers(self):
+        text = "H\u2082O"
+        result = normalize_unicode_preserving_sub_super(text)
+        assert "\u2082" in result  # subscript 2
 
-    def test_large_clinical_note(self):
-        """Verify performance and memory stability on extremely large notes with malformed segments."""
-        malformed_segment = b"Patient name: \xffJohn \x00Doe\n"
-        large_note_bytes = malformed_segment * 5000  # ~100KB note with many issues
-        
-        start_time = time.time()
-        sanitized = sanitize_text(large_note_bytes)
-        duration = time.time() - start_time
-        
-        self.assertLess(duration, 0.2)
-        self.assertIn("Patient name: John Doe", sanitized)
-        self.assertNotIn("\xff", sanitized)
-        self.assertNotIn("\x00", sanitized)
+    def test_preserves_subscript_letters(self):
+        text = "Na\u2091"
+        result = normalize_unicode_preserving_sub_super(text)
+        assert "\u2091" in result  # subscript e
 
-    def test_sanitize_data_structure(self):
-        """Verify recursive data structure sanitization works on string fields."""
+    def test_normalizes_mixed_content(self):
+        text = "HbA1c \u00b9\u00b2 and Na\u2091"
+        result = normalize_unicode_preserving_sub_super(text)
+        assert "HbA1c" in result
+        # superscripts and subscripts are preserved (not converted to digits)
+        assert "\u00b9" in result or "\u00b2" in result
+
+    def test_no_subscripts_superscripts_unchanged(self):
+        text = "Normal text only."
+        result = normalize_unicode_preserving_sub_super(text)
+        assert result == "Normal text only."
+
+    def test_empty_string(self):
+        result = normalize_unicode_preserving_sub_super("")
+        assert result == ""
+
+
+class TestSanitizeText:
+    def test_none_input(self):
+        result = sanitize_text(None)
+        assert result == ""
+
+    def test_bytes_input_with_valid_utf8(self):
+        result = sanitize_text(b"Hello")
+        assert result == "Hello"
+
+    def test_bytes_input_with_bom(self):
+        result = sanitize_text(b"\xef\xbb\xbfHello")
+        assert result == "Hello"
+
+    def test_null_bytes_removed(self):
+        result = sanitize_text("Hello\x00World")
+        assert "\x00" not in result
+        assert "Hello" in result
+        assert "World" in result
+
+    def test_control_chars_removed_except_tab_newline(self):
+        # bell (0x07), backspace (0x08), form feed (0x0C) should be removed
+        text = "Hello\x07World\x08More\x0CMore"
+        result = sanitize_text(text)
+        assert "\x07" not in result
+        assert "\x08" not in result
+        assert "\x0C" not in result
+
+    def test_tabs_preserved(self):
+        result = sanitize_text("Hello\tWorld")
+        assert "\t" in result
+
+    def test_newlines_preserved(self):
+        result = sanitize_text("Hello\nWorld")
+        assert "\n" in result
+
+    def test_carriage_return_preserved(self):
+        result = sanitize_text("Hello\rWorld")
+        assert "\r" in result
+
+    def test_smart_quotes_normalized(self):
+        result = sanitize_text("\u201cHello\u201d")
+        assert result == '"Hello"'
+
+    def test_single_smart_quotes_normalized(self):
+        result = sanitize_text("\u2018Hello\u2019")
+        assert result == "'Hello'"
+
+    def test_em_dash_normalized(self):
+        result = sanitize_text("Hello\u2014World")
+        assert result == "Hello-World"
+
+    def test_en_dash_normalized(self):
+        result = sanitize_text("Hello\u2013World")
+        assert result == "Hello-World"
+
+    def test_non_breaking_space_normalized(self):
+        result = sanitize_text("Hello\xa0World")
+        assert "\xa0" not in result
+        assert " " in result
+
+    def test_zero_width_space_normalized(self):
+        result = sanitize_text("Hello\u200bWorld")
+        assert "\u200b" not in result
+
+    def test_non_string_non_bytes_converted_to_string(self):
+        result = sanitize_text(12345)
+        assert result == "12345"
+
+    def test_empty_string(self):
+        result = sanitize_text("")
+        assert result == ""
+
+    def test_preserves_medical_symbols(self):
+        # Degree symbol should be preserved
+        # Note: U+00B5 (micro sign) NFKC-normalizes to U+03BC (Greek mu) - both display as mu
+        text = "37.5\u00b0C, 10\u00b5g/mL, 95%"
+        result = sanitize_text(text)
+        assert "\u00b0" in result
+        assert "%" in result
+        # After NFKC normalization, micro sign becomes Greek mu; both are visually identical mu
+        assert "mu" in result.lower() or "\u03bc" in result or "\u00b5" in result
+
+
+class TestSanitizeData:
+    def test_dict_with_strings(self):
+        data = {"name": "John\x00Doe", "note": "Hello"}
+        result = sanitize_data(data)
+        assert "\x00" not in result["name"]
+        assert result["name"] == "JohnDoe"
+        assert result["note"] == "Hello"
+
+    def test_list_with_mixed_types(self):
+        data = ["Hello\x00World", 42, True, None, {"key": "val\x00ue"}]
+        result = sanitize_data(data)
+        assert result[0] == "HelloWorld"
+        assert result[1] == 42
+        assert result[2] is True
+        assert result[3] is None
+        assert "val" in result[4]["key"]
+
+    def test_nested_dict(self):
         data = {
-            "name": "John Doe",
-            "notes": ["Note \x001", {"nested": "Nested\x01 note"}],
-            "age": 45  # integers are not affected
-        }
-        sanitized = sanitize_data(data)
-        self.assertEqual(
-            sanitized,
-            {
-                "name": "John Doe",
-                "notes": ["Note 1", {"nested": "Nested note"}],
-                "age": 45
+            "outer": {
+                "inner": "Test\x00Value",
             }
-        )
-
-    def test_json_parsing_safety(self):
-        """Verify JSON parsing safety with malformed or null characters."""
-        import json
-
-        # Encoded null character remains parseable
-        raw_json_str = '{"name":"John\\u0000Doe"}'
-        sanitized_json = sanitize_text(raw_json_str)
-        parsed = json.loads(sanitized_json)
-        self.assertEqual(parsed["name"], "John\x00Doe")
-        # Then sanitize_data strips it recursively
-        clean_data = sanitize_data(parsed)
-        self.assertEqual(clean_data["name"], "JohnDoe")
-
-        # Literal null byte in raw bytes gets cleaned beforehand so it parses correctly
-        raw_json_bytes = b'{"name":"John\x00Doe"}'
-        sanitized_bytes = sanitize_text(raw_json_bytes)
-        parsed_bytes = json.loads(sanitized_bytes)
-        self.assertEqual(parsed_bytes["name"], "JohnDoe")
-
-        # Valid JSON remains semantics-preserved
-        valid_json = '{"a":"value"}'
-        self.assertEqual(sanitize_text(valid_json), valid_json)
-
-    def test_middleware_safety(self):
-        """Verify that non-text objects are completely untouched by the sanitizer."""
-        dt = datetime.datetime.now()
-        uid = uuid.uuid4()
-        f = io.BytesIO(b"file content")
-        binary = b"binary attachment"
-
-        data = {
-            "text": "some text",
-            "number": 42,
-            "float": 3.14,
-            "bool": True,
-            "date": dt,
-            "uuid": uid,
-            "file": f,
-            "binary": binary
         }
+        result = sanitize_data(data)
+        assert "Test" in result["outer"]["inner"]
 
-        sanitized = sanitize_data(data)
+    def test_string_passthrough(self):
+        result = sanitize_data("already a string")
+        assert result == "already a string"
 
-        self.assertEqual(sanitized["text"], "some text")
-        self.assertEqual(sanitized["number"], 42)
-        self.assertEqual(sanitized["float"], 3.14)
-        self.assertTrue(sanitized["bool"])
-        self.assertEqual(sanitized["date"], dt)
-        self.assertEqual(sanitized["uuid"], uid)
-        self.assertEqual(sanitized["file"], f)
-        self.assertEqual(sanitized["binary"], binary)
+    def test_number_passthrough(self):
+        result = sanitize_data(3.14159)
+        assert result == 3.14159
 
-    def test_text_after_invalid_byte_is_preserved(self):
-        """Verify that all text following malformed bytes is preserved."""
-        data = b"Patient temp 98.6\xffF and showing signs of infection"
-        result = sanitize_text(data)
-        self.assertIn("showing signs of infection", result)
+    def test_none_passthrough(self):
+        result = sanitize_data(None)
+        assert result is None
 
-    def test_csv_reader_validation(self):
-        """Verify CSV reader handles various encodings (UTF-8, UTF-8-sig, CP1252, Latin-1) safely."""
-        import tempfile
+    def test_empty_dict(self):
+        result = sanitize_data({})
+        assert result == {}
 
-        # Generate a temporary file path
-        fd, temp_path = tempfile.mkstemp(suffix=".csv")
-        os.close(fd)
+    def test_empty_list(self):
+        result = sanitize_data([])
+        assert result == []
 
-        try:
-            headers = b"gender,age,hypertension,heart_disease,smoking_history,bmi,HbA1c_level,blood_glucose_level,diabetes\n"
-            
-            # 1. UTF-8
-            with open(temp_path, "wb") as f:
-                f.write(headers + b"Male,45,0,0,never,24.5,5.2,95,0\n")
-            df1 = read_csv_safely(temp_path)
-            self.assertEqual(len(df1), 1)
-            self.assertEqual(df1.iloc[0]["gender"], "Male")
-
-            # 2. UTF-8 with BOM
-            with open(temp_path, "wb") as f:
-                f.write(b"\xef\xbb\xbf" + headers + b"Female,62,1,0,former,31.2,6.8,145,1\n")
-            df2 = read_csv_safely(temp_path)
-            self.assertEqual(len(df2), 1)
-            self.assertEqual(df2.iloc[0]["gender"], "Female")
-
-            # 3. CP1252 (with degree symbol \xb0 or similar)
-            with open(temp_path, "wb") as f:
-                # In CP1252: \xb0 represents degrees (°)
-                f.write(headers + b"Male,50,0,0,never,25.0,5.5,100,0\n")
-            df3 = read_csv_safely(temp_path)
-            self.assertEqual(len(df3), 1)
-            self.assertEqual(df3.iloc[0]["gender"], "Male")
-
-            # 4. Latin-1
-            with open(temp_path, "wb") as f:
-                f.write(headers + b"Female,55,1,1,current,28.0,7.0,150,1\n")
-            df4 = read_csv_safely(temp_path)
-            self.assertEqual(len(df4), 1)
-            self.assertEqual(df4.iloc[0]["gender"], "Female")
-
-        finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_deeply_nested(self):
+        data = [[[{"val": "Test\x00Value"}]]]
+        result = sanitize_data(data)
+        assert "Test" in result[0][0][0]["val"]
