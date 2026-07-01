@@ -8,7 +8,7 @@ import { HealthBadges } from "@/components/HealthBadges";
 import { CopySummaryButton } from "@/components/CopySummaryButton";
 import { useAssessments, useWhatIfAuto, useUpdateClinicalNote, usePatientAssessments } from "@/hooks/use-assessments";
 import { calculateHealthBadges } from "@/utils/healthBadges";
-import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
+import { downloadClinicalAssessmentPdf, downloadPatientHandoutPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { Recommendations } from "./Recommendations";
@@ -75,6 +75,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [view, setView] = useState<"patient" | "clinician">("patient");
   const [isPresenting, setIsPresenting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isGeneratingPatientPDF, setIsGeneratingPatientPDF] = useState(false);
   const [pdfError, setPdfError] = useState<string>("");
   const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string }[] | null>(null);
   const [isEditingNote, setIsEditingNote] = useState(false);
@@ -91,6 +92,19 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       setPdfError(t("patientResult.pdfError"));
     } finally {
       setIsGeneratingPDF(false);
+    }
+  };
+
+  const generatePatientPDF = async (factorBreakdown: any[], patientGuidance: string[]) => {
+    setPdfError("");
+    setIsGeneratingPatientPDF(true);
+    try {
+      await downloadPatientHandoutPdf(assessment, factorBreakdown, patientGuidance, t);
+    } catch (error) {
+      console.error("Patient PDF export failed", error);
+      setPdfError(t("patientResult.pdfError"));
+    } finally {
+      setIsGeneratingPatientPDF(false);
     }
   };
 
@@ -257,15 +271,27 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               <MonitorPlay className="w-3.5 h-3.5" />
               {t("patientResult.present")}
             </button>
-            <button
-              type="button"
-              onClick={generatePDF}
-              disabled={isGeneratingPDF}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 border border-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
-            >
-              {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-              {isGeneratingPDF ? t("patientResult.generating") : t("patientResult.exportOfficial")}
-            </button>
+            {view === "clinician" ? (
+              <button
+                type="button"
+                onClick={generatePDF}
+                disabled={isGeneratingPDF}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 border border-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+              >
+                {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                {isGeneratingPDF ? t("patientResult.generating") : t("patientResult.exportOfficial")}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => generatePatientPDF(factorBreakdown, patientGuidance)}
+                disabled={isGeneratingPatientPDF}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 border border-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+              >
+                {isGeneratingPatientPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                {isGeneratingPatientPDF ? t("patientResult.generating") : (t("patientResult.exportPatientHandout") || "Download Patient PDF")}
+              </button>
+            )}
             <UiTooltip>
               <TooltipTrigger asChild>
                 <div>
