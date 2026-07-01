@@ -360,7 +360,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
-                {patientGuidance.map((item, index) => (
+                {patientGuidance.map((item: string, index: number) => (
                   <div key={item} className="rounded-xl border border-border bg-card p-4 shadow-sm">
                     <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                       {index + 1}
@@ -561,7 +561,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               <div className="rounded-xl border border-border bg-muted/30 p-5">
                 <h3 className="mb-4 font-bold">{t("patientResult.suggestedFollowUp")}</h3>
                 <div className="grid gap-3 md:grid-cols-3">
-                  {clinicianActions.map((action) => (
+                  {clinicianActions.map((action: string) => (
                     <div key={action} className="rounded-lg border border-border bg-card p-4 text-sm leading-6 text-muted-foreground">
                       {action}
                     </div>
@@ -599,7 +599,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   <div className="space-y-3">
                     <Textarea
                       value={editNoteText}
-                      onChange={(e) => setEditNoteText(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditNoteText(e.target.value)}
                       placeholder="Enter clinical notes..."
                       className="min-h-[120px] font-mono text-sm"
                     />
