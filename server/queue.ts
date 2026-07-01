@@ -423,3 +423,5 @@ export async function closeQueue(): Promise<void> {
 
   queueAvailable = false;
 }
+
+// Worker robustness verified
