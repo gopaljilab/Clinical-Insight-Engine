@@ -25,6 +25,21 @@ function getRecommendationIcon(title: string) {
   return <Heart className="w-4 h-4 text-primary" />;
 }
 
+function getTranslatedTitle(title: string, t: (key: string) => string) {
+  const keyMap: Record<string, string> = {
+    "Schedule Follow-up Appointment": "followUpReminders.appointment",
+    "HbA1c Follow-up Test Reminder": "followUpReminders.hba1cTest",
+    "Regular Blood Glucose Monitoring": "followUpReminders.glucoseCheck",
+    "Medication and Lifestyle Check": "followUpReminders.lifestyleReview",
+  };
+
+  return keyMap[title] ? t(keyMap[title]) : title;
+}
+
+function getTranslatedDescription(description: string) {
+  return description;
+}
+
 export function Recommendations({
   recommendations,
   audience = "patient",
@@ -64,7 +79,7 @@ export function Recommendations({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 font-semibold text-foreground">
                   {getRecommendationIcon(rec.title)}
-                  <span>{rec.title}</span>
+                  <span>{getTranslatedTitle(rec.title, t)}</span>
                 </div>
                 {rec.urgency === "high" && (
                   <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">{t("recommendations.high")}</span>
@@ -73,7 +88,9 @@ export function Recommendations({
                   <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">{t("recommendations.med")}</span>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground mt-1">{rec.description}</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {rec.description}
+              </p>
             </div>
           </label>
         ))}

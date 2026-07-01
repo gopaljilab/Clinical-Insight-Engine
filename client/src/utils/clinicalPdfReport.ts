@@ -628,6 +628,28 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
     }
   }
 
+  pdf.sectionTitle("Personalized Health Insights");
+
+const insights = [];
+
+if (assessment.bmi >= 25) {
+  insights.push("Weight management may help reduce diabetes risk.");
+}
+
+if (assessment.hba1cLevel >= 5.7) {
+  insights.push("Maintain regular HbA1c monitoring and glucose control.");
+}
+
+if (assessment.smokingHistory === "current") {
+  insights.push("Smoking cessation can significantly improve long-term health.");
+}
+
+if (insights.length === 0) {
+  insights.push("Maintain your healthy lifestyle and continue regular checkups.");
+}
+
+insights.forEach((item) => pdf.bullet(item));
+
   pdf.text("Clinician Recommendations", MARGIN, { size: 10.5, font: "bold", color: SLATE });
   pdf.moveDown(2);
   clinicianAdvice.forEach((action) => pdf.bullet(action));
@@ -662,6 +684,19 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
   pdf.bullet("This report is intended for clinical decision support and documentation purposes.");
   pdf.bullet("Results should be reviewed by a qualified healthcare provider before any clinical action.");
   pdf.bullet("Repeat assessment after meaningful changes to modifiable risk factors.");
+
+  pdf.sectionTitle("Clinician Notes");
+
+pdf.text(
+  "Additional observations, treatment plans, and follow-up notes can be documented here.",
+  MARGIN,
+  {
+    size: 10,
+    color: MUTED,
+    maxWidth: CONTENT_WIDTH,
+    lineHeight: 14,
+  },
+);
 
   pdf.sectionTitle("Compliance & Versioning");
   pdf.keyValueRows([

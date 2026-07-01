@@ -452,5 +452,28 @@
     "heartDisease": "Prior heart disease is a strong clinical history marker and usually increases baseline cardiovascular risk.",
     "smoking": "Smoking history affects blood vessels and inflammation, so current or past exposure can shift risk upward.",
     "gender": "Sex-linked population patterns can slightly shift the model's baseline risk estimate."
-  }
+  },
+  "patientEducation": {
+  "title": "रोगी स्वास्थ्य शिक्षा",
+  "healthyDiet": "सब्जियों, फलों, साबुत अनाज और कम वसा वाले प्रोटीन से भरपूर संतुलित आहार बनाए रखें।",
+  "physicalActivity": "हर सप्ताह कम से कम 150 मिनट मध्यम स्तर की शारीरिक गतिविधि करें।",
+  "weightManagement": "मधुमेह से संबंधित जटिलताओं को कम करने के लिए स्वस्थ वजन बनाए रखें।",
+  "bloodSugarMonitoring": "नियमित रूप से अपने रक्त शर्करा स्तर की जांच करें और अपने स्वास्थ्य विशेषज्ञ के निर्देशों का पालन करें।",
+  "medicationAdherence": "निर्धारित दवाइयों को नियमित रूप से लें और चिकित्सकीय सलाह के बिना उपचार बंद न करें।",
+  "regularCheckups": "स्वास्थ्य समस्याओं की जल्दी पहचान और रोकथाम के लिए नियमित चिकित्सा जांच कराते रहें।"
+},
+
+"followUpReminders": {
+  "title": "चिकित्सीय अनुवर्ती अनुस्मारक",
+  "appointment": "समय पर अपनी अगली स्वास्थ्य जांच या डॉक्टर की अपॉइंटमेंट निर्धारित करें।",
+  "hba1cTest": "अपने डॉक्टर की सलाह के अनुसार अगली HbA1c जांच कराएं।",
+  "glucoseCheck": "मधुमेह जोखिम की निगरानी के लिए नियमित रूप से रक्त ग्लूकोज की जांच करें।",
+  "lifestyleReview": "अपने आहार, व्यायाम और जीवनशैली लक्ष्यों की समय-समय पर समीक्षा करें।"
+},
+
+"riskExplanation": {
+  "lowRisk": "आपका वर्तमान मधुमेह जोखिम कम है। स्वस्थ जीवनशैली और नियमित स्वास्थ्य जांच जारी रखें।",
+  "moderateRisk": "आपका मधुमेह जोखिम मध्यम है। बेहतर आहार, अधिक शारीरिक गतिविधि और नियमित निगरानी आपके भविष्य के जोखिम को कम करने में मदद कर सकती है।",
+  "highRisk": "आपका मधुमेह जोखिम अधिक है। विस्तृत रोकथाम और प्रबंधन योजना के लिए किसी स्वास्थ्य विशेषज्ञ से परामर्श करें।"
+}
 }
