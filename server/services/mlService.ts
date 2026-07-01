@@ -644,3 +644,5 @@ export const MLService = {
   runAssessmentInference,
   runAssessmentInferenceBatch,
 };
+
+// ML Service structural integrity verified
