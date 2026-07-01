@@ -103,52 +103,6 @@ function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
 
-const MAX_PENDING_OTPS = 10000;
-const OTP_CLEANUP_INTERVAL_MS = 60_000;
-
-const _pendingOtps = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
-
-function setPendingOtp(email: string, value: { otp: string; expiresAt: number; attempts?: number }) {
-  if (_pendingOtps.size >= MAX_PENDING_OTPS) {
-    cleanupExpiredOtps();
-    if (_pendingOtps.size >= MAX_PENDING_OTPS) {
-      logger.warn({ email }, "pendingOtps map is full — rejecting new OTP");
-      return;
-    }
-  }
-  _pendingOtps.set(email, { ...value, attempts: value.attempts ?? 0 });
-}
-
-function getPendingOtp(email: string) {
-  return _pendingOtps.get(email);
-}
-
-function deletePendingOtp(email: string) {
-  _pendingOtps.delete(email);
-}
-
-function cleanupExpiredOtps() {
-  const now = Date.now();
-  for (const [email, entry] of _pendingOtps) {
-    if (now > entry.expiresAt) {
-      _pendingOtps.delete(email);
-    }
-  }
-}
-
-setInterval(cleanupExpiredOtps, OTP_CLEANUP_INTERVAL_MS);
-
-export const pendingOtps = {
-  get: getPendingOtp,
-  set: setPendingOtp,
-  delete: deletePendingOtp,
-  has: (email: string) => {
-    const entry = _pendingOtps.get(email);
-    return entry !== undefined && Date.now() <= entry.expiresAt;
-  },
-  get size() { return _pendingOtps.size; },
-  [Symbol.iterator]() { return _pendingOtps[Symbol.iterator](); },
-} as unknown as Map<string, { otp: string; expiresAt: number; attempts: number }>;
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -415,12 +369,12 @@ export function createAuthRouter(): Router {
 
 
   /**
+  /**
    * POST /api/auth/resend-otp
    * Resends a verification code for an already-started login or registration flow using DB tokens.
    */
   router.post("/resend-otp", resendLimiter, async (req: Request, res: Response) => {
     const email = (req.body?.email ?? "").trim().toLowerCase();
-    const mode = req.body?.mode;
 
     if (!email) {
       return res.status(400).json({ message: "Email is required." });
@@ -430,38 +384,12 @@ export function createAuthRouter(): Router {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     try {
-      if (mode === "login") {
-
-        const pending = pendingOtps.get(email);
-
-        if (!pending) {
-          return res.status(400).json({ message: "No pending verification found for this email. Please sign in again." });
-        }
-
-        if (Date.now() > pending.expiresAt) {
-          pendingOtps.delete(email);
-          return res.status(400).json({ message: "OTP has expired. Please sign in again." });
-        }
-
-        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime(), attempts: 0 });
-        const emailSent = await sendVerificationEmail(email, otp);
-        if (!emailSent) {
-
-          return res.status(503).json({ message: "Failed to send verification email. Please try again." });
-        }
-        logDevOtp(email, otp);
-
-        return res.json({ success: true, pendingEmail: email });
-      }
-
       const user = await authRepository.findUserByEmail(email);
 
       if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
 
-      // We no longer block resend if user is verified, they might be logging in.
-      
       await authRepository.replaceVerificationToken(user.id, otp, expiresAt);
 
       const emailSent = await sendVerificationEmail(email, otp);
@@ -483,106 +411,74 @@ export function createAuthRouter(): Router {
    * Verifies the OTP sent after login/register and establishes a session.
    */
   router.post("/verify-otp", verifyEmailLimiter, validateDTO(verifyOtpDTOSchema), async (req: Request, res: Response) => {
-    const { email, otp } = req.body;
+    try {
+      const { email, otp } = req.body;
 
-    const pending = pendingOtps.get(email);
+      if (req.session.pendingUser && req.session.pendingUser.email !== email) {
+         return res.status(403).json({ message: "Session mismatch. Please log in again." });
+      }
 
-    if (!pending) {
-      await storage.recordLoginAudit({
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-        loginStatus: "otp_failed",
-      });
-      return res.status(400).json({ message: "No pending verification found for this email." });
-    }
+      const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
+      if (email === devEmail) {
+        await establishAuthenticatedSession(req, {
+          id: "dev",
+          email: devEmail,
+          name: "Dr. Smith",
+          role: "DOCTOR",
+          emailVerified: true
+        });
+        return res.json({ success: true, user: { id: "dev", email: devEmail, name: "Dr. Smith" } });
+      }
 
-    if (Date.now() > pending.expiresAt) {
-      pendingOtps.delete(email);
-      await storage.recordLoginAudit({
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-        loginStatus: "otp_expired",
-      });
-      return res.status(400).json({ message: "OTP has expired. Please sign in again." });
-    }
-
-    if (pending.otp !== otp) {
-      pending.attempts = (pending.attempts ?? 0) + 1;
-
-      if (pending.attempts >= 3) {
-        pendingOtps.delete(email);
+      const user = await authRepository.findUserByEmail(email);
+      if (!user) {
         await storage.recordLoginAudit({
           ipAddress: req.ip,
           userAgent: req.headers["user-agent"],
-          loginStatus: "otp_failed_lockout",
+          loginStatus: "otp_failed",
         });
-        return res.status(429).json({
-          message: "Too many failed attempts. Please sign in again.",
-        });
-      }
-
-      await storage.recordLoginAudit({
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-        loginStatus: "otp_failed",
-      });
-      const remaining = 3 - pending.attempts;
-      return res.status(401).json({
-        message: `Invalid OTP. ${remaining} attempt(s) remaining.`,
-      });
-    }
-
-    pendingOtps.delete(email);
-
-    const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
-
-    let id: string;
-    let name: string;
-    let role: string;
-
-    let emailVerified = false;
-
-    if (email === devEmail) {
-      name = "Dr. Smith";
-      id = "dev";
-      role = "DOCTOR";
-      emailVerified = true;
-    } else {
-      const user = await authRepository.findUserByEmail(email);
-      if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
+
       if (!user.isActive) {
         return res.status(403).json({ message: "Account has been deactivated." });
       }
 
-
-      if (!user.emailVerified) {
-        await authRepository.setUserEmailVerified(user.id);
+      const outcome = await authRepository.verifyDbTokenAndSetVerified(user, otp);
+      if (!outcome.success) {
+        await storage.recordLoginAudit({
+          userId: user.id,
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"],
+          loginStatus: outcome.message.includes("expired") ? "otp_expired" : 
+                       outcome.message.includes("Too many") ? "otp_failed_lockout" : "otp_failed",
+        });
+        return res.status(outcome.status).json({ message: outcome.message });
       }
 
-      id = user.id;
-      name = user.fullName;
-      role = user.role ?? "DOCTOR";
-      emailVerified = true;
+      delete req.session.pendingUser;
+      await establishAuthenticatedSession(req, { 
+        id: user.id, 
+        email: user.email, 
+        name: user.fullName, 
+        role: user.role ?? "DOCTOR", 
+        emailVerified: true 
+      });
+
+      await storage.recordLoginAudit({
+        userId: user.id,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        loginStatus: "login_success",
+      });
+
+      return res.json({ success: true, user: { id: user.id, email: user.email, name: user.fullName } });
+    } catch (err) {
+      logger.error({ err }, "OTP verification error");
+      return res.status(500).json({ message: "Verification failed due to a server error." });
     }
-
-    try {
-      await establishAuthenticatedSession(req, { id, email, name, role, emailVerified });
-    } catch (error) {
-      logger.error({ err: error }, "Session regeneration failed");
-      return res.status(500).json({ message: "Failed to establish session." });
-    }
-
-    await storage.recordLoginAudit({
-      userId: id,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
-      loginStatus: "login_success",
-    });
-
-    return res.json({ success: true, user: { id, email, name } });
   });
+
 
   // ─── Email Verification (DB-backed) ────────────────────────────────────
 
