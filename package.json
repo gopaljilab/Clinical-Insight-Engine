@@ -66,7 +66,7 @@
     "express": "^5.0.1",
     "express-rate-limit": "^8.5.2",
     "express-session": "^1.18.1",
-    "framer-motion": "^11.13.1",
+    "framer-motion": "^12.42.0",
     "helmet": "^8.2.0",
     "html2canvas": "^1.4.1",
     "i18next": "^26.3.1",
