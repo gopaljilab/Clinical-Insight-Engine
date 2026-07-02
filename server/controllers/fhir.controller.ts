@@ -65,8 +65,11 @@ export const handleFhirIngestion = async (req: Request, res: Response) => {
 
     // 3. Convert to internal schema & validate fields
     let assessmentInput;
+    let dateWarnings: any[] = [];
     try {
-      assessmentInput = convertToInternalSchema(parsed);
+      const converted = convertToInternalSchema(parsed);
+      assessmentInput = converted.assessment;
+      dateWarnings = converted.dateWarnings;
     } catch (err: unknown) {
       return res.status(400).json({
         status: "error",
@@ -134,6 +137,24 @@ export const handleFhirIngestion = async (req: Request, res: Response) => {
       insights,
       clinical_note: savedAssessment.clinicalNote || null,
       explainable_insights: savedAssessment.explainableInsights || null,
+      /**
+       * date_warnings — present when one or more dates found in clinical note
+       * text are ambiguous (e.g. "08/10/2022" could be Aug 10 or Oct 8).
+       *
+       * Each entry includes:
+       *   rawMatch            - the raw date string as it appeared in the note
+       *   offset              - character position within the note
+       *   confidence          - 0.3 = ambiguous, 0.7 = single interpretation only
+       *   ambiguous           - true when both MM/DD and DD/MM are valid calendar dates
+       *   warning             - human-readable explanation
+       *   mmddInterpretation  - ISO date if read as MM/DD/YYYY, null if invalid
+       *   ddmmInterpretation  - ISO date if read as DD/MM/YYYY, null if invalid
+       *
+       * An empty array means no date issues were detected.
+       * Dates flagged here should be verified with the clinical team before use
+       * in any patient timeline or disease-progression analysis.
+       */
+      date_warnings: dateWarnings,
     });
 
   } catch (err: unknown) {
