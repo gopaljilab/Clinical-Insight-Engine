@@ -744,6 +744,7 @@ out
         }
       });
 
+      await authRepository.claimPasswordResetToken(token, passwordHash);
       return res.json({ success: true, message: "Password has been reset successfully." });
     } catch (err: any) {
       if (err.statusCode === 400) {
@@ -805,5 +806,4 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
   return res.status(403).json({ message: "Admin access required." });
 }
-
 
