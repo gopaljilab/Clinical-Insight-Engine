@@ -1,9 +1,12 @@
 import { type Request, type Response } from "express";
 import bcrypt from "bcrypt";
+import { randomInt } from "crypto";
 import { z } from "zod";
 import { storage } from "../storage";
 import { logger } from "../logger";
 import { issueToken } from "../services/auth/tokenValidator";
+import { pendingOtps } from "../auth";
+import { sendVerificationEmail } from "../email";
 
 const registerSchema = z.object({
   patientName: z.string().trim().min(1, "Patient name is required"),
@@ -15,6 +18,11 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email("Valid email is required"),
   password: z.string().min(1, "Password is required"),
+});
+
+const verifyOtpSchema = z.object({
+  email: z.string().email("Valid email is required"),
+  otp: z.string().length(6, "OTP must be exactly 6 digits"),
 });
 
 const PATIENT_SESSION_COOKIE = "patient_session";
@@ -56,13 +64,25 @@ export const registerPatient = async (req: Request, res: Response) => {
       passwordHash,
       phone: body.phone ?? null,
       isActive: true,
-      emailVerified: true,
+      emailVerified: false,
     });
-    const token = issueToken(user.id, user.email, "PATIENT", "24h");
-    setPatientSessionCookie(res, token);
+
+    // Generate and store OTP
+    const otp = randomInt(100000, 999999).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+    pendingOtps.set(body.email, { otp, expiresAt, attempts: 0 });
+
+    // Send verification email
+    const emailSent = await sendVerificationEmail(body.email, otp);
+    if (!emailSent) {
+      logger.warn({ email: body.email }, "Failed to send patient verification email");
+    }
+
     return res.status(201).json({
       success: true,
-      user: { id: user.id, patientName: user.patientName, email: user.email },
+      requiresOTP: true,
+      pendingEmail: body.email,
+      message: "OTP sent to email. Verify to complete registration.",
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -83,6 +103,21 @@ export const loginPatient = async (req: Request, res: Response) => {
     if (!user.isActive) {
       return res.status(403).json({ message: "Account is deactivated." });
     }
+    if (!user.emailVerified) {
+      // Resend OTP and direct user to verify
+      const otp = randomInt(100000, 999999).toString();
+      const expiresAt = Date.now() + 10 * 60 * 1000;
+      pendingOtps.set(body.email, { otp, expiresAt, attempts: 0 });
+      const emailSent = await sendVerificationEmail(body.email, otp);
+      if (!emailSent) {
+        logger.warn({ email: body.email }, "Failed to send patient verification email on login");
+      }
+      return res.status(403).json({
+        message: "Email not verified. A verification code has been sent to your email.",
+        requiresOTP: true,
+        pendingEmail: body.email,
+      });
+    }
     const token = issueToken(user.id, user.email, "PATIENT", "24h");
     setPatientSessionCookie(res, token);
     return res.json({
@@ -95,6 +130,61 @@ export const loginPatient = async (req: Request, res: Response) => {
     }
     logger.error({ err }, "Patient login error");
     return res.status(500).json({ message: "Login failed." });
+  }
+};
+
+export const verifyPatientOTP = async (req: Request, res: Response) => {
+  try {
+    const body = verifyOtpSchema.parse(req.body);
+    const pending = pendingOtps.get(body.email);
+
+    if (!pending) {
+      return res.status(400).json({ message: "No pending verification found for this email. Please register or sign in again." });
+    }
+
+    if (Date.now() > pending.expiresAt) {
+      pendingOtps.delete(body.email);
+      return res.status(400).json({ message: "OTP has expired. Please register or sign in again." });
+    }
+
+    if (pending.otp !== body.otp) {
+      pending.attempts = (pending.attempts ?? 0) + 1;
+
+      if (pending.attempts >= 3) {
+        pendingOtps.delete(body.email);
+        return res.status(429).json({
+          message: "Too many failed attempts. Please register or sign in again.",
+        });
+      }
+
+      const remaining = 3 - pending.attempts;
+      return res.status(401).json({
+        message: `Invalid OTP. ${remaining} attempt(s) remaining.`,
+      });
+    }
+
+    // OTP is valid — mark email as verified
+    pendingOtps.delete(body.email);
+    const user = await storage.getPatientUserByEmail(body.email);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    await storage.updatePatientEmailVerified(user.id, true);
+
+    // Issue JWT and set cookie
+    const token = issueToken(user.id, user.email, "PATIENT", "24h");
+    setPatientSessionCookie(res, token);
+
+    return res.json({
+      success: true,
+      user: { id: user.id, patientName: user.patientName, email: user.email },
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ message: err.errors[0].message });
+    }
+    logger.error({ err }, "Patient OTP verification error");
+    return res.status(500).json({ message: "Verification failed." });
   }
 };
 

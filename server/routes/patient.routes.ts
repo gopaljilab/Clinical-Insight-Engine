@@ -4,6 +4,7 @@ import { verifyToken } from "../services/auth/tokenValidator";
 import {
   registerPatient,
   loginPatient,
+  verifyPatientOTP,
   getMe,
   getAssessments,
   getTrends,
@@ -19,6 +20,14 @@ const patientAuthLimiter = rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { error: "Too many attempts. Please try again later." },
+});
+
+const verifyOtpLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many verification attempts. Please try again later." },
 });
 
 function getCookieValue(req: Request, name: string): string | undefined {
@@ -63,6 +72,7 @@ export function requirePatientAuth(req: Request, res: Response, next: NextFuncti
 
 router.post("/auth/register", patientAuthLimiter, registerPatient);
 router.post("/auth/login", patientAuthLimiter, loginPatient);
+router.post("/auth/verify-otp", verifyOtpLimiter, verifyPatientOTP);
 router.post("/auth/logout", (_req: Request, res: Response) => {
   res.clearCookie(PATIENT_SESSION_COOKIE, {
     httpOnly: true,
