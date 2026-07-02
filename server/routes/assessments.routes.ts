@@ -130,6 +130,12 @@ assessmentsRouter.get(
 );
 
 assessmentsRouter.get(
+  "/cohort",
+  requireAuth,
+  getCohortStats
+);
+
+assessmentsRouter.get(
   "/:id",
   requireAuth,
   requireVerified,
@@ -196,10 +202,5 @@ assessmentsRouter.delete(
   deleteAssessment
 );
 
-assessmentsRouter.get(
-  "/cohort",
-  requireAuth,
-  getCohortStats
-);
 
 export default assessmentsRouter;
