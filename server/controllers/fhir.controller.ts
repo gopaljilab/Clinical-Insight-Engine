@@ -5,6 +5,47 @@ import { generateRecommendations } from "../services/recommendation-engine";
 import { storage } from "../storage";
 import { logger } from "../logger";
 
+export const parseFhirBundleOnly = async (req: Request, res: Response) => {
+  try {
+    const payload = req.body;
+
+    // 1. Validate FHIR Bundle Structure
+    try {
+      validateFhirBundle(payload);
+    } catch (err: unknown) {
+      return res.status(400).json({
+        status: "error",
+        message: (err as Error).message || "Invalid FHIR payload",
+      });
+    }
+
+    // 2. Parse FHIR Bundle
+    const parsed = parseFhirBundle(payload);
+
+    // 3. Convert to internal schema & validate fields
+    let assessmentInput;
+    try {
+      assessmentInput = convertToInternalSchema(parsed);
+    } catch (err: unknown) {
+      return res.status(400).json({
+        status: "error",
+        message: (err as Error).message || "Validation failed for parsed clinical data",
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      data: assessmentInput,
+    });
+  } catch (err: unknown) {
+    logger.error({ err }, "FHIR parsing failed");
+    return res.status(500).json({
+      status: "error",
+      message: (err as Error).message || "Internal server error during FHIR parsing",
+    });
+  }
+};
+
 export const handleFhirIngestion = async (req: Request, res: Response) => {
   try {
     const payload = req.body;

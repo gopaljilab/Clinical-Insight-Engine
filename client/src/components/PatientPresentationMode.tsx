@@ -1,3 +1,4 @@
+import React from 'react';
 import { useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { X, UserCircle, Target, CheckCircle2, TrendingDown } from "lucide-react";
@@ -145,3 +146,4 @@ export function PatientPresentationMode({ assessment, onClose }: Props) {
     </motion.div>
   );
 }
+

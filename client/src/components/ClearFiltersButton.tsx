@@ -1,3 +1,4 @@
+import React from 'react';
 import { Button } from "@/components/ui/button";
 import { RotateCw } from "lucide-react";
 
@@ -21,3 +22,4 @@ export function ClearFiltersButton({ onClear, disabled }: ClearFiltersButtonProp
     </Button>
   );
 }
+

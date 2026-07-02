@@ -15,6 +15,12 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import pickle
 import gc
 
+try:
+    from fairlearn.metrics import demographic_parity_difference, equalized_odds_difference
+    FAIRLEARN_AVAILABLE = True
+except ImportError:
+    FAIRLEARN_AVAILABLE = False
+
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
 
 LOCK_TIMEOUT = 60
@@ -416,6 +422,29 @@ def train_and_evaluate():
         "dataset_mtime": mtime,
         "dataset_size": size,
     }
+
+    if FAIRLEARN_AVAILABLE and 'gender_Male' in features:
+        try:
+            gender_idx = features.index('gender_Male')
+            sensitive_features_test = X_test[:, gender_idx]
+            dpd = demographic_parity_difference(
+                y_true=y_test,
+                y_pred=y_pred,
+                sensitive_features=sensitive_features_test
+            )
+            eod = equalized_odds_difference(
+                y_true=y_test,
+                y_pred=y_pred,
+                sensitive_features=sensitive_features_test
+            )
+            result["fairness_report"] = {
+                "sensitive_attribute": "gender",
+                "demographic_parity_difference": float(dpd),
+                "equalized_odds_difference": float(eod),
+                "interpretation": "Values closer to 0 indicate better fairness between groups. Higher values denote greater disparity."
+            }
+        except Exception as e:
+            result["fairness_report"] = {"error": f"Failed to compute fairness metrics: {str(e)}"}
 
     # Retrain on full data and save
     scaler_full = StandardScaler()
@@ -1050,6 +1079,8 @@ if __name__ == "__main__":
         model, scaler, features, cov_beta = get_model()
         result = get_counterfactuals(model, scaler, features, data, cov_beta)
         print(json.dumps(result))
+    elif len(sys.argv) > 1 and sys.argv[1] == "train_and_evaluate":
+        train_and_evaluate()
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")

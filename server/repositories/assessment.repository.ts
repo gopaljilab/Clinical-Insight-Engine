@@ -1,6 +1,6 @@
 import { getDb } from "../db";
 import { and, desc, eq, ilike, or, lt, asc, sql, gte, lte, ne, not } from "drizzle-orm";
-import { assessments, type Assessment } from "@shared/schema";
+import { assessments, assessmentNotes, users, type Assessment, type AssessmentNote, type InsertAssessmentNote } from "@shared/schema";
 import type { RiskCategory } from "../validation/searchValidation";
 import type { AssessmentCreateInput } from "../storage";
 import { parseClinicalDate } from "../../shared/dateParser";
@@ -29,6 +29,37 @@ function parseDateFilter(raw: string | undefined): Date | null {
 }
 
 export class AssessmentRepository {
+  async getNotes(assessmentId: number): Promise<(AssessmentNote & { user: { fullName: string } })[]> {
+    const db = getDb();
+    const result = await db
+      .select({
+        note: assessmentNotes,
+        user: { fullName: users.fullName },
+      })
+      .from(assessmentNotes)
+      .innerJoin(users, eq(assessmentNotes.userId, users.id))
+      .where(eq(assessmentNotes.assessmentId, assessmentId))
+      .orderBy(asc(assessmentNotes.createdAt));
+    
+    return result.map(row => ({
+      ...row.note,
+      user: row.user,
+    }));
+  }
+
+  async addNote(note: InsertAssessmentNote): Promise<AssessmentNote & { user: { fullName: string } }> {
+    const db = getDb();
+    const [inserted] = await db.insert(assessmentNotes).values(note).returning();
+    
+    // Fetch the user to return full details
+    const [user] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, note.userId));
+    
+    return {
+      ...inserted,
+      user,
+    };
+  }
+
   async getAssessments(
     limitOrParams?: number | {
       limit?: number;

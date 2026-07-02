@@ -32,6 +32,7 @@ import { EmailConfigurationError, validateEmailConfig } from "./email";
 import { generalLimiter } from "./middleware/rateLimit";
 import { registerOpenApiDocs } from "./openapi";
 import { initAssessmentSocket } from "./socket/assessmentSocket";
+import { initNotesSocket } from "./socket/notesSocket";
 import { rlsContextMiddleware } from "./middleware/rlsContext";
 
 import compression from "compression";
@@ -262,6 +263,7 @@ registerOpenApiDocs(app);
     .then(() => logger.info({ source: "ml" }, "ML model ready."))
     .catch((err: unknown) => logger.warn({ source: "ml" }, `ML warmup warning: ${(err as Error).message}`));
   initAssessmentSocket(httpServer);
+  initNotesSocket(httpServer);
   await registerRoutes(httpServer, app);
 
   // Global error handler — must be the LAST middleware.

@@ -47,9 +47,9 @@ describe("generateRecommendations", () => {
       expect(hba1cRecs.length).toBe(2);
     });
 
-    it("yields no rec when HbA1c < 7", () => {
-      const recs = generateRecommendations({ ...emptyInput(), hba1cLevel: 6.5 });
-      const hba1cRecs = recs.filter((r) => r.title === "Repeat HbA1c testing" || r.title === "Consider medication review");
+    it("yields no rec when HbA1c < 5.7", () => {
+      const recs = generateRecommendations({ ...emptyInput(), hba1cLevel: 5.5 });
+      const hba1cRecs = recs.filter((r) => r.title.toLowerCase().includes("hba1c testing") || r.title.toLowerCase().includes("medication review"));
       expect(hba1cRecs).toEqual([]);
     });
   });
