@@ -105,8 +105,11 @@ export function getPool() {
 
     poolInstance = new Pool({
       connectionString: dbUrl,
-      connectionTimeoutMillis: 5000,
-      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 15000,
+      idleTimeoutMillis: 30000,
+      max: 10,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
       ...(useSSL ? { ssl: { rejectUnauthorized: false } } : {}),
     });
 
