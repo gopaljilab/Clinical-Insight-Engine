@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { ApiClient } from "@/lib/apiClient";
@@ -134,3 +135,4 @@ export default function ResetPassword() {
     </div>
   );
 }
+

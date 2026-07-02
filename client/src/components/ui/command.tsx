@@ -1,3 +1,4 @@
+import React from 'react';
 import * as React from "react"
 import { type DialogProps } from "@radix-ui/react-dialog"
 import { Command as CommandPrimitive } from "cmdk"
@@ -149,3 +150,4 @@ export {
   CommandShortcut,
   CommandSeparator,
 }
+

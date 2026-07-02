@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useCallback, useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -396,3 +397,4 @@ export default function RiskTrends() {
     </AppLayout>
   );
 }
+
