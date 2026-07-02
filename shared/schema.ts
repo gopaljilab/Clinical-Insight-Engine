@@ -132,6 +132,22 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
 export type Assessment = typeof assessments.$inferSelect;
 export type InsertAssessment = z.infer<typeof insertAssessmentSchema>;
 
+export const assessmentNotes = pgTable("assessment_notes", {
+  id: serial("id").primaryKey(),
+  assessmentId: integer("assessment_id").notNull().references(() => assessments.id, { onDelete: 'cascade' }),
+  userId: uuid("user_id").notNull().references(() => users.id), // UUID matches users.id
+  section: text("section").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertAssessmentNoteSchema = createInsertSchema(assessmentNotes).omit({
+  id: true,
+  createdAt: true,
+});
+export type AssessmentNote = typeof assessmentNotes.$inferSelect;
+export type InsertAssessmentNote = z.infer<typeof insertAssessmentNoteSchema>;
+
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   fullName: varchar("full_name", { length: 255 }).notNull(),
@@ -142,6 +158,7 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").default(false),
   emailVerifiedAt: timestamp("email_verified_at"),
   role: varchar("role", { length: 50 }).default("provider"),
+  reportFrequency: varchar("report_frequency", { length: 20 }).default("none"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -30,6 +30,9 @@
     "build/",
     "coverage/",
     "node_modules/",
+    "docs/",
+    "attached_assets/",
+    "client/public/",
     "*.config.js",
     "*.config.ts",
     "docs/typedoc/"

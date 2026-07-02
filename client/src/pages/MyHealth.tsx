@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect } from "react";
 import jsPDF from "jspdf";
 import { useLocation } from "wouter";
@@ -48,18 +49,6 @@ interface TrendPoint {
   riskCategory: string;
 }
 
-function getToken(): string | null {
-  return localStorage.getItem("patient_token");
-}
-
-function setToken(token: string) {
-  localStorage.setItem("patient_token", token);
-}
-
-function clearToken() {
-  localStorage.removeItem("patient_token");
-}
-
 function riskColor(category: string): string {
   switch (category) {
     case "HIGH": return "text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-950/50";
@@ -87,34 +76,26 @@ export default function MyHealth() {
   const { t } = useTranslation();
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      navigate("/patient-login");
-      return;
-    }
-    fetchUser(token);
+    fetchUser();
   }, []);
 
-  async function fetchUser(token: string) {
+  async function fetchUser() {
     try {
-      const response = await ApiClient.requestRaw("/api/patient/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await ApiClient.requestRaw("/api/patient/auth/me");
+      if (!response.ok) throw new Error("Unauthorized");
       const data = await response.json();
       setUser(data.user);
-      fetchAssessments(token);
-      fetchTrends(token);
+      fetchAssessments();
+      fetchTrends();
     } catch {
-      clearToken();
       navigate("/patient-login");
     }
   }
 
-  async function fetchAssessments(token: string) {
+  async function fetchAssessments() {
     try {
-      const response = await ApiClient.requestRaw("/api/patient/assessments?limit=50", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await ApiClient.requestRaw("/api/patient/assessments?limit=50");
+      if (!response.ok) throw new Error("Failed");
       const data = await response.json();
       setAssessments(data.data ?? []);
     } catch (err) {
@@ -124,18 +105,20 @@ export default function MyHealth() {
     }
   }
 
-  async function fetchTrends(token: string) {
+  async function fetchTrends() {
     try {
-      const response = await ApiClient.requestRaw("/api/patient/trends", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await ApiClient.requestRaw("/api/patient/trends");
+      if (!response.ok) return;
       const data = await response.json();
       setTrends(data ?? []);
     } catch {}
   }
 
-  function handleLogout() {
-    clearToken();
+  async function handleLogout() {
+    await fetch("/api/patient/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
     navigate("/patient-login");
   }
 
@@ -307,14 +290,11 @@ export default function MyHealth() {
                     icon={FileText}
                     title={t('myHealth.emptyAssessments.title')}
                     description={t('myHealth.emptyAssessments.description')}
-                    actionLabel={t('myHealth.emptyAssessments.actionLabel')}  
+                    actionLabel={t('myHealth.emptyAssessments.actionLabel')}
                     actionOnClick={() => {
-                      const token = getToken();
-                      if (token) {
-                        setLoading(true);
-                        fetchAssessments(token);
-                        fetchTrends(token);
-                      }
+                      setLoading(true);
+                      fetchAssessments();
+                      fetchTrends();
                     }}
                     secondaryActionLabel={t('myHealth.emptyAssessments.secondaryActionLabel')}
                     secondaryActionOnClick={handleLogout}
@@ -370,10 +350,7 @@ export default function MyHealth() {
                     }
                     actionLabel={t('myHealth.emptyTrends.actionLabel')}
                     actionOnClick={() => {
-                      const token = getToken();
-                      if (token) {
-                        fetchTrends(token);
-                      }
+                      fetchTrends();
                     }}
                   />
                 ) : (
@@ -398,3 +375,4 @@ export default function MyHealth() {
     </div>
   );
 }
+

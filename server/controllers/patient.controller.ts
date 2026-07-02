@@ -17,12 +17,25 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+const PATIENT_SESSION_COOKIE = "patient_session";
+const PATIENT_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
 function hashPassword(password: string): string {
   return bcrypt.hashSync(password, 10);
 }
 
 function verifyPassword(password: string, hash: string): boolean {
   return bcrypt.compareSync(password, hash);
+}
+
+function setPatientSessionCookie(res: Response, token: string) {
+  res.cookie(PATIENT_SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: PATIENT_SESSION_MAX_AGE_MS,
+    path: "/",
+  });
 }
 
 export const registerPatient = async (req: Request, res: Response) => {
@@ -46,9 +59,9 @@ export const registerPatient = async (req: Request, res: Response) => {
       emailVerified: true,
     });
     const token = issueToken(user.id, user.email, "PATIENT", "24h");
+    setPatientSessionCookie(res, token);
     return res.status(201).json({
       success: true,
-      token,
       user: { id: user.id, patientName: user.patientName, email: user.email },
     });
   } catch (err) {
@@ -71,9 +84,9 @@ export const loginPatient = async (req: Request, res: Response) => {
       return res.status(403).json({ message: "Account is deactivated." });
     }
     const token = issueToken(user.id, user.email, "PATIENT", "24h");
+    setPatientSessionCookie(res, token);
     return res.json({
       success: true,
-      token,
       user: { id: user.id, patientName: user.patientName, email: user.email },
     });
   } catch (err) {

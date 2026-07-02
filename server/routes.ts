@@ -1,8 +1,11 @@
 import mlRouter from "./routes/ml.routes";
 import exportsRouter from "./routes/exports.routes";
+import { insertAssessmentNoteSchema } from "@shared/schema";
+import { broadcastNote } from "./socket/notesSocket";
 import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
 import authRouter from "./routes/auth.routes";
+import settingsRouter from "./routes/settings.routes";
 import type { Express } from "express";
 import type { Server } from "http";
 
@@ -11,6 +14,7 @@ import fhirRouter from "./routes/fhir.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { logger } from "./logger";
+import { reportScheduler } from "./services/report-scheduler";
 import {
   generalLimiter,
   adminLimiter,
@@ -21,6 +25,7 @@ import { MLService, calculateClinicalFallback, generateRequestFingerprint, type 
 import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
+import { escapeCsvCell } from "./utils/csvSanitizer";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
 import { api } from "@shared/routes";
@@ -191,6 +196,10 @@ export async function registerRoutes(
   // Mount auth router
   app.use("/api/auth", authRouter);
   app.use("/api/ingest", fhirRouter);
+  app.use("/api/settings", settingsRouter);
+
+  // Initialize the report scheduler
+  reportScheduler.init();
   app.post(
     api.assessments.preview.path,
     requireAuth,
@@ -414,63 +423,6 @@ export async function registerRoutes(
     }
   );
 
-  /**
-   * GET /api/assessments/:id
-   *
-   * Fetch a single assessment by numeric ID.
-   * Object-level authorization is enforced explicitly before returning records.
-   */
-  app.get(
-    "/api/assessments/:id",
-    requireAuth,
-    requireVerified,
-    async (req, res) => {
-      try {
-        const paramId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        const id = parseInt(paramId as string, 10);
-
-        if (isNaN(id) || id <= 0) {
-          return res.status(400).json({ message: "Invalid assessment ID." });
-        }
-
-        const user = req.session.user;
-        if (!user) {
-          return res.status(401).json({ message: "Unauthorized" });
-        }
-
-        const assessment = await storage.getAssessmentById(id);
-
-        if (!assessment) {
-          return res.status(404).json({ message: "Assessment not found." });
-        }
-
-        // Object-Level Authorization Check
-        if (!canAccessPatientRecord(user as any, assessment)) {
-          // Log unauthorized access attempt (IDOR/Enumeration attempt)
-          logAccessAttempt(
-            user.id,
-            "Assessment",
-            id,
-            false,
-            "IDOR attempt: User not authorized to access this patient record"
-          );
-          
-          // Return 404 to prevent ID enumeration
-          return res.status(404).json({ message: "Assessment not found." });
-        }
-
-        // Authorized access
-        logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
-        return res.json(assessment);
-
-      } catch (err) {
-        // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
-        logger.error({ err }, "Assessment search error");
-        const { statusCode, message } = sanitizeDatabaseError(err);
-        return res.status(statusCode).json({ message });
-      }
-    }
-  );
   
   // Mount domain-specific routers (after app-level handlers for precedence)
   app.use("/api/assessments", mlRouter);
@@ -499,11 +451,62 @@ export async function registerRoutes(
     try {
       const page = Math.max(1, parseInt(req.query.page as string) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-      const result = await storage.getLoginAuditLogs(page, limit);
+      
+      const filters = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        userId: req.query.userId as string,
+        ipAddress: req.query.ipAddress as string,
+        status: req.query.status as string,
+      };
+
+      const result = await storage.getLoginAuditLogs(page, limit, filters);
       res.json(result);
     } catch (err) {
       logger.error({ err }, "Admin audit logs fetch error:");
       res.status(500).json({ message: "Failed to fetch audit logs." });
+    }
+  });
+
+  app.get("/api/admin/audit-logs/export", requireAuth, requireAdmin, exportLimiter, async (req, res) => {
+    try {
+      const filters = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        userId: req.query.userId as string,
+        ipAddress: req.query.ipAddress as string,
+        status: req.query.status as string,
+      };
+
+      // Fetch all logs matching the filters (limit up to 10000 to prevent OOM)
+      const result = await storage.getLoginAuditLogs(1, 10000, filters);
+      const logs = result.data;
+
+      if (!logs || logs.length === 0) {
+        return res.status(404).json({ message: "No audit logs found to export." });
+      }
+
+      // Generate CSV
+      const headers = ["ID", "Timestamp", "User ID", "IP Address", "User Agent", "Login Status"];
+      const rows = logs.map(log => {
+        return [
+          log.id,
+          log.createdAt?.toISOString() ?? "",
+          log.userId ?? "",
+          log.ipAddress ?? "",
+          log.userAgent ?? "",
+          log.loginStatus ?? ""
+        ].map(escapeCsvCell).join(",");
+      });
+
+      const csvContent = [headers.join(","), ...rows].join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename=audit-logs-export-${new Date().toISOString().split('T')[0]}.csv`);
+      res.send(csvContent);
+    } catch (err) {
+      logger.error({ err }, "Admin audit logs export error:");
+      res.status(500).json({ message: "Failed to export audit logs." });
     }
   });
 

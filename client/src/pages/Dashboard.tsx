@@ -1,3 +1,4 @@
+import React from 'react';
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,10 +9,13 @@ import { EmptyState } from "@/components/EmptyState";
 import { AssessmentResult } from "@/components/AssessmentResult";
 import { BMIClassificationHelper } from "@/components/BMIClassificationHelper";
 import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
-import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UploadCloud, UserCircle, Info, X } from "lucide-react";
+import { Activity, AlertCircle, Clock3, HeartPulse, ShieldCheck, TrendingUp, UploadCloud, UserCircle, Info, X } from "lucide-react";
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
 import { insertAssessmentSchema } from "@shared/schema";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { SmartFhirConnect } from "@/components/SmartFhirConnect";
+import { MedicalLoader } from "@/components/ui/medical-loader";
+import { useToast } from "@/hooks/use-toast";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { ApiClient } from "@/lib/apiClient";
@@ -238,6 +242,19 @@ export default function Dashboard() {
             <p className="text-slate-500 dark:text-slate-400 mt-3 text-lg max-w-2xl leading-8">
               Enter patient details to run the preventive diabetes and cardiovascular risk model.
             </p>
+            <div className="mt-4">
+              <SmartFhirConnect onDataLoaded={(data) => {
+                const allowedKeys = [
+                  "patientName", "gender", "age", "hypertension", "heartDisease",
+                  "smokingHistory", "bmi", "hba1cLevel", "bloodGlucoseLevel",
+                ];
+                Object.entries(data).forEach(([k, v]) => {
+                  if (allowedKeys.includes(k) && v !== undefined && v !== null) {
+                    setValue(k as any, v as any, { shouldDirty: true, shouldValidate: true });
+                  }
+                });
+              }} />
+            </div>
           </div>
 
 <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 lg:min-w-115">
@@ -632,7 +649,7 @@ export default function Dashboard() {
                   >
                     {isPending ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <MedicalLoader type="dna" size="sm" className="w-5 h-5" />
                         Analyzing Data...
                       </>
                     ) : (
@@ -649,7 +666,7 @@ export default function Dashboard() {
             <aside className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
               {isPending ? (
                 <div className="rounded-2xl border border-slate-100 bg-white p-8 shadow-sm shadow-slate-900/3 flex flex-col items-center justify-center min-h-[500px]" aria-live="polite">
-                  <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-6" aria-hidden="true" />
+                  <MedicalLoader type="heartbeat" size="xl" className="mb-6 text-blue-500" aria-hidden="true" />
                   <h2 className="text-2xl font-black text-[#1E293B] mb-3">Analyzing Patient Data...</h2>
                   <p className="text-slate-500 text-center max-w-md mb-10 text-lg">
                     Processing clinical indicators, computing vital correlations, and generating risk prediction.
@@ -756,7 +773,7 @@ export default function Dashboard() {
 
                   {previewPending && (
                     <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <MedicalLoader type="cross" size="sm" className="h-4 w-4" />
                       Updating risk preview...
                     </div>
                   )}
@@ -816,3 +833,4 @@ export default function Dashboard() {
     </ErrorBoundary>
   );
 }
+

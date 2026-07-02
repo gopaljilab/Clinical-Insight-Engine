@@ -1,5 +1,4 @@
-import { clinicalTerminology } from "@/lib/clinicalTerminology";
-import { MedicalTermTooltip } from "@/components/MedicalTermTooltip";
+import React from 'react';
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { FileText, ShieldAlert, Sparkles, HelpCircle } from "lucide-react";
@@ -195,3 +194,4 @@ const renderMedicalTerms = (text: string) => {
     </Card>
   );
 }
+
