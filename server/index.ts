@@ -328,3 +328,19 @@ registerOpenApiDocs(app);
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 })();
+// 1. Handle Unhandled Promise Rejections (e.g. broken async background tasks)
+process.on("unhandledRejection", (reason: any) => {
+  console.error("💥 CRITICAL UNHANDLED REJECTION: Shutting down safely...");
+  console.error(reason?.stack || reason);
+  
+  // Graceful shutdown logic so active clinical requests aren't cut off instantly
+  process.exit(1); 
+});
+
+// 2. Handle Uncaught Synchronous Exceptions (e.g. referencing a non-existent variable)
+process.on("uncaughtException", (err: Error) => {
+  console.error("💥 CRITICAL UNCAUGHT EXCEPTION: Shutting down safely...");
+  console.error(err.stack || err.message);
+  
+  process.exit(1);
+});
