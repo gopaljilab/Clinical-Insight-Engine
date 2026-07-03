@@ -423,6 +423,12 @@ export async function registerRoutes(
     }
   );
 
+  // Mount domain-specific routers to allow static routes (like /cohort) to match before dynamic /:id fallback
+  app.use("/api/assessments", mlRouter);
+  app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", analyticsRouter);
+  app.use("/api/assessments", generalLimiter, assessmentsRouter);
+
   /**
    * GET /api/assessments/:id
    *
@@ -480,83 +486,6 @@ export async function registerRoutes(
       }
     }
   );
-
-  app.get(
-    "/api/assessments/:id/notes",
-    requireAuth,
-    async (req, res) => {
-      try {
-        const id = parseInt(req.params.id as string, 10);
-        if (isNaN(id) || id <= 0) {
-          return res.status(400).json({ message: "Invalid assessment ID." });
-        }
-        
-        const assessment = await storage.getAssessmentById(id);
-        if (!assessment) {
-          return res.status(404).json({ message: "Assessment not found." });
-        }
-        
-        // Ensure user can access
-        if (!canAccessPatientRecord(req.session.user as any, assessment)) {
-          return res.status(404).json({ message: "Assessment not found." });
-        }
-        
-        const notes = await storage.getAssessmentNotes(id);
-        return res.json(notes);
-      } catch (err) {
-        logger.error({ err }, "Error fetching notes");
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    }
-  );
-
-  app.post(
-    "/api/assessments/:id/notes",
-    requireAuth,
-    async (req, res) => {
-      try {
-        const id = parseInt(req.params.id as string, 10);
-        if (isNaN(id) || id <= 0) {
-          return res.status(400).json({ message: "Invalid assessment ID." });
-        }
-        
-        const assessment = await storage.getAssessmentById(id);
-        if (!assessment) {
-          return res.status(404).json({ message: "Assessment not found." });
-        }
-        
-        if (!canAccessPatientRecord(req.session.user as any, assessment)) {
-          return res.status(404).json({ message: "Assessment not found." });
-        }
-        
-        const noteData = insertAssessmentNoteSchema.parse({
-          assessmentId: id,
-          userId: req.session.user!.id,
-          section: req.body.section || "general",
-          content: req.body.content,
-        });
-        
-        const note = await storage.addAssessmentNote(noteData);
-        
-        // Broadcast the new note to connected clients
-        broadcastNote(id, note);
-        
-        return res.status(201).json(note);
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res.status(400).json({ message: err.errors });
-        }
-        logger.error({ err }, "Error adding note");
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    }
-  );
-  
-  // Mount domain-specific routers (after app-level handlers for precedence)
-  app.use("/api/assessments", mlRouter);
-  app.use("/api/assessments", exportsRouter);
-  app.use("/api/assessments", analyticsRouter);
-  app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   // ─── Admin Routes ────────────────────────────────────────────────
 

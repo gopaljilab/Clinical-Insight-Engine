@@ -12,13 +12,12 @@ import { escapeCsvCell } from "./csvSanitizer";
  *   { name: "Jane", age: 38 }
  * ]);
  */
-export function assessmentsToCsv(data: Record<string, any>[]): string {
-  if (!data || data.length === 0) return "";
-  
-  const headers = Object.keys(data[0]);
-  const rows = data.map(row => 
-    headers.map(header => escapeCsvCell(row[header])).join(',')
+export function assessmentsToCsv(data: Record<string, unknown>[]): string {
+  const valid = data.filter(Boolean);
+  if (valid.length === 0) return "";
+  const headers = Object.keys(valid[0]);
+  const rows = valid.map((row) =>
+    headers.map((h) => escapeCsvCell(row[h])).join(",")
   );
-  
-  return [headers.join(','), ...rows].join('\n');
+  return [headers.map(escapeCsvCell).join(","), ...rows].join("\n");
 }

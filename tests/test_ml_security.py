@@ -31,12 +31,13 @@ class TestSafeUnpickler:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(pickle.dumps(arr))
             f.flush()
-            try:
-                with open(f.name, "rb") as fh:
-                    result = safe_pickle_load(fh)
-                assert result.tolist() == [1, 2, 3]
-            finally:
-                os.remove(f.name)
+            f_name = f.name
+        try:
+            with open(f_name, "rb") as fh:
+                result = safe_pickle_load(fh)
+            assert result.tolist() == [1, 2, 3]
+        finally:
+            os.remove(f_name)
 
     def test_blocks_os_module(self):
         """SafeUnpickler rejects pickled os module references (RCE prevention)."""
@@ -77,25 +78,27 @@ class TestSignatureFunctions:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"hello world")
             f.flush()
-            try:
-                sig = compute_signature(f.name)
-                assert isinstance(sig, str)
-                assert len(sig) == 64  # SHA-256 hex length
-                assert all(c in "0123456789abcdef" for c in sig)
-            finally:
-                os.remove(f.name)
+            f_name = f.name
+        try:
+            sig = compute_signature(f_name)
+            assert isinstance(sig, str)
+            assert len(sig) == 64  # SHA-256 hex length
+            assert all(c in "0123456789abcdef" for c in sig)
+        finally:
+            os.remove(f_name)
 
     def test_compute_signature_is_deterministic(self):
         """compute_signature produces the same result for the same file content."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"test content")
             f.flush()
-            try:
-                sig1 = compute_signature(f.name)
-                sig2 = compute_signature(f.name)
-                assert sig1 == sig2
-            finally:
-                os.remove(f.name)
+            f_name = f.name
+        try:
+            sig1 = compute_signature(f_name)
+            sig2 = compute_signature(f_name)
+            assert sig1 == sig2
+        finally:
+            os.remove(f_name)
 
     def test_compute_signature_changes_with_content(self):
         """compute_signature changes when file content changes."""

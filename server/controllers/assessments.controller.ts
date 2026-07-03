@@ -526,7 +526,7 @@ export const deleteAssessment = async (req: Request, res: Response) => {
         false,
         "IDOR attempt: User not authorized to delete this patient record"
       );
-      return res.status(403).json({ message: "Forbidden" });
+      return res.status(404).json({ message: "Assessment not found." });
     }
 
     await storage.deleteAssessment(id);
