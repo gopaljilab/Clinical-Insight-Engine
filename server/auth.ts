@@ -722,6 +722,7 @@ out
     try {
       const db = getDb();
 
+      const tokenHash = createHash("sha256").update(token).digest("hex");
       const passwordHash = hashPassword(newPassword);
 
       await db.transaction(async (tx: any) => {
@@ -730,7 +731,7 @@ out
           .set({ used: true })
           .where(
             and(
-              eq(passwordResetTokens.token, token),
+              eq(passwordResetTokens.token, tokenHash),
               eq(passwordResetTokens.used, false),
               gte(passwordResetTokens.expiresAt, new Date()),
             ),
