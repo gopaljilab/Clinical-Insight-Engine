@@ -1,3 +1,4 @@
+import React from 'react';
 import { AppLayout } from "@/components/layout/AppLayout";
 import type { Assessment, AssessmentFactor } from "@shared/schema";
 import { useAssessments, usePatientAssessments, useClearPatientCache, useDeleteAssessment } from "@/hooks/use-assessments";
@@ -1154,3 +1155,4 @@ export default function History() {
     </AppLayout>
   );
 }
+

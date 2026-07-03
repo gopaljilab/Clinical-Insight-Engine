@@ -57,7 +57,7 @@ uploadRouter.post(
         const parsed = Papa.parse(csvString, { header: true, skipEmptyLines: true });
 
         if (parsed.data.length > 100) {
-          return res.status(400).json({ message: "api.errors.csvLimitExceeded" });
+          return res.status(400).json({ message: "CSV exceeds maximum limit of 100 rows." });
         }
         
         // Phase 1: Validate all rows and collect predictions
@@ -112,7 +112,8 @@ uploadRouter.post(
         }
 
         return res.status(200).json({ 
-          message: "api.messages.importSuccess",
+          message: "Lab results imported successfully",
+          processed,
           imported: created,
           created,
           failed

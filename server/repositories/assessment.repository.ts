@@ -1,10 +1,65 @@
 import { getDb } from "../db";
 import { and, desc, eq, ilike, or, lt, asc, sql, gte, lte, ne, not } from "drizzle-orm";
-import { assessments, type Assessment } from "@shared/schema";
+import { assessments, assessmentNotes, users, type Assessment, type AssessmentNote, type InsertAssessmentNote } from "@shared/schema";
 import type { RiskCategory } from "../validation/searchValidation";
 import type { AssessmentCreateInput } from "../storage";
+import { parseClinicalDate } from "../../shared/dateParser";
+
+/**
+ * Parse a date string for use in DB range filters.
+ *
+ * Uses `parseClinicalDate` to reject or flag ambiguous inputs instead of
+ * silently misinterpreting them via the JS `Date` constructor.
+ *
+ * Returns a `Date` if the string is unambiguous, or `null` if:
+ *   - the format is ambiguous (e.g. "08/10/2022" — could be Aug 10 or Oct 8)
+ *   - the string is invalid
+ *   - the format is not ISO 8601 (we only accept YYYY-MM-DD in query filters
+ *     to prevent locale-dependent behavior)
+ *
+ * Callers that receive `null` should skip the filter or return a 400 error.
+ */
+function parseDateFilter(raw: string | undefined): Date | null {
+  if (!raw) return null;
+  const result = parseClinicalDate(raw.trim());
+  // Only accept fully-confident, unambiguous parses for DB range filters.
+  // Ambiguous or low-confidence inputs must be rejected to avoid wrong queries.
+  if (!result.date || result.confidence < 1.0 || result.ambiguous) return null;
+  return result.date;
+}
 
 export class AssessmentRepository {
+  async getNotes(assessmentId: number): Promise<(AssessmentNote & { user: { fullName: string } })[]> {
+    const db = getDb();
+    const result = await db
+      .select({
+        note: assessmentNotes,
+        user: { fullName: users.fullName },
+      })
+      .from(assessmentNotes)
+      .innerJoin(users, eq(assessmentNotes.userId, users.id))
+      .where(eq(assessmentNotes.assessmentId, assessmentId))
+      .orderBy(asc(assessmentNotes.createdAt));
+    
+    return result.map(row => ({
+      ...row.note,
+      user: row.user,
+    }));
+  }
+
+  async addNote(note: InsertAssessmentNote): Promise<AssessmentNote & { user: { fullName: string } }> {
+    const db = getDb();
+    const [inserted] = await db.insert(assessmentNotes).values(note).returning();
+    
+    // Fetch the user to return full details
+    const [user] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, note.userId));
+    
+    return {
+      ...inserted,
+      user,
+    };
+  }
+
   async getAssessments(
     limitOrParams?: number | {
       limit?: number;
@@ -93,13 +148,16 @@ export class AssessmentRepository {
     }
 
     if (startDate && !isNaN(Date.parse(startDate))) {
-      filters.push(gte(assessments.createdAt, new Date(startDate)));
+      const parsedStart = parseDateFilter(startDate);
+      if (parsedStart) filters.push(gte(assessments.createdAt, parsedStart));
     }
 
     if (endDate && !isNaN(Date.parse(endDate))) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      filters.push(lte(assessments.createdAt, end));
+      const parsedEnd = parseDateFilter(endDate);
+      if (parsedEnd) {
+        parsedEnd.setUTCHours(23, 59, 59, 999);
+        filters.push(lte(assessments.createdAt, parsedEnd));
+      }
     }
 
     if (searchTerm && searchTerm.trim() !== "") {
@@ -394,12 +452,15 @@ export class AssessmentRepository {
       filters.push(eq(assessments.createdBy, createdBy));
     }
     if (startDate && !isNaN(Date.parse(startDate))) {
-      filters.push(gte(assessments.createdAt, new Date(startDate)));
+      const parsedStart = parseDateFilter(startDate);
+      if (parsedStart) filters.push(gte(assessments.createdAt, parsedStart));
     }
     if (endDate && !isNaN(Date.parse(endDate))) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      filters.push(lte(assessments.createdAt, end));
+      const parsedEnd = parseDateFilter(endDate);
+      if (parsedEnd) {
+        parsedEnd.setUTCHours(23, 59, 59, 999);
+        filters.push(lte(assessments.createdAt, parsedEnd));
+      }
     }
     const where = and(...filters);
     const [countResult] = await db
@@ -442,11 +503,12 @@ export class AssessmentRepository {
   async getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string) {
     const db = getDb();
     const filters: any[] = [eq(assessments.patientName, patientName)];
-    if (startDate && !isNaN(Date.parse(startDate))) filters.push(gte(assessments.createdAt, new Date(startDate)));
-    if (endDate && !isNaN(Date.parse(endDate))) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      filters.push(lte(assessments.createdAt, end));
+    const parsedStart = parseDateFilter(startDate);
+    const parsedEnd = parseDateFilter(endDate);
+    if (parsedStart) filters.push(gte(assessments.createdAt, parsedStart));
+    if (parsedEnd) {
+      parsedEnd.setUTCHours(23, 59, 59, 999);
+      filters.push(lte(assessments.createdAt, parsedEnd));
     }
     const where = and(...filters);
 
@@ -538,11 +600,16 @@ export class AssessmentRepository {
     if (params.maxHba1c !== undefined) filters.push(lte(assessments.hba1cLevel, params.maxHba1c));
     if (params.minGlucose !== undefined) filters.push(gte(assessments.bloodGlucoseLevel, params.minGlucose));
     if (params.maxGlucose !== undefined) filters.push(lte(assessments.bloodGlucoseLevel, params.maxGlucose));
-    if (params.startDate && !isNaN(Date.parse(params.startDate))) filters.push(gte(assessments.createdAt, new Date(params.startDate)));
+    if (params.startDate && !isNaN(Date.parse(params.startDate))) {
+      const parsedStart = parseDateFilter(params.startDate);
+      if (parsedStart) filters.push(gte(assessments.createdAt, parsedStart));
+    }
     if (params.endDate && !isNaN(Date.parse(params.endDate))) {
-      const end = new Date(params.endDate);
-      end.setHours(23, 59, 59, 999);
-      filters.push(lte(assessments.createdAt, end));
+      const parsedEnd = parseDateFilter(params.endDate);
+      if (parsedEnd) {
+        parsedEnd.setUTCHours(23, 59, 59, 999);
+        filters.push(lte(assessments.createdAt, parsedEnd));
+      }
     }
 
     const where = filters.length > 0 ? and(...filters) : undefined;
