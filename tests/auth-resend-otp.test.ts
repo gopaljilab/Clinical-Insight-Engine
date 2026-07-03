@@ -3,7 +3,7 @@ import request from "supertest";
 import express from "express";
 import session from "express-session";
 import { eq } from "drizzle-orm";
-import { users } from "../server/db/schema";
+import { users } from "../shared/schema";
 
 vi.mock("express-rate-limit", () => {
   const rateLimit = () => (req: any, res: any, next: any) => next();
@@ -93,10 +93,9 @@ describe("POST /api/auth/resend-otp", () => {
     return request(app)
       .post("/api/auth/resend-otp")
       .send({ email: "noone@clinic.com", mode: "login" })
-      .expect(400)
+      .expect(404)
       .expect((res) => {
-        expect(res.body.message).toMatch(/No pending verification found/i);
-      });
+        expect(res.body.message).toMatch(/User not found/i);      });
   });
 
   it("returns 404 when user is not found in database", async () => {
