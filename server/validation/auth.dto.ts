@@ -28,8 +28,5 @@ export const verifyEmailDTOSchema = z.object({
 
 export const verifyOtpDTOSchema = z.object({
   email: z.string().trim().email("Invalid email format").toLowerCase(),
-  otp: z
-    .string()
-    .length(6, "OTP must be exactly 6 digits")
-    .regex(/^\d{6}$/, "OTP must be a 6-digit number"),
+  otp: z.string().min(1, "OTP is required"),
 });
