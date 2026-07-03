@@ -436,12 +436,69 @@ export async function registerRoutes(
     }
   );
 
-  
-  // Mount domain-specific routers (after app-level handlers for precedence)
+  // Mount domain-specific routers to allow static routes (like /cohort) to match before dynamic /:id fallback
   app.use("/api/assessments", mlRouter);
   app.use("/api/assessments", exportsRouter);
   app.use("/api/assessments", analyticsRouter);
   app.use("/api/assessments", generalLimiter, assessmentsRouter);
+
+  /**
+   * GET /api/assessments/:id
+   *
+   * Fetch a single assessment by numeric ID.
+   * Object-level authorization is enforced explicitly before returning records.
+   */
+  app.get(
+    "/api/assessments/:id",
+    requireAuth,
+    requireVerified,
+    async (req, res) => {
+      try {
+        const paramId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+        const id = parseInt(paramId as string, 10);
+
+        if (isNaN(id) || id <= 0) {
+          return res.status(400).json({ message: "Invalid assessment ID." });
+        }
+
+        const user = req.session.user;
+        if (!user) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const assessment = await storage.getAssessmentById(id);
+
+        if (!assessment) {
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        // Object-Level Authorization Check
+        if (!canAccessPatientRecord(user as any, assessment)) {
+          // Log unauthorized access attempt (IDOR/Enumeration attempt)
+          logAccessAttempt(
+            user.id,
+            "Assessment",
+            id,
+            false,
+            "IDOR attempt: User not authorized to access this patient record"
+          );
+          
+          // Return 404 to prevent ID enumeration
+          return res.status(404).json({ message: "Assessment not found." });
+        }
+
+        // Authorized access
+        logAccessAttempt(user.id, "Assessment", id, true, "Authorized access");
+        return res.json(assessment);
+
+      } catch (err) {
+        // 4. Sanitize DB errors — never expose table names, SQL syntax, or stack traces
+        logger.error({ err }, "Assessment search error");
+        const { statusCode, message } = sanitizeDatabaseError(err);
+        return res.status(statusCode).json({ message });
+      }
+    }
+  );
 
   // ─── Admin Routes ────────────────────────────────────────────────
 

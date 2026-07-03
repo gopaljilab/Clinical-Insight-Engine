@@ -33,7 +33,11 @@ const formSchema = insertAssessmentSchema.pick({
   skinThickness: true,
 });
 
+feature/email-otp-verification
+type FormData = z.output<typeof formSchema>;
+=======
 type AssessmentFormData = z.infer<typeof formSchema>;
+main
 
 const inputClass =
   "w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900 px-4 py-3 text-[#1E293B] dark:text-gray-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-sm outline-none transition-all duration-200 focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-600/20 dark:focus:ring-blue-500/20";
@@ -97,8 +101,13 @@ export default function Dashboard() {
     watch,
     setValue,
     reset,
+feature/email-otp-verification
+  } = useForm({
+      resolver: zodResolver(formSchema),
+=======
   } = useForm<AssessmentFormData>({
     resolver: zodResolver(formSchema) as any,
+ main
     defaultValues: {
       patientName: "",
       hypertension: false,
@@ -122,7 +131,7 @@ export default function Dashboard() {
     });
   };
 
-  const watchedValues = watch();
+  const watchedValues = watch() as FormData;
   const isHypertension = watch("hypertension");
   const isHeartDisease = watch("heartDisease");
 

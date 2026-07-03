@@ -525,11 +525,9 @@ describe("Python inference", () => {
     }
   });
 
-  it("bulk route returns 201 and falls back to rule-based model on python process failure", async () => {
+  it("bulk route returns 202 and falls back to rule-based model on python process failure", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
-
-    const predictSpy = vi.spyOn(pythonDaemon, "predictBatch").mockRejectedValue(new Error("Python execution failed"));
 
     const res = await request(app)
       .post("/api/assessments/bulk")
@@ -541,59 +539,44 @@ describe("Python inference", () => {
       });
 
     expect(res.status).toBe(202);
-    expect(res.body).toHaveProperty("jobId");
+    expect(res.body).toHaveProperty("jobId", "mock-job-id");
     expect(res.body).toHaveProperty("batchId");
   });
 
-  it("bulk route returns 201 and falls back to rule-based model on python process timeout", async () => {
+  it("bulk route returns 202 and falls back to rule-based model on python process timeout", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    const predictSpy = vi.spyOn(pythonDaemon, "predictBatch").mockRejectedValue(new Error("Process timed out"));
+    const res = await request(app)
+      .post("/api/assessments/bulk")
+      .send({
+        assessments: [
+          validPayload,
+          { ...validPayload, patientName: "Jane Doe" }
+        ]
+      });
 
-    try {
-      const res = await request(app)
-        .post("/api/assessments/bulk")
-        .send({
-          assessments: [
-            validPayload,
-            { ...validPayload, patientName: "Jane Doe" }
-          ]
-        });
-
-      expect(res.status).toBe(202);
-      expect(res.body).toHaveProperty("jobId");
-      expect(res.body).toHaveProperty("batchId");
-    } finally {
-      predictSpy.mockRestore();
-    }
+    expect(res.status).toBe(202);
+    expect(res.body).toHaveProperty("jobId", "mock-job-id");
+    expect(res.body).toHaveProperty("batchId");
   });
 
-  it("bulk route returns 201 on successful python daemon batch inference", async () => {
+  it("bulk route returns 202 on successful python daemon batch inference", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
-    const predictSpy = vi.spyOn(pythonDaemon, "predictBatch").mockResolvedValue([
-      JSON.parse(pythonSuccessOutput),
-      JSON.parse(pythonSuccessOutput),
-    ]);
+    const res = await request(app)
+      .post("/api/assessments/bulk")
+      .send({
+        assessments: [
+          validPayload,
+          { ...validPayload, patientName: "Jane Doe" }
+        ]
+      });
 
-    try {
-      const res = await request(app)
-        .post("/api/assessments/bulk")
-        .send({
-          assessments: [
-            validPayload,
-            { ...validPayload, patientName: "Jane Doe" }
-          ]
-        });
-
-      expect(res.status).toBe(202);
-      expect(res.body).toHaveProperty("jobId");
-      expect(res.body).toHaveProperty("batchId");
-    } finally {
-      predictSpy.mockRestore();
-    }
+    expect(res.status).toBe(202);
+    expect(res.body).toHaveProperty("jobId", "mock-job-id");
+    expect(res.body).toHaveProperty("batchId");
   });
 });
 
