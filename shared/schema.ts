@@ -257,3 +257,25 @@ export const insertUserSchema = createInsertSchema(users).omit({
 });
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export const smartGoals = pgTable("smart_goals", {
+  id: serial("id").primaryKey(),
+  assessmentId: integer("assessment_id").notNull().references(() => assessments.id, { onDelete: 'cascade' }),
+  description: text("description").notNull(),
+  targetValue: text("target_value"),
+  dueDate: timestamp("due_date"),
+  reminderDate: timestamp("reminder_date"),
+  clinicianNotes: text("clinician_notes"),
+  patientExplanation: text("patient_explanation"),
+  status: text("status").default("Not Started").notNull(), // 'Not Started', 'In Progress', 'Completed'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertSmartGoalSchema = createInsertSchema(smartGoals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type SmartGoal = typeof smartGoals.$inferSelect;
+export type InsertSmartGoal = z.infer<typeof insertSmartGoalSchema>;

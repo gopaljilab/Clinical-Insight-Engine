@@ -20,6 +20,7 @@ import { ClinicalCopilot } from "./ClinicalCopilot";
 import { ClinicalNoteViewer } from "./ClinicalNoteViewer";
 import { ExplainabilityPanel } from "./assessment/ExplainabilityPanel";
 import { CollaborativeNotes } from "./CollaborativeNotes";
+import { SmartGoalsTracker } from "./SmartGoalsTracker";
 import { PathToImprovement } from "./assessment/PathToImprovement";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
@@ -420,6 +421,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <Recommendations recommendations={assessment.recommendations} audience="patient" />
 
+              <SmartGoalsTracker assessmentId={assessment.id} viewMode="patient" />
+
               <PathToImprovement assessment={assessment} />
               <PredictionExplanation explanation={assessment.explanation} view="patient" />
 
@@ -702,6 +705,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               <div className="mt-4">
                 <Recommendations recommendations={assessment.recommendations} audience="clinician" />
               </div>
+
+              <SmartGoalsTracker assessmentId={assessment.id} viewMode="clinician" />
 
               <ClinicalCopilot assessment={assessment} />
 
