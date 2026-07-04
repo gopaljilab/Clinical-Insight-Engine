@@ -48,9 +48,9 @@ const allowedOrigins = process.env.CORS_ORIGINS
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (browser initial load, Vite HMR, curl)
+    // Reject requests with no Origin header (CSRF protection for clinical PHI endpoints)
     if (!origin) {
-      return callback(null, true);
+      return callback(new Error("Origin header required — requests without Origin are blocked for CSRF protection"), false);
     }
     
     if (allowedOrigins.includes(origin)) {
