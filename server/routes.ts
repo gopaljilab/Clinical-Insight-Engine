@@ -457,12 +457,32 @@ export async function registerRoutes(
   app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
     try {
       const userEmail = req.session.user?.email;
+      
       const cursorStr = req.query.cursor as string;
       const limitStr = req.query.limit as string;
+      const pageStr = req.query.page as string;
+      
       const cursor = cursorStr ? parseInt(cursorStr, 10) : undefined;
       const limit = limitStr ? parseInt(limitStr, 10) : 50;
+      const page = pageStr ? parseInt(pageStr, 10) : 1;
 
-      const assessments = await storage.getAssessments(limit, cursor, userEmail);
+      const params = {
+        limit,
+        page,
+        cursor,
+        createdBy: userEmail,
+        sortBy: req.query.sortBy as string,
+        order: req.query.order as "asc" | "desc",
+        searchTerm: req.query.searchTerm as string,
+        riskCategory: req.query.riskCategory as string,
+        gender: req.query.gender as string,
+        minAge: req.query.minAge ? parseInt(req.query.minAge as string, 10) : undefined,
+        maxAge: req.query.maxAge ? parseInt(req.query.maxAge as string, 10) : undefined,
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+      };
+
+      const assessments = await storage.getAssessments(params);
 
       res.json(assessments);
 
