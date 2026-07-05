@@ -1,4 +1,4 @@
-name: TypeScript and Vitest Tests
+name: Continuous Integration Pipeline
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: ["**"]
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,10 +21,16 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Run TypeScript checks
+      - name: Lint validation
+        run: npm run lint
+
+      - name: TypeScript type validation
         run: npm run check
 
-      - name: Run Vitest test suite
+      - name: Unit testing
         run: npm run test
+
+      - name: Build verification
+        run: npm run build

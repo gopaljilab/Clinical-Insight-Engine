@@ -1,25 +1,31 @@
 import mlRouter from "./routes/ml.routes";
 import exportsRouter from "./routes/exports.routes";
+import { insertAssessmentNoteSchema } from "@shared/schema";
+import { broadcastNote } from "./socket/notesSocket";
 import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
 import authRouter from "./routes/auth.routes";
+import settingsRouter from "./routes/settings.routes";
 import type { Express } from "express";
 import type { Server } from "http";
 
 import assessmentsRouter from "./routes/assessments.routes";
+import fhirRouter from "./routes/fhir.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { logger } from "./logger";
+import { reportScheduler } from "./services/report-scheduler";
 import {
   generalLimiter,
   adminLimiter,
   exportLimiter,
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
-import { MLService, calculateClinicalFallback, generateRequestFingerprint } from "./services/mlService";
-import { getAssessmentQueue, getPythonExecutable } from "./queue";
+import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
+import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
+import { escapeCsvCell } from "./utils/csvSanitizer";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
 import { api } from "@shared/routes";
@@ -189,9 +195,11 @@ export async function registerRoutes(
 
   // Mount auth router
   app.use("/api/auth", authRouter);
-  app.use("/api/assessments", mlRouter);
-  app.use("/api/assessments", exportsRouter);
-  app.use("/api", analyticsRouter);
+  app.use("/api/ingest", fhirRouter);
+  app.use("/api/settings", settingsRouter);
+
+  // Initialize the report scheduler
+  reportScheduler.init();
   app.post(
     api.assessments.preview.path,
     requireAuth,
@@ -211,13 +219,13 @@ export async function registerRoutes(
           confidenceInterval: prediction.confidenceInterval ?? null,
           modelConfidence: prediction.modelConfidence ?? null
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err instanceof z.ZodError) {
           return res.status(400).json({
             message: err.errors[0].message
           });
         }
-        if (err.message?.includes("timed out")) {
+        if ((err as Error).message?.includes("timed out")) {
           return res.status(503).json({
             message: "Clinical assessment preview timed out."
           });
@@ -228,231 +236,21 @@ export async function registerRoutes(
     }
   );
 
-  app.post(
-    api.assessments.simulate.path,
-    requireAuth,
-    requireVerified,
-    previewLimiter,
-    validateDTO(api.assessments.simulate.input),
-    async (req, res) => {
-      const input = api.assessments.simulate.input.parse(req.body);
-      const tempFile = path.join(os.tmpdir(), `${randomUUID()}.json`);
-
-      try {
-        await writeFile(tempFile, JSON.stringify(input));
-
-        let prediction: any;
-        try {
-          const { stdout } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFile],
-            { timeout: 30000 }
-          );
-
-          prediction = JSON.parse(stdout.trim());
-          if (prediction.error) {
-            return res.status(400).json({ message: prediction.error });
-          }
-        } catch (error: any) {
-          if (error.killed || error.signal === "SIGTERM") {
-            return res.status(408).json({ message: "Clinical assessment simulation timed out." });
-          }
-
-          logger.warn(
-            "Python prediction simulation failed, falling back to clinical rule-based model:",
-            error
-          );
-          prediction = calculateClinicalFallback(input);
-        }
-
-        logger.info(
-          `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
-        );
-
-        return res.json({
-          simulatedRisk: prediction.riskScore,
-          riskCategory: prediction.riskCategory,
-          confidence: prediction.modelConfidence ?? null,
-          factorContributions: prediction.factors ?? [],
-        });
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res.status(400).json({ message: err.errors[0].message });
-        }
-        logger.error({ err }, "Error creating assessment simulation");
-        return res.status(500).json({ message: "Internal server error" });
-      } finally {
-        try {
-          await unlink(tempFile);
-        } catch (e) {
-          logger.warn({ e, tempFile }, "Failed to clean up temp file (simulate):");
-        }
-      }
-    }
-  );
-
-  app.post(
-    api.assessments.create.path,
-    requireAuth,
-    requireVerified,
-    assessmentLimiter,
-    async (req, res) => {
-      const userId = req.session.user?.email;
-      if (!userId) {
-        return res.status(401).json({
-          message: "Authentication required.",
-        });
-      }
-
-      let requestFingerprint: string | undefined;
-      let didAdd = false;
-      try {
-        const input = api.assessments.create.input.parse(req.body);
-        requestFingerprint = generateRequestFingerprint(input, userId);
-
-        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
-          return res.status(409).json({ message: "Assessment request is already being processed." });
-        }
-        MLService.activeInferenceRequests.add(requestFingerprint);
-        didAdd = true;
-
-        const queue = getAssessmentQueue();
-        if (!queue) {
-          return res.status(503).json({
-            message: "Assessment queue is temporarily unavailable.",
-          });
-        }
-        const job = await queue.add("predict", {
-          input,
-          userId,
-          requestFingerprint
-        });
-
-        return res.status(202).json({
-          message: "Assessment request accepted and is being processed.",
-          jobId: job.id
-        });
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res.status(400).json({
-            message: err.errors[0].message
-          });
-        }
-        logger.error({ err }, "Error queueing assessment");
-        return res
-          .status(500)
-          .json({ message: "Failed to queue clinical assessment." });
-      } finally {
-        if (didAdd) {
-          MLService.activeInferenceRequests.delete(requestFingerprint!);
-        }
-      }
-    }
-  );
-
   app.get(
-    "/api/assessments/jobs/:id",
+    "/api/queue/health",
     requireAuth,
-    requireVerified,
-    async (req, res) => {
+    requireAdmin,
+    async (_req, res) => {
       try {
-        const jobId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        const queue = getAssessmentQueue();
-        if (!queue) {
-          return res.status(503).json({ message: "Assessment queue is temporarily unavailable." });
-        }
-        const job = await queue.getJob(jobId as string);
-        if (!job) {
-          return res.status(404).json({ message: "Job not found" });
-        }
-        const state = await job.getState();
-        if (state === "completed") {
-          return res.json({ status: "completed", result: job.returnvalue });
-        } else if (state === "failed") {
-          return res.status(500).json({ status: "failed", error: job.failedReason });
-        } else {
-          return res.json({ status: state });
-        }
+        const metrics = await getQueueMetrics();
+        res.json(metrics);
       } catch (err) {
-        return res.status(500).json({ message: "Error fetching job status" });
+        logger.error({ err }, "Error fetching queue health");
+        res.status(500).json({ message: "Failed to fetch queue health" });
       }
     }
   );
 
-  app.post(
-    "/api/assessments/bulk",
-    requireAuth,
-    requireVerified,
-    async (req, res) => {
-      const userId = (req.session.user as any)?.id;
-      if (!userId) {
-        return res.status(401).json({ message: "Authentication required." });
-      }
-
-      const inputSchema = z.array(api.assessments.create.input);
-      let tempFilePath: string | null = null;
-      let requestFingerprint: string | null = null;
-
-      try {
-        const input = inputSchema.parse(req.body.assessments);
-        
-        requestFingerprint = generateRequestFingerprint(input, userId);
-        if (MLService.activeInferenceRequests.has(requestFingerprint)) {
-          return res.status(409).json({ message: "Bulk request already processing." });
-        }
-        MLService.activeInferenceRequests.add(requestFingerprint);
-
-        tempFilePath = path.join(os.tmpdir(), `bulk_${randomUUID()}.json`);
-        await writeFile(tempFilePath, JSON.stringify(input));
-
-        let predictions: any[];
-        try {
-          const { stdout } = await execFileAsync(
-            getPythonExecutable(),
-            [analyzePyPath, "predict_file", tempFilePath],
-            { timeout: 60000, maxBuffer: 50 * 1024 * 1024 }
-          );
-
-          predictions = JSON.parse(stdout.trim());
-          if (!Array.isArray(predictions)) {
-            throw new Error("Expected array of predictions");
-          }
-        } catch (error: any) {
-          predictions = calculateClinicalFallback(input);
-        }
-
-        const createdAssessments = await Promise.all(
-          input.map((assessment, index) => {
-            const prediction = predictions[index];
-            return storage.createAssessment({
-              ...assessment,
-              riskScore: Number(prediction.riskScore),
-              riskCategory: prediction.riskCategory,
-              factors: prediction.factors,
-              confidenceInterval: prediction.confidenceInterval ?? null,
-              modelConfidence: prediction.modelConfidence == null ? undefined : Number(prediction.modelConfidence),
-              createdBy: userId,
-            });
-          })
-        );
-
-        return res.status(201).json({ count: createdAssessments.length, assessments: createdAssessments });
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res.status(400).json({ message: "Invalid bulk input data format. Ensure all rows meet schema requirements." });
-        }
-        logger.error({ err }, "Bulk create error:");
-        return res.status(500).json({ message: "Failed to generate bulk assessments." });
-      } finally {
-        if (tempFilePath) {
-          try { await unlink(tempFilePath); } catch {}
-        }
-        if (requestFingerprint) {
-          MLService.activeInferenceRequests.delete(requestFingerprint);
-        }
-      }
-    }
-  );
 
   app.get(api.assessments.list.path, requireAuth, requireVerified, async (req, res) => {
     try {
@@ -576,8 +374,21 @@ export async function registerRoutes(
     async (req, res) => {
       try {
         const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
-        const userEmail = req.session.user?.email;
-        const result = await storage.getAssessmentsByPatientName(patientName, 100, 0);
+        const user = req.session.user;
+        if (!user) {
+          return res.status(401).json({ message: "Authentication required." });
+        }
+        const result = await storage.getAssessmentsByPatientName(patientName, 100, 0, user.email);
+        if (result.data.length > 0 && !canAccessPatientRecord(user as any, result.data[0] as any)) {
+          logAccessAttempt(
+            user.id,
+            "Assessment",
+            result.data[0].id,
+            false,
+            "IDOR attempt: User not authorized to access patient trends"
+          );
+          return res.status(404).json({ message: "Assessment not found." });
+        }
         return res.json(result);
       } catch (err) {
         logger.error({ err }, "Patient trends fetch error:");
@@ -624,6 +435,12 @@ export async function registerRoutes(
       }
     }
   );
+
+  // Mount domain-specific routers to allow static routes (like /cohort) to match before dynamic /:id fallback
+  app.use("/api/assessments", mlRouter);
+  app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", analyticsRouter);
+  app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   /**
    * GET /api/assessments/:id
@@ -682,11 +499,6 @@ export async function registerRoutes(
       }
     }
   );
-  
-  // Mount domain-specific routers (after app-level handlers for precedence)
-  app.use("/api/assessments", mlRouter);
-  app.use("/api/assessments", exportsRouter);
-  app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   // ─── Admin Routes ────────────────────────────────────────────────
 
@@ -709,11 +521,62 @@ export async function registerRoutes(
     try {
       const page = Math.max(1, parseInt(req.query.page as string) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-      const result = await storage.getLoginAuditLogs(page, limit);
+      
+      const filters = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        userId: req.query.userId as string,
+        ipAddress: req.query.ipAddress as string,
+        status: req.query.status as string,
+      };
+
+      const result = await storage.getLoginAuditLogs(page, limit, filters);
       res.json(result);
     } catch (err) {
       logger.error({ err }, "Admin audit logs fetch error:");
       res.status(500).json({ message: "Failed to fetch audit logs." });
+    }
+  });
+
+  app.get("/api/admin/audit-logs/export", requireAuth, requireAdmin, exportLimiter, async (req, res) => {
+    try {
+      const filters = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        userId: req.query.userId as string,
+        ipAddress: req.query.ipAddress as string,
+        status: req.query.status as string,
+      };
+
+      // Fetch all logs matching the filters (limit up to 10000 to prevent OOM)
+      const result = await storage.getLoginAuditLogs(1, 10000, filters);
+      const logs = result.data;
+
+      if (!logs || logs.length === 0) {
+        return res.status(404).json({ message: "No audit logs found to export." });
+      }
+
+      // Generate CSV
+      const headers = ["ID", "Timestamp", "User ID", "IP Address", "User Agent", "Login Status"];
+      const rows = logs.map(log => {
+        return [
+          log.id,
+          log.createdAt?.toISOString() ?? "",
+          log.userId ?? "",
+          log.ipAddress ?? "",
+          log.userAgent ?? "",
+          log.loginStatus ?? ""
+        ].map(escapeCsvCell).join(",");
+      });
+
+      const csvContent = [headers.join(","), ...rows].join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename=audit-logs-export-${new Date().toISOString().split('T')[0]}.csv`);
+      res.send(csvContent);
+    } catch (err) {
+      logger.error({ err }, "Admin audit logs export error:");
+      res.status(500).json({ message: "Failed to export audit logs." });
     }
   });
 
@@ -817,9 +680,9 @@ export async function registerRoutes(
 
       logger.info(`Model retrained: version ${nextVersion}, accuracy ${metrics.accuracy}`);
       res.json(record);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error({ err }, "Admin model retrain error:");
-      res.status(500).json({ message: err.stderr || "Model retraining failed." });
+      res.status(500).json({ message: (err as any).stderr || "Model retraining failed." });
     }
   });
 
@@ -848,3 +711,4 @@ export async function registerRoutes(
 
   return httpServer;
 }
+

@@ -1,3 +1,4 @@
+import React from 'react';
 import StatusPill from "@/components/ui/StatusPill";
 import MetricChangeIndicator from "@/components/MetricChangeIndicator";
 import { ClinicalTooltip } from "@/components/ClinicalTooltip";
@@ -219,3 +220,4 @@ export default function ComparisonTable({ leftAssessment, rightAssessment }: Com
     </div>
   );
 }
+
