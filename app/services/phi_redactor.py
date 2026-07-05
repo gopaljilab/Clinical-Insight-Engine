@@ -189,7 +189,7 @@ class PHIRedactor:
                     redacted_dict[k] = "[PHONE]"
                 elif k in ["dob", "dateOfBirth", "date"] and isinstance(v, str):
                     redacted_dict[k] = "[DATE]"
-                elif k in ["patientId", "mrn", "id"] and isinstance(v, str) and not v.isdigit():
+                elif k in ["patientId", "mrn", "id"] and isinstance(v, str) and not (v.isdigit() and len(v) <= 3):
                     redacted_dict[k] = "[PATIENT_ID]"
                 elif k in ["address"] and isinstance(v, str):
                     redacted_dict[k] = "[ADDRESS]"
