@@ -21,7 +21,7 @@ import {
   exportLimiter,
 } from "./middleware/rateLimit";
 import { rateLimit } from "express-rate-limit";
-import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
+import { MLService, pythonDaemon, mlConcurrency, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
 import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
@@ -622,6 +622,10 @@ export async function registerRoutes(
       logger.error({ err }, "Admin latest model version fetch error:");
       res.status(500).json({ message: "Failed to fetch latest model version." });
     }
+  });
+
+  app.get("/api/admin/semaphore", requireAuth, requireAdmin, async (_req, res) => {
+    res.json(mlConcurrency.getMetrics());
   });
 
   app.get("/api/admin/model/dataset-stats", requireAuth, requireAdmin, async (req, res) => {

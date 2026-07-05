@@ -18,14 +18,88 @@ interface QueuedEntry {
   abort: () => void;
 }
 
-/** A concurrency-limiting semaphore designed to throttle intensive Machine Learning inference tasks and manage server resource boundaries. */
-const DEFAULT_MAX_QUEUE_SIZE = 200;
+interface QueueNode {
+  entry: QueuedEntry;
+  next: QueueNode | null;
+  prev: QueueNode | null;
+}
 
+/** Linked list-based queue with O(1) enqueue/dequeue/remove operations. */
+class LinkedQueue {
+  private head: QueueNode | null = null;
+  private tail: QueueNode | null = null;
+  private _length = 0;
+
+  enqueue(entry: QueuedEntry): void {
+    const node: QueueNode = { entry, next: null, prev: null };
+    if (!this.tail) {
+      this.head = this.tail = node;
+    } else {
+      node.prev = this.tail;
+      this.tail.next = node;
+      this.tail = node;
+    }
+    this._length++;
+  }
+
+  dequeue(): QueuedEntry | null {
+    if (!this.head) return null;
+    const node = this.head;
+    this.head = node.next;
+    if (this.head) this.head.prev = null;
+    else this.tail = null;
+    this._length--;
+    return node.entry;
+  }
+
+  remove(entry: QueuedEntry): boolean {
+    let current = this.head;
+    while (current) {
+      if (current.entry === entry) {
+        if (current.prev) current.prev.next = current.next;
+        else this.head = current.next;
+        if (current.next) current.next.prev = current.prev;
+        else this.tail = current.prev;
+        this._length--;
+        return true;
+      }
+      current = current.next;
+    }
+    return false;
+  }
+
+  clear(): QueuedEntry[] {
+    const entries: QueuedEntry[] = [];
+    let current = this.head;
+    while (current) {
+      entries.push(current.entry);
+      current = current.next;
+    }
+    this.head = this.tail = null;
+    this._length = 0;
+    return entries;
+  }
+
+  get length(): number {
+    return this._length;
+  }
+}
+
+/** A concurrency-limiting semaphore with bounded queue, backpressure, and metrics. */
 export class SimpleSemaphore {
   private activeCount = 0;
-  private queue: QueuedEntry[] = [];
+  private queue: LinkedQueue;
+  private maxQueueSize: number;
+  private rejectedCount = 0;
+  private totalProcessed = 0;
+  private totalTimeouts = 0;
+  private totalWaitTime = 0;
+  private waitTimeSamples = 0;
 
-  constructor(private maxConcurrency: number, private maxQueueSize: number = DEFAULT_MAX_QUEUE_SIZE) {}
+  constructor(private maxConcurrency: number, maxQueueSize: number = 100) {
+    this.queue = new LinkedQueue();
+    this.maxQueueSize = maxQueueSize;
+  }
 
   async acquire(timeoutMs?: number): Promise<() => void> {
     if (this.activeCount < this.maxConcurrency) {
@@ -34,21 +108,34 @@ export class SimpleSemaphore {
     }
 
     if (this.queue.length >= this.maxQueueSize) {
-      return Promise.reject(new Error("Semaphore queue full — too many pending requests"));
+      this.rejectedCount++;
+      const err = new Error(
+        `Server is busy. ${this.queue.length} requests waiting, ` +
+        `${this.activeCount} active. Please try again later.`
+      ) as Error & { statusCode: number; retryAfter: number };
+      err.statusCode = 503;
+      err.retryAfter = Math.min(30, this.queue.length);
+      throw err;
     }
+
+    const enqueuedAt = Date.now();
 
     return new Promise<() => void>((resolve, reject) => {
       const entry: QueuedEntry = {
-        execute: () => resolve(() => this.release()),
+        execute: () => {
+          this.totalWaitTime += Date.now() - enqueuedAt;
+          this.waitTimeSamples++;
+          this.totalProcessed++;
+          resolve(() => this.release());
+        },
         abort: () => reject(new Error("Semaphore acquisition aborted")),
       };
-      this.queue.push(entry);
+      this.queue.enqueue(entry);
 
       if (timeoutMs && timeoutMs > 0) {
         setTimeout(() => {
-          const idx = this.queue.indexOf(entry);
-          if (idx !== -1) {
-            this.queue.splice(idx, 1);
+          if (this.queue.remove(entry)) {
+            this.totalTimeouts++;
             reject(new Error("Semaphore acquisition timed out"));
           }
         }, timeoutMs);
@@ -58,7 +145,7 @@ export class SimpleSemaphore {
 
   release(): void {
     this.activeCount--;
-    const next = this.queue.shift();
+    const next = this.queue.dequeue();
     if (next) {
       this.activeCount++;
       next.execute();
@@ -74,12 +161,38 @@ export class SimpleSemaphore {
     }
   }
 
+  drain(reason: string): void {
+    const entries = this.queue.clear();
+    for (const entry of entries) {
+      entry.abort();
+    }
+  }
+
   get pending(): number {
     return this.queue.length;
   }
 
   get active(): number {
     return this.activeCount;
+  }
+
+  get totalRejected(): number {
+    return this.rejectedCount;
+  }
+
+  getMetrics() {
+    return {
+      activeCount: this.activeCount,
+      queueLength: this.queue.length,
+      maxQueueSize: this.maxQueueSize,
+      maxConcurrency: this.maxConcurrency,
+      totalProcessed: this.totalProcessed,
+      totalRejected: this.rejectedCount,
+      totalTimeouts: this.totalTimeouts,
+      averageWaitTimeMs: this.waitTimeSamples > 0
+        ? Math.round(this.totalWaitTime / this.waitTimeSamples)
+        : 0,
+    };
   }
 }
 
@@ -97,6 +210,8 @@ export function getRetryBackoffFactor(): number {
 
 const maxConcurrency = parseInt(process.env.ML_MAX_CONCURRENCY || "2", 10);
 const mlConcurrency = new SimpleSemaphore(maxConcurrency);
+
+export { mlConcurrency };
 
 /**
  * Tracks currently running inference requests to prevent
@@ -429,6 +544,7 @@ class PythonDaemonManager {
     this.restartAttempts++;
     if (this.restartAttempts > MAX_DAEMON_RESTART_ATTEMPTS) {
       logger.error({ attempts: this.restartAttempts }, "Python daemon exceeded max restart attempts — giving up");
+      mlConcurrency.drain("ML daemon permanently unavailable. Retry later.");
       return;
     }
 
