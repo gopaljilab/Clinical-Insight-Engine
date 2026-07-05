@@ -482,6 +482,36 @@ class PythonDaemonManager {
     });
   }
 
+  public async extract(text: string): Promise<ClinicalAnalysisResult> {
+    this.init();
+
+    if (!this.process || !this.process.stdin) {
+      throw new Error("Python daemon is not running.");
+    }
+
+    const requestId = randomUUID();
+
+    return new Promise<ClinicalAnalysisResult>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        if (this.pendingRequests.has(requestId)) {
+          this.pendingRequests.delete(requestId);
+          reject(new Error("Clinical analysis timed out."));
+        }
+      }, getRequestTimeout());
+
+      this.pendingRequests.set(requestId, { resolve: resolve as any, reject, timeoutId });
+
+      const payload = JSON.stringify({ requestId, type: "extract", text });
+      this.process!.stdin!.write(payload + "\n", (err) => {
+        if (err) {
+          clearTimeout(timeoutId);
+          this.pendingRequests.delete(requestId);
+          reject(err);
+        }
+      });
+    });
+  }
+
   public shutdown() {
     this.cleanup();
     this.pendingRequests.clear();
@@ -496,6 +526,92 @@ process.on("exit", () => {
 
 export interface InferenceOptions {
   throwOnFailure?: boolean;
+}
+
+export interface ClinicalAnalysisResult {
+  symptoms: string[];
+  medications: string[];
+  model_name: string;
+}
+
+/**
+ * Optimized rule-based clinical fallback matcher for extracting symptoms and medications when Python is unavailable.
+ */
+export function clinicalAnalysisFallback(text: string): ClinicalAnalysisResult {
+  const symptoms = [
+    "polyuria", "polydipsia", "polyphagia", "weight loss", "fatigue", "blurred vision", 
+    "blurry vision", "numbness", "tingling", "slow healing sores", "frequent infections",
+    "cough", "fever", "pain", "dyspnea", "shortness of breath", "nausea", "vomiting", 
+    "headache", "dizziness", "weakness", "lethargy"
+  ];
+  const medications = [
+    "metformin", "insulin", "glipizide", "glyburide", "pioglitazone", 
+    "lisinopril", "atorvastatin", "amlodipine", "metoprolol", "aspirin", 
+    "albuterol", "gabapentin", "levothyroxine", "ibuprofen", "acetaminophen"
+  ];
+  
+  const textLower = text.toLowerCase();
+  const matchedSymptoms = symptoms.filter(s => new RegExp(`\\b${s}\\b`, 'i').test(textLower));
+  const matchedMedications = medications.filter(m => new RegExp(`\\b${m}\\b`, 'i').test(textLower));
+  
+  return {
+    symptoms: matchedSymptoms.sort(),
+    medications: matchedMedications.sort(),
+    model_name: "rule-based-fallback"
+  };
+}
+
+/**
+ * Runs clinical Note Analysis (entity extraction) through the Python daemon with fallback.
+ */
+export async function runClinicalAnalysis(
+  text: string,
+  options: InferenceOptions = {}
+): Promise<{ result: ClinicalAnalysisResult; isFallback: boolean }> {
+  const { throwOnFailure = false } = options;
+  const release = await mlConcurrency.acquire(getRequestTimeout());
+  let attempt = 0;
+
+  try {
+    while (true) {
+      attempt++;
+      try {
+        const result = await pythonDaemon.extract(text);
+        return { result, isFallback: false };
+      } catch (error: any) {
+        const isTimeout = error.message?.includes("timed out") || error.message?.includes("Timeout");
+        const isConnection =
+          error.message?.includes("connection") ||
+          error.message?.includes("ECONNREFUSED") ||
+          error.message?.includes("not running") ||
+          error.message?.includes("crashed");
+
+        const shouldRetry = isTimeout || isConnection;
+        const maxRetries = getMaxRetries();
+        const backoffFactor = getRetryBackoffFactor();
+
+        if (shouldRetry && attempt <= maxRetries) {
+          const delay = 1000 * Math.pow(backoffFactor, attempt - 1);
+          logger.info(
+            { attempt, maxRetries, delay, err: error.message },
+            `Retrying clinical analysis (attempt ${attempt}/${maxRetries}) after ${delay}ms`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        throw error;
+      }
+    }
+  } catch (error: any) {
+    if (throwOnFailure) {
+      throw error;
+    }
+    logger.warn({ err: error }, "Clinical analysis failed, using clinical fallback");
+    return { result: clinicalAnalysisFallback(text), isFallback: true };
+  } finally {
+    release();
+  }
 }
 
 /**
@@ -643,4 +759,5 @@ export const MLService = {
   generateRequestFingerprint,
   runAssessmentInference,
   runAssessmentInferenceBatch,
+  runClinicalAnalysis,
 };

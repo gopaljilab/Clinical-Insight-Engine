@@ -28,14 +28,15 @@ class TestSafeUnpickler:
         """SafeUnpickler allows numpy.core.multiarray which is needed for numpy arrays."""
         import numpy as np
         arr = np.array([1, 2, 3])
-        with tempfile.NamedTemporaryFile(delete=False) as f:
+        f = tempfile.NamedTemporaryFile(delete=False)
+        try:
             f.write(pickle.dumps(arr))
-            f.flush()
-            try:
-                with open(f.name, "rb") as fh:
-                    result = safe_pickle_load(fh)
-                assert result.tolist() == [1, 2, 3]
-            finally:
+            f.close()
+            with open(f.name, "rb") as fh:
+                result = safe_pickle_load(fh)
+            assert result.tolist() == [1, 2, 3]
+        finally:
+            if os.path.exists(f.name):
                 os.remove(f.name)
 
     def test_blocks_os_module(self):
@@ -74,27 +75,29 @@ class TestSafeUnpickler:
 class TestSignatureFunctions:
     def test_compute_signature_returns_hex_string(self):
         """compute_signature returns a hex digest string."""
-        with tempfile.NamedTemporaryFile(delete=False) as f:
+        f = tempfile.NamedTemporaryFile(delete=False)
+        try:
             f.write(b"hello world")
-            f.flush()
-            try:
-                sig = compute_signature(f.name)
-                assert isinstance(sig, str)
-                assert len(sig) == 64  # SHA-256 hex length
-                assert all(c in "0123456789abcdef" for c in sig)
-            finally:
+            f.close()
+            sig = compute_signature(f.name)
+            assert isinstance(sig, str)
+            assert len(sig) == 64  # SHA-256 hex length
+            assert all(c in "0123456789abcdef" for c in sig)
+        finally:
+            if os.path.exists(f.name):
                 os.remove(f.name)
 
     def test_compute_signature_is_deterministic(self):
         """compute_signature produces the same result for the same file content."""
-        with tempfile.NamedTemporaryFile(delete=False) as f:
+        f = tempfile.NamedTemporaryFile(delete=False)
+        try:
             f.write(b"test content")
-            f.flush()
-            try:
-                sig1 = compute_signature(f.name)
-                sig2 = compute_signature(f.name)
-                assert sig1 == sig2
-            finally:
+            f.close()
+            sig1 = compute_signature(f.name)
+            sig2 = compute_signature(f.name)
+            assert sig1 == sig2
+        finally:
+            if os.path.exists(f.name):
                 os.remove(f.name)
 
     def test_compute_signature_changes_with_content(self):
