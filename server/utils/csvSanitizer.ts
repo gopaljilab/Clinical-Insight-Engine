@@ -1,5 +1,29 @@
 const FORMULA_PREFIX_PATTERN = /^[=+\-@]/;
 
+function flattenCellValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => flattenCellValue(item))
+      .filter(Boolean)
+      .join("; ");
+  }
+  if (value !== null && typeof value === "object" && !(value instanceof Date)) {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => `${k}: ${flattenCellValue(v)}`)
+      .join(", ");
+  }
+  return String(value ?? "");
+}
+
+/**
+ * Sanitizes a value before CSV export.
+ *
+ * Handles null values, arrays, objects, dates, and protects against
+ * CSV formula injection attacks by prefixing dangerous values.
+ *
+ * @param value - The value to sanitize.
+ * @returns A safe string representation suitable for CSV output.
+ */
 export function sanitizeCsvCell(value: unknown): string {
   if (value === null || value === undefined) {
     return "";
@@ -13,13 +37,11 @@ export function sanitizeCsvCell(value: unknown): string {
   if (value instanceof Date) {
     text = value.toISOString();
   } else if (typeof value === "object") {
-    text = JSON.stringify(value);
+    text = flattenCellValue(value);
   } else {
     text = String(value);
   }
 
-  // If the text can be parsed as a valid number, do not prepend a quote
-  // This avoids converting negative numbers (e.g. -12.5) or standard integer fields to strings.
   const trimmed = text.trim();
   if (trimmed !== "" && !isNaN(Number(trimmed))) {
     return text;
@@ -32,6 +54,15 @@ export function sanitizeCsvCell(value: unknown): string {
   return text;
 }
 
+/**
+ * Escapes a CSV cell according to CSV formatting rules.
+ *
+ * Wraps values containing commas, quotes, or line breaks in quotes
+ * and escapes embedded quotation marks.
+ *
+ * @param value - The value to escape.
+ * @returns A properly escaped CSV cell value.
+ */
 export function escapeCsvCell(value: unknown): string {
   const sanitized = sanitizeCsvCell(value);
 

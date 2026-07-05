@@ -1,3 +1,4 @@
+import React from 'react';
 import { useLocation } from "wouter";
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -59,7 +60,7 @@ const footerLinks = [
 ];
 
 const socialLinks = [
-  { href: "https://www.linkedin.com", icon: Linkedin, label: "LinkedIn" },
+  { href: "https://www.linkedin.com/in/guptagopal001/", icon: Linkedin, label: "LinkedIn" },
   { href: "https://github.com/gopaljilab/Clinical-Insight-Engine", icon: Github, label: "GitHub" },
   { href: "mailto:hello@cardioguard.ai", icon: Mail, label: "Email" },
 ];
@@ -145,8 +146,8 @@ function DashboardPreview() {
                 {[46, 58, 52, 64, 48, 42].map((height, index) => (
                   <div key={height + index} className="flex flex-1 flex-col items-center gap-2">
                     <div
-                      className="w-full rounded-t-xl bg-gradient-to-t from-[#2563EB] to-cyan-300"
-                      style={{ height: `${height}%` }}
+                      className="w-full rounded-t-xl bg-gradient-to-t from-[#2563EB] to-cyan-300 h-[var(--height)]"
+                      style={{ '--height': `${height}%` } as React.CSSProperties}
                     />
                     <span className="text-[10px] font-semibold text-slate-500">M{index + 1}</span>
                   </div>
@@ -421,3 +422,4 @@ export function CardioGuardLanding() {
     </div>
   );
 }
+

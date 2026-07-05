@@ -8,15 +8,14 @@ class SafeUnpickler(pickle.Unpickler):
     """Restricted unpickler that guards against arbitrary code execution (CWE-502).
 
     Only allows deserialization of classes from known-safe modules
-    (numpy, scipy, sklearn) and Python builtins. Any attempt to unpickle
-    classes from arbitrary modules (e.g. ``os``, ``subprocess``, ``builtins.exec``)
+    (numpy, scipy, sklearn). Any attempt to unpickle
+    classes from arbitrary modules (e.g. ``os``, ``subprocess``, ``builtins``)
     is blocked, preventing malicious pickle payloads from executing code.
 
     Used as defense-in-depth alongside HMAC signature verification.
     """
 
     ALLOWED_MODULES: set[str] = {
-        "builtins",
         "numpy",
     }
 

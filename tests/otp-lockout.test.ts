@@ -80,7 +80,7 @@ vi.mock("bcrypt", () => ({
 
 vi.mock("../server/email", () => ({
   sendVerificationEmail: vi.fn().mockResolvedValue(true),
-  validateSmtpConfig: vi.fn(),
+  validateEmailConfig: vi.fn(),
 }));
 
 describe("OTP Brute-Force Lockout Integration", () => {
@@ -91,6 +91,8 @@ describe("OTP Brute-Force Lockout Integration", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockToken.attemptCount = 0; // reset for each test
+    currentAttemptCount = 0;
+    tokenUsed = false;
 
     const { createAuthRouter } = await import("../server/auth");
     app = express();
@@ -181,7 +183,7 @@ describe("OTP Brute-Force Lockout Integration", () => {
     });
   });
 
-  it("locks out user after 3 failed OTP verification attempts", async () => {
+  it("locks out user after 5 failed OTP verification attempts", async () => {
     const loginRes = await request(app)
       .post("/api/auth/login")
       .send({ email: "doc@example.com", password: "password" });
