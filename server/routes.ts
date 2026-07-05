@@ -14,6 +14,7 @@ import fhirRouter from "./routes/fhir.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { logger } from "./logger";
+import { reportScheduler } from "./services/report-scheduler";
 import {
   generalLimiter,
   adminLimiter,
