@@ -379,6 +379,12 @@ export function startAssessmentWorker(): void {
       { jobId: job?.id, requestId: job?.data?.requestId, attempt, err },
       `Assessment queue job failed (attempt ${attempt}/${QUEUE_MAX_RETRIES})`,
     );
+
+    const maxAttempts = job?.opts?.attempts ?? QUEUE_MAX_RETRIES;
+    const fingerprint = (job?.data as any)?.requestFingerprint;
+    if (fingerprint && attempt >= maxAttempts) {
+      MLService.activeInferenceRequests.delete(fingerprint);
+    }
   });
 
   assessmentWorkerInstance.on("completed", (job: Job | undefined) => {
@@ -386,6 +392,11 @@ export function startAssessmentWorker(): void {
       { jobId: job?.id, requestId: job?.data?.requestId },
       "Assessment queue job completed successfully",
     );
+
+    const fingerprint = (job?.data as any)?.requestFingerprint;
+    if (fingerprint) {
+      MLService.activeInferenceRequests.delete(fingerprint);
+    }
   });
 
   assessmentWorkerInstance.on("error", (err: Error) => {

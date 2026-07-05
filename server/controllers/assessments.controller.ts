@@ -197,6 +197,7 @@ export const createAssessment = async (req: Request, res: Response) => {
   }
 
   let requestFingerprint: string | undefined;
+  let jobEnqueued = false;
   try {
     const input = req.body;
     const requestId = (req as any).id as string | undefined;
@@ -221,7 +222,10 @@ export const createAssessment = async (req: Request, res: Response) => {
       userId,
       userEmail,
       requestId,
+      requestFingerprint,
     });
+
+    jobEnqueued = true;
 
     return res.status(202).json({
       message: "Assessment request accepted and is being processed.",
@@ -239,7 +243,7 @@ export const createAssessment = async (req: Request, res: Response) => {
       .status(500)
       .json({ message: "Failed to queue clinical assessment." });
   } finally {
-    if (requestFingerprint) {
+    if (requestFingerprint && !jobEnqueued) {
       MLService.activeInferenceRequests.delete(requestFingerprint);
     }
   }

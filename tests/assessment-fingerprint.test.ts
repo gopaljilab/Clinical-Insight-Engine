@@ -4,11 +4,15 @@ import express from "express";
 import session from "express-session";
 import { createServer } from "http";
 
-const { mockExecFile, rateLimitCounters, mockCreateAssessment, mockGetAssessments } = vi.hoisted(() => ({
+const { mockExecFile, rateLimitCounters, mockCreateAssessment, mockGetAssessments, workerHandlers } = vi.hoisted(() => ({
   mockExecFile: vi.fn(),
   rateLimitCounters: new Map<string, number>(),
   mockCreateAssessment: vi.fn(),
   mockGetAssessments: vi.fn(),
+  // Captures handlers registered via worker.on("completed"/"failed", ...) so
+  // tests can simulate the BullMQ worker finishing a job — which is when the
+  // dedup fingerprint is actually released now, not when queue.add() resolves.
+  workerHandlers: {} as Record<string, (...args: any[]) => void>,
 }));
 
 vi.mock("child_process", () => ({
@@ -34,7 +38,9 @@ vi.mock("bullmq", () => {
   return {
     Queue: vi.fn().mockImplementation(() => mockQueue),
     Worker: vi.fn().mockImplementation(() => ({
-      on: vi.fn(),
+      on: vi.fn((event: string, handler: (...args: any[]) => void) => {
+        workerHandlers[event] = handler;
+      }),
     })),
   };
 });
@@ -82,6 +88,16 @@ vi.mock("fs/promises", () => ({
 
 import { registerRoutes } from "../server/routes";
 import { MLService } from "../server/services/mlService";
+import { startAssessmentWorker, verifyRedisConnection } from "../server/queue";
+
+/** Simulates the BullMQ worker finishing the job for the given fingerprint,
+ * which is the point at which the dedup fingerprint is actually released. */
+function simulateWorkerCompleted(fingerprint: string) {
+  workerHandlers["completed"]?.({
+    id: "mock-job-id",
+    data: { requestFingerprint: fingerprint },
+  });
+}
 
 const validPayload = {
   patientName: "John Doe",
@@ -127,11 +143,16 @@ function createAuthenticatedApp() {
   return app;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
   rateLimitCounters.clear();
   // Clear any leftover fingerprints between tests
   MLService.activeInferenceRequests.clear();
+  // startAssessmentWorker() is idempotent (singleton worker instance), so
+  // this only actually registers the "completed"/"failed" handlers once —
+  // that's fine, they stay valid for the whole file.
+  await verifyRedisConnection();
+  startAssessmentWorker();
 
   mockCreateAssessment.mockImplementation((input) =>
     Promise.resolve({ id: 1, ...input, createdAt: new Date() })
@@ -157,7 +178,7 @@ afterEach(() => {
 });
 
 describe("Assessment request fingerprint lifecycle", () => {
-  it("fingerprint is removed from activeInferenceRequests after a successful request", async () => {
+  it("fingerprint stays reserved after enqueue and is only released once the worker completes the job", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
@@ -168,7 +189,15 @@ describe("Assessment request fingerprint lifecycle", () => {
       .send(validPayload);
 
     expect(res.status).toBe(202);
-    // After request completes, the fingerprint must be cleaned up
+    // The HTTP handler has returned, but the job hasn't actually run yet —
+    // the fingerprint must still be reserved so a concurrent duplicate
+    // submission is rejected instead of also being enqueued.
+    const fingerprint = MLService.generateRequestFingerprint(validPayload, "test-user-id");
+    expect(MLService.activeInferenceRequests.has(fingerprint)).toBe(true);
+
+    // Once the BullMQ worker reports the job as completed, the fingerprint
+    // is released.
+    simulateWorkerCompleted(fingerprint);
     expect(MLService.activeInferenceRequests.size).toBe(0);
   });
 
@@ -223,14 +252,21 @@ describe("Assessment request fingerprint lifecycle", () => {
       .send(validPayload);
 
     expect(res1.status).toBe(202);
+
+    // The fingerprint is still reserved because the (simulated) worker
+    // hasn't finished the job yet.
+    const fingerprint = MLService.generateRequestFingerprint(validPayload, "test-user-id");
+    expect(MLService.activeInferenceRequests.has(fingerprint)).toBe(true);
+
+    // Simulate the worker finishing the first job, releasing the fingerprint.
+    simulateWorkerCompleted(fingerprint);
     expect(MLService.activeInferenceRequests.size).toBe(0);
 
-    // Second identical request should succeed, not 409
+    // Second identical request should now succeed, not 409
     const res2 = await request(app)
       .post("/api/assessments")
       .send(validPayload);
 
     expect(res2.status).toBe(202);
-    expect(MLService.activeInferenceRequests.size).toBe(0);
   });
 });
