@@ -396,3 +396,144 @@ describe("patient name search coverage", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Positive detection tests for detectSqlInjectionPattern.
+//
+// The original suite only checks that safe inputs return null. These tests
+// lock down the contract for actual attack payloads: every documented attack
+// signature MUST return a non-null pattern string. A future refactor that
+// silently weakens or removes a pattern will fail here.
+// ---------------------------------------------------------------------------
+
+describe("detectSqlInjectionPattern positive detection", () => {
+  /**
+   * Helper: returns the matched pattern string OR an empty string if no match.
+   * This avoids TypeScript non-null assertions (which the project's ESLint
+   * config does not parse) while keeping the assertions tight.
+   */
+  function match(input) {
+    const r = detectSqlInjectionPattern(input);
+    return typeof r === "string" ? r : "";
+  }
+
+  it("detects a classic OR 1=1 boolean injection", () => {
+    const result = match("admin' OR '1'='1");
+    expect(result).not.toBe("");
+    // The matched pattern must reference the OR/AND signature.
+    expect(result).toContain("OR");
+  });
+
+  it("detects a UNION SELECT payload", () => {
+    const result = match("1 UNION SELECT password FROM users");
+    expect(result).not.toBe("");
+    expect(result).toContain("UNION");
+    expect(result).toContain("SELECT");
+  });
+
+  it("detects a stacked DROP TABLE comment payload", () => {
+    const result = match("'; DROP TABLE users; --");
+    expect(result).not.toBe("");
+    // The first matching pattern is either the ;-DROP regex or the -- regex.
+    const hasDrop = result.includes("DROP");
+    const hasComment = result.includes("--");
+    expect(hasDrop || hasComment).toBe(true);
+  });
+
+  it("detects a time-based SLEEP payload", () => {
+    const result = match("1' OR SLEEP(5)--");
+    expect(result).not.toBe("");
+    // The -- pattern fires before SLEEP in the pattern list (-- is index 4, SLEEP is index 10).
+    const hasComment = result.includes("--");
+    const hasSleep = result.includes("SLEEP");
+    expect(hasComment || hasSleep).toBe(true);
+  });
+
+  it("detects a block-comment obfuscated OR payload", () => {
+    const result = match("admin'/**/OR/**/1=1");
+    expect(result).not.toBe("");
+    // The block-comment regex fires before the boolean regex.
+    const hasBlockComment = result.includes("\\*");
+    const hasOr = result.includes("OR");
+    expect(hasBlockComment || hasOr).toBe(true);
+  });
+
+  it("detects a stored-procedure EXEC/xp_ payload", () => {
+    const result = match("'; EXEC xp_cmdshell('dir')--");
+    expect(result).not.toBe("");
+    const hasComment = result.includes("--");
+    const hasExec = result.includes("EXEC") || result.includes("xp_");
+    expect(hasComment || hasExec).toBe(true);
+  });
+
+  it("detects an INFORMATION_SCHEMA enumeration payload", () => {
+    const result = match("' UNION SELECT * FROM INFORMATION_SCHEMA.TABLES --");
+    expect(result).not.toBe("");
+    const hasUnion = result.includes("UNION");
+    const hasSchema = result.includes("INFORMATION_SCHEMA");
+    expect(hasUnion || hasSchema).toBe(true);
+  });
+
+  it("detects a WAITFOR DELAY time-based payload", () => {
+    const result = match("1; WAITFOR DELAY '0:0:5'--");
+    expect(result).not.toBe("");
+    const hasComment = result.includes("--");
+    const hasWaitfor = result.includes("WAITFOR");
+    expect(hasComment || hasWaitfor).toBe(true);
+  });
+
+  it("detects a BENCHMARK payload", () => {
+    const result = match("1' OR BENCHMARK(1000000, MD5('x'))--");
+    expect(result).not.toBe("");
+    const hasComment = result.includes("--");
+    const hasBenchmark = result.includes("BENCHMARK");
+    expect(hasComment || hasBenchmark).toBe(true);
+  });
+
+  it("detects a LOAD_FILE payload", () => {
+    const result = match("1' UNION SELECT LOAD_FILE('/etc/passwd')--");
+    expect(result).not.toBe("");
+    const hasUnion = result.includes("UNION");
+    const hasLoadFile = result.includes("LOAD_FILE");
+    expect(hasUnion || hasLoadFile).toBe(true);
+  });
+
+  it("detects an INTO OUTFILE payload", () => {
+    const result = match("1' UNION SELECT 1 INTO OUTFILE '/tmp/x'--");
+    expect(result).not.toBe("");
+    const hasUnion = result.includes("UNION");
+    const hasOutfile = result.includes("OUTFILE");
+    expect(hasUnion || hasOutfile).toBe(true);
+  });
+
+  it("detects a SYS.TABLES enumeration payload", () => {
+    const result = match("' UNION SELECT * FROM SYS.TABLES --");
+    expect(result).not.toBe("");
+    const hasUnion = result.includes("UNION");
+    const hasSys = result.includes("SYS");
+    expect(hasUnion || hasSys).toBe(true);
+  });
+
+  // ─── False-positive guards ──────────────────────────────────────────────────
+  // Legitimate medical-name inputs that LOOK dangerous but must NOT be rejected.
+
+  it("does NOT flag an apostrophe in a medical name (O'Brien-Smith)", () => {
+    expect(detectSqlInjectionPattern("Mary O'Brien-Smith")).toBeNull();
+  });
+
+  it("does NOT flag a numeric-only patient ID with underscores", () => {
+    expect(detectSqlInjectionPattern("patient_id_12345")).toBeNull();
+  });
+
+  it("does NOT flag a name with period and comma (Dr. Smith, Jr.)", () => {
+    expect(detectSqlInjectionPattern("Dr. Smith, Jr.")).toBeNull();
+  });
+
+  it("does NOT flag a simple Irish surname (O'Reilly)", () => {
+    expect(detectSqlInjectionPattern("O'Reilly")).toBeNull();
+  });
+
+  it("does NOT flag a hyphenated clinical term (Smith-OBrien)", () => {
+    expect(detectSqlInjectionPattern("Smith-OBrien")).toBeNull();
+  });
+});

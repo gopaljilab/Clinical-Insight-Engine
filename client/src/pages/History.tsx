@@ -1,3 +1,4 @@
+import React from 'react';
 import { AppLayout } from "@/components/layout/AppLayout";
 import type { Assessment, AssessmentFactor } from "@shared/schema";
 import { useAssessments, usePatientAssessments, useClearPatientCache, useDeleteAssessment } from "@/hooks/use-assessments";
@@ -32,6 +33,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "react-i18next";
+import { ApiClient } from "@/lib/apiClient";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
@@ -65,7 +68,7 @@ export default function History() {
   }, []);
 
   const { toast } = useToast();
-
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("date-desc");
   const [currentPage, setCurrentPage] = useState(1);
@@ -245,7 +248,7 @@ export default function History() {
   };
 
   const activeFilterChips = useMemo(() => {
-    const chips: any[] = [];
+    const chips: { id: string; label: string; onRemove: () => void }[] = [];
     if (searchTerm) {
       chips.push({ id: 'search', label: `Search: ${searchTerm}`, onRemove: () => setSearchTerm("") });
     }
@@ -276,15 +279,14 @@ export default function History() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("/api/upload/lab-results", {
+      const response = await ApiClient.requestRaw("/api/upload/lab-results", {
         method: "POST",
         body: formData
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to upload");
+      const data = await response.json();
       toast({ title: "Success", description: data.message });
-    } catch (err: any) {
-      toast({ title: "Upload Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Upload Error", description: err instanceof Error ? (err as Error).message : String(err), variant: "destructive" });
     }
     e.target.value = ''; // Reset input
   };
@@ -315,14 +317,10 @@ export default function History() {
     try {
       const params = buildExportParams();
       params.set("limit", "1000");
-      const res = await fetch(`/api/assessments/?${params.toString()}`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to fetch assessment data");
-      const data = await res.json();
+      const data = await ApiClient.get<any>(`/api/assessments/?${params.toString()}`);
       downloadBulkAssessmentPdf(data.data ?? []);
-    } catch (err: any) {
-      toast({ title: "Export Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Export Error", description: err instanceof Error ? (err as Error).message : String(err), variant: "destructive" });
     }
   };
 
@@ -366,7 +364,7 @@ export default function History() {
 
   const [, setLocation] = useLocation();
 
-  function reloadToForm(assessment: any) {
+  function reloadToForm(assessment: Partial<Assessment>) {
     const draft = {
       patientName: assessment.patientName ?? "",
       gender: assessment.gender,
@@ -526,7 +524,7 @@ export default function History() {
 
 
 
-  const formatAssessmentDate = (dateVal: any) => {
+  const formatAssessmentDate = (dateVal: string | Date | null | undefined) => {
     return formatReadableDate(dateVal, { fallback: "Unknown", includeTime: false });
   };
 
@@ -715,19 +713,19 @@ export default function History() {
         ) : totalRecords === 0 ? (
           <EmptyState
             icon={Activity}
-            title="No Assessments Found"
-            description="There are no patient assessments loaded yet. Create your first assessment to start tracking patient health trajectories."
-            actionLabel="Create First Assessment"
+            title={t('history.emptyState.noAssessments.title')}
+            description={t('history.emptyState.noAssessments.description')}
+            actionLabel={t('history.emptyState.noAssessments.actionLabel')}
             actionHref="/dashboard"
           />
         ) : filteredRecords === 0 ? (
           <EmptyState
             icon={Activity}
-            title="No Matching Records"
-            description="No patient records match the current filters. Clear the filters to return to the full assessment history, or create a new assessment if this patient needs fresh data."
-            actionLabel="Clear Filters"
+            title={t('history.emptyState.noMatching.title')}
+            description={t('history.emptyState.noMatching.description')}
+            actionLabel={t('history.emptyState.noMatching.actionLabel')}
             actionOnClick={clearAllFilters}
-            secondaryActionLabel="Create Assessment"
+            secondaryActionLabel={t('history.emptyState.noMatching.secondaryActionLabel')}
             secondaryActionHref="/dashboard"
           />
         ) : (
@@ -1051,15 +1049,15 @@ export default function History() {
                       </thead>
                       <tbody className="divide-y divide-border">
                         {[
-                          { label: "Age", get: (r: any[]) => r[0]?.age ?? "—" },
-                          { label: "BMI", get: (r: any[]) => Number(r[0]?.bmi ?? 0).toFixed(1) },
-                          { label: "HbA1c (%)", get: (r: any[]) => `${Number(r[0]?.hba1cLevel ?? 0).toFixed(1)}%` },
-                          { label: "Blood Glucose", get: (r: any[]) => Number(r[0]?.bloodGlucoseLevel ?? 0).toFixed(0) },
-                          { label: "Hypertension", get: (r: any[]) => (r[0]?.hypertension ? "Yes" : "No") },
-                          { label: "Heart Disease", get: (r: any[]) => (r[0]?.heartDisease ? "Yes" : "No") },
-                          { label: "Smoking", get: (r: any[]) => r[0]?.smokingHistory ?? "—" },
-                          { label: "Risk Score", get: (r: any[]) => `${Number(r[0]?.riskScore ?? 0).toFixed(1)}%` },
-                          { label: "Risk Category", get: (r: any[]) => r[0]?.riskCategory ?? "—" },
+                          { label: "Age", get: (r: Assessment[]) => r[0]?.age ?? "—" },
+                          { label: "BMI", get: (r: Assessment[]) => Number(r[0]?.bmi ?? 0).toFixed(1) },
+                          { label: "HbA1c (%)", get: (r: Assessment[]) => `${Number(r[0]?.hba1cLevel ?? 0).toFixed(1)}%` },
+                          { label: "Blood Glucose", get: (r: Assessment[]) => Number(r[0]?.bloodGlucoseLevel ?? 0).toFixed(0) },
+                          { label: "Hypertension", get: (r: Assessment[]) => (r[0]?.hypertension ? "Yes" : "No") },
+                          { label: "Heart Disease", get: (r: Assessment[]) => (r[0]?.heartDisease ? "Yes" : "No") },
+                          { label: "Smoking", get: (r: Assessment[]) => r[0]?.smokingHistory ?? "—" },
+                          { label: "Risk Score", get: (r: Assessment[]) => `${Number(r[0]?.riskScore ?? 0).toFixed(1)}%` },
+                          { label: "Risk Category", get: (r: Assessment[]) => r[0]?.riskCategory ?? "—" },
                         ].map(row => (
                           <tr key={row.label} className="hover:bg-muted/20 transition-colors">
                             <td className="p-3 font-semibold text-muted-foreground whitespace-nowrap">{row.label}</td>
@@ -1157,3 +1155,4 @@ export default function History() {
     </AppLayout>
   );
 }
+
