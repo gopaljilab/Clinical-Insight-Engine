@@ -500,9 +500,12 @@ export class AssessmentRepository {
     }));
   }
 
-  async getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string) {
+  async getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string, createdBy?: string) {
     const db = getDb();
     const filters: any[] = [eq(assessments.patientName, patientName)];
+    if (createdBy) {
+      filters.push(eq(assessments.createdBy, createdBy));
+    }
     const parsedStart = parseDateFilter(startDate);
     const parsedEnd = parseDateFilter(endDate);
     if (parsedStart) filters.push(gte(assessments.createdAt, parsedStart));

@@ -313,13 +313,17 @@ export const getPatientTrends = async (req: Request, res: Response) => {
 
 export const getDashboardTrends = async (req: Request, res: Response) => {
   try {
+    const user = req.session.user;
+    if (!user) {
+      return res.status(401).json({ message: "Authentication required." });
+    }
     const patientName = typeof req.query.patientName === "string" ? req.query.patientName.trim() : "";
     if (!patientName) {
       return res.status(400).json({ message: "patientName query parameter is required." });
     }
     const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
     const endDate = typeof req.query.endDate === "string" ? req.query.endDate : undefined;
-    const result = await storage.getTrendsDashboardData(patientName, startDate, endDate);
+    const result = await storage.getTrendsDashboardData(patientName, startDate, endDate, user.email);
     return res.json(result);
   } catch (err) {
     logger.error({ err }, "Trends dashboard error:");
