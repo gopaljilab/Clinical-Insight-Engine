@@ -404,7 +404,7 @@ export const searchAssessments = async (req: Request, res: Response) => {
           "Injection-like pattern detected in search query parameter",
           req,
           {
-            matchedPattern: analysis.pattern,
+            matchedPattern: (analysis as any).pattern,
             userId: (req.session.user)?.id,
           }
         );
@@ -436,7 +436,7 @@ export const searchAssessments = async (req: Request, res: Response) => {
           "Validated search term contains a suspicious pattern",
           req,
           {
-            matchedPattern: analysis.pattern,
+            matchedPattern: (analysis as any).pattern,
             userId: (req.session.user)?.id,
           }
         );

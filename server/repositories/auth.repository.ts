@@ -31,13 +31,15 @@ export class AuthRepository {
         .values(userValues)
         .returning();
 
-      await tx.insert(emailVerificationTokens).values({ /* @ts-ignore */ 
-        userId: newUser.id,
-        verificationCode: otp,
-        expiresAt,
-        used: false,
-        attemptCount: 0,
-      });
+await tx
+        .insert(emailVerificationTokens)
+        .values({
+          userId: newUser.id,
+          verificationCode: otp,
+          expiresAt,
+          used: false,
+          attemptCount: 0,
+        } as any);
 
       return newUser;
     });
@@ -52,30 +54,32 @@ export class AuthRepository {
     await db.transaction(async (tx) => {
       // Invalidate old unused tokens for this user
       await tx
-        .update(emailVerificationTokens)
-        .set({ /* @ts-ignore */  used: true })
-        .where(
-          and(
-            eq(emailVerificationTokens.userId, userId),
-            eq(emailVerificationTokens.used, false),
-          ),
-        );
+      .update(emailVerificationTokens)
+      .set({ used: true } as any)
+      .where(
+        and(
+          eq(emailVerificationTokens.userId, userId),
+          eq(emailVerificationTokens.used, false),
+        ),
+      );
 
-      await tx.insert(emailVerificationTokens).values({ /* @ts-ignore */ 
+await tx
+      .insert(emailVerificationTokens)
+      .values({
         userId,
         verificationCode: otp,
         expiresAt,
         used: false,
         attemptCount: 0,
-      });
+      } as any);
     });
   }
 
   async setUserEmailVerified(userId: string): Promise<void> {
     const db = getDb();
-    await db
+      await db
       .update(users)
-      .set({ /* @ts-ignore */  emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
+      .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() } as any)
       .where(eq(users.id, userId));
   }
 
@@ -106,7 +110,7 @@ export class AuthRepository {
       if ((token.attemptCount ?? 0) >= maxAttempts) {
         await tx
           .update(emailVerificationTokens)
-          .set({ /* @ts-ignore */  used: true })
+          .set({ used: true })
           .where(eq(emailVerificationTokens.id, token.id));
 
         return { success: false as const, status: 429, message: "Too many failed attempts. Please request a new verification code." };
@@ -118,7 +122,7 @@ export class AuthRepository {
         if (newAttemptCount >= maxAttempts) {
           await tx
             .update(emailVerificationTokens)
-            .set({ /* @ts-ignore */  attemptCount: newAttemptCount, used: true })
+            .set({ attemptCount: newAttemptCount, used: true })
             .where(and(
               eq(emailVerificationTokens.id, token.id),
               eq(emailVerificationTokens.used, false),
@@ -133,7 +137,7 @@ export class AuthRepository {
 
         await tx
           .update(emailVerificationTokens)
-          .set({ /* @ts-ignore */  attemptCount: newAttemptCount })
+          .set({ attemptCount: newAttemptCount })
           .where(and(
             eq(emailVerificationTokens.id, token.id),
             eq(emailVerificationTokens.used, false),
@@ -149,7 +153,7 @@ export class AuthRepository {
 
       const [claimed] = await tx
         .update(emailVerificationTokens)
-        .set({ /* @ts-ignore */  used: true })
+        .set({ used: true })
         .where(and(
           eq(emailVerificationTokens.id, token.id),
           eq(emailVerificationTokens.used, false),
@@ -163,7 +167,7 @@ export class AuthRepository {
       if (!user.emailVerified) {
         await tx
           .update(users)
-          .set({ /* @ts-ignore */  emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
+          .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
           .where(eq(users.id, user.id));
       }
 
@@ -177,7 +181,7 @@ export class AuthRepository {
     expiresAt: Date
   ): Promise<void> {
     const db = getDb();
-    await db.insert(passwordResetTokens).values({ /* @ts-ignore */ 
+    await db.insert(passwordResetTokens).values({
       userId,
       token,
       expiresAt,
@@ -208,8 +212,8 @@ export class AuthRepository {
   ): Promise<void> {
     const db = getDb();
     await db.transaction(async (tx) => {
-      await tx.update(users).set({ /* @ts-ignore */  passwordHash, updatedAt: new Date() } as any).where(eq(users.id, userId));
-      await tx.update(passwordResetTokens).set({ /* @ts-ignore */  used: true } as any).where(eq(passwordResetTokens.id, tokenId));
+      await tx.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, userId));
+      await tx.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, tokenId));
       try {
         await tx.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${userId}`);
       } catch (sessErr) {
@@ -226,7 +230,7 @@ export class AuthRepository {
     await db.transaction(async (tx) => {
       const [claimed] = await tx
         .update(passwordResetTokens)
-        .set({ /* @ts-ignore */  used: true } as any)
+        .set({ used: true })
         .where(
           and(
             eq(passwordResetTokens.token, token),
@@ -240,7 +244,7 @@ export class AuthRepository {
         throw Object.assign(new Error("Invalid or expired reset token."), { statusCode: 400 });
       }
 
-      await tx.update(users).set({ /* @ts-ignore */  passwordHash, updatedAt: new Date() } as any).where(eq(users.id, claimed.userId));
+      await tx.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, claimed.userId));
 
       try {
         await tx.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${claimed.userId}`);

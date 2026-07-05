@@ -29,6 +29,13 @@
       "when": 1780900000000,
       "tag": "0004_enable_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783170278253,
+      "tag": "0004_outgoing_vampiro",
+      "breakpoints": true
     }
   ]
 }

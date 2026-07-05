@@ -34,6 +34,7 @@ import { registerOpenApiDocs } from "./openapi";
 import { initAssessmentSocket } from "./socket/assessmentSocket";
 import { initNotesSocket } from "./socket/notesSocket";
 import { rlsContextMiddleware } from "./middleware/rlsContext";
+import { drainRlsClients, getPoolMetrics } from "./db-rls";
 
 import compression from "compression";
 
@@ -48,9 +49,9 @@ const allowedOrigins = process.env.CORS_ORIGINS
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (browser initial load, Vite HMR, curl)
+    // Reject requests with no Origin header (CSRF protection for clinical PHI endpoints)
     if (!origin) {
-      return callback(null, true);
+      return callback(new Error("Origin header required — requests without Origin are blocked for CSRF protection"), false);
     }
     
     if (allowedOrigins.includes(origin)) {
@@ -311,8 +312,10 @@ registerOpenApiDocs(app);
 
     httpServer.close(async () => {
       logger.info({ source: "express" }, "HTTP server closed");
+      logger.info({ source: "express", metrics: getPoolMetrics() }, "Pool metrics before drain");
       await closeQueue();
       logger.info({ source: "express" }, "Assessment queue closed");
+      await drainRlsClients();
       await closePool();
       logger.info({ source: "express" }, "Database pool closed");
       process.exit(0);
