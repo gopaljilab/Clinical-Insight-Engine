@@ -70,7 +70,7 @@ class PHIRedactor:
         # indicators, preventing false positives against clinical measurements (CPT codes,
         # MRNs, lab values, encounter IDs, etc.)
         self.zip_regex = re.compile(
-            r'\b(?:zip(?:\s*code)?|postal(?:\s*code)?|postcode)[\s:]*(\d{5}(?:-\d{4})?)',
+            r'(\b(?:zip(?:\s*code)?|postal(?:\s*code)?|postcode)[\s:]*)(\d{5}(?:-\d{4})?)',
             re.IGNORECASE
         )
 
@@ -140,7 +140,7 @@ class PHIRedactor:
         # 6. Redact Addresses
         text = self.street_regex1.sub("[ADDRESS]", text)
         text = self.street_regex2.sub("[ADDRESS]", text)
-        text = self.zip_regex.sub("[ADDRESS]", text)
+        text = self.zip_regex.sub(lambda m: m.group(1) + "[ADDRESS]", text)
 
         # 7. Redact names based on indicators / patterns
         def name_replacer(match):
