@@ -495,20 +495,6 @@ class PythonDaemonManager {
     }, actualDelay);
   }
 
-    this.restartAttempts++;
-    if (this.restartAttempts > MAX_DAEMON_RESTART_ATTEMPTS) {
-      logger.error({ attempts: this.restartAttempts }, "Python daemon exceeded max restart attempts — giving up");
-      return;
-    }
-
-    const delay = DAEMON_RESTART_BASE_DELAY_MS * Math.pow(2, this.restartAttempts - 1);
-    logger.warn({ attempt: this.restartAttempts, delay }, "Scheduling Python daemon restart with backoff");
-    setTimeout(() => {
-      this.isRestarting = false;
-      this.init();
-    }, delay);
-  }
-
   private isCircuitBreakerOpen(): boolean {
     if (this.circuitBreakerState === 'open') {
       if (Date.now() - this.lastFailureTime > this.circuitBreakerResetTimeoutMs) {
