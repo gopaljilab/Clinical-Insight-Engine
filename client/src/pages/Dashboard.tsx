@@ -1,3 +1,4 @@
+import React from 'react';
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,25 +9,44 @@ import { EmptyState } from "@/components/EmptyState";
 import { AssessmentResult } from "@/components/AssessmentResult";
 import { BMIClassificationHelper } from "@/components/BMIClassificationHelper";
 import { useCreateAssessment, useAssessments } from "@/hooks/use-assessments";
-import { Activity, AlertCircle, Clock3, HeartPulse, Loader2, ShieldCheck, TrendingUp, UploadCloud, UserCircle, Info, X } from "lucide-react";
+import { Activity, AlertCircle, Clock3, HeartPulse, ShieldCheck, TrendingUp, UploadCloud, UserCircle, Info, X } from "lucide-react";
 import { api, type AssessmentPreviewResponse, type AssessmentResponse } from "@shared/routes";
 import { insertAssessmentSchema } from "@shared/schema";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { SmartFhirConnect } from "@/components/SmartFhirConnect";
+import { MedicalLoader } from "@/components/ui/medical-loader";
 import { useToast } from "@/hooks/use-toast";
-
+import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
+import { ApiClient } from "@/lib/apiClient";
 const formSchema = insertAssessmentSchema.pick({
   patientName: true,
   gender: true,
-  age: true,
   hypertension: true,
   heartDisease: true,
   smokingHistory: true,
-  bmi: true,
-  hba1cLevel: true,
   bloodGlucoseLevel: true,
+  insulin: true,
+  skinThickness: true,
+}).extend({
+  // Transform empty inputs to undefined and validate range parameters
+  age: z.preprocess((val) => (val === "" || val === undefined ? undefined : Number(val)), 
+    z.number({ invalid_type_error: "Age must be a number" })
+     .min(0, "Age cannot be negative")
+     .max(125, "Please enter a valid age between 0 and 125")),
+  
+  bmi: z.preprocess((val) => (val === "" || val === undefined ? undefined : Number(val)), 
+    z.number({ invalid_type_error: "BMI must be a number" })
+     .min(10, "BMI is too low (minimum 10)")
+     .max(70, "BMI is too high (maximum 70)")),
+     
+  hba1cLevel: z.preprocess((val) => (val === "" || val === undefined ? undefined : Number(val)), 
+    z.number({ invalid_type_error: "HbA1c must be a number" })
+     .min(2, "HbA1c level is too low (minimum 2%)")
+     .max(20, "HbA1c level is too high (maximum 20%)")),
 });
 
-type FormData = z.infer<typeof formSchema>;
+type AssessmentFormData = z.infer<typeof formSchema>;
 
 const inputClass =
   "w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900 px-4 py-3 text-[#1E293B] dark:text-gray-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-sm outline-none transition-all duration-200 focus:border-blue-600 dark:focus:border-blue-500 focus:ring-4 focus:ring-blue-600/20 dark:focus:ring-blue-500/20";
@@ -65,6 +85,7 @@ export default function Dashboard() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const { mutate: createAssessment, isPending, error } = useCreateAssessment();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const { data: assessmentsData } = useAssessments({ limit: 50 });
   const assessments = assessmentsData?.data ?? [];
@@ -89,8 +110,8 @@ export default function Dashboard() {
     watch,
     setValue,
     reset,
-  } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+  } = useForm<AssessmentFormData>({
+    resolver: zodResolver(formSchema) as any,
     defaultValues: {
       patientName: "",
       hypertension: false,
@@ -104,7 +125,7 @@ export default function Dashboard() {
     },
   });
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = (data: AssessmentFormData) => {
     createAssessment(data, {
       onSuccess: (data) => {
         setResult(data);
@@ -114,7 +135,7 @@ export default function Dashboard() {
     });
   };
 
-  const watchedValues = watch();
+  const watchedValues = watch() as FormData;
   const isHypertension = watch("hypertension");
   const isHeartDisease = watch("heartDisease");
 
@@ -157,7 +178,7 @@ export default function Dashboard() {
         Object.entries(draft).forEach(([k, v]) => {
           if (!allowedKeys.includes(k)) return;
           try {
-            setValue(k as keyof FormData, v as any, { shouldDirty: true });
+            setValue(k as keyof AssessmentFormData, v as any, { shouldDirty: true });
           } catch (e) {}
         });
       }
@@ -184,27 +205,15 @@ export default function Dashboard() {
         setPreviewPending(true);
         setPreviewError(null);
 
-        const response = await fetch(api.assessments.preview.path, {
-          method: api.assessments.preview.method,
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(parsedForPreview.data),
-          signal: controller.signal,
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data?.message ?? "Failed to generate preview");
-        }
+        const data = await ApiClient.post(api.assessments.preview.path, parsedForPreview.data, { signal: controller.signal });
 
         const parsed = api.assessments.preview.responses[200].parse(data);
         setPreview(parsed);
-      } catch (previewErr: any) {
-        if (previewErr.name === "AbortError") {
+      } catch (previewErr: unknown) {
+        if ((previewErr as Error).name === "AbortError") {
           return;
         }
-        setPreviewError(previewErr.message ?? "Failed to generate preview");
+        setPreviewError((previewErr as Error).message ?? "Failed to generate preview");
       } finally {
         setPreviewPending(false);
       }
@@ -246,6 +255,19 @@ export default function Dashboard() {
             <p className="text-slate-500 dark:text-slate-400 mt-3 text-lg max-w-2xl leading-8">
               Enter patient details to run the preventive diabetes and cardiovascular risk model.
             </p>
+            <div className="mt-4">
+              <SmartFhirConnect onDataLoaded={(data) => {
+                const allowedKeys = [
+                  "patientName", "gender", "age", "hypertension", "heartDisease",
+                  "smokingHistory", "bmi", "hba1cLevel", "bloodGlucoseLevel",
+                ];
+                Object.entries(data).forEach(([k, v]) => {
+                  if (allowedKeys.includes(k) && v !== undefined && v !== null) {
+                    setValue(k as any, v as any, { shouldDirty: true, shouldValidate: true });
+                  }
+                });
+              }} />
+            </div>
           </div>
 
 <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 lg:min-w-115">
@@ -253,9 +275,9 @@ export default function Dashboard() {
               <div className="sm:col-span-4">
                 <EmptyState
                   icon={Activity}
-                  title="No Assessments Yet"
-                  description="Your statistics will appear here once you run your first risk assessment."
-                  actionLabel="Run First Assessment"
+                  title={t('dashboard.emptyState.title')}
+                  description={t('dashboard.emptyState.description')}
+                  actionLabel={t('dashboard.emptyState.actionLabel')}
                   actionOnClick={() =>
                     document
                       .getElementById("assessment-form")
@@ -301,12 +323,12 @@ export default function Dashboard() {
               onSubmit={handleSubmit(onSubmit)}
               className={`rounded-2xl border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_-2px_rgba(0,0,0,0.3)] transition-all duration-200 md:p-8 ${result ? "opacity-75 pointer-events-none" : ""}`}
             >
-                {error && (
+                {!!error && (
                   <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 rounded-xl flex items-start gap-3 text-red-600 dark:text-red-400">
                     <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold">Assessment Failed</p>
-                      <p className="text-sm opacity-90">{error.message}</p>
+                      <p className="text-sm opacity-90">{(error as Error).message}</p>
                     </div>
                   </div>
                 )}
@@ -355,8 +377,11 @@ export default function Dashboard() {
                           aria-label="Patient age in years"
                           aria-describedby="age-guidance"
                         />
-                        <p id="age-guidance" className="text-xs text-slate-500 dark:text-slate-400">Use whole years; the model is intended for adult patients.</p>
-                        {errors.age && <p className="text-sm text-red-600 mt-1">{errors.age.message}</p>}
+                        {errors.age ? (
+                          <p className="text-sm font-semibold text-red-500 mt-1 flex items-center gap-1">⚠️ {errors.age.message}</p>
+                        ) : (
+                          <p id="age-guidance" className="text-xs text-slate-500 dark:text-slate-400">Use whole years; the model is intended for adult patients.</p>
+                        )}
                       </div>
 
                       <div className="space-y-2 md:col-span-3">
@@ -447,8 +472,11 @@ export default function Dashboard() {
                             </button>
                           )}
                         </div>
-                        <p id="bmi-guidance" className="text-xs text-slate-500 dark:text-slate-400">Enter BMI in kg/m², typically between 18.5 and 30+.</p>
-                        {errors.bmi && <p className="text-sm text-red-600 mt-1">{errors.bmi.message}</p>}
+                        {errors.bmi ? (
+                          <p className="text-sm font-semibold text-red-500 mt-1 flex items-center gap-1">⚠️ {errors.bmi.message}</p>
+                        ) : (
+                          <p id="bmi-guidance" className="text-xs text-slate-500 dark:text-slate-400">Enter BMI in kg/m², typically between 18.5 and 30+.</p>
+                        )}
                         <BMIClassificationHelper bmi={watchedValues.bmi} />
                       </div>
 
@@ -495,8 +523,11 @@ export default function Dashboard() {
                             </button>
                           )}
                         </div>
-                        <p id="hba1cLevel-guidance" className="text-xs text-slate-500 dark:text-slate-400">Enter the HbA1c percentage from the most recent lab result.</p>
-                        {errors.hba1cLevel && <p className="text-sm text-red-600 mt-1">{errors.hba1cLevel.message}</p>}
+                        {errors.hba1cLevel ? (
+                          <p className="text-sm font-semibold text-red-500 mt-1 flex items-center gap-1">⚠️ {errors.hba1cLevel.message}</p>
+                        ) : (
+                          <p id="hba1cLevel-guidance" className="text-xs text-slate-500 dark:text-slate-400">Enter the HbA1c percentage from the most recent lab result.</p>
+                        )}
                       </div>
 
                       <div className="space-y-2 lg:col-span-2">
@@ -536,6 +567,52 @@ export default function Dashboard() {
                         </div>
                         <p id="bloodGlucoseLevel-guidance" className="text-xs text-slate-500 dark:text-slate-400">Use mg/dL from the most recent fasting or clinical glucose reading.</p>
                         {errors.bloodGlucoseLevel && <p className="text-sm text-red-600 mt-1">{errors.bloodGlucoseLevel.message}</p>}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <label htmlFor="insulin" className={labelClass}>Insulin (mu U/ml)</label>
+                          <span className="text-xs text-slate-400 font-normal ml-1">(Optional)</span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            id="insulin"
+                            type="number"
+                            {...register("insulin")}
+                            className={getInputClass(!!errors.insulin)}
+                            placeholder="e.g. 80"
+                            aria-label="Insulin level"
+                          />
+                          {watchedValues.insulin && (
+                            <button type="button" onClick={() => setValue("insulin", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        {errors.insulin && <p className="text-sm text-red-600 mt-1">{errors.insulin.message}</p>}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <label htmlFor="skinThickness" className={labelClass}>Skin Thickness (mm)</label>
+                          <span className="text-xs text-slate-400 font-normal ml-1">(Optional)</span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            id="skinThickness"
+                            type="number"
+                            {...register("skinThickness")}
+                            className={getInputClass(!!errors.skinThickness)}
+                            placeholder="e.g. 20"
+                            aria-label="Skin thickness"
+                          />
+                          {watchedValues.skinThickness && (
+                            <button type="button" onClick={() => setValue("skinThickness", undefined as any, { shouldValidate: true, shouldDirty: true })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-white dark:bg-gray-900">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        {errors.skinThickness && <p className="text-sm text-red-600 mt-1">{errors.skinThickness.message}</p>}
                       </div>
                     </div>
                   </section>
@@ -589,12 +666,12 @@ export default function Dashboard() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isPending || result !== null}
+                    disabled={isPending || result !== null || Object.keys(errors).length > 0}
                     className="w-full md:w-auto px-8 py-4 rounded-xl font-black text-lg border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 bg-white dark:bg-gray-900 shadow-sm hover:bg-blue-50 dark:hover:bg-blue-950/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
                   >
                     {isPending ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <MedicalLoader type="dna" size="sm" className="w-5 h-5" />
                         Analyzing Data...
                       </>
                     ) : (
@@ -611,7 +688,7 @@ export default function Dashboard() {
             <aside className={`transition-all duration-500 ${(result || isPending) ? "lg:col-span-8" : "lg:col-span-2 lg:sticky lg:top-8"}`}>
               {isPending ? (
                 <div className="rounded-2xl border border-slate-100 bg-white p-8 shadow-sm shadow-slate-900/3 flex flex-col items-center justify-center min-h-[500px]" aria-live="polite">
-                  <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-6" aria-hidden="true" />
+                  <MedicalLoader type="heartbeat" size="xl" className="mb-6 text-blue-500" aria-hidden="true" />
                   <h2 className="text-2xl font-black text-[#1E293B] mb-3">Analyzing Patient Data...</h2>
                   <p className="text-slate-500 text-center max-w-md mb-10 text-lg">
                     Processing clinical indicators, computing vital correlations, and generating risk prediction.
@@ -674,12 +751,11 @@ export default function Dashboard() {
                               cx="50"
                               cy="50"
                               r="42"
-                              className="stroke-blue-500/20 dark:stroke-blue-500/10 fill-none"
+                              className="stroke-blue-500/20 dark:stroke-blue-500/10 fill-none animate-[dash_3s_ease-in-out_infinite]"
                               strokeWidth="8"
                               strokeDasharray="264"
                               strokeDashoffset="180"
                               strokeLinecap="round"
-                              style={{ animation: 'dash 3s ease-in-out infinite' }}
                             />
                           </svg>
                           
@@ -706,8 +782,8 @@ export default function Dashboard() {
                               </div>
                               <div className="h-2 w-full bg-slate-200/50 dark:bg-slate-800/50 rounded-full overflow-hidden">
                                 <div 
-                                  className="h-full bg-slate-300 dark:bg-slate-700/60 rounded-full animate-pulse" 
-                                  style={{ width: `${width}%` }} 
+                                  className="h-full bg-slate-300 dark:bg-slate-700/60 rounded-full animate-pulse w-[var(--width)]" 
+                                  style={{ '--width': `${width}%` } as React.CSSProperties} 
                                 />
                               </div>
                             </div>
@@ -719,7 +795,7 @@ export default function Dashboard() {
 
                   {previewPending && (
                     <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <MedicalLoader type="cross" size="sm" className="h-4 w-4" />
                       Updating risk preview...
                     </div>
                   )}
@@ -779,3 +855,4 @@ export default function Dashboard() {
     </ErrorBoundary>
   );
 }
+

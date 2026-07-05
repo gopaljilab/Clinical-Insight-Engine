@@ -1,11 +1,13 @@
+import React from 'react';
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Search, TrendingUp, Activity, Weight, HeartPulse, Loader2, AlertCircle } from "lucide-react";
+import { Search, TrendingUp, Activity, Weight, HeartPulse, AlertCircle } from "lucide-react";
 import { formatCompactDate, formatReadableDate } from "@/utils/dateFormat";
+import { MedicalLoader } from "@/components/ui/medical-loader";
 
 interface Assessment {
   id: number;
@@ -89,8 +91,8 @@ export default function ProgressTracking() {
       if (!res.ok) throw new Error("Failed to load patient data");
       const data = await res.json();
       setAssessments(data.data ?? []);
-    } catch (err: any) {
-      setError(err.message || "Failed to load patient data");
+    } catch (err: unknown) {
+      setError((err as Error).message || "Failed to load patient data");
     } finally {
       setLoading(false);
     }
@@ -155,7 +157,7 @@ export default function ProgressTracking() {
 
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <MedicalLoader type="dna" size="lg" className="h-8 w-8 text-blue-600" />
           </div>
         )}
 
@@ -335,3 +337,4 @@ export default function ProgressTracking() {
     </AppLayout>
   );
 }
+

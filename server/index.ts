@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { safeExecML } from "./utils/exec";
-import express, { type Request, Response, NextFunction } from "express";
+import express, { type Request, Response, NextFunction, RequestHandler } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
@@ -30,9 +30,16 @@ import {
 } from "./queue";
 import { EmailConfigurationError, validateEmailConfig } from "./email";
 import { generalLimiter } from "./middleware/rateLimit";
+import { registerOpenApiDocs } from "./openapi";
+import { initAssessmentSocket } from "./socket/assessmentSocket";
+import { initNotesSocket } from "./socket/notesSocket";
+import { rlsContextMiddleware } from "./middleware/rlsContext";
+import { drainRlsClients, getPoolMetrics } from "./db-rls";
 
+import compression from "compression";
 
 const app = express();
+app.use(compression());
 const httpServer = createServer(app);
 
 // CORS configuration - hardened to reject requests missing the Origin header
@@ -42,10 +49,9 @@ const allowedOrigins = process.env.CORS_ORIGINS
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    // This is required for the browser to load the initial HTML document
+    // Reject requests with no Origin header (CSRF protection for clinical PHI endpoints)
     if (!origin) {
-      return callback(null, true);
+      return callback(new Error("Origin header required — requests without Origin are blocked for CSRF protection"), false);
     }
     
     if (allowedOrigins.includes(origin)) {
@@ -130,7 +136,7 @@ app.use((_req, res, next) => {
 });
 
 // Security headers via helmet
-const scriptSrcDirective: Array<string | ((req: any, res: any) => string)> = [
+const scriptSrcDirective: any[] = [
   "'self'",
   (_req: any, res: any) => `'nonce-${res.locals.cspNonce}'`,
 ];
@@ -180,7 +186,7 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       const logPayload = {
-        requestId: (req as any).id,
+        requestId: (req).id,
         method: req.method,
         path,
         status: res.statusCode,
@@ -194,12 +200,14 @@ app.use((req, res, next) => {
   next();
 });
 
+registerOpenApiDocs(app);
+
 (async () => {
   try {
     await verifyDatabaseConnection();
   } catch (error) {
     if (error instanceof DatabaseStartupError) {
-      logger.error({ err: error }, error.message);
+      logger.error({ err: error }, (error as Error).message);
     } else {
       logger.error({ err: error }, "Unexpected database startup error");
     }
@@ -212,7 +220,7 @@ app.use((req, res, next) => {
     validateEmailConfig();
   } catch (error) {
     if (error instanceof EmailConfigurationError) {
-      logger.error({ err: error }, error.message);
+      logger.error({ err: error }, (error as Error).message);
     } else {
       logger.error({ err: error }, "Unexpected email configuration error");
     }
@@ -241,6 +249,12 @@ app.use((req, res, next) => {
 
   // Register auth routes BEFORE API routes so session is available
   app.use("/api/auth", createAuthRouter());
+  // Apply RLS context middleware to assessment and patient data routes
+  // This ensures PostgreSQL session variables are set for RLS policies
+  app.use("/api/assessments", rlsContextMiddleware);
+  app.use("/api/patients", rlsContextMiddleware);
+  app.use("/api/patient", rlsContextMiddleware);
+  app.use("/api/admin", rlsContextMiddleware);
   // Register protected patient EMR/EHR integration endpoints
   app.use("/api/patients", generalLimiter, patientsRouter);
   app.use("/api/patient", patientPortalRouter);
@@ -248,7 +262,9 @@ app.use((req, res, next) => {
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
   safeExecML(getPythonExecutable(), ["analyze.py", "train"])
     .then(() => logger.info({ source: "ml" }, "ML model ready."))
-    .catch((err: any) => logger.warn({ source: "ml" }, `ML warmup warning: ${err.message}`));
+    .catch((err: unknown) => logger.warn({ source: "ml" }, `ML warmup warning: ${(err as Error).message}`));
+  initAssessmentSocket(httpServer);
+  initNotesSocket(httpServer);
   await registerRoutes(httpServer, app);
 
   // Global error handler — must be the LAST middleware.
@@ -296,8 +312,10 @@ app.use((req, res, next) => {
 
     httpServer.close(async () => {
       logger.info({ source: "express" }, "HTTP server closed");
+      logger.info({ source: "express", metrics: getPoolMetrics() }, "Pool metrics before drain");
       await closeQueue();
       logger.info({ source: "express" }, "Assessment queue closed");
+      await drainRlsClients();
       await closePool();
       logger.info({ source: "express" }, "Database pool closed");
       process.exit(0);
@@ -313,3 +331,19 @@ app.use((req, res, next) => {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 })();
+// 1. Handle Unhandled Promise Rejections (e.g. broken async background tasks)
+process.on("unhandledRejection", (reason: any) => {
+  console.error("💥 CRITICAL UNHANDLED REJECTION: Shutting down safely...");
+  console.error(reason?.stack || reason);
+  
+  // Graceful shutdown logic so active clinical requests aren't cut off instantly
+  process.exit(1); 
+});
+
+// 2. Handle Uncaught Synchronous Exceptions (e.g. referencing a non-existent variable)
+process.on("uncaughtException", (err: Error) => {
+  console.error("💥 CRITICAL UNCAUGHT EXCEPTION: Shutting down safely...");
+  console.error(err.stack || err.message);
+  
+  process.exit(1);
+});

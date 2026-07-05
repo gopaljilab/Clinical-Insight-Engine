@@ -25,6 +25,11 @@ function fmt(val: unknown): string {
   return String(val);
 }
 
+/**
+ * Download Bulk Assessment Pdf.
+ * @param assessments - The assessments parameter.
+ * @returns The result of the operation.
+ */
 export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): void {
   const doc = new jsPDF("landscape", "mm", "a4");
   const pw = doc.internal.pageSize.getWidth();
@@ -36,7 +41,7 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
     doc.setFontSize(8);
     doc.setFont("Helvetica", "italic");
     doc.text(
-      `Clinical Insight Engine — Page ${doc.getCurrentPageInfo().pageNumber}`,
+      `Clinical Insight Engine — Page ${(doc as any).getCurrentPageInfo().pageNumber}`,
       pw / 2,
       ph - 6,
       { align: "center" }
