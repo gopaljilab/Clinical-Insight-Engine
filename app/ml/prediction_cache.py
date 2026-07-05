@@ -35,7 +35,7 @@ class PredictionLRUCache:
     def _make_key(self, input_data: dict) -> str:
         """Create a stable hash key from input parameters."""
         serialized = json.dumps(input_data, sort_keys=True)
-        return hashlib.sha256(serialized.encode()).hexdigest()[:16]
+        return hashlib.sha256(serialized.encode()).hexdigest()
 
     def get(self, input_data: dict) -> Optional[Any]:
         """Retrieve cached prediction if available and not expired."""
