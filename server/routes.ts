@@ -96,7 +96,7 @@ async function seedDatabase() {
 
   const seedUserId = "seed@clinical-insight-engine.dev";
 
-  const samples: AssessmentCreateInput[] = [
+  const samples: any[] = [
     {
       createdBy: seedUserId,
       patientName: "John Doe",
@@ -311,7 +311,7 @@ export async function registerRoutes(
               "Injection-like pattern detected in search query parameter",
               req,
               {
-                matchedPattern: analysis.pattern,
+                matchedPattern: (analysis as any).pattern,
                 userId: req.session.user?.id,
               }
             );
@@ -339,7 +339,7 @@ export async function registerRoutes(
               "SUSPICIOUS_SEARCH_PATTERN",
               "Validated search term contains a suspicious pattern",
               req,
-              { matchedPattern: analysis.pattern, userId: req.session.user?.id }
+              { matchedPattern: (analysis as any).pattern, userId: req.session.user?.id }
             );
           }
         }

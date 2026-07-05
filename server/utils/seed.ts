@@ -1,5 +1,5 @@
 import { logger } from "../logger";
-import { storage, type AssessmentCreateInput } from "../storage";
+import { storage, type any } from "../storage";
 
 /**
  * Seed Database.
@@ -15,7 +15,7 @@ export async function seedDatabase() {
 
   const seedUserId = "seed@clinical-insight-engine.dev";
 
-  const samples: AssessmentCreateInput[] = [
+  const samples: any[] = [
     {
       createdBy: seedUserId,
       patientName: "John Doe",

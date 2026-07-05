@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, test, vi } from "vitest";
 import { AssessmentResult } from "./AssessmentResult";
 
@@ -75,7 +76,12 @@ const mockAssessment = {
 };
 
 test("renders patient view with correct risk category", () => {
-  render(<AssessmentResult assessment={mockAssessment as any} />);
+  const queryClient = new QueryClient();
+  render(
+    <QueryClientProvider client={queryClient}>
+      <AssessmentResult assessment={mockAssessment as any} />
+    </QueryClientProvider>
+  );
   expect(screen.getByText(/Your Health Assessment/i)).toBeInTheDocument();
   // We expect "LOW" since riskCategory is LOW
   expect(screen.getAllByText("LOW").length).toBeGreaterThan(0);

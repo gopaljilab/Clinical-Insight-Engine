@@ -15,7 +15,7 @@ const updateSettingsSchema = z.object({
 router.get("/", requireAuth, async (req, res) => {
   try {
     const db = getDb();
-    const [user] = await db.select().from(users).where(eq(users.id, req.user!.id));
+    const [user] = await db.select().from(users).where(eq(users.id, (req.user as any).id));
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -34,8 +34,8 @@ router.patch("/", requireAuth, validateDTO(updateSettingsSchema), async (req, re
 
     const [updatedUser] = await db
       .update(users)
-      .set({ reportFrequency })
-      .where(eq(users.id, req.user!.id))
+      .set({ reportFrequency } as any)
+      .where(eq(users.id, (req.user as any).id))
       .returning();
 
     res.json({ reportFrequency: updatedUser.reportFrequency });

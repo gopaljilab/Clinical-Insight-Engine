@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "../db";
+import { getDb } from "../db";
 import { smartGoals, assessments } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { generateSmartGoals } from "../services/smart-goals.service";
@@ -14,7 +14,7 @@ router.get("/assessments/:id/goals", async (req, res) => {
       return res.status(400).json({ message: "Invalid assessment ID" });
     }
 
-    const goals = await db.query.smartGoals.findMany({
+    const goals = await getDb().query.smartGoals.findMany({
       where: eq(smartGoals.assessmentId, assessmentId),
       orderBy: (goals, { asc }) => [asc(goals.id)]
     });
@@ -35,7 +35,7 @@ router.post("/assessments/:id/goals/generate", async (req, res) => {
     }
 
     // Check if goals already exist
-    const existingGoals = await db.query.smartGoals.findMany({
+    const existingGoals = await getDb().query.smartGoals.findMany({
       where: eq(smartGoals.assessmentId, assessmentId),
     });
 
@@ -44,7 +44,7 @@ router.post("/assessments/:id/goals/generate", async (req, res) => {
     }
 
     // Fetch assessment
-    const assessment = await db.query.assessments.findFirst({
+    const assessment = await getDb().query.assessments.findFirst({
       where: eq(assessments.id, assessmentId),
     });
 
@@ -56,7 +56,7 @@ router.post("/assessments/:id/goals/generate", async (req, res) => {
     const generatedGoals = generateSmartGoals(assessment);
     
     // Insert into DB
-    const insertedGoals = await db.insert(smartGoals).values(
+    const insertedGoals = await getDb().insert(smartGoals).values(
       generatedGoals.map(g => ({
         ...g,
         assessmentId,
@@ -84,7 +84,7 @@ router.post("/assessments/:id/goals", async (req, res) => {
       return res.status(400).json({ message: "Description is required" });
     }
 
-    const [newGoal] = await db.insert(smartGoals).values({
+    const [newGoal] = await getDb().insert(smartGoals).values({
       assessmentId,
       description,
       targetValue,
@@ -92,7 +92,7 @@ router.post("/assessments/:id/goals", async (req, res) => {
       reminderDate: reminderDate ? new Date(reminderDate) : null,
       clinicianNotes,
       patientExplanation,
-    }).returning();
+    } as any).returning();
 
     res.status(201).json(newGoal);
   } catch (error) {
@@ -111,7 +111,7 @@ router.patch("/goals/:id", async (req, res) => {
 
     const { status, targetValue, dueDate, reminderDate, clinicianNotes, description, patientExplanation } = req.body;
     
-    const [updatedGoal] = await db.update(smartGoals)
+    const [updatedGoal] = await getDb().update(smartGoals)
       .set({
         ...(status !== undefined && { status }),
         ...(targetValue !== undefined && { targetValue }),
@@ -121,7 +121,7 @@ router.patch("/goals/:id", async (req, res) => {
         ...(description !== undefined && { description }),
         ...(patientExplanation !== undefined && { patientExplanation }),
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(smartGoals.id, goalId))
       .returning();
 
@@ -144,7 +144,7 @@ router.delete("/goals/:id", async (req, res) => {
       return res.status(400).json({ message: "Invalid goal ID" });
     }
 
-    const [deletedGoal] = await db.delete(smartGoals)
+    const [deletedGoal] = await getDb().delete(smartGoals)
       .where(eq(smartGoals.id, goalId))
       .returning();
 

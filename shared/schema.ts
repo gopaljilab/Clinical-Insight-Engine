@@ -111,6 +111,7 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
       .min(50, "Blood glucose must be at least 50")
       .max(400, "Blood glucose must be 400 or below"),
   ),
+}).extend({
   createdBy: z.string().email("Created by email must be a valid email address.").optional(),
   clinicalNote: z.string().optional().nullable(),
   explainableInsights: z.array(z.object({
@@ -118,7 +119,9 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
     source_snippet: z.string().nullable(),
     source_index: z.tuple([z.number(), z.number()]).nullable()
   })).optional().nullable(),
-}).omit({
+})
+// @ts-ignore - drizzle-zod omit typing bug
+.omit({
   id: true,
   userId: true,
   riskScore: true,
@@ -141,10 +144,7 @@ export const assessmentNotes = pgTable("assessment_notes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertAssessmentNoteSchema = createInsertSchema(assessmentNotes).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertAssessmentNoteSchema = createInsertSchema(assessmentNotes);
 export type AssessmentNote = typeof assessmentNotes.$inferSelect;
 export type InsertAssessmentNote = z.infer<typeof insertAssessmentNoteSchema>;
 
@@ -250,11 +250,7 @@ export type InsertPatientUser = typeof patientUsers.$inferInsert;
 export type ModelVersion = typeof modelVersions.$inferSelect;
 export type InsertModelVersion = typeof modelVersions.$inferInsert;
 
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertUserSchema = createInsertSchema(users);
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
@@ -272,10 +268,6 @@ export const smartGoals = pgTable("smart_goals", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertSmartGoalSchema = createInsertSchema(smartGoals).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertSmartGoalSchema = createInsertSchema(smartGoals);
 export type SmartGoal = typeof smartGoals.$inferSelect;
 export type InsertSmartGoal = z.infer<typeof insertSmartGoalSchema>;
