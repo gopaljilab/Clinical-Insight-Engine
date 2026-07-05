@@ -1,16 +1,19 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { randomInt, randomBytes } from "crypto";
+import { randomInt, randomBytes, createHash } from "crypto";
 import bcrypt from "bcrypt";
 import { rateLimit } from "express-rate-limit";
-import { eq, and, gte, sql } from "drizzle-orm";
 import { issueToken } from "./services/auth/tokenValidator";
 import { storage } from "./storage";
-import { getDb } from "./db";
-import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
 import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { logger } from "./logger";
 import { validateDTO } from "./middleware/validateDTO";
 import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswordDTOSchema, verifyEmailDTOSchema, verifyOtpDTOSchema } from "./validation/auth.dto";
+import { AuthRepository } from "./repositories/auth.repository";
+import { getDb } from "./db";
+import { and, eq, gte, sql } from "drizzle-orm";
+import { passwordResetTokens, users, emailVerificationTokens } from "@shared/schema";
+
+const authRepository = new AuthRepository();
 
 function hashPassword(password: string): string {
   return bcrypt.hashSync(password, 10);
@@ -19,19 +22,15 @@ function hashPassword(password: string): string {
 function verifyPassword(password: string, storedHash: string): boolean {
   return bcrypt.compareSync(password, storedHash);
 }
-// Extend express-session to include user data
 declare module "express-session" {
   interface SessionData {
-    user?: {
-      id: string;
-      email: string;
-      name: string;
-      role?: string | null;
-      emailVerified: boolean;
-    };
     pendingUser?: {
       id: string;
       email: string;
+    };
+    oauthState?: {
+      value: string;
+      createdAt: number;
     };
   }
 }
@@ -104,7 +103,52 @@ function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
 
-export const pendingOtps = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
+const MAX_PENDING_OTPS = 10000;
+const OTP_CLEANUP_INTERVAL_MS = 60_000;
+
+const _pendingOtps = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
+
+function setPendingOtp(email: string, value: { otp: string; expiresAt: number; attempts?: number }) {
+  if (_pendingOtps.size >= MAX_PENDING_OTPS) {
+    cleanupExpiredOtps();
+    if (_pendingOtps.size >= MAX_PENDING_OTPS) {
+      logger.warn({ email }, "pendingOtps map is full — rejecting new OTP");
+      return;
+    }
+  }
+  _pendingOtps.set(email, { ...value, attempts: value.attempts ?? 0 });
+}
+
+function getPendingOtp(email: string) {
+  return _pendingOtps.get(email);
+}
+
+function deletePendingOtp(email: string) {
+  _pendingOtps.delete(email);
+}
+
+function cleanupExpiredOtps() {
+  const now = Date.now();
+  for (const [email, entry] of _pendingOtps) {
+    if (now > entry.expiresAt) {
+      _pendingOtps.delete(email);
+    }
+  }
+}
+
+setInterval(cleanupExpiredOtps, OTP_CLEANUP_INTERVAL_MS);
+
+export const pendingOtps = {
+  get: getPendingOtp,
+  set: setPendingOtp,
+  delete: deletePendingOtp,
+  has: (email: string) => {
+    const entry = _pendingOtps.get(email);
+    return entry !== undefined && Date.now() <= entry.expiresAt;
+  },
+  get size() { return _pendingOtps.size; },
+  [Symbol.iterator]() { return _pendingOtps[Symbol.iterator](); },
+} as unknown as Map<string, { otp: string; expiresAt: number; attempts: number }>;
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -152,7 +196,7 @@ function saveSession(req: Request): Promise<void> {
 
 async function establishAuthenticatedSession(
   req: Request,
-  user: { id: string; email: string; name: string; role?: string | null; emailVerified: boolean },
+  user: { id: string; email: string; name: string; role: string | null; emailVerified: boolean },
 ): Promise<void> {
   await regenerateSession(req);
   req.session.user = user;
@@ -259,7 +303,7 @@ export async function requireAnyAuth(req: Request, res: Response, next: NextFunc
     if (!authUser) {
       return res.status(401).json({ message: "Authentication required." });
     }
-    (req as any).authenticatedUser = authUser;
+    (req).authenticatedUser = authUser;
     next();
   } catch {
     return res.status(500).json({ message: "Authentication check failed." });
@@ -277,12 +321,7 @@ export function createAuthRouter(): Router {
     const { fullName, email, password, licenseNumber } = req.body;
 
     try {
-      const db = getDb();
-      const [existingDbUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const existingDbUser = await authRepository.findUserByEmail(email);
 
       if (existingDbUser) {
         return res.status(409).json({ message: "An account with this email already exists." });
@@ -292,31 +331,19 @@ export function createAuthRouter(): Router {
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      let registeredUserId: string;
-
-      await db.transaction(async (tx) => {
-        const [newUser] = await tx
-          .insert(users)
-          .values({
-            fullName,
-            email,
-            medicalLicenseNumber: licenseNumber,
-            passwordHash,
-            emailVerified: false,
-            role: "DOCTOR",
-          })
-          .returning();
-
-        registeredUserId = newUser.id;
-
-        await tx.insert(emailVerificationTokens).values({
-          userId: newUser.id,
-          verificationCode: otp,
-          expiresAt,
-          used: false,
-          attemptCount: 0,
-        });
-      });
+      const newUser = await authRepository.registerUserWithOtp(
+        {
+          fullName,
+          email,
+          medicalLicenseNumber: licenseNumber,
+          passwordHash,
+          emailVerified: false,
+          role: "DOCTOR",
+        },
+        otp,
+        expiresAt
+      );
+      const registeredUserId = newUser.id;
 
       const emailSent = await sendVerificationEmail(email, otp);
       if (!emailSent) {
@@ -352,12 +379,7 @@ export function createAuthRouter(): Router {
     const { email, password } = req.body;
 
     try {
-      const db = getDb();
-      const [dbUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const dbUser = await authRepository.findUserByEmail(email);
 
       if (!dbUser || !dbUser.isActive) {
         return res.status(401).json({ message: "Invalid credentials." });
@@ -371,26 +393,7 @@ export function createAuthRouter(): Router {
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      await db.transaction(async (tx) => {
-        // Invalidate old unused tokens for this user
-        await tx
-          .update(emailVerificationTokens)
-          .set({ used: true })
-          .where(
-            and(
-              eq(emailVerificationTokens.userId, dbUser.id),
-              eq(emailVerificationTokens.used, false),
-            ),
-          );
-
-        await tx.insert(emailVerificationTokens).values({
-          userId: dbUser.id,
-          verificationCode: otp,
-          expiresAt,
-          used: false,
-          attemptCount: 0,
-        });
-      });
+      await authRepository.replaceVerificationToken(dbUser.id, otp, expiresAt);
 
       const emailSent = await sendVerificationEmail(email, otp);
       if (!emailSent) {
@@ -427,36 +430,9 @@ export function createAuthRouter(): Router {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     try {
-      if (mode === "login") {
+      
 
-        const pending = pendingOtps.get(email);
-
-        if (!pending) {
-          return res.status(400).json({ message: "No pending verification found for this email. Please sign in again." });
-        }
-
-        if (Date.now() > pending.expiresAt) {
-          pendingOtps.delete(email);
-          return res.status(400).json({ message: "OTP has expired. Please sign in again." });
-        }
-
-        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime(), attempts: 0 });
-        const emailSent = await sendVerificationEmail(email, otp);
-        if (!emailSent) {
-
-          return res.status(503).json({ message: "Failed to send verification email. Please try again." });
-        }
-        logDevOtp(email, otp);
-
-        return res.json({ success: true, pendingEmail: email });
-      }
-
-      const db = getDb();
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const user = await authRepository.findUserByEmail(email);
 
       if (!user) {
         return res.status(404).json({ message: "User not found." });
@@ -464,23 +440,7 @@ export function createAuthRouter(): Router {
 
       // We no longer block resend if user is verified, they might be logging in.
       
-      await db.transaction(async (tx) => {
-        await tx
-          .update(emailVerificationTokens)
-          .set({ used: true })
-          .where(and(
-            eq(emailVerificationTokens.userId, user.id),
-            eq(emailVerificationTokens.used, false),
-          ));
-
-        await tx.insert(emailVerificationTokens).values({
-          userId: user.id,
-          verificationCode: otp,
-          expiresAt,
-          used: false,
-          attemptCount: 0,
-        });
-      });
+      await authRepository.replaceVerificationToken(user.id, otp, expiresAt);
 
       const emailSent = await sendVerificationEmail(email, otp);
       if (!emailSent) {
@@ -502,55 +462,81 @@ export function createAuthRouter(): Router {
    */
   router.post("/verify-otp", verifyEmailLimiter, validateDTO(verifyOtpDTOSchema), async (req: Request, res: Response) => {
     const { email, otp } = req.body;
+    const db = getDb();
 
-    const pending = pendingOtps.get(email);
+const [user] = await db
+  .select()
+  .from(users)
+  .where(eq(users.email, email))
+  .limit(1);
 
-    if (!pending) {
-      await storage.recordLoginAudit({
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-        loginStatus: "otp_failed",
-      });
-      return res.status(400).json({ message: "No pending verification found for this email." });
-    }
+if (!user) {
+  return res.status(404).json({ message: "User not found." });
+}
 
-    if (Date.now() > pending.expiresAt) {
-      pendingOtps.delete(email);
-      await storage.recordLoginAudit({
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-        loginStatus: "otp_expired",
-      });
-      return res.status(400).json({ message: "OTP has expired. Please sign in again." });
-    }
+type VerifyOutcome =
+  | { success: true }
+  | { success: false; status: number; message: string };
 
-    if (pending.otp !== otp) {
-      pending.attempts = (pending.attempts ?? 0) + 1;
+const outcome: VerifyOutcome = await db.transaction(async (tx) => {
+  const [token] = await tx
+    .select()
+    .from(emailVerificationTokens)
+    .where(
+      and(
+        eq(emailVerificationTokens.userId, user.id),
+        eq(emailVerificationTokens.used, false),
+        gte(emailVerificationTokens.expiresAt, new Date()),
+      ),
+    )
+    .orderBy(emailVerificationTokens.createdAt)
+    .limit(1);
 
-      if (pending.attempts >= 3) {
-        pendingOtps.delete(email);
-        await storage.recordLoginAudit({
-          ipAddress: req.ip,
-          userAgent: req.headers["user-agent"],
-          loginStatus: "otp_failed_lockout",
-        });
-        return res.status(429).json({
-          message: "Too many failed attempts. Please sign in again.",
-        });
-      }
+  if (!token) {
+    return {
+      success: false as const,
+      status: 400,
+      message: "No valid verification code found. Please request a new code.",
+    };
+  }
 
-      await storage.recordLoginAudit({
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-        loginStatus: "otp_failed",
-      });
-      const remaining = 3 - pending.attempts;
-      return res.status(401).json({
-        message: `Invalid OTP. ${remaining} attempt(s) remaining.`,
-      });
-    }
+  const maxAttempts = 3;
 
-    pendingOtps.delete(email);
+  if ((token.attemptCount ?? 0) >= maxAttempts) {
+    return {
+      success: false as const,
+      status: 429,
+      message: "Too many failed attempts. Please request a new code.",
+    };
+  }
+
+  if (token.verificationCode !== otp) {
+    const newAttemptCount = (token.attemptCount ?? 0) + 1;
+
+await tx
+      .update(emailVerificationTokens)
+      .set({ attemptCount: newAttemptCount } as any)
+      .where(eq(emailVerificationTokens.id, token.id));
+
+    return {
+      success: false as const,
+      status: 401,
+      message: `Invalid OTP. ${maxAttempts - newAttemptCount} attempt(s) remaining.`,
+    };
+  }
+
+await tx
+    .update(emailVerificationTokens)
+    .set({ used: true } as any)
+    .where(eq(emailVerificationTokens.id, token.id));
+
+  return { success: true as const };
+});
+
+if (!outcome.success) {
+return res.status(400).json({ message: (outcome as any).message });
+}
+    
 
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
 
@@ -566,12 +552,7 @@ export function createAuthRouter(): Router {
       role = "DOCTOR";
       emailVerified = true;
     } else {
-      const db = getDb();
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const user = await authRepository.findUserByEmail(email);
       if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
@@ -581,10 +562,7 @@ export function createAuthRouter(): Router {
 
 
       if (!user.emailVerified) {
-        await db
-          .update(users)
-          .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
-          .where(eq(users.id, user.id));
+        await authRepository.setUserEmailVerified(user.id);
       }
 
       id = user.id;
@@ -627,110 +605,16 @@ export function createAuthRouter(): Router {
          return res.status(403).json({ message: "Session mismatch. Please log in again." });
       }
 
-      const db = getDb();
-
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const user = await authRepository.findUserByEmail(email);
 
       if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
 
-      type VerifyOutcome =
-        | { success: true }
-        | { success: false; status: number; message: string };
-
-      const outcome: VerifyOutcome = await db.transaction(async (tx) => {
-        const [token] = await tx
-          .select()
-          .from(emailVerificationTokens)
-          .where(
-            and(
-              eq(emailVerificationTokens.userId, user.id),
-              eq(emailVerificationTokens.used, false),
-              gte(emailVerificationTokens.expiresAt, new Date()),
-            ),
-          )
-          .orderBy(emailVerificationTokens.createdAt)
-          .limit(1);
-
-        if (!token) {
-          return { success: false as const, status: 400, message: "No valid verification code found. Please request a new code." };
-        }
-
-        const maxAttempts = 5;
-        if ((token.attemptCount ?? 0) >= maxAttempts) {
-          await tx
-            .update(emailVerificationTokens)
-            .set({ used: true })
-            .where(eq(emailVerificationTokens.id, token.id));
-
-          return { success: false as const, status: 429, message: "Too many failed attempts. Please request a new verification code." };
-        }
-
-        if (token.verificationCode !== code) {
-          const newAttemptCount = (token.attemptCount ?? 0) + 1;
-
-          if (newAttemptCount >= maxAttempts) {
-            await tx
-              .update(emailVerificationTokens)
-              .set({ attemptCount: newAttemptCount })
-              .where(and(
-                eq(emailVerificationTokens.id, token.id),
-                eq(emailVerificationTokens.used, false),
-              ));
-
-            return {
-              success: false as const,
-              status: 401,
-              message: "Invalid code. Please request a new code.",
-            };
-          }
-
-          await tx
-            .update(emailVerificationTokens)
-            .set({ attemptCount: newAttemptCount })
-            .where(and(
-              eq(emailVerificationTokens.id, token.id),
-              eq(emailVerificationTokens.used, false),
-            ));
-
-          const remaining = maxAttempts - newAttemptCount;
-          return {
-            success: false as const,
-            status: 401,
-            message: `Invalid code. ${remaining} attempt(s) remaining.`,
-          };
-        }
-
-        const [claimed] = await tx
-          .update(emailVerificationTokens)
-          .set({ used: true })
-          .where(and(
-            eq(emailVerificationTokens.id, token.id),
-            eq(emailVerificationTokens.used, false),
-          ))
-          .returning();
-
-        if (!claimed) {
-          return { success: false as const, status: 409, message: "This code has already been used." };
-        }
-
-        if (!user.emailVerified) {
-          await tx
-            .update(users)
-            .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
-            .where(eq(users.id, user.id));
-        }
-
-        return { success: true as const };
-      });
+      const outcome = await authRepository.verifyDbTokenAndSetVerified(user, code);
 
       if (!outcome.success) {
-        return res.status(outcome.status).json({ message: outcome.message });
+return res.status((outcome as any).status ?? 400).json({ message: (outcome as any).message });
       }
 
       // Upgrade session to fully authenticated
@@ -798,12 +682,7 @@ out
     const { email } = req.body;
 
     try {
-      const db = getDb();
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
+      const user = await authRepository.findUserByEmail(email);
 
       if (!user) {
         // Always return 200 regardless of whether the email exists — returning
@@ -812,16 +691,12 @@ out
       }
 
       const token = randomBytes(32).toString("hex");
+      const tokenHash = createHash("sha256").update(token).digest("hex");
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-      await db.insert(passwordResetTokens).values({
-        userId: user.id,
-        token,
-        expiresAt,
-        used: false,
-      });
+      await authRepository.createPasswordResetToken(user.id, tokenHash, expiresAt);
 
-      const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password?token=${token}`;
+      const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password#token=${token}`;
 
       const emailSent = await sendPasswordResetEmail(email, resetLink);
       if (!emailSent) {
@@ -845,36 +720,41 @@ out
     try {
       const db = getDb();
 
-      const [resetToken] = await db
-        .select()
-        .from(passwordResetTokens)
-        .where(
-          and(
-            eq(passwordResetTokens.token, token),
-            eq(passwordResetTokens.used, false),
-            gte(passwordResetTokens.expiresAt, new Date()),
-          ),
-        )
-        .limit(1);
-
-      if (!resetToken) {
-        return res.status(400).json({ message: "Invalid or expired reset token." });
-      }
-
+      const tokenHash = createHash("sha256").update(token).digest("hex");
       const passwordHash = hashPassword(newPassword);
 
-      await db.update(users).set({ passwordHash }).where(eq(users.id, resetToken.userId));
-      await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, resetToken.id));
+      await db.transaction(async (tx: any) => {
+        const [claimed] = await tx
+          .update(passwordResetTokens)
+          .set({ used: true })
+          .where(
+            and(
+              eq(passwordResetTokens.token, tokenHash),
+              eq(passwordResetTokens.used, false),
+              gte(passwordResetTokens.expiresAt, new Date()),
+            ),
+          )
+          .returning();
 
-      // Invalidate all active sessions for the user to prevent session hijacking
-      try {
-        await db.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${resetToken.userId}`);
-      } catch (sessErr) {
-        logger.error({ err: sessErr, userId: resetToken.userId }, "Failed to clear user sessions upon password reset");
-      }
+        if (!claimed) {
+          throw Object.assign(new Error("Invalid or expired reset token."), { statusCode: 400 });
+        }
 
+        await tx.update(users).set({ passwordHash }).where(eq(users.id, claimed.userId));
+
+        try {
+          await tx.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${claimed.userId}`);
+        } catch (sessErr) {
+          logger.error({ err: sessErr, userId: claimed.userId }, "Failed to clear user sessions upon password reset");
+        }
+      });
+
+      await authRepository.claimPasswordResetToken(token, passwordHash);
       return res.json({ success: true, message: "Password has been reset successfully." });
-    } catch (err) {
+    } catch (err: any) {
+      if (err.statusCode === 400) {
+        return res.status(400).json({ message: err.message });
+      }
       logger.error({ err }, "Reset password error:");
       return res.status(500).json({ message: "Failed to reset password." });
     }
@@ -886,7 +766,7 @@ out
    * Used by clients that require a bearer token for API access.
    */
   router.get("/token", requireAuth, requireVerified, (req, res) => {
-    const user = req.session.user as any;
+    const user = req.session.user;
 
     if (!user?.id || !user?.email) {
       return res.status(401).json({ message: "Invalid session user data" });
@@ -931,6 +811,4 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
   return res.status(403).json({ message: "Admin access required." });
 }
-
-
 

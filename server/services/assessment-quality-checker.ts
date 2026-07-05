@@ -108,6 +108,11 @@ function extremeCombinationChecks(input: CheckerInput): QualityAlert[] {
   return alerts;
 }
 
+/**
+ * Evaluates clinical telemetry data against medical ranges to detect measurement anomalies, unit mix-ups, and pathophysiological mismatches.
+ * @param input - The input parameter.
+ * @returns The result of the operation.
+ */
 export function generateQualityAlerts(input: CheckerInput): QualityAlert[] {
   const checks = [
     isLikelyUnitError,

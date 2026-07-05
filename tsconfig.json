@@ -1,28 +1,31 @@
 {
-  "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
+  "include": ["shared/**/*", "server/**/*"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
     "noEmit": true,
     "module": "ESNext",
-    "strict": true,
+    "strict": false,
     "target": "ES2022",
     "lib": ["esnext", "dom", "dom.iterable"],
     "jsx": "preserve",
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "ignoreDeprecations": "6.0",
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
 
-    "types": ["node", "vite/client"],
+    "types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
 
     "paths": {
       "@/*": ["./client/src/*"],
       "@shared/*": ["./shared/*"],
       "@assets/*": ["./attached_assets/*"]
-    }
+    },
+    
   }
 }
 

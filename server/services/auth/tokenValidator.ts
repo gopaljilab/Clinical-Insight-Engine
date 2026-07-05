@@ -52,6 +52,8 @@ export type VerifyFailure = {
 
 export type VerifyResult = VerifySuccess | VerifyFailure;
 
+let warnedJwtSecretMissing = false;
+
 /**
  * Returns the JWT signing secret from the environment.
  * Throws at startup if the secret is missing or too short in production.
@@ -64,10 +66,13 @@ export function getJwtSecret(): string {
       throw new Error("JWT_SECRET environment variable is required in production.");
     }
     // Development fallback — weak and obvious so it is never mistaken for production
-    logger.warn(
-      "[SECURITY WARNING] JWT_SECRET is not set. Using insecure development default. " +
-      "Set JWT_SECRET in your .env file before deploying."
-    );
+    if (!warnedJwtSecretMissing) {
+      logger.warn(
+        "[SECURITY WARNING] JWT_SECRET is not set. Using insecure development default. " +
+        "Set JWT_SECRET in your .env file before deploying."
+      );
+      warnedJwtSecretMissing = true;
+    }
     return "clinical-insight-engine-insecure-dev-jwt-secret-change-me";
   }
 
@@ -113,7 +118,7 @@ export function verifyToken(token: string): VerifyResult {
     if (err instanceof jwt.JsonWebTokenError) {
       // JsonWebTokenError covers: invalid signature, alg=none, malformed tokens
       // Check if it's specifically an algorithm rejection
-      if (err.message.includes("invalid algorithm") || err.message.includes("alg") || err.message.includes("jwt signature is required")) {
+      if ((err as Error).message.includes("invalid algorithm") || (err as Error).message.includes("alg") || (err as Error).message.includes("jwt signature is required")) {
         return { valid: false, reason: "alg_not_allowed" };
       }
       return { valid: false, reason: "invalid_signature" };

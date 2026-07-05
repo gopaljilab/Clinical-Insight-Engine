@@ -1,3 +1,4 @@
+import React from 'react';
 import { Link } from "wouter";
 import { ShieldCheck } from "lucide-react";
 import { useEffect } from "react";
@@ -66,3 +67,4 @@ export default function Terms() {
     </div>
   );
 }
+

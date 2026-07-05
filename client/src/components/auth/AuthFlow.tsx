@@ -1,3 +1,4 @@
+import React from 'react';
 import { FormEvent, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
@@ -8,6 +9,7 @@ import { FormField } from "./FormField";
 import { AuthButton } from "./AuthButton";
 import { PasswordStrength } from "./PasswordStrength";
 import { OtpInput } from "./OtpInput";
+import { cn } from "@/lib/utils";
 
 export type AuthMode = "login" | "register";
 type Step = "form" | "otp" | "forgot";
@@ -89,9 +91,9 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     setFieldErrors({});
   }
 
-  function handleServerErrors(err: any) {
+  function handleServerErrors(err: unknown) {
     clearAllFieldErrors();
-    const fieldErrs = err.fieldErrors as Array<{ field: string; message: string }> | undefined;
+    const fieldErrs = (err as any).fieldErrors as Array<{ field: string; message: string }> | undefined;
     if (fieldErrs && fieldErrs.length > 0) {
       const mapped: FieldErrors = {};
       for (const fe of fieldErrs) {
@@ -104,10 +106,10 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       }
       setFieldErrors(mapped);
       if (Object.keys(mapped).length === 0) {
-        setError(err.message || "Validation failed.");
+        setError((err as Error).message || "Validation failed.");
       }
     } else {
-      setError(err.message || "Authentication failed. Please try again.");
+      setError((err as Error).message || "Authentication failed. Please try again.");
     }
   }
 
@@ -143,7 +145,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       setCountdown(600);
       setResendCooldown(60);
       setOtp(responseData?.devOtp || "");
-    } catch (err: any) {
+    } catch (err: unknown) {
       handleServerErrors(err);
     } finally {
       setIsLoading(false);
@@ -157,11 +159,9 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     setError(null);
     setIsLoading(true);
     try {
-      if (mode === "login") {
-        await ApiClient.post("/api/auth/verify-otp", { email, otp });
-      } else {
-        await ApiClient.post("/api/auth/verify-email", { email, code: otp });
-      }
+      // Both login and register use the DB-backed verify-email endpoint.
+      // verify-otp was checking an in-memory map never populated by the login route.
+      await ApiClient.post("/api/auth/verify-email", { email, code: otp });
       
       if (rememberMe) {
         localStorage.setItem("auth_remember_email", email);
@@ -175,8 +175,8 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
       } else {
         setLocation("/dashboard");
       }
-    } catch (err: any) {
-      setError(err.message || "Verification failed. Please check the code and try again.");
+    } catch (err: unknown) {
+      setError((err as Error).message || "Verification failed. Please check the code and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -209,8 +209,8 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
         setDevOtp(undefined);
         setOtp("");
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setIsLoading(false);
     }
@@ -225,8 +225,8 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     try {
       await ApiClient.post("/api/auth/forgot-password", { email });
       setForgotSent(true);
-    } catch (err: any) {
-      setError(err.message || "Failed to send reset email.");
+    } catch (err: unknown) {
+      setError((err as Error).message || "Failed to send reset email.");
     } finally {
       setIsLoading(false);
     }
@@ -418,7 +418,7 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
                   className="!mb-1"
                 />
                 {confirmPassword && !fieldErrors.confirmPassword && (
-                  <p className={`text-xs ${password === confirmPassword ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                  <p className={cn("text-xs", password === confirmPassword ? "text-emerald-600 dark:text-emerald-400" : "text-red-500")}>
                     {password === confirmPassword ? "Passwords match" : "Passwords do not match"}
                   </p>
                 )}
@@ -446,26 +446,41 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
             </div>
           )}
 
-          {mode === "login" && (
-            <div className="mb-6 flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900"
-                />
-                Remember Me
-              </label>
-              <button
-                type="button"
-                onClick={() => { setError(null); setStep("forgot"); }}
-                className="text-sm font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400"
-              >
-                Forgot Password?
-              </button>
-            </div>
-          )}
+           {/* Google Sign-In Button */}
+           <div className="mb-6">
+             <button
+               onClick={() => {
+                 window.location.href = "/api/auth/oauth2/google";
+               }}
+               className="w-full flex items-center justify-center gap-3 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:ring-red-300"
+             >
+               <svg className="h-5 w-5" fill="#EA4335" viewBox="0 0 24 24">
+                 <path d="M22.56 12.25c0-1.17-.21-2.29-.59-3.34h-1.8c-.27.84-.43 1.79-.43 2.79 0 1.56.39 3.01 1.02 4.1l2.04-2.04c-.97-1.16-1.55-2.69-1.55-4.39zm-9.81-4.41c-2.34 0-4.34 1.91-4.34 4.27 0 2.36 1.7 4.33 3.95 4.78v-3.08h-2.86v-2.29h2.86V16.05h3.56l.46-2.29h-4.02zm7.25 8.5c-2.9 0-5.25-2.35-5.25-5.25s2.35-5.25 5.25-5.25 5.25 2.35 5.25 5.25-2.35 5.25-5.25 5.25z"/>
+               </svg>
+               Sign in with Google
+             </button>
+           </div>
+
+           {mode === "login" && (
+             <div className="mb-6 flex items-center justify-between">
+               <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                 <input
+                   type="checkbox"
+                   checked={rememberMe}
+                   onChange={(e) => setRememberMe(e.target.checked)}
+                   className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900"
+                 />
+                 Remember Me
+               </label>
+               <button
+                 type="button"
+                 onClick={() => { setError(null); setStep("forgot"); }}
+                 className="text-sm font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400"
+               >
+                 Forgot Password?
+               </button>
+             </div>
+           )}
 
           <AuthButton
             type="submit"
@@ -491,3 +506,4 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     </AuthLayout>
   );
 }
+

@@ -1,6 +1,29 @@
 import React from "react";
 import type { Recommendation } from "@shared/routes";
-import { CheckCircle2, Clipboard, Heart } from "lucide-react";
+import { Heart, CalendarClock, TestTube, Pill, Activity } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+function getRecommendationIcon(title: string) {
+  const text = title.toLowerCase();
+
+  if (text.includes("appointment") || text.includes("follow-up")) {
+    return <CalendarClock className="w-4 h-4 text-blue-600" />;
+  }
+
+  if (text.includes("hba1c") || text.includes("test")) {
+    return <TestTube className="w-4 h-4 text-purple-600" />;
+  }
+
+  if (text.includes("medication")) {
+    return <Pill className="w-4 h-4 text-red-600" />;
+  }
+
+  if (text.includes("glucose") || text.includes("lifestyle")) {
+    return <Activity className="w-4 h-4 text-green-600" />;
+  }
+
+  return <Heart className="w-4 h-4 text-primary" />;
+}
 
 export function Recommendations({
   recommendations,
@@ -9,6 +32,7 @@ export function Recommendations({
   recommendations?: Recommendation[];
   audience?: "patient" | "clinician" | "both";
 }) {
+  const { t } = useTranslation();
   if (!recommendations || recommendations.length === 0) return null;
 
   // Filter by audience
@@ -23,13 +47,13 @@ export function Recommendations({
     <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
       <div className="flex items-center gap-3 mb-4">
         <Heart className="w-5 h-5 text-primary" />
-        <h3 className="font-bold text-lg">Recommendations</h3>
+        <h3 className="font-bold text-lg">{t("recommendations.title")}</h3>
       </div>
       <div className="grid gap-3">
         {filtered.map((rec) => (
           <label
             key={rec.id}
-            className="flex items-start gap-3 p-4 rounded-lg border border-border/60 bg-muted/10"
+            className="flex items-start gap-3 p-4 rounded-lg border border-primary/20 bg-primary/5 hover:shadow-md transition-all"
           >
             <input
               aria-label={rec.title}
@@ -38,12 +62,15 @@ export function Recommendations({
             />
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <div className="font-semibold text-foreground">{rec.title}</div>
+                <div className="flex items-center gap-2 font-semibold text-foreground">
+                  {getRecommendationIcon(rec.title)}
+                  <span>{rec.title}</span>
+                </div>
                 {rec.urgency === "high" && (
-                  <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">High</span>
+                  <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">{t("recommendations.high")}</span>
                 )}
                 {rec.urgency === "medium" && (
-                  <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">Med</span>
+                  <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">{t("recommendations.med")}</span>
                 )}
               </div>
               <p className="text-sm text-muted-foreground mt-1">{rec.description}</p>

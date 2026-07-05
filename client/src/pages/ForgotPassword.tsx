@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { ApiClient } from "@/lib/apiClient";
@@ -5,6 +6,8 @@ import { AuthLayout } from "@/components/auth/AuthLayout";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { FormField } from "@/components/auth/FormField";
 import { AuthButton } from "@/components/auth/AuthButton";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -27,8 +30,7 @@ export default function ForgotPassword() {
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!EMAIL_REGEX.test(email)) {
       setError("Please enter a valid email address.");
       return;
     }
@@ -37,8 +39,8 @@ export default function ForgotPassword() {
     try {
       await ApiClient.post("/api/auth/forgot-password", { email });
       setSuccess("If an account exists with this email, a password reset link has been sent.");
-    } catch (err: any) {
-      setError(err.message || "Unable to connect to server. Please try again.");
+    } catch (err: unknown) {
+      setError((err as Error).message || "Unable to connect to server. Please try again.");
     } finally {
       setIsLoading(false);
     }

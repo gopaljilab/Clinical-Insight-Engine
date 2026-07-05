@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import React, { type FC } from "react";
 import { Activity, Award, HeartPulse, ShieldCheck, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -8,6 +8,8 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import type { HealthBadge } from "@/utils/healthBadges";
+import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 const ICON_MAP: Record<HealthBadge["id"], typeof HeartPulse> = {
   "improved-bmi": HeartPulse,
@@ -33,17 +35,19 @@ interface HealthBadgesProps {
 
 export const HealthBadges: FC<HealthBadgesProps> = ({
   badges,
-  title = "Health improvement badges",
+  title,
   description,
 }) => {
+  const { t } = useTranslation();
+  const resolvedTitle = title ?? t("healthBadges.title");
   return (
     <div className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-sm">
       <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.24em] font-bold text-muted-foreground">
-            Progress rewards
+            {t("healthBadges.progressRewards")}
           </p>
-          <h2 className="text-2xl font-black text-foreground">{title}</h2>
+          <h2 className="text-2xl font-black text-foreground">{resolvedTitle}</h2>
           {description ? (
             <p className="mt-2 text-sm leading-6 text-muted-foreground max-w-2xl">
               {description}
@@ -54,7 +58,7 @@ export const HealthBadges: FC<HealthBadgesProps> = ({
 
       {badges.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-background p-6 text-sm text-muted-foreground">
-          Keep tracking patient assessments to start earning improvement badges. Badges appear when metrics or overall risk trend better compared to previous evaluations.
+          {t("healthBadges.emptyDesc")}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 opacity-60 grayscale cursor-not-allowed">
           {[1, 2, 3].map((i) => (
             <div key={i} className="group rounded-3xl border border-dashed border-border bg-background/50 p-5">
@@ -69,9 +73,9 @@ export const HealthBadges: FC<HealthBadgesProps> = ({
               </div>
               <div className="mt-4 flex items-center justify-between gap-2">
                 <Badge variant="outline" className="uppercase tracking-[0.2em] text-[10px] text-muted-foreground">
-                  Locked
+                  {t("healthBadges.locked")}
                 </Badge>
-                <span className="text-[10px] text-muted-foreground">Needs more data</span>
+                <span className="text-[10px] text-muted-foreground">{t("healthBadges.needsMoreData")}</span>
               </div>
             </div>
           ))}
@@ -88,7 +92,7 @@ export const HealthBadges: FC<HealthBadgesProps> = ({
                   <TooltipTrigger asChild>
                     <div className="group rounded-3xl border border-border bg-background p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md cursor-help">
                       <div className="flex items-center gap-3">
-                        <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border ${colorClass}`}>
+                        <span className={cn("inline-flex h-11 w-11 items-center justify-center rounded-2xl border", colorClass)}>
                           <Icon className="h-5 w-5" />
                         </span>
                         <div className="min-w-0">
@@ -98,9 +102,9 @@ export const HealthBadges: FC<HealthBadgesProps> = ({
                       </div>
                       <div className="mt-4 flex items-center justify-between gap-2">
                         <Badge variant="secondary" className="uppercase tracking-[0.2em] text-[10px]">
-                          Earned
+                          {t("healthBadges.earned")}
                         </Badge>
-                        <span className="text-xs text-muted-foreground">Tap for details</span>
+                        <span className="text-xs text-muted-foreground">{t("healthBadges.tapForDetails")}</span>
                       </div>
                     </div>
                   </TooltipTrigger>
