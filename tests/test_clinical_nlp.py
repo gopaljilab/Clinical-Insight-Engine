@@ -94,10 +94,13 @@ class TestBioBERTClinicalExtractor:
                 ]
             return run_ner
             
-        # We manually patch the module structure to mock transformers import
+        # We manually patch the module structure to mock transformers and torch imports
         mock_transformers = types.ModuleType("transformers")
         mock_transformers.pipeline = mock_pipeline
         sys.modules["transformers"] = mock_transformers
+        
+        mock_torch = types.ModuleType("torch")
+        sys.modules["torch"] = mock_torch
         
         try:
             extractor = BioBERTClinicalExtractor(use_transformers=True)
@@ -111,3 +114,4 @@ class TestBioBERTClinicalExtractor:
         finally:
             # Clean up sys.modules mock
             sys.modules.pop("transformers", None)
+            sys.modules.pop("torch", None)
