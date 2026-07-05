@@ -277,7 +277,7 @@ class PdfDocument {
     }
 
     const pdf = buildPdf(this.pages);
-    const blob = new Blob([pdf], { type: "application/pdf" });
+    const blob = new Blob([pdf as any], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
