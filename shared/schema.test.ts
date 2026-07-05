@@ -129,7 +129,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Age must be at least 1");
+      expect(result.error.issues[0]?.message).toBe("Number must be greater than or equal to 1");
     }
   });
 });
