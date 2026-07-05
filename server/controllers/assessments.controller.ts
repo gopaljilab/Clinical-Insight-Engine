@@ -287,9 +287,23 @@ export const simulateFallback = async (req: Request, res: Response) => {
 export const getPatientTrends = async (req: Request, res: Response) => {
   try {
     const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
+    const user = req.session.user;
+    if (!user) {
+      return res.status(401).json({ message: "Authentication required." });
+    }
     const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
     const endDate = typeof req.query.endDate === "string" ? req.query.endDate : undefined;
-    const result = await storage.getAssessmentsByPatientName(patientName, 100, 0, startDate, endDate);
+    const result = await storage.getAssessmentsByPatientName(patientName, 100, 0, user.email, startDate, endDate);
+    if (result.data.length > 0 && !canAccessPatientRecord(user as any, result.data[0] as any)) {
+      logAccessAttempt(
+        user.id,
+        "Assessment",
+        result.data[0].id,
+        false,
+        "IDOR attempt: User not authorized to access patient trends"
+      );
+      return res.status(404).json({ message: "Assessment not found." });
+    }
     return res.json(result);
   } catch (err) {
     logger.error({ err }, "Patient trends fetch error:");
@@ -390,7 +404,7 @@ export const searchAssessments = async (req: Request, res: Response) => {
           "Injection-like pattern detected in search query parameter",
           req,
           {
-            matchedPattern: analysis.pattern,
+            matchedPattern: (analysis as any).pattern,
             userId: (req.session.user)?.id,
           }
         );
@@ -422,7 +436,7 @@ export const searchAssessments = async (req: Request, res: Response) => {
           "Validated search term contains a suspicious pattern",
           req,
           {
-            matchedPattern: analysis.pattern,
+            matchedPattern: (analysis as any).pattern,
             userId: (req.session.user)?.id,
           }
         );
@@ -526,7 +540,7 @@ export const deleteAssessment = async (req: Request, res: Response) => {
         false,
         "IDOR attempt: User not authorized to delete this patient record"
       );
-      return res.status(403).json({ message: "Forbidden" });
+      return res.status(404).json({ message: "Assessment not found." });
     }
 
     await storage.deleteAssessment(id);

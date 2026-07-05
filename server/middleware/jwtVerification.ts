@@ -83,14 +83,17 @@ export async function requireJwtAuth(req: Request, res: Response, next: NextFunc
   const result = verifyToken(token);
 
   if (!result.valid) {
-    const eventType = result.reason === "alg_not_allowed"
+    const reason = (result as any).reason as string | undefined;
+    const eventType = reason === "alg_not_allowed"
       ? "SQL_INJECTION_ATTEMPT"
       : "UNAUTHORIZED_SEARCH_ACCESS";
 
+
     logSecurityEvent(
       eventType,
-      `JWT verification failed: ${result.reason}`,
+      `JWT verification failed: ${reason ?? "unknown"}`,
       req,
+
       { userId: undefined }
     );
 

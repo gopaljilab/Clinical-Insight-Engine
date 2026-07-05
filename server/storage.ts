@@ -92,6 +92,7 @@ export interface IStorage {
   getPatientUserByPatientName(patientName: string): Promise<PatientUser | undefined>;
   getPatientUserById(id: string): Promise<PatientUser | undefined>;
   createPatientUser(data: InsertPatientUser): Promise<PatientUser>;
+  updatePatientEmailVerified(id: string, verified: boolean): Promise<PatientUser>;
   getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, createdBy?: string, startDate?: string, endDate?: string): Promise<{ data: Assessment[]; total: number }>;
   getPatientTrends(patientName: string, createdBy?: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]>;
   getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string): Promise<{
@@ -286,6 +287,10 @@ export class DatabaseStorage implements IStorage {
 
   async createPatientUser(data: InsertPatientUser): Promise<PatientUser> {
     return this.patientUserRepository.create(data);
+  }
+
+  async updatePatientEmailVerified(id: string, verified: boolean): Promise<PatientUser> {
+    return this.patientUserRepository.updateEmailVerified(id, verified);
   }
 
   async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, createdBy?: string, startDate?: string, endDate?: string) {

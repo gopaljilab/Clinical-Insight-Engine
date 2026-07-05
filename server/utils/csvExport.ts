@@ -12,13 +12,11 @@ import { escapeCsvCell } from "./csvSanitizer";
  *   { name: "Jane", age: 38 }
  * ]);
  */
-export function assessmentsToCsv(data: Record<string, any>[]): string {
+export function assessmentsToCsv(data: Record<string, unknown>[]): string {
   if (!data || data.length === 0) return "";
-  
   const headers = Object.keys(data[0]);
-  const rows = data.map(row => 
-    headers.map(header => escapeCsvCell(row[header])).join(',')
+  const rows = data.map((row) =>
+    headers.map((h) => escapeCsvCell(row[h])).join(",")
   );
-  
-  return [headers.join(','), ...rows].join('\n');
+  return [headers.join(","), ...rows].join("\n");
 }

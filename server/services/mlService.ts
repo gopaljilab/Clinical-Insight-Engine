@@ -19,16 +19,22 @@ interface QueuedEntry {
 }
 
 /** A concurrency-limiting semaphore designed to throttle intensive Machine Learning inference tasks and manage server resource boundaries. */
+const DEFAULT_MAX_QUEUE_SIZE = 200;
+
 export class SimpleSemaphore {
   private activeCount = 0;
   private queue: QueuedEntry[] = [];
 
-  constructor(private maxConcurrency: number) {}
+  constructor(private maxConcurrency: number, private maxQueueSize: number = DEFAULT_MAX_QUEUE_SIZE) {}
 
   async acquire(timeoutMs?: number): Promise<() => void> {
     if (this.activeCount < this.maxConcurrency) {
       this.activeCount++;
       return () => this.release();
+    }
+
+    if (this.queue.length >= this.maxQueueSize) {
+      return Promise.reject(new Error("Semaphore queue full — too many pending requests"));
     }
 
     return new Promise<() => void>((resolve, reject) => {
@@ -326,15 +332,20 @@ interface PendingRequest {
   timeoutId: NodeJS.Timeout;
 }
 
+const MAX_DAEMON_RESTART_ATTEMPTS = 5;
+const DAEMON_RESTART_BASE_DELAY_MS = 1000;
+
 class PythonDaemonManager {
   private process: ChildProcess | null = null;
   private rl: readline.Interface | null = null;
   private pendingRequests = new Map<string, PendingRequest>();
   private isRestarting = false;
+  private restartAttempts = 0;
 
   private init() {
     if (this.process) return;
 
+    this.restartAttempts = 0;
     logger.info("Starting persistent Python ML daemon...");
     const pythonExe = getPythonExecutable();
 
@@ -415,11 +426,18 @@ class PythonDaemonManager {
       pending.reject(new Error("Python daemon crashed."));
     }
 
-    // Try to restart after a delay
+    this.restartAttempts++;
+    if (this.restartAttempts > MAX_DAEMON_RESTART_ATTEMPTS) {
+      logger.error({ attempts: this.restartAttempts }, "Python daemon exceeded max restart attempts — giving up");
+      return;
+    }
+
+    const delay = DAEMON_RESTART_BASE_DELAY_MS * Math.pow(2, this.restartAttempts - 1);
+    logger.warn({ attempt: this.restartAttempts, delay }, "Scheduling Python daemon restart with backoff");
     setTimeout(() => {
       this.isRestarting = false;
       this.init();
-    }, 1000);
+    }, delay);
   }
 
   public async predict(input: unknown): Promise<PredictionResult> {

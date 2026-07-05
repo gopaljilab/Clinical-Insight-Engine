@@ -66,7 +66,14 @@ class PHIRedactor:
             r'\b\d+\s+(?:Avenue|Ave|Street|St|Road|Rd|Way|Drive|Dr|Boulevard|Blvd|Plaza|Pl)\s+of\s+the\s+[A-Z][a-zA-Z0-9\s]*\b',
             re.IGNORECASE
         )
-        self.zip_regex = re.compile(r'\b\d{5}(?:-\d{4})?\b')
+        # US zip code pattern with context guards to prevent matching clinical measurements (CPT codes, MRNs, lab values)
+        # Requires the 5-digit number to appear near address-related keywords or at end of address line
+        self.zip_regex = re.compile(
+            r'(?:(?<=\s)(?:zip|zip\s+code|postal\s*code|postcode)[:\s]*)?'
+            r'\b\d{5}(?:-\d{4})?\b'
+            r'(?=(?:\s*(?:,|$|\n|\(|\)|\s*(?:US|USA|united\s+states)))?)',
+            re.IGNORECASE
+        )
 
         # Heuristics for Patient Name detection in text
         # Sorted by length to avoid premature matches
