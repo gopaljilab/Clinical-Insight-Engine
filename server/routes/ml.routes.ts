@@ -47,6 +47,7 @@ mlRouter.post(
       const job = await assessmentQueue.add("predictBatch", {
         assessments: input,
         userId,
+        userEmail,
         batchId
       });
 
