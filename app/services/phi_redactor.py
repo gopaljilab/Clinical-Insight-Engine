@@ -129,7 +129,7 @@ class PHIRedactor:
             val = match.group(2)
             if val.lower() in {"yes", "no", "male", "female", "other", "never", "former", "current"}:
                 return match.group(0)
-            if prefix.lower() == "id" and val.isdigit() and len(val) <= 2:
+            if prefix.lower() == "id" and val.isdigit():
                 return match.group(0)
             
             start_idx = match.group(0).index(val)
