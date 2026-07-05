@@ -83,14 +83,17 @@ export async function requireJwtAuth(req: Request, res: Response, next: NextFunc
   const result = verifyToken(token);
 
   if (!result.valid) {
-    const eventType = result.reason === "alg_not_allowed"
+    const reason = (result as any).reason as string | undefined;
+    const eventType = reason === "alg_not_allowed"
       ? "SQL_INJECTION_ATTEMPT"
       : "UNAUTHORIZED_SEARCH_ACCESS";
 
+
     logSecurityEvent(
       eventType,
-      `JWT verification failed: ${result.reason}`,
+      `JWT verification failed: ${reason ?? "unknown"}`,
       req,
+
       { userId: undefined }
     );
 
@@ -100,6 +103,17 @@ export async function requireJwtAuth(req: Request, res: Response, next: NextFunc
 
   req.jwtUser = result.payload;
 
+  if (result.payload.role !== "provider") {
+    logSecurityEvent(
+      "UNAUTHORIZED_SEARCH_ACCESS",
+      `JWT verification failed: Invalid role '${result.payload.role}', expected 'provider'`,
+      req,
+      { userId: result.payload.sub }
+    );
+    res.status(403).json({ message: "Forbidden" });
+    return;
+  }
+
   const { getAuthenticatedUser } = await import("../auth");
   const authUser = await getAuthenticatedUser(req);
   if (!authUser) {
@@ -108,6 +122,6 @@ export async function requireJwtAuth(req: Request, res: Response, next: NextFunc
     return;
   }
 
-  (req as any).authenticatedUser = authUser;
+  (req).authenticatedUser = authUser;
   next();
 }

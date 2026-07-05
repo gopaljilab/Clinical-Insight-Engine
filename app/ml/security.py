@@ -8,15 +8,14 @@ class SafeUnpickler(pickle.Unpickler):
     """Restricted unpickler that guards against arbitrary code execution (CWE-502).
 
     Only allows deserialization of classes from known-safe modules
-    (numpy, scipy, sklearn) and Python builtins. Any attempt to unpickle
-    classes from arbitrary modules (e.g. ``os``, ``subprocess``, ``builtins.exec``)
+    (numpy, scipy, sklearn). Any attempt to unpickle
+    classes from arbitrary modules (e.g. ``os``, ``subprocess``, ``builtins``)
     is blocked, preventing malicious pickle payloads from executing code.
 
     Used as defense-in-depth alongside HMAC signature verification.
     """
 
     ALLOWED_MODULES: set[str] = {
-        "builtins",
         "numpy",
     }
 
@@ -40,6 +39,24 @@ class SafeUnpickler(pickle.Unpickler):
 def safe_pickle_load(file) -> object:
     """Load a pickle stream using SafeUnpickler to prevent arbitrary code execution."""
     return SafeUnpickler(file).load()
+
+
+def patch_joblib():
+    """Replace joblib.load with a version that uses SafeUnpickler by default.
+
+    Call this once at startup so that every call to joblib.load
+    deserialises through SafeUnpickler, guarding against arbitrary code
+    execution (CWE-502).
+    """
+    import joblib as _joblib
+
+    _original_load = _joblib.load
+
+    def _safe_load(filename, mmap_mode=None, *args, **kwargs):
+        with open(filename, "rb") as f:
+            return safe_pickle_load(f)
+
+    _joblib.load = _safe_load
 
 
 def get_signing_secret() -> bytes:

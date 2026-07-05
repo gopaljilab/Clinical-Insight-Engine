@@ -148,8 +148,90 @@ const rules: Rule[] = [
     }
     return recs;
   },
+    (a) => {
+    const recs: Recommendation[] = [];
+    const risk = (a.riskCategory || "").toString().toUpperCase();
+
+    if (risk === "HIGH" || risk === "MODERATE") {
+      recs.push({
+        id: uuidv4(),
+        title: "Schedule Follow-up Appointment",
+        description:
+          "Book a medical consultation within the next 30 days to review diabetes risk and health progress.",
+        urgency: "high",
+        audience: "both",
+        checklist: true,
+      });
+    }
+
+    return recs;
+  },
+    (a) => {
+    const recs: Recommendation[] = [];
+
+    const hba1c =
+      typeof a.hba1cLevel === "number"
+        ? a.hba1cLevel
+        : Number(a.hba1cLevel || 0);
+
+    if (hba1c >= 5.7) {
+      recs.push({
+        id: uuidv4(),
+        title: "HbA1c Follow-up Test Reminder",
+        description:
+          "Plan your next HbA1c test within 3 months to monitor long-term glucose control.",
+        urgency: "medium",
+        audience: "both",
+        checklist: true,
+      });
+    }
+
+    return recs;
+  },
+    (a) => {
+    const recs: Recommendation[] = [];
+
+    const glucose =
+      typeof a.bloodGlucoseLevel === "number"
+        ? a.bloodGlucoseLevel
+        : Number(a.bloodGlucoseLevel || 0);
+
+    if (glucose >= 140) {
+      recs.push({
+        id: uuidv4(),
+        title: "Regular Blood Glucose Monitoring",
+        description:
+          "Track blood glucose levels regularly and maintain a monitoring schedule recommended by your healthcare provider.",
+        urgency: "medium",
+        audience: "both",
+        checklist: true,
+      });
+    }
+
+    return recs;
+  },
+    (a) => {
+    const recs: Recommendation[] = [];
+
+    recs.push({
+      id: uuidv4(),
+      title: "Medication and Lifestyle Check",
+      description:
+        "Review medications, maintain a healthy diet, stay physically active, and follow your personalized health plan.",
+      urgency: "low",
+      audience: "both",
+      checklist: true,
+    });
+
+    return recs;
+  },
 ];
 
+/**
+ * Generate Recommendations.
+ * @param input - The input parameter.
+ * @returns The result of the operation.
+ */
 export function generateRecommendations(input: Partial<Assessment> & { riskCategory?: string }): Recommendation[] {
   const seen = new Set<string>();
   const out: Recommendation[] = [];

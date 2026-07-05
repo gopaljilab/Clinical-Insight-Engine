@@ -1,5 +1,6 @@
+import React from 'react';
 import { Check, X } from "lucide-react";
-
+import { cn } from "@/lib/utils";
 interface PasswordStrengthProps {
   password: "";
 }
@@ -19,9 +20,10 @@ export function PasswordStrength({ password }: { password: string }) {
       {criteria.map((criterion, i) => (
         <div
           key={i}
-          className={`flex items-center gap-1.5 transition-colors ${
+          className={cn(
+            "flex items-center gap-1.5 transition-colors",
             criterion.met ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-slate-500"
-          }`}
+          )}
         >
           {criterion.met ? (
             <Check className="h-3.5 w-3.5" aria-hidden="true" />
@@ -34,3 +36,4 @@ export function PasswordStrength({ password }: { password: string }) {
     </div>
   );
 }
+

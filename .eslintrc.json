@@ -26,11 +26,16 @@
   },
   "ignorePatterns": [
     "dist/",
+    "docs/",
     "build/",
     "coverage/",
     "node_modules/",
+    "docs/",
+    "attached_assets/",
+    "client/public/",
     "*.config.js",
-    "*.config.ts"
+    "*.config.ts",
+    "docs/typedoc/"
   ],
   "rules": {
     "react/react-in-jsx-scope": "off",
