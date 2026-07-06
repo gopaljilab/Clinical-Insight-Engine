@@ -128,7 +128,7 @@
     "@types/express-session": "^1.18.0",
     "@types/jsdom": "^28.0.3",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/multer": "^2.1.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "26.1.0",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^8.0.0",
