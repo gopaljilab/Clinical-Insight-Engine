@@ -416,7 +416,6 @@ export function createAuthRouter(): Router {
       return res.json({ success: true, pendingEmail: email });
     } catch (err) {
       logger.error({ err }, "Login error");
-      console.log("LOGIN ERROR DETAILS:", err);
       return res.status(500).json({ message: "Login failed due to a server error." });
     }
   });
@@ -624,7 +623,7 @@ return res.status(400).json({ message: (outcome as any).message });
         | { success: false; status: number; message: string };
 
       const outcome: VerifyOutcome = await db.transaction(async (tx) => {
-        console.log("VERIFY TRANSACTION START");
+        logger.debug("OTP verification transaction started");
         const [token] = await tx
           .select()
           .from(emailVerificationTokens)
@@ -638,7 +637,7 @@ return res.status(400).json({ message: (outcome as any).message });
           .orderBy(emailVerificationTokens.createdAt)
           .limit(1);
 
-        console.log("VERIFY TOKEN:", token);
+        logger.debug("Verification token retrieved from database");
         if (!token) {
           return { success: false as const, status: 400, message: "No valid verification code found. Please request a new code." };
         }
@@ -717,7 +716,6 @@ return res.status((outcome as any).status ?? 400).json({ message: (outcome as an
       return res.json({ success: true, message: "Email verified successfully.", user: { id: user.id, email: user.email, name: user.fullName } });
     } catch (err) {
       logger.error({ err }, "OTP verification error");
-      console.log("VERIFY ERROR DETAILS:", err);
       return res.status(500).json({ message: "Verification failed due to a server error." });
     }
   });
