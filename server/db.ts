@@ -95,10 +95,28 @@ export async function withRetry<T>(
 
 export function getPool() {
   if (!poolInstance) {
+    const dbUrl = getDatabaseUrl();
+    const useSSL =
+      process.env.DB_SSL === "true" ||
+      /supabase\.co|pooler\.supabase\.com/i.test(dbUrl);
+
     poolInstance = new Pool({
-      connectionString: getDatabaseUrl(),
-      connectionTimeoutMillis: 5000,
-      idleTimeoutMillis: 10000,
+      connectionString: dbUrl,
+      connectionTimeoutMillis: 15000,
+      idleTimeoutMillis: 30000,
+      max: 10,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+      ...(useSSL
+        ? {
+            ssl: {
+              rejectUnauthorized: true,
+              ...(process.env.DATABASE_CA_CERT
+                ? { ca: process.env.DATABASE_CA_CERT }
+                : {}),
+            },
+          }
+        : {}),
     });
 
     poolInstance.on("error", (err) => {
