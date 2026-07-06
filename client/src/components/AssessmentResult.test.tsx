@@ -69,7 +69,7 @@ const mockAssessment = {
 
 test("renders patient view with correct risk category", () => {
   render(<AssessmentResult assessment={mockAssessment as any} />);
-  expect(screen.getByText(/Your Health Assessment/i)).toBeInTheDocument();
+  expect(screen.getByText(/patientResult\.yourHealthAssessment/i)).toBeInTheDocument();
   // We expect "LOW" since riskCategory is LOW
   expect(screen.getAllByText("LOW").length).toBeGreaterThan(0);
 });
