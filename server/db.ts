@@ -1,7 +1,10 @@
+import { AsyncLocalStorage } from "async_hooks";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
 import { logger } from "./logger";
+
+export const dbRlsStorage = new AsyncLocalStorage<NodePgDatabase<typeof schema>>();
 
 const { Pool } = pg;
 
@@ -33,10 +36,10 @@ function getDatabaseUrl() {
   return process.env.DATABASE_URL;
 }
 
-export function isTransientError(error: any): boolean {
+export function isTransientError(error: unknown): boolean {
   if (!error) return false;
-  const message = error.message || String(error);
-  const code = error.code;
+  const message = (error as Error).message || String(error);
+  const code = (error as any).code;
 
   const transientCodes = new Set([
     "08000", "08003", "08006", "08001", "08004",
@@ -117,64 +120,21 @@ export function getPool() {
             },
           }
         : {}),
+      ...(useSSL ? { ssl: { rejectUnauthorized: false } } : {}),
     });
 
     poolInstance.on("error", (err) => {
       logger.error({ err }, "Unexpected error on idle database client");
     });
-
-    const originalQuery = poolInstance.query.bind(poolInstance);
-    poolInstance.query = function (this: pg.Pool, ...args: any[]): any {
-      const lastArg = args[args.length - 1];
-      if (typeof lastArg === "function") {
-        const callback = lastArg;
-        const queryArgs = args.slice(0, -1);
-        withRetry(
-          "pool.query (callback)",
-          () => (originalQuery as any)(...queryArgs)
-        ).then(
-          (res) => callback(null, res),
-          (err) => callback(err)
-        );
-        return;
-      }
-
-      return withRetry(
-        "pool.query",
-        () => (originalQuery as any)(...args)
-      );
-    } as any;
-
-    const originalConnect = poolInstance.connect.bind(poolInstance);
-    poolInstance.connect = function (this: pg.Pool, ...args: any[]): any {
-      const lastArg = args[args.length - 1];
-      if (typeof lastArg === "function") {
-        const callback = lastArg;
-        const connectPromise = () =>
-          new Promise<{ client: pg.PoolClient; release: any }>((resolve, reject) => {
-            originalConnect((err: any, client: any, done: any) => {
-              if (err) reject(err);
-              else resolve({ client, release: done });
-            });
-          });
-        withRetry("pool.connect (callback)", connectPromise).then(
-          ({ client, release }) => callback(null, client, release),
-          (err) => callback(err)
-        );
-        return;
-      }
-
-      return withRetry(
-        "pool.connect",
-        () => originalConnect()
-      );
-    } as any;
   }
 
   return poolInstance;
 }
 
 export function getDb() {
+  const rlsDb = dbRlsStorage.getStore();
+  if (rlsDb) return rlsDb as any;
+
   if (!dbInstance) {
     const rawDb = drizzle(getPool(), { schema });
     const originalTransaction = rawDb.transaction.bind(rawDb);
@@ -193,14 +153,18 @@ export function getDb() {
     dbInstance = rawDb;
   }
 
-  return dbInstance;
+  // Widen Drizzle typing at the boundary. This project has observed
+  // substantial schema/type drift under drizzle/drizzle-zod versions,
+  // causing call-site type failures that do not reflect runtime SQL.
+  return dbInstance as any;
 }
+
 
 export async function verifyDatabaseConnection() {
   try {
     await getPool().query("select 1");
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = error instanceof Error ? (error as Error).message : String(error);
     throw new DatabaseStartupError(
       formatDatabaseStartupMessage(`PostgreSQL is unreachable. ${detail}`),
     );

@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { formatReadableDate } from "./dateFormat";
 
 interface BulkExportAssessment {
   id: number;
@@ -24,6 +25,11 @@ function fmt(val: unknown): string {
   return String(val);
 }
 
+/**
+ * Download Bulk Assessment Pdf.
+ * @param assessments - The assessments parameter.
+ * @returns The result of the operation.
+ */
 export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): void {
   const doc = new jsPDF("landscape", "mm", "a4");
   const pw = doc.internal.pageSize.getWidth();
@@ -35,7 +41,7 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
     doc.setFontSize(8);
     doc.setFont("Helvetica", "italic");
     doc.text(
-      `Clinical Insight Engine — Page ${doc.getCurrentPageInfo().pageNumber}`,
+      `Clinical Insight Engine — Page ${(doc as any).getCurrentPageInfo().pageNumber}`,
       pw / 2,
       ph - 6,
       { align: "center" }
@@ -49,7 +55,7 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
 
   doc.setFont("Helvetica", "normal");
   doc.setFontSize(11);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, pw / 2, 50, { align: "center" });
+  doc.text(`Generated: ${formatReadableDate(new Date())}`, pw / 2, 50, { align: "center" });
   doc.text(`Total assessments: ${assessments.length}`, pw / 2, 58, { align: "center" });
 
   // Risk distribution
@@ -162,7 +168,7 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
     let cx = m;
     const vals = [
       String(i + 1),
-      a.createdAt ? new Date(a.createdAt).toLocaleDateString() : "—",
+      formatReadableDate(a.createdAt, { fallback: "—", includeTime: false }),
       fmt(a.patientName),
       fmt(a.age),
       fmt(a.gender),
@@ -210,7 +216,7 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
     doc.text("Assessment Details", m, yy);
     yy += 8;
 
-    yy = labelVal("Date:", a.createdAt ? new Date(a.createdAt).toLocaleString() : "—", yy);
+    yy = labelVal("Date:", formatReadableDate(a.createdAt, { fallback: "—" }), yy);
     yy = labelVal("Gender:", fmt(a.gender), yy);
     yy = labelVal("Age:", fmt(a.age), yy);
     yy = labelVal("BMI:", a.bmi != null ? Number(a.bmi).toFixed(1) : "—", yy);

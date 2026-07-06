@@ -1,15 +1,20 @@
+import React from 'react';
 import { useState, useRef } from "react";
 import Papa from "papaparse";
-import { UploadCloud, CheckCircle, AlertCircle, XCircle, Loader2, FileText, Download, X, ShieldCheck } from "lucide-react";
+import { ApiClient } from "@/lib/apiClient";
+import { useBulkImport } from "@/hooks/use-bulk-import";
+import { UploadCloud, CheckCircle, AlertCircle, Loader2, FileText, Download, X, XCircle, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 
+
 const ACCEPTED_TYPES = ".csv,.xlsx,.xls";
 
 const STEP_LABELS: Record<string, string> = {
   idle: "",
+
   parsing: "Parsing file...",
   validating: "Validating data...",
   importing: "Processing ML predictions...",
@@ -18,9 +23,9 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 const RISK_COLORS: Record<string, string> = {
-  HIGH: "bg-red-100 text-red-700",
-  MODERATE: "bg-amber-100 text-amber-700",
-  LOW: "bg-emerald-100 text-emerald-700",
+  HIGH: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400",
+  MODERATE: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400",
+  LOW: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
 };
 
 
@@ -36,7 +41,7 @@ const SAMPLE_CSV_ROWS = [
 ];
 
 function downloadSampleCSV() {
-  const blob = new Blob([SAMPLE_CSV_ROWS.join("\n")], { type: "text/csv" });
+  const blob = new Blob([SAMPLE_CSV_ROWS.join("\\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = "sample_patient_data.csv"; a.click();
@@ -46,7 +51,7 @@ type ValidationResult =
   | { ok: true; count: number }
   | { ok: false; errors: string[] };
 
-function validateParsedData(rows: any[]): ValidationResult {
+function validateParsedData(rows: Record<string, unknown>[]): ValidationResult {
   const errors: string[] = [];
   rows.forEach((row, i) => {
     const rowNum = i + 2;
@@ -63,13 +68,14 @@ function validateParsedData(rows: any[]): ValidationResult {
 }
 
 export default function ImportData() {
+  const { preview, step, parseFile, confirmImport: handleConfirm, reset, fileName } = useBulkImport();
   const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<Record<string, unknown>[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -104,14 +110,14 @@ export default function ImportData() {
     setSelectedFile(file); setValidation(null); setResults([]);
     Papa.parse(file, {
       header: true, skipEmptyLines: true,
-      complete: async (parsed: Papa.ParseResult<any>) => {
+      complete: async (parsed: Papa.ParseResult<Record<string, unknown>>) => {
         const v = validateParsedData(parsed.data);
         setValidation(v);
         if (!v.ok) return;
         setIsProcessing(true);
         const iv = startProgress();
         try {
-          const formattedData = parsed.data.map((row: any) => ({
+          const formattedData = parsed.data.map((row: Record<string, unknown>) => ({
             patientName: row.patientName || row.name || "Unknown Patient",
             gender: row.gender, age: Number(row.age),
             hypertension: row.hypertension === "1" || row.hypertension === "true" || row.hypertension === true,
@@ -124,14 +130,47 @@ export default function ImportData() {
           const res = await fetch("/api/assessments/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assessments: formattedData }), credentials: "include" });
           if (!res.ok) throw new Error("Import failed");
           const data = await res.json();
-          clearInterval(iv); setProgress(100); setResults(data.assessments);
-          toast({ title: "Success", description: "Successfully imported " + data.count + " patient records." });
-        } catch (error: any) {
+          if (data.jobId) {
+            const pollIv = setInterval(async () => {
+              try {
+                const statusRes = await fetch(`/api/assessments/jobs/${data.jobId}`, { credentials: "include" });
+                if (!statusRes.ok) throw new Error("Failed to fetch job status");
+                const statusData = await statusRes.json();
+                
+                if (statusData.status === "completed") {
+                  clearInterval(pollIv);
+                  clearInterval(iv);
+                  setProgress(100);
+                  setResults(statusData.result.assessments);
+                  toast({ title: "Success", description: "Successfully imported " + statusData.result.assessments.length + " patient records." });
+                  setIsProcessing(false);
+                } else if (statusData.status === "failed") {
+                  clearInterval(pollIv);
+                  clearInterval(iv);
+                  setProgress(0);
+                  setIsProcessing(false);
+                  toast({ title: "Import Failed", description: statusData.error || "Batch processing failed.", variant: "destructive" });
+                }
+              } catch (err: any) {
+                clearInterval(pollIv);
+                clearInterval(iv);
+                setProgress(0);
+                setIsProcessing(false);
+                toast({ title: "Status Check Failed", description: err.message, variant: "destructive" });
+              }
+            }, 2000);
+          } else {
+            clearInterval(iv); setProgress(100); setResults(data.assessments);
+            toast({ title: "Success", description: "Successfully imported " + data.count + " patient records." });
+            setIsProcessing(false);
+          }
+        } catch (error: unknown) {
           clearInterval(iv); setProgress(0);
-          toast({ title: "Import Error", description: error.message, variant: "destructive" });
-        } finally { setIsProcessing(false); }
+          toast({ title: "Import Error", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+          setIsProcessing(false);
+        }
       },
-      error: (error: Error) => { toast({ title: "Parsing Error", description: error.message, variant: "destructive" }); },
+      error: (error: Error) => { toast({ title: "Parsing Error", description: (error as Error).message, variant: "destructive" }); },
     });
   };
 
@@ -159,13 +198,13 @@ export default function ImportData() {
     <AppLayout>
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-black tracking-tight text-slate-900">Bulk Import</h1>
-        <p className="text-slate-500">
+        <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-gray-100">Bulk Import</h1>
+        <p className="text-slate-500 dark:text-slate-400">
           Upload a CSV or Excel file with patient data. Each row is validated and processed through the ML risk model.
         </p>
       </div>
 
-      <Card className="border-slate-200">
+      <Card className="border-slate-200 dark:border-gray-700">
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
             <CardTitle>Upload Patient Data</CardTitle>
@@ -179,34 +218,34 @@ export default function ImportData() {
           {!selectedFile && (
             <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
               onClick={() => inputRef.current?.click()}
-              className={"relative flex flex-col items-center justify-center w-full h-56 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 " + (isDragging ? "border-blue-500 bg-blue-50 scale-[1.01]" : "border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-slate-400")}>
+              className={"relative flex flex-col items-center justify-center w-full h-56 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 " + (isDragging ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 scale-[1.01]" : "border-slate-300 dark:border-gray-600 bg-slate-50 dark:bg-gray-800/50 hover:bg-slate-100 dark:hover:bg-gray-800 hover:border-slate-400 dark:hover:border-gray-500")}>
               <input ref={inputRef} type="file" className="hidden" accept=".csv" onChange={handleChange} disabled={isProcessing} />
-              <div className={"flex flex-col items-center gap-3 transition-transform duration-300 " + (isDragging ? "translate-y-[-4px]" : "")}>
-                <div className={"p-4 rounded-full shadow-sm transition-colors " + (isDragging ? "bg-blue-100" : "bg-white")}>
-                  <UploadCloud className={"w-10 h-10 transition-colors " + (isDragging ? "text-blue-500" : "text-slate-400")} />
+                <div className={"flex flex-col items-center gap-3 transition-transform duration-300 " + (isDragging ? "translate-y-[-4px]" : "")}>
+                  <div className={"p-4 rounded-full shadow-sm transition-colors " + (isDragging ? "bg-blue-100 dark:bg-blue-900" : "bg-white dark:bg-gray-800")}>
+                    <UploadCloud className={"w-10 h-10 transition-colors " + (isDragging ? "text-blue-500" : "text-slate-400 dark:text-slate-500")} />
+                  </div>
+                  <p className="text-lg font-bold text-slate-700 dark:text-gray-200">{isDragging ? "Drop your CSV file here" : "Click or drag CSV file to upload"}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Max file size: 5 MB</p>
                 </div>
-                <p className="text-lg font-bold text-slate-700">{isDragging ? "Drop your CSV file here" : "Click or drag CSV file to upload"}</p>
-                <p className="text-sm text-slate-500">Max file size: 5 MB</p>
-              </div>
             </div>
           )}
 
           {selectedFile && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+            <div className="rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm space-y-3">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg"><FileText className="w-6 h-6 text-blue-500" /></div>
+                <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded-lg"><FileText className="w-6 h-6 text-blue-500 dark:text-blue-400" /></div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-800 truncate">{selectedFile.name}</p>
-                  <p className="text-xs text-slate-500">{formatBytes(selectedFile.size)}</p>
+                  <p className="font-semibold text-slate-800 dark:text-gray-200 truncate">{selectedFile.name}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{formatBytes(selectedFile.size)}</p>
                 </div>
-                {!isProcessing && <button onClick={clearFile} className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"><X className="w-4 h-4" /></button>}
+                {!isProcessing && <button onClick={clearFile} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-gray-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"><X className="w-4 h-4" /></button>}
               </div>
               {(isProcessing || progress > 0) && (
                 <div className="space-y-1">
-                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-slate-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
                     <div className="h-2 rounded-full transition-all duration-300" style={{ width: progress+"%", background: progress === 100 ? "linear-gradient(90deg,#10b981,#059669)" : "linear-gradient(90deg,#3b82f6,#6366f1)" }} />
                   </div>
-                  <p className="text-xs text-slate-500">{isProcessing ? (progress < 90 ? "Parsing and validating recordsâ¦" : "Uploading to serverâ¦") : "Complete"}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{isProcessing ? (progress < 90 ? "Parsing and validating recordsâ¦" : "Uploading to serverâ¦") : "Complete"}</p>
                 </div>
               )}
               {!isProcessing && validation?.ok && progress < 100 && (
@@ -218,13 +257,13 @@ export default function ImportData() {
           )}
 
           {validation && (
-            <div className={"rounded-xl border p-4 " + (validation.ok ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50")}>
+            <div className={"rounded-xl border p-4 " + (validation.ok ? "border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30")}>
               {validation.ok ? (
-                <div className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /><p className="font-semibold text-emerald-800">CSV Validated: {(validation as any).count} patient records ready for optimization mapping.</p></div>
+                <div className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" /><p className="font-semibold text-emerald-800 dark:text-emerald-400">CSV Validated: {validation.ok ? validation.count : 0} patient records ready for optimization mapping.</p></div>
               ) : (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2"><AlertCircle className="w-5 h-5 text-red-500 shrink-0" /><p className="font-semibold text-red-800">Validation Failed: {(validation as any).errors.length} issue(s) found.</p></div>
-                  <ul className="ml-7 space-y-1">{(validation as any).errors.slice(0,8).map((err: string, i: number) => <li key={i} className="text-sm text-red-700 list-disc">{err}</li>)}</ul>
+                  <div className="flex items-center gap-2"><AlertCircle className="w-5 h-5 text-red-500 shrink-0" /><p className="font-semibold text-red-800 dark:text-red-400">Validation Failed: {validation.ok === false ? validation.errors.length : 0} issue(s) found.</p></div>
+                  <ul className="ml-7 space-y-1">{validation.ok === false && validation.errors.slice(0,8).map((err: string, i: number) => <li key={i} className="text-sm text-red-700 dark:text-red-400 list-disc">{err}</li>)}</ul>
                   <Button variant="outline" size="sm" onClick={clearFile}><X className="w-3 h-3 mr-1" />Clear and re-upload</Button>
                 </div>
               )}
@@ -234,11 +273,11 @@ export default function ImportData() {
       </Card>
 
       {results.length > 0 && (
-        <Card className="border-slate-200">
-          <CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-emerald-500" />Import Successful -- {results.length} records processed</CardTitle></CardHeader>
+        <Card className="border-slate-200 dark:border-gray-700">
+          <CardHeader><CardTitle className="flex items-center gap-2 dark:text-gray-100"><CheckCircle className="w-5 h-5 text-emerald-500" />Import Successful -- {results.length} records processed</CardTitle></CardHeader>
           <CardContent><div className="overflow-x-auto"><table className="w-full text-sm text-left">
-            <thead className="text-xs text-slate-500 uppercase bg-slate-50"><tr><th className="px-4 py-3">Patient</th><th className="px-4 py-3">Age / Gender</th><th className="px-4 py-3">Risk Category</th><th className="px-4 py-3">Risk Score</th></tr></thead>
-            <tbody>{results.map((r, i) => (<tr key={i} className="border-b border-slate-100"><td className="px-4 py-3 font-medium">{r.patientName}</td><td className="px-4 py-3">{r.age} / {r.gender}</td><td className="px-4 py-3"><span className={"px-2 py-1 rounded text-xs font-bold " + (r.riskCategory === "HIGH" ? "bg-red-100 text-red-700" : r.riskCategory === "MODERATE" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700")}>{r.riskCategory}</span></td><td className="px-4 py-3 font-bold">{r.riskScore}%</td></tr>))}</tbody>
+            <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-gray-800 dark:text-slate-400"><tr><th className="px-4 py-3">Patient</th><th className="px-4 py-3">Age / Gender</th><th className="px-4 py-3">Risk Category</th><th className="px-4 py-3">Risk Score</th></tr></thead>
+            <tbody>{results.map((r, i) => (<tr key={i} className="border-b border-slate-100 dark:border-gray-800"><td className="px-4 py-3 font-medium dark:text-gray-200">{String(r.patientName)}</td><td className="px-4 py-3 dark:text-gray-300">{String(r.age)} / {String(r.gender)}</td><td className="px-4 py-3"><span className={"px-2 py-1 rounded text-xs font-bold " + (r.riskCategory === "HIGH" ? "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400" : r.riskCategory === "MODERATE" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400")}>{String(r.riskCategory)}</span></td><td className="px-4 py-3 font-bold dark:text-gray-100">{String(r.riskScore)}%</td></tr>))}</tbody>
           </table></div></CardContent>
         </Card>
       )}
@@ -252,3 +291,4 @@ export default function ImportData() {
     </AppLayout>
   );
 }
+

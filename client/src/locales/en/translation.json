@@ -83,7 +83,9 @@
     "es": "Español",
     "fr": "Français",
     "hi": "हिन्दी",
-    "switchTo": "Switch language"
+    "switchTo": "Switch language",
+    "zh": "中文",
+    "ar": "العربية"
   },
   "assessment": {
     "title": "New Assessment",
@@ -141,6 +143,19 @@
       "riskCategory": "Category",
       "date": "Date",
       "actions": "Actions"
+    },
+    "emptyState": {
+      "noAssessments": {
+      "title": "No Assessments Found",
+      "description": "There are no patient assessments loaded yet. Create your first assessment to start tracking patient health trajectories.",
+      "actionLabel": "Create First Assessment"
+      },
+      "noMatching": {
+      "title": "No Matching Records",
+      "description": "No patient records match the current filters. Clear the filters to return to the full assessment history, or create a new assessment if this patient needs fresh data.",
+      "actionLabel": "Clear Filters",
+      "secondaryActionLabel": "Create Assessment"
+      }
     }
   },
   "analytics": {
@@ -156,13 +171,28 @@
     "dropZone": "Drop your CSV file here or click to browse",
     "upload": "Upload",
     "processing": "Processing...",
+    "deleteTitle": "Delete Assessment",
+    "deleteConfirm": "Are you sure you want to delete the assessment for {{patientName}} from {{assessmentDate}}? This action cannot be undone and will permanently remove this data from the system.",
+    "deleting": "Deleting...",
     "results": "Import Results"
   },
   "admin": {
     "title": "Admin Dashboard",
+    "desc": "Manage platform settings and view system-wide analytics",
     "users": "Users",
     "settings": "Settings",
     "logs": "Logs"
+  },
+  "charts": {
+    "comparisonTitle": "Patient Comparison — Risk Trend",
+    "trendTitle": "Risk Trend Analytics",
+    "comparisonDesc": "Comparing risk trajectories across selected patients",
+    "trendDesc": "Historical metabolic vector trends over time",
+    "needsMoreDataComparison": "Selected patients need at least 2 assessments each to display trend analytics.",
+    "needsMoreData": "At least 2 assessments are needed to display trend analytics.",
+    "processing": "Processing high-frequency metrics...",
+    "highRisk": "High Risk",
+    "moderateRisk": "Moderate Risk"
   },
   "notFound": {
     "title": "404 - Page Not Found",
@@ -209,6 +239,28 @@
     "age": {
       "clinician": "Consider age-related metabolic changes in the management plan.",
       "patient": "As you get older, it's more important to stay active and monitor your health."
+    }
+  },
+  "dashboard": {
+    "emptyState": {
+    "title": "No Assessments Yet",
+    "description": "Your statistics will appear here once you run your first risk assessment.",
+    "actionLabel": "Run First Assessment"
+    }
+  },
+  "myHealth": {
+    "emptyAssessments": {
+      "title": "No Assessments Yet",
+      "description": "Your completed risk assessments will appear here after your care team shares results with this patient account.",
+      "actionLabel": "Refresh Records",
+      "secondaryActionLabel": "Back to Sign In"
+    },
+    "emptyTrends": {
+      "titleOne": "One Result Recorded",
+      "titleNone": "No Trend Data Yet",
+      "descriptionOne": "At least two completed assessments are needed before a risk trend chart can be drawn.",
+      "descriptionNone": "Trend charts will appear here once assessment results are available for this account.",
+      "actionLabel": "Refresh Trends"
     }
   }
 }

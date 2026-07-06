@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,6 +12,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 
 interface ConfirmDeleteDialogProps {
   patientName: string;
@@ -26,6 +27,7 @@ export function ConfirmDeleteDialog({
   onConfirm,
   trigger,
 }: ConfirmDeleteDialogProps) {
+  const { t } = useTranslation();
   const [isDeleting, setIsDeleting] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -49,36 +51,27 @@ export function ConfirmDeleteDialog({
         {trigger || (
           <Button variant="destructive" size="sm" className="gap-2">
             <Trash2 className="h-4 w-4" />
-            Delete
+            {t("common.delete")}
           </Button>
         )}
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Assessment</AlertDialogTitle>
+          <AlertDialogTitle>{t("assessment.deleteTitle")}</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete the assessment for{" "}
-            <strong>{patientName}</strong> from <strong>{assessmentDate}</strong>?
-            This action cannot be undone and will permanently remove this data
-            from the system.
+            {t("assessment.deleteConfirm", { patientName, assessmentDate })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isDeleting}>{t("common.cancel")}</AlertDialogCancel>
           <Button
             variant="destructive"
             onClick={handleConfirm}
-            disabled={isDeleting}
+            isLoading={isDeleting}
+            loadingText={t("assessment.deleting")}
             className="gap-2"
           >
-            {isDeleting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Deleting...
-              </>
-            ) : (
-              "Delete"
-            )}
+            {t("common.delete")}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

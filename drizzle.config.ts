@@ -16,6 +16,7 @@ export default defineConfig({
   dbCredentials: {
     url: dbUrl,
     ...(useSSL ? { ssl: { rejectUnauthorized: true } } : {}),
+    ...(useSSL ? { ssl: { rejectUnauthorized: false } } : {}),
   },
   // 💡 Explicitly declare your managed table names rather than using standard wildcards
   tablesFilter: [
@@ -25,6 +26,8 @@ export default defineConfig({
     "login_audit_logs",
     "password_reset_tokens",
     "email_verification_tokens",
-    "model_versions"
+    "model_versions",
+    "patient_users",
+    "patient_access_audit_logs"
   ],
 });

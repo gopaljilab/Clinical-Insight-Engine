@@ -7,11 +7,19 @@ import time
 import numpy as np
 import pandas as pd
 from app.ml.prediction_cache import get_cache
+from app.middleware.phi_redaction import phi_redaction_middleware
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import pickle
+import gc
+
+try:
+    from fairlearn.metrics import demographic_parity_difference, equalized_odds_difference
+    FAIRLEARN_AVAILABLE = True
+except ImportError:
+    FAIRLEARN_AVAILABLE = False
 
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
 
@@ -41,6 +49,8 @@ def create_synthetic_data():
     bmi = np.random.normal(28, 5, n)
     hba1c_level = np.random.normal(5.5, 1.5, n)
     blood_glucose_level = np.random.normal(130, 40, n)
+    insulin = np.random.normal(80, 20, n)
+    skin_thickness = np.random.normal(20, 5, n)
     
     # Calculate a synthetic risk score 
     risk_score = (age * 0.05 + hypertension * 1.5 + heart_disease * 2.0 + 
@@ -59,6 +69,8 @@ def create_synthetic_data():
         "bmi": bmi,
         "HbA1c_level": hba1c_level,
         "blood_glucose_level": blood_glucose_level,
+        "insulin": insulin,
+        "skin_thickness": skin_thickness,
         "diabetes": diabetes
     })
     df.to_csv(DATA_FILE, index=False)
@@ -108,10 +120,14 @@ def train_model_pipeline():
         return None, None, None, None
     
     # Check for missing values and unrealistic zeros
-    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
+    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness']
+    thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50, 'insulin': 0, 'skin_thickness': 0}
+
     for col in clinical_cols:
-        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50}
-        invalid_mask = (df[col] < thresholds[col]) | (df[col].isna())
+        # Dataset may not include all columns (e.g., older/trimmed CSVs).
+        if col not in df.columns:
+            continue
+        invalid_mask = (df[col] < thresholds.get(col, 0)) | (df[col].isna())
         if invalid_mask.any():
             df.loc[invalid_mask, col] = df[col].median()
 
@@ -122,8 +138,10 @@ def train_model_pipeline():
     smoking_dummies = pd.get_dummies(df['smoking_history'], prefix='smoke', drop_first=True)
     df = pd.concat([df, smoking_dummies], axis=1)
     
-    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'gender_Male'] + list(smoking_dummies.columns)
-    
+    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness', 'gender_Male'] + list(smoking_dummies.columns)
+    # Only keep features that exist in the dataset (some trimmed datasets may not include insulin/skin_thickness)
+    features = [f for f in features if f in df.columns]
+
     X = df[features]
     y = df['diabetes']
     
@@ -149,10 +167,19 @@ def train_model_pipeline():
     I += (1.0 / C) * I_reg
     cov_beta = np.linalg.inv(I)
     
+    try:
+        del df, X, y, X_scaled, X_design, D, I, I_reg
+        gc.collect()
+    except Exception:
+        pass
+    
     return model, scaler, features, cov_beta
 
 
-def _compute_dataset_hash(filepath: str) -> str | None:
+from typing import Optional
+
+
+def _compute_dataset_hash(filepath: str) -> Optional[str]:
     """Compute SHA-256 hash of the dataset file contents."""
     if not os.path.exists(filepath):
         return None
@@ -163,42 +190,90 @@ def _compute_dataset_hash(filepath: str) -> str | None:
     return hasher.hexdigest()
 
 
+class FileLock:
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self.fd = None
+
+    def acquire(self, timeout=LOCK_TIMEOUT):
+        if self.fd is not None:
+            return False
+
+        end_time = time.time() + timeout
+        while True:
+            try:
+                # Open the sidecar lock file in append+ mode (creates it if missing)
+                self.fd = open(self.filepath, "a+")
+                
+                # Request a non-blocking exclusive lock
+                if sys.platform == "win32":
+                    import msvcrt
+                    self.fd.seek(0)
+                    msvcrt.locking(self.fd.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self.fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                
+                # Lock acquired successfully! Write PID.
+                self.fd.seek(0)
+                self.fd.truncate()
+                self.fd.write(str(os.getpid()))
+                self.fd.flush()
+                return True
+            except OSError:
+                if self.fd:
+                    try:
+                        self.fd.close()
+                    except OSError:
+                        pass
+                    self.fd = None
+            
+            if time.time() >= end_time:
+                break
+            time.sleep(LOCK_POLL_INTERVAL)
+        return False
+
+    def release(self):
+        if self.fd is not None:
+            try:
+                if sys.platform == "win32":
+                    import msvcrt
+                    self.fd.seek(0)
+                    msvcrt.locking(self.fd.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self.fd.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+            try:
+                self.fd.close()
+            except OSError:
+                pass
+            self.fd = None
+            try:
+                os.remove(self.filepath)
+            except OSError:
+                pass
+
+_global_lock = FileLock(LOCK_FILE)
+
 def _acquire_lock(timeout=LOCK_TIMEOUT):
-    """Acquire an exclusive lock on the model file using a sidecar lock file.
+    """Acquire an exclusive OS-level lock on the model file.
 
     Blocks up to `timeout` seconds, polling every 100ms.
     Returns True if the lock was acquired, False if the timeout was reached.
     """
-    end_time = time.time() + timeout
-    while time.time() < end_time:
-        try:
-            fd = os.open(LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_RDWR)
-            with os.fdopen(fd, 'w') as f:
-                f.write(str(os.getpid()))
-            return True
-        except FileExistsError:
-            _clean_stale_lock()
-            time.sleep(LOCK_POLL_INTERVAL)
-    return False
+    return _global_lock.acquire(timeout)
 
 
 def _release_lock():
-    """Release the exclusive lock."""
-    try:
-        if os.path.exists(LOCK_FILE):
-            os.remove(LOCK_FILE)
-    except OSError:
-        pass
+    """Release the exclusive OS-level lock."""
+    _global_lock.release()
 
 
 def _clean_stale_lock():
-    """Remove the lock file if it is older than 5 minutes (stale from a crash)."""
-    try:
-        mtime = os.path.getmtime(LOCK_FILE)
-        if time.time() - mtime > 300:
-            os.remove(LOCK_FILE)
-    except OSError:
-        pass
+    """OS-level locks clean up automatically on process termination. No manual cleanup needed."""
+    pass
 
 
 def _atomic_write(filepath, data):
@@ -278,10 +353,10 @@ def train_and_evaluate():
         print(json.dumps({"error": f"Error loading dataset: {e}"}))
         return None
 
-    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
+    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness']
     for col in clinical_cols:
-        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50}
-        invalid_mask = (df[col] < thresholds[col]) | (df[col].isna())
+        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50, 'insulin': 0, 'skin_thickness': 0}
+        invalid_mask = (df[col] < thresholds.get(col, 0)) | (df[col].isna())
         if invalid_mask.any():
             df.loc[invalid_mask, col] = df[col].median()
 
@@ -291,7 +366,7 @@ def train_and_evaluate():
     smoking_dummies = pd.get_dummies(df['smoking_history'], prefix='smoke', drop_first=True)
     df = pd.concat([df, smoking_dummies], axis=1)
 
-    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'gender_Male'] + list(smoking_dummies.columns)
+    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness', 'gender_Male'] + list(smoking_dummies.columns)
 
     X = df[features].values
     y = df['diabetes'].values
@@ -357,6 +432,29 @@ def train_and_evaluate():
         "dataset_size": size,
     }
 
+    if FAIRLEARN_AVAILABLE and 'gender_Male' in features:
+        try:
+            gender_idx = features.index('gender_Male')
+            sensitive_features_test = X_test[:, gender_idx]
+            dpd = demographic_parity_difference(
+                y_true=y_test,
+                y_pred=y_pred,
+                sensitive_features=sensitive_features_test
+            )
+            eod = equalized_odds_difference(
+                y_true=y_test,
+                y_pred=y_pred,
+                sensitive_features=sensitive_features_test
+            )
+            result["fairness_report"] = {
+                "sensitive_attribute": "gender",
+                "demographic_parity_difference": float(dpd),
+                "equalized_odds_difference": float(eod),
+                "interpretation": "Values closer to 0 indicate better fairness between groups. Higher values denote greater disparity."
+            }
+        except Exception as e:
+            result["fairness_report"] = {"error": f"Failed to compute fairness metrics: {str(e)}"}
+
     # Retrain on full data and save
     scaler_full = StandardScaler()
     X_scaled_full = scaler_full.fit_transform(X)
@@ -383,6 +481,13 @@ def train_and_evaluate():
     print(f"Model saved to {MODEL_FILE}", file=sys.stderr)
 
     print(json.dumps(result))
+    
+    try:
+        del df, X, y, X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled, X_scaled_full, X_design, D, I_mat, I_reg
+        gc.collect()
+    except Exception:
+        pass
+        
     return result
 
 
@@ -479,6 +584,47 @@ def get_model():
     finally:
         _release_lock()
 
+def validate_assessment_input(data):
+    if not isinstance(data, dict):
+        raise ValueError("Input must be an object")
+
+    validators = {
+        "age": {"type": (int, float), "min": 0, "max": 130},
+        "gender": {"type": str},
+        "hypertension": {"type": (bool, int), "in": (False, True, 0, 1)},
+        "heartDisease": {"type": (bool, int), "in": (False, True, 0, 1)},
+        "bmi": {"type": (int, float), "min": 0, "max": 100},
+        "hba1cLevel": {"type": (int, float), "min": 0, "max": 15},
+        "bloodGlucoseLevel": {"type": (int, float), "min": 0, "max": 500},
+        "smokingHistory": {
+            "type": str,
+            "in": ("never", "former", "current", "not specified", "ever", "No Info"),
+        },
+    }
+
+    for field, rules in validators.items():
+        if field not in data or data[field] is None:
+            raise ValueError(f"Missing or null field: {field}")
+
+        value = data[field]
+        if not isinstance(value, rules["type"]):
+            raise ValueError(f"Invalid type for {field}")
+
+        if isinstance(value, str) and not value:
+            raise ValueError(f"Invalid value for {field}")
+
+        if "in" in rules and value not in rules["in"]:
+            raise ValueError(f"Invalid value for {field}")
+
+        if "min" in rules and value < rules["min"]:
+            raise ValueError(f"Invalid value for {field}")
+
+        if "max" in rules and value > rules["max"]:
+            raise ValueError(f"Invalid value for {field}")
+
+    return data
+
+@phi_redaction_middleware
 def interpret_predictions_batch(model, scaler, features, input_data_list, cov_beta=None):
     """Vectorized batch prediction for a list of patient records using NumPy."""
     if model is None:
@@ -520,6 +666,8 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
         X_input[i, feature_indices['bmi']] = float(_safe_get(input_data, 'bmi', 25.0, 'BMI'))
         X_input[i, feature_indices['HbA1c_level']] = float(_safe_get(input_data, 'hba1cLevel', 5.5, 'HbA1c Level'))
         X_input[i, feature_indices['blood_glucose_level']] = float(_safe_get(input_data, 'bloodGlucoseLevel', 100.0, 'Blood Glucose Level'))
+        X_input[i, feature_indices['insulin']] = float(_safe_get(input_data, 'insulin', 80.0, 'Insulin Level'))
+        X_input[i, feature_indices['skin_thickness']] = float(_safe_get(input_data, 'skinThickness', 20.0, 'Skin Thickness'))
         
         gender_value = _safe_get(input_data, 'gender', 'Female')
         X_input[i, feature_indices['gender_Male']] = 1 if gender_value == 'Male' else 0
@@ -667,8 +815,21 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
             cache.set(input_data, result)
             results[original_idx] = result
             
+    try:
+        del X_input, imputed_fields_list
+        if 'X_uncached' in locals():
+            del X_uncached
+        if 'X_scaled' in locals():
+            del X_scaled
+        if 'probs' in locals():
+            del probs
+        gc.collect()
+    except Exception:
+        pass
+        
     return results
 
+@phi_redaction_middleware
 def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
     """Interprets a single patient's data, yielding clinician and patient views."""
     res = interpret_predictions_batch(model, scaler, features, [input_data], cov_beta)
@@ -678,6 +839,7 @@ def interpret_prediction(model, scaler, features, input_data, cov_beta=None):
         return res[0]
     return res
 
+@phi_redaction_middleware
 def counterfactual_analysis(model, scaler, features, input_data, cov_beta=None):
     """
     Performs what-if counterfactual analysis.
@@ -726,6 +888,85 @@ def counterfactual_analysis(model, scaler, features, input_data, cov_beta=None):
         "ranked": perturbation_results,
     }
 
+def get_counterfactuals(model, scaler, features, input_data, cov_beta=None):
+    """
+    Generates hypothetical inputs with healthier values and returns the top impactful changes.
+    """
+    perturbations = []
+    
+    # 1. BMI: Reduce by 2 points (if BMI > 25)
+    bmi = input_data.get('bmi')
+    if bmi is not None and bmi > 25:
+        perturbations.append({'bmi': max(25.0, float(bmi) - 2.0)})
+        
+    # 2. Blood Glucose: Reduce by 10 points (if > 100)
+    bg = input_data.get('bloodGlucoseLevel')
+    if bg is not None and bg > 100:
+        perturbations.append({'bloodGlucoseLevel': max(100.0, float(bg) - 10.0)})
+        
+    # 3. HbA1c: Reduce by 0.5 points (if > 5.7)
+    hba1c = input_data.get('hba1cLevel')
+    if hba1c is not None and hba1c > 5.7:
+        perturbations.append({'hba1cLevel': max(5.7, float(hba1c) - 0.5)})
+        
+    # 4. Smoking Status: Change to former if current
+    smoke = input_data.get('smokingHistory')
+    if smoke == 'current':
+        perturbations.append({'smokingHistory': 'former'})
+
+    # 5. Hypertension: Manage/Control
+    if input_data.get('hypertension') in [1, True, "1", "true"]:
+        perturbations.append({'hypertension': False})
+
+    if not perturbations:
+        original = interpret_prediction(model, scaler, features, input_data, cov_beta)
+        return {
+            "original": original,
+            "recommendations": []
+        }
+        
+    data = {
+        "original": input_data,
+        "perturbations": perturbations
+    }
+    
+    result = counterfactual_analysis(model, scaler, features, data, cov_beta)
+    ranked = result.get("ranked", [])
+    
+    # Generate actionable messages for top 2
+    recommendations = []
+    for item in ranked[:2]:
+        if item["riskReduction"] <= 0:
+            continue
+        
+        delta_str = item["delta"]
+        
+        action = "Making a healthy change"
+        if "bmi:" in delta_str:
+            action = "Reducing your BMI by 2 points"
+        elif "bloodGlucoseLevel:" in delta_str:
+            action = "Lowering your blood glucose by 10 points"
+        elif "hba1cLevel:" in delta_str:
+            action = "Lowering your HbA1c by 0.5%"
+        elif "smokingHistory:" in delta_str:
+            action = "Quitting smoking"
+        elif "hypertension:" in delta_str:
+            action = "Managing your hypertension effectively"
+            
+        msg = f"{action} could lower your overall diabetes risk score by {item['riskReduction']}%."
+        
+        recommendations.append({
+            "action": action,
+            "riskReduction": item["riskReduction"],
+            "newRiskScore": item["riskScore"],
+            "message": msg
+        })
+        
+    return {
+        "original": result.get("original"),
+        "recommendations": recommendations
+    }
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "predict_file":
         if len(sys.argv) > 2:
@@ -749,10 +990,16 @@ if __name__ == "__main__":
                     file=sys.stderr,
                 )
                 sys.exit(1)
-            with open(resolved_input, 'r') as f:
-                data = json.load(f)
+            with open(resolved_input, 'rb') as f:
+                raw_bytes = f.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         else:
-            data = json.load(sys.stdin)
+            raw_bytes = sys.stdin.buffer.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         model, scaler, features, cov_beta = get_model()
         if isinstance(data, list):
             results = interpret_predictions_batch(model, scaler, features, data, cov_beta)
@@ -760,15 +1007,89 @@ if __name__ == "__main__":
         else:
             result = interpret_prediction(model, scaler, features, data, cov_beta)
             print(json.dumps(result))
+    elif len(sys.argv) > 1 and sys.argv[1] == "daemon":
+        model, scaler, features, cov_beta = get_model()
+        from app.utils.text_sanitizer import sanitize_text
+        for line_bytes in sys.stdin.buffer:
+            line_str = sanitize_text(line_bytes).strip()
+            if not line_str:
+                continue
+            try:
+                request = json.loads(line_str)
+                request_id = request.get("requestId")
+                input_data = request.get("input")
+                
+                if isinstance(input_data, list):
+                    validated_input = [
+                        validate_assessment_input(item)
+                        for item in input_data
+                        ]
+                    prediction = interpret_predictions_batch(
+                        model,
+                        scaler,
+                        features,
+                        validated_input,
+                        cov_beta,
+                    )
+                else:
+                    validated_input = validate_assessment_input(
+                        input_data
+                        )
+ 
+                    prediction = interpret_prediction(
+                        model,
+                        scaler,
+                        features,
+                        validated_input,
+                        cov_beta,
+                    )
+                response = {
+                    "requestId": request_id,
+                    "prediction": prediction
+                }
+                print(json.dumps(response), flush=True)
+            except Exception as e:
+                try:
+                    request_id = request.get("requestId") if 'request' in locals() else None
+                except:
+                    request_id = None
+                response = {
+                    "requestId": request_id,
+                    "error": str(e)
+                }
+                print(json.dumps(response), flush=True)
     elif len(sys.argv) > 1 and sys.argv[1] == "counterfactual":
         if len(sys.argv) > 2:
-            with open(sys.argv[2], 'r') as f:
-                data = json.load(f)
+            with open(sys.argv[2], 'rb') as f:
+                raw_bytes = f.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         else:
-            data = json.load(sys.stdin)
+            raw_bytes = sys.stdin.buffer.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
         model, scaler, features, cov_beta = get_model()
         result = counterfactual_analysis(model, scaler, features, data, cov_beta)
         print(json.dumps(result))
+    elif len(sys.argv) > 1 and sys.argv[1] == "counterfactual_auto":
+        if len(sys.argv) > 2:
+            with open(sys.argv[2], 'rb') as f:
+                raw_bytes = f.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
+        else:
+            raw_bytes = sys.stdin.buffer.read()
+            from app.utils.text_sanitizer import sanitize_text
+            sanitized_str = sanitize_text(raw_bytes)
+            data = json.loads(sanitized_str)
+        model, scaler, features, cov_beta = get_model()
+        result = get_counterfactuals(model, scaler, features, data, cov_beta)
+        print(json.dumps(result))
+    elif len(sys.argv) > 1 and sys.argv[1] == "train_and_evaluate":
+        train_and_evaluate()
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")

@@ -1,33 +1,58 @@
 import { createHash, randomUUID } from "crypto";
-import { execFile } from "child_process";
+import { execFile, spawn, ChildProcess } from "child_process";
 import { existsSync } from "fs";
 import { writeFile, unlink } from "fs/promises";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { logger } from "../logger";
+import readline from "readline";
 
 // ESM-compatible path resolution for analyze.py
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
 
+interface QueuedEntry {
+  execute: () => void;
+  abort: () => void;
+}
+
+/** A concurrency-limiting semaphore designed to throttle intensive Machine Learning inference tasks and manage server resource boundaries. */
+const DEFAULT_MAX_QUEUE_SIZE = 200;
+
 export class SimpleSemaphore {
   private activeCount = 0;
-  private queue: (() => void)[] = [];
+  private queue: QueuedEntry[] = [];
 
-  constructor(private maxConcurrency: number) {}
+  constructor(private maxConcurrency: number, private maxQueueSize: number = DEFAULT_MAX_QUEUE_SIZE) {}
 
-  async acquire(): Promise<() => void> {
+  async acquire(timeoutMs?: number): Promise<() => void> {
     if (this.activeCount < this.maxConcurrency) {
       this.activeCount++;
       return () => this.release();
     }
 
-    return new Promise<() => void>((resolve) => {
-      this.queue.push(() => {
-        resolve(() => this.release());
-      });
+    if (this.queue.length >= this.maxQueueSize) {
+      return Promise.reject(new Error("Semaphore queue full — too many pending requests"));
+    }
+
+    return new Promise<() => void>((resolve, reject) => {
+      const entry: QueuedEntry = {
+        execute: () => resolve(() => this.release()),
+        abort: () => reject(new Error("Semaphore acquisition aborted")),
+      };
+      this.queue.push(entry);
+
+      if (timeoutMs && timeoutMs > 0) {
+        setTimeout(() => {
+          const idx = this.queue.indexOf(entry);
+          if (idx !== -1) {
+            this.queue.splice(idx, 1);
+            reject(new Error("Semaphore acquisition timed out"));
+          }
+        }, timeoutMs);
+      }
     });
   }
 
@@ -36,21 +61,40 @@ export class SimpleSemaphore {
     const next = this.queue.shift();
     if (next) {
       this.activeCount++;
-      next();
+      next.execute();
     }
   }
 
-  async run<T>(fn: () => Promise<T>): Promise<T> {
-    const release = await this.acquire();
+  async run<T>(fn: () => Promise<T>, timeoutMs?: number): Promise<T> {
+    const release = await this.acquire(timeoutMs);
     try {
       return await fn();
     } finally {
       release();
     }
   }
+
+  get pending(): number {
+    return this.queue.length;
+  }
+
+  get active(): number {
+    return this.activeCount;
+  }
 }
 
-const ML_TIMEOUT_MS = parseInt(process.env.ML_TIMEOUT_MS || "30000", 10);
+export function getRequestTimeout(): number {
+  return parseInt(process.env.REQUEST_TIMEOUT || process.env.ML_TIMEOUT_MS || "5000", 10);
+}
+
+export function getMaxRetries(): number {
+  return parseInt(process.env.MAX_RETRIES || "3", 10);
+}
+
+export function getRetryBackoffFactor(): number {
+  return parseFloat(process.env.RETRY_BACKOFF_FACTOR || "2");
+}
+
 const maxConcurrency = parseInt(process.env.ML_MAX_CONCURRENCY || "2", 10);
 const mlConcurrency = new SimpleSemaphore(maxConcurrency);
 
@@ -60,12 +104,30 @@ const mlConcurrency = new SimpleSemaphore(maxConcurrency);
  */
 const activeInferenceRequests = new Set<string>();
 
+function canonicalStringify(obj: unknown): string {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return "[" + obj.map(canonicalStringify).join(",") + "]";
+  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  const pairs = keys.map(k => JSON.stringify(k) + ":" + canonicalStringify((obj as Record<string, unknown>)[k]));
+  return "{" + pairs.join(",") + "}";
+}
+
+/**
+ * Computes a deterministic SHA-256 fingerprint for a request payload combined with a user ID. Used to identify duplicate concurrent requests and key caches.
+ * @param payload - The payload parameter.
+ * @param userId - The userId parameter.
+ * @returns The result of the operation.
+ */
 export function generateRequestFingerprint(payload: unknown, userId: string): string {
   return createHash("sha256")
-    .update(`${userId}::${JSON.stringify(payload)}`)
+    .update(`${userId}::${canonicalStringify(payload)}`)
     .digest("hex");
 }
 
+/**
+ * Resolves the absolute path to the local Python virtual environment executable depending on the host platform.
+ * @returns The result of the operation.
+ */
 export function getPythonExecutable() {
   const candidates =
     process.platform === "win32"
@@ -78,8 +140,30 @@ export function getPythonExecutable() {
           path.resolve("venv", "bin", "python"),
         ];
 
-  return candidates.find((candidate) => existsSync(candidate)) ?? "python3";
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (found) return found;
+  return process.platform === "win32" ? "python" : "python3";
 }
+
+export let isPythonAvailable = true;
+
+/**
+ * Asynchronously polls Python execution response, disabling the ML pipeline fallback flag if unresponsive.
+ * @returns The result of the operation.
+ */
+export function checkPythonAvailability() {
+  execFile(getPythonExecutable(), ["--version"], { timeout: 2000 }, (error) => {
+    if (error) {
+      logger.warn("Python executable not found or unresponsive. Falling back to clinical rule-based model globally.");
+      isPythonAvailable = false;
+    } else {
+      isPythonAvailable = true;
+    }
+  });
+}
+
+// Start the check immediately
+checkPythonAvailability();
 
 export interface PredictionResult {
   riskScore: number;
@@ -97,11 +181,16 @@ export interface PredictionResult {
   disclaimer?: string;
 }
 
-export function calculateClinicalFallback(input: unknown): any {
+/**
+ * Rule-based clinical fallback calculator implementing ADA-like heuristics for diabetes risk score computation when the ML daemon fails.
+ * @param input - The input parameter.
+ * @returns The result of the operation.
+ */
+export function calculateClinicalFallback(input: unknown): PredictionResult | PredictionResult[] {
   if (Array.isArray(input)) {
-    return input.map((item) => calculateClinicalFallback(item));
+    return input.map((item) => calculateClinicalFallback(item)) as PredictionResult[];
   }
-  const anyInput = input as any;
+  const anyInput = input as Record<string, unknown>;
   let points = 0;
 
   const factors: Array<{
@@ -237,69 +326,339 @@ export function calculateClinicalFallback(input: unknown): any {
   };
 }
 
-export async function runAssessmentInference(input: unknown): Promise<{ prediction: PredictionResult, isFallback: boolean }> {
-  const release = await mlConcurrency.acquire();
-  const tempFilePath = path.join(os.tmpdir(), `${randomUUID()}.json`);
+interface PendingRequest {
+  resolve: (value: PredictionResult | PredictionResult[]) => void;
+  reject: (reason: Error | string) => void;
+  timeoutId: NodeJS.Timeout;
+}
 
-  try {
-    await writeFile(tempFilePath, JSON.stringify(input));
+const MAX_DAEMON_RESTART_ATTEMPTS = 5;
+const DAEMON_RESTART_BASE_DELAY_MS = 1000;
 
-    const stdout = await new Promise<string>((resolve, reject) => {
-      const child = execFile(
-        getPythonExecutable(),
-        [analyzePyPath, "predict_file", tempFilePath],
-        {
-          timeout: ML_TIMEOUT_MS,
-          killSignal: "SIGTERM",
-          maxBuffer: 10 * 1024 * 1024,
-        },
-        (error, stdout, stderr) => {
-          if (error) {
-            reject(error);
-          } else {
-            resolve(stdout);
-          }
-        }
-      );
+class PythonDaemonManager {
+  private process: ChildProcess | null = null;
+  private rl: readline.Interface | null = null;
+  private pendingRequests = new Map<string, PendingRequest>();
+  private isRestarting = false;
+  private restartAttempts = 0;
 
-      const fallbackTimer = setTimeout(() => {
-        try {
-          child.kill("SIGKILL");
-        } catch (e) {
-          // ignore
-        }
-        reject(new Error("Clinical assessment timed out (forced kill)."));
-      }, ML_TIMEOUT_MS + 5000);
+  private init() {
+    if (this.process) return;
 
-      child.on("close", () => clearTimeout(fallbackTimer));
+    this.restartAttempts = 0;
+    logger.info("Starting persistent Python ML daemon...");
+    const pythonExe = getPythonExecutable();
+
+    this.process = spawn(pythonExe, [analyzePyPath, "daemon"], {
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
-    const prediction = JSON.parse(stdout.trim());
-    if (prediction?.error) {
-      throw new Error(prediction.error);
+    this.rl = readline.createInterface({
+      input: this.process.stdout!,
+      terminal: false,
+    });
+
+    this.rl.on("line", (line) => {
+      try {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        const response = JSON.parse(trimmed);
+        const { requestId, prediction, error } = response;
+        if (!requestId) return;
+
+        const pending = this.pendingRequests.get(requestId);
+        if (pending) {
+          clearTimeout(pending.timeoutId);
+          this.pendingRequests.delete(requestId);
+          if (error) {
+            pending.reject(new Error(error));
+          } else {
+            pending.resolve(prediction);
+          }
+        }
+      } catch (err) {
+        logger.error({ err, line }, "Error parsing daemon stdout line");
+      }
+    });
+
+    this.process.stderr!.on("data", (data) => {
+      logger.error(`Python daemon stderr: ${data.toString()}`);
+    });
+
+    const exitHandler = (code: number | null) => {
+      logger.warn(`Python daemon exited with code ${code}`);
+      this.cleanup();
+      this.handleCrash();
+    };
+
+    const errorHandler = (err: Error) => {
+      logger.error({ err }, "Python daemon process error");
+      this.cleanup();
+      this.handleCrash();
+    };
+
+    this.process.on("close", exitHandler);
+    this.process.on("error", errorHandler);
+  }
+
+  private cleanup() {
+    if (this.rl) {
+      this.rl.close();
+      this.rl = null;
     }
-    
-    return { prediction, isFallback: false };
-  } catch (error: any) {
-    if (error?.killed || error?.signal === "SIGTERM" || error.message?.includes("timed out")) {
-      logger.error({ error: "ML prediction timed out", timeout: ML_TIMEOUT_MS });
-      throw new Error("Clinical assessment timed out.");
+    if (this.process) {
+      try {
+        this.process.kill();
+      } catch (e) {}
+      this.process = null;
     }
-    
-    // Use fallback
-    return { prediction: calculateClinicalFallback(input), isFallback: true };
-  } finally {
-    release();
-    try {
-      await unlink(tempFilePath);
-    } catch {
-      // ignore
+  }
+
+  private handleCrash() {
+    if (this.isRestarting) return;
+    this.isRestarting = true;
+
+    // Reject all pending requests with a crash error
+    const activeRequests = Array.from(this.pendingRequests.entries());
+    this.pendingRequests.clear();
+    for (const [_, pending] of activeRequests) {
+      clearTimeout(pending.timeoutId);
+      pending.reject(new Error("Python daemon crashed."));
     }
+
+    this.restartAttempts++;
+    if (this.restartAttempts > MAX_DAEMON_RESTART_ATTEMPTS) {
+      logger.error({ attempts: this.restartAttempts }, "Python daemon exceeded max restart attempts — giving up");
+      return;
+    }
+
+    const delay = DAEMON_RESTART_BASE_DELAY_MS * Math.pow(2, this.restartAttempts - 1);
+    logger.warn({ attempt: this.restartAttempts, delay }, "Scheduling Python daemon restart with backoff");
+    setTimeout(() => {
+      this.isRestarting = false;
+      this.init();
+    }, delay);
+  }
+
+  public async predict(input: unknown): Promise<PredictionResult> {
+    this.init();
+
+    if (!this.process || !this.process.stdin) {
+      throw new Error("Python daemon is not running.");
+    }
+
+    const requestId = randomUUID();
+
+    return new Promise<PredictionResult>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        if (this.pendingRequests.has(requestId)) {
+          this.pendingRequests.delete(requestId);
+          reject(new Error("Clinical assessment timed out."));
+        }
+      }, getRequestTimeout());
+
+      this.pendingRequests.set(requestId, { resolve: resolve as (value: PredictionResult | PredictionResult[]) => void, reject, timeoutId });
+
+      const payload = JSON.stringify({ requestId, input });
+      this.process!.stdin!.write(payload + "\n", (err) => {
+        if (err) {
+          clearTimeout(timeoutId);
+          this.pendingRequests.delete(requestId);
+          reject(err);
+        }
+      });
+    });
+  }
+
+  public async predictBatch(inputs: unknown[]): Promise<PredictionResult[]> {
+    this.init();
+
+    if (!this.process || !this.process.stdin) {
+      throw new Error("Python daemon is not running.");
+    }
+
+    const requestId = randomUUID();
+
+    return new Promise<PredictionResult[]>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        if (this.pendingRequests.has(requestId)) {
+          this.pendingRequests.delete(requestId);
+          reject(new Error("Clinical assessment timed out."));
+        }
+      }, getRequestTimeout());
+
+      this.pendingRequests.set(requestId, { resolve: resolve as (value: PredictionResult | PredictionResult[]) => void, reject, timeoutId });
+
+      const payload = JSON.stringify({ requestId, input: inputs });
+      this.process!.stdin!.write(payload + "\n", (err) => {
+        if (err) {
+          clearTimeout(timeoutId);
+          this.pendingRequests.delete(requestId);
+          reject(err);
+        }
+      });
+    });
+  }
+
+  public shutdown() {
+    this.cleanup();
+    this.pendingRequests.clear();
   }
 }
 
+export const pythonDaemon = new PythonDaemonManager();
+
+process.on("exit", () => {
+  pythonDaemon.shutdown();
+});
+
+export interface InferenceOptions {
+  throwOnFailure?: boolean;
+}
+
+/**
+ * Runs a single clinical assessment inference through the Python daemon with semaphore limits, falling back to rule-based analysis on failure.
+ * @param input - The input parameter.
+ * @param documentId - Optional document ID for structured logging.
+ * @param options - Optional inference execution options.
+ * @returns The result of the operation.
+ */
+export async function runAssessmentInference(
+  input: unknown,
+  documentId?: string | number,
+  options: InferenceOptions = {}
+): Promise<{ prediction: PredictionResult; isFallback: boolean }> {
+  const { throwOnFailure = false } = options;
+  const release = await mlConcurrency.acquire(getRequestTimeout());
+  const docId = documentId ?? (input as any)?.id ?? (input as any)?.patientName ?? "unknown";
+  let attempt = 0;
+
+  try {
+    while (true) {
+      attempt++;
+      try {
+        const prediction = await pythonDaemon.predict(input);
+        return { prediction, isFallback: false };
+      } catch (error: any) {
+        const isTimeout = error.message?.includes("timed out") || error.message?.includes("Timeout");
+        const isRateLimit = error.message?.includes("429") || error.message?.toLowerCase().includes("rate limit");
+        const isConnection =
+          error.message?.includes("connection") ||
+          error.message?.includes("ECONNREFUSED") ||
+          error.message?.includes("not running") ||
+          error.message?.includes("crashed");
+
+        if (isTimeout) {
+          logger.warn(`WARN: API timeout on Document ID ${docId}`);
+        }
+
+        const shouldRetry = isTimeout || isRateLimit || isConnection;
+        const maxRetries = getMaxRetries();
+        const backoffFactor = getRetryBackoffFactor();
+
+        if (shouldRetry && attempt <= maxRetries) {
+          const delay = 1000 * Math.pow(backoffFactor, attempt - 1);
+          logger.info(
+            { attempt, maxRetries, delay, documentId: docId, err: error.message },
+            `Retrying ML inference for Document ID ${docId} (attempt ${attempt}/${maxRetries}) after ${delay}ms`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        logger.error(`ERROR: Failed after ${attempt - 1} retries on Document ID ${docId}`);
+        throw error;
+      }
+    }
+  } catch (error: any) {
+    const isTimeout = error.message?.includes("timed out") || error.message?.includes("Timeout");
+    if (isTimeout) {
+      throw new Error("Clinical assessment timed out.");
+    }
+    if (throwOnFailure) {
+      throw error;
+    }
+    logger.warn({ err: error }, "ML prediction failed, using clinical fallback");
+    return { prediction: calculateClinicalFallback(input) as PredictionResult, isFallback: true };
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Performs batch clinical assessment inference through the Python daemon with parallel resolution and fallback failover.
+ * @param inputs - The inputs parameter.
+ * @param documentId - Optional document ID for structured logging.
+ * @param options - Optional inference execution options.
+ * @returns The result of the operation.
+ */
+export async function runAssessmentInferenceBatch(
+  inputs: unknown[],
+  documentId?: string | number,
+  options: InferenceOptions = {}
+): Promise<{ predictions: PredictionResult[]; isFallback: boolean }> {
+  const { throwOnFailure = false } = options;
+  const release = await mlConcurrency.acquire(getRequestTimeout());
+  const docId = documentId ?? "batch";
+  let attempt = 0;
+
+  try {
+    while (true) {
+      attempt++;
+      try {
+        const predictions = await pythonDaemon.predictBatch(inputs);
+        return { predictions, isFallback: false };
+      } catch (error: any) {
+        const isTimeout = error.message?.includes("timed out") || error.message?.includes("Timeout");
+        const isRateLimit = error.message?.includes("429") || error.message?.toLowerCase().includes("rate limit");
+        const isConnection =
+          error.message?.includes("connection") ||
+          error.message?.includes("ECONNREFUSED") ||
+          error.message?.includes("not running") ||
+          error.message?.includes("crashed");
+
+        if (isTimeout) {
+          logger.warn(`WARN: API timeout on Document ID ${docId}`);
+        }
+
+        const shouldRetry = isTimeout || isRateLimit || isConnection;
+        const maxRetries = getMaxRetries();
+        const backoffFactor = getRetryBackoffFactor();
+
+        if (shouldRetry && attempt <= maxRetries) {
+          const delay = 1000 * Math.pow(backoffFactor, attempt - 1);
+          logger.info(
+            { attempt, maxRetries, delay, documentId: docId, err: error.message },
+            `Retrying ML batch inference for Document ID ${docId} (attempt ${attempt}/${maxRetries}) after ${delay}ms`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        logger.error(`ERROR: Failed after ${attempt - 1} retries on Document ID ${docId}`);
+        throw error;
+      }
+    }
+  } catch (error: any) {
+    const isTimeout = error.message?.includes("timed out") || error.message?.includes("Timeout");
+    if (isTimeout) {
+      throw new Error("Clinical assessment timed out.");
+    }
+    if (throwOnFailure) {
+      throw error;
+    }
+    logger.warn({ err: error }, "ML batch prediction failed, using clinical fallback");
+    const predictions = inputs.map(input => calculateClinicalFallback(input)) as PredictionResult[];
+    return { predictions, isFallback: true };
+  } finally {
+    release();
+  }
+}
+
+/** Namespace exporting ML inference operations and utilities. */
 export const MLService = {
   activeInferenceRequests,
   generateRequestFingerprint,
   runAssessmentInference,
+  runAssessmentInferenceBatch,
 };

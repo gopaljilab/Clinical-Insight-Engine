@@ -1,18 +1,15 @@
-import { ReactNode, useEffect, useState } from "react";
+import React from 'react';
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "@/lib/queryClient";
 import { ApiClient } from "@/lib/apiClient";
-import { Activity, ClipboardList, HeartPulse, LogOut, Loader2, PieChart, TrendingUp, UploadCloud, User } from "lucide-react";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { Activity, ClipboardList, HeartPulse, LogOut, PieChart, TrendingUp, UploadCloud, User, GitCompare, Settings as SettingsIcon } from "lucide-react";
 import ThemeToggle from "../ThemeToggle";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useToast } from "@/hooks/use-toast";
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { cn } from "@/lib/utils";
+import { MedicalLoader } from "@/components/ui/medical-loader";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -39,50 +36,45 @@ export function AppLayout({ children }: AppLayoutProps) {
       .finally(() => setChecking(false));
   }, [setLocation]);
 
+  const WARNING_TIMEOUT = 14 * 60 * 1000; // 14 minutes
+  const LOGOUT_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+  const warningTimerRef = useRef<number>(0);
+  const logoutTimerRef = useRef<number>(0);
+
+  const resetTimer = useCallback(() => {
+    window.clearTimeout(warningTimerRef.current);
+    window.clearTimeout(logoutTimerRef.current);
+
+    warningTimerRef.current = window.setTimeout(() => {
+      toast({
+        title: t("auth.sessionExpiring"),
+        description: t("auth.sessionExpiringDesc"),
+        variant: "destructive",
+      });
+    }, WARNING_TIMEOUT);
+
+    logoutTimerRef.current = window.setTimeout(() => {
+      ApiClient.post("/api/auth/logout")
+        .finally(() => {
+          queryClient.clear();
+          setLocation("/");
+        });
+    }, LOGOUT_TIMEOUT);
+  }, [toast, t, setLocation, WARNING_TIMEOUT, LOGOUT_TIMEOUT]);
+
   useEffect(() => {
     if (!user) return;
 
-    let warningTimeoutId: number;
-    let logoutTimeoutId: number;
-    const WARNING_TIMEOUT = 14 * 60 * 1000; // 14 minutes
-    const LOGOUT_TIMEOUT = 15 * 60 * 1000; // 15 minutes
-
-    const resetTimer = () => {
-      window.clearTimeout(warningTimeoutId);
-      window.clearTimeout(logoutTimeoutId);
-      
-      warningTimeoutId = window.setTimeout(() => {
-        toast({
-          title: t("auth.sessionExpiring"),
-          description: t("auth.sessionExpiringDesc"),
-          variant: "destructive",
-        });
-      }, WARNING_TIMEOUT);
-
-      logoutTimeoutId = window.setTimeout(() => {
-        fetch("/api/auth/logout", { method: "POST", credentials: "include" })
-          .finally(() => {
-            queryClient.clear();
-            setLocation("/");
-          });
-      }, LOGOUT_TIMEOUT);
-    };
-
     const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
-    events.forEach((event) => {
-      window.addEventListener(event, resetTimer);
-    });
-
+    events.forEach((event) => window.addEventListener(event, resetTimer));
     resetTimer();
 
     return () => {
-      window.clearTimeout(warningTimeoutId);
-      window.clearTimeout(logoutTimeoutId);
-      events.forEach((event) => {
-        window.removeEventListener(event, resetTimer);
-      });
+      window.clearTimeout(warningTimerRef.current);
+      window.clearTimeout(logoutTimerRef.current);
+      events.forEach((event) => window.removeEventListener(event, resetTimer));
     };
-  }, [user, toast]);
+  }, [user, resetTimer]);
 
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -103,12 +95,14 @@ export function AppLayout({ children }: AppLayoutProps) {
     { href: "/analytics", label: t("nav.providerAnalytics"), icon: PieChart },
     { href: "/import", label: t("nav.bulkImport"), icon: UploadCloud },
     { href: "/progress", label: t("nav.progressTracking"), icon: TrendingUp },
+    { href: "/counterfactual-analysis", label: "Counterfactual Analysis", icon: GitCompare },
+    { href: "/settings", label: "Settings", icon: SettingsIcon },
   ];
 
   if (checking) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400" />
+        <MedicalLoader type="heartbeat" size="lg" className="w-8 h-8 text-blue-600 dark:text-blue-400" />
       </div>
     );
   }
@@ -198,9 +192,9 @@ export function AppLayout({ children }: AppLayoutProps) {
               title={t("nav.signOut")}
             >
               {isSigningOut ? (
-                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                <MedicalLoader type="cross" size="sm" className="w-4 h-4 mr-2" aria-hidden="true" />
               ) : (
-                <LogOut className="w-4 h-4" aria-hidden="true" />
+                <LogOut className="w-4 h-4 mr-2" aria-hidden="true" />
               )}
               {isSigningOut ? t("nav.signingOut") : t("nav.signOut")}
             </button>
@@ -220,4 +214,5 @@ export function AppLayout({ children }: AppLayoutProps) {
     </div>
   );
 }
+
 

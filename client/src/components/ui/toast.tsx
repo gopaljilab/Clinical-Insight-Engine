@@ -1,3 +1,4 @@
+import React from 'react';
 import * as React from "react"
 import * as ToastPrimitives from "@radix-ui/react-toast"
 import { cva, type VariantProps } from "class-variance-authority"
@@ -104,7 +105,7 @@ const ToastDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Description
     ref={ref}
-    className={cn("text-sm opacity-90", className)}
+    className={cn("text-sm leading-relaxed opacity-90 break-words", className)}
     {...props}
   />
 ))
@@ -125,3 +126,4 @@ export {
   ToastClose,
   ToastAction,
 }
+

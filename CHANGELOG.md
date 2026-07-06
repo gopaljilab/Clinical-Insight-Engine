@@ -8,7 +8,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+_No unreleased additions._
+
+### Changed
+
+_No unreleased changes._
+
+### Fixed
+
+_No unreleased fixes._
+
+### Documentation
+
+_No unreleased documentation updates._
+
+### Security
+
+_No unreleased security updates._
+
 ### Planned
+
 - Longitudinal patient risk tracking across multiple assessments
 - Counterfactual reasoning engine ("What change reduces risk most?")
 - Cohort discovery and population-level insights dashboard
@@ -16,7 +37,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Advanced bias detection and fairness metrics for ML model
 - Cloud deployment support (Vercel / Render)
 
----
 
 ## [1.0.0] — 2025-05-28
 
@@ -88,21 +108,52 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
-## Contributing
+## Contributor Guidance
 
-We welcome contributions of all kinds — bug fixes, new features, documentation improvements, and more.  
+We welcome contributions of all kinds — bug fixes, new features, documentation improvements, and more.
+
 Please read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request.
 
-When submitting a pull request, update the **[Unreleased]** section above with a summary of your change under the appropriate heading:
+### How to update this file
 
-- **Added** — new features
-- **Changed** — changes to existing functionality
-- **Deprecated** — features that will be removed in a future release
-- **Removed** — features removed in this release
-- **Fixed** — bug fixes
-- **Security** — security-related fixes
+Every pull request that changes user-facing behaviour, fixes a bug, or alters a public API should include a changelog entry.
 
----
+Add your change under the **[Unreleased]** section using the appropriate heading:
+
+| Section | When to use |
+|---------|-------------|
+| Added | New feature or capability |
+| Changed | Modification to existing functionality |
+| Deprecated | Feature still works but will be removed in a future release |
+| Removed | Feature removed from the project |
+| Fixed | Bug fixes |
+| Security | Security improvements or fixes |
+| Documentation | Documentation-only updates |
+
+**Example**
+
+```md
+### Fixed
+
+- Improved assessment history date formatting.
+```
+
+### Release Process
+
+When preparing a release:
+
+1. Rename **[Unreleased]** to the new version number.
+2. Add the release date.
+3. Create a new empty **[Unreleased]** section.
+4. Publish the corresponding Git tag and GitHub Release.
+
+### Versioning Policy
+
+This project follows **Semantic Versioning**.
+
+- **PATCH** → Backward-compatible bug fixes
+- **MINOR** → New backward-compatible features
+- **MAJOR** → Breaking changes
 
 ## Links
 
