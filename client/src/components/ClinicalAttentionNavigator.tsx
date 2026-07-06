@@ -1,14 +1,20 @@
-type PriorityLevel = "high" | "moderate" | "monitor";
+import React from "react";
+import { cn } from "@/lib/utils";
+export type PriorityLevel = "high" | "moderate" | "monitor";
 
-interface PriorityItem {
+export interface AttentionNavigatorItem {
   factor: string;
   priority: PriorityLevel;
   reason: string;
   value?: number;
 }
 
+export interface AttentionNavigator {
+  priorities: AttentionNavigatorItem[];
+}
+
 interface NavigatorProps {
-  priorities: PriorityItem[];
+  priorities: AttentionNavigatorItem[];
 }
 
 const PRIORITY_STYLES: Record<PriorityLevel, string> = {
@@ -29,14 +35,14 @@ export function ClinicalAttentionNavigator({ navigator }: { navigator?: Navigato
         <h3 className="mt-2 text-xl font-bold text-foreground">Priority findings for clinician review</h3>
       </div>
       <div className="grid gap-4">
-        {navigator.priorities.map((item: PriorityItem) => (
+        {navigator.priorities.map((item: AttentionNavigatorItem) => (
           <article
             key={item.factor}
             className="rounded-3xl border border-border/70 bg-muted/80 p-4 shadow-sm sm:flex sm:items-start sm:justify-between"
           >
             <div className="min-w-0">
               <div className="flex items-center gap-3">
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${PRIORITY_STYLES[item.priority]}`}>
+                <span className={cn("inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border", PRIORITY_STYLES[item.priority])}>
                   {item.priority === "high" ? "High" : item.priority === "moderate" ? "Moderate" : "Monitor"}
                 </span>
                 <h4 className="text-base font-semibold text-foreground truncate">{item.factor}</h4>

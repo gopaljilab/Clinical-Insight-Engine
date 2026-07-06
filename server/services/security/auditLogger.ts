@@ -47,9 +47,9 @@ export function logAuditEvent(message: string, details: AuditLogDetails, error?:
     if (error instanceof Error) {
       // Only include stack trace in dev/staging if strictly needed,
       // but usually safe internally. Let's format it nicely.
-      (logPayload as any).errorName = error.name;
-      (logPayload as any).errorMessage = error.message;
-      (logPayload as any).stackTrace = error.stack;
+      (logPayload as any).errorName = (error as Error).name;
+      (logPayload as any).errorMessage = (error as Error).message;
+      (logPayload as any).stackTrace = (error as Error).stack;
     } else {
       (logPayload as any).rawError = String(error);
     }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -10,8 +10,11 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { format, isValid } from "date-fns";
 import type { Assessment } from "@shared/schema";
+import { formatCompactDate } from "@/utils/dateFormat";
+import ChartWorker from "@/utils/chartWorker?worker";
+import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface PatientGroup {
   patientName: string;
@@ -21,80 +24,72 @@ interface PatientGroup {
 
 interface Props {
   assessments: Assessment[];
-  /** When provided, renders one line per patient for the selected metric */
   patientGroups?: PatientGroup[];
 }
 
-const PATIENT_COLORS = ["#2563EB", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899"];
+const PATIENT_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))", "hsl(var(--primary))"];
 
 export const METRICS = [
-  { key: "riskScore", label: "Risk Score (%)", color: "#2563EB", active: true },
-  { key: "bmi", label: "BMI", color: "#06B6D4", active: false },
-  { key: "hba1cLevel", label: "HbA1c (%)", color: "#10B981", active: false },
-  { key: "bloodGlucoseLevel", label: "Blood Glucose", color: "#F59E0B", active: false },
+  { key: "riskScore", label: "Risk Score (%)", color: "hsl(var(--primary))", active: true },
+  { key: "bmi", label: "BMI", color: "hsl(var(--chart-2))", active: false },
+  { key: "hba1cLevel", label: "HbA1c (%)", color: "hsl(var(--chart-3))", active: false },
+  { key: "bloodGlucoseLevel", label: "Blood Glucose", color: "hsl(var(--chart-4))", active: false },
 ];
 
 function getRiskColor(score: number) {
   if (score >= 50) return "hsl(var(--destructive))";
-  if (score >= 20) return "hsl(var(--chart-3))";
-  return "hsl(var(--chart-2))";
+  if (score >= 20) return "hsl(var(--chart-4))"; // Moderate risk
+  return "hsl(var(--chart-2))"; // Low risk
 }
 
 export default function RiskTrendChart({ assessments, patientGroups }: Props) {
+  const { t } = useTranslation();
   const [activeMetrics, setActiveMetrics] = useState<Record<string, boolean>>(
     Object.fromEntries(METRICS.map(m => [m.key, m.active]))
   );
+  
+  // States for worker data and loading sequence
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [isProcessing, setIsProcessing] = useState(true);
 
   const isComparisonMode = !!patientGroups && patientGroups.length > 0;
 
-  const chartData = useMemo(() => {
-    if (isComparisonMode) {
-      const merged: Record<string, any> = {};
-      for (const group of patientGroups!) {
-        for (const a of group.assessments) {
-          const dateObj = a.createdAt ? new Date(a.createdAt) : null;
-          const dateKey = dateObj && isValid(dateObj) ? dateObj.toISOString() : `?${a.id}`;
-          if (!merged[dateKey]) {
-            merged[dateKey] = { date: dateKey };
-          }
-          merged[dateKey][`${group.patientName}_riskScore`] = Number(Number(a.riskScore).toFixed(1));
-          merged[dateKey][`${group.patientName}_bmi`] = Number(Number(a.bmi).toFixed(1));
-          merged[dateKey][`${group.patientName}_hba1cLevel`] = Number(Number(a.hba1cLevel).toFixed(1));
-          merged[dateKey][`${group.patientName}_bloodGlucoseLevel`] = Number(Number(a.bloodGlucoseLevel).toFixed(1));
-        }
-      }
-      return Object.values(merged).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }
+  // Web Worker abstraction logic
+  useEffect(() => {
+    setIsProcessing(true);
+    const worker = new ChartWorker();
 
-    return [...assessments]
-      .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
-      .map(a => {
-        const dateObj = a.createdAt ? new Date(a.createdAt) : null;
-        return {
-          date: dateObj && isValid(dateObj) ? dateObj.toISOString() : "?",
-          riskScore: Number(Number(a.riskScore).toFixed(1)),
-          bmi: Number(Number(a.bmi).toFixed(1)),
-          hba1cLevel: Number(Number(a.hba1cLevel).toFixed(1)),
-          bloodGlucoseLevel: Number(Number(a.bloodGlucoseLevel).toFixed(1)),
-          riskCategory: a.riskCategory,
-        };
-      });
+    worker.postMessage({
+      assessments,
+      patientGroups,
+      isComparisonMode
+    });
+
+    worker.onmessage = (e) => {
+      setChartData(e.data);
+      setIsProcessing(false);
+    };
+
+    return () => {
+      worker.terminate(); // Cleanup to prevent memory leaks
+    };
   }, [assessments, patientGroups, isComparisonMode]);
 
   function toggleMetric(key: string) {
     setActiveMetrics(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
+  // Pre-calculate if trend can be shown using props, avoiding reliance on async chartData
   const canShowTrend = isComparisonMode
     ? patientGroups!.some(g => g.assessments.length >= 2)
-    : chartData.length >= 2;
+    : assessments.length >= 2;
 
   if (!canShowTrend) {
     return (
       <div className="bg-card border border-border rounded-2xl p-6 text-center text-muted-foreground text-sm">
         {isComparisonMode
-          ? "Selected patients need at least 2 assessments each to display trend analytics."
-          : "At least 2 assessments are needed to display trend analytics."}
+          ? t("charts.needsMoreDataComparison")
+          : t("charts.needsMoreData")}
       </div>
     );
   }
@@ -104,12 +99,12 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-lg font-black text-foreground">
-            {isComparisonMode ? "Patient Comparison — Risk Trend" : "Risk Trend Analytics"}
+            {isComparisonMode ? t("charts.comparisonTitle") : t("charts.trendTitle")}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {isComparisonMode
-              ? "Comparing risk trajectories across selected patients"
-              : "Historical metabolic vector trends over time"}
+              ? t("charts.comparisonDesc")
+              : t("charts.trendDesc")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -119,14 +114,15 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
               type="button"
               aria-pressed={activeMetrics[key]}
               onClick={() => toggleMetric(key)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all",
                 activeMetrics[key]
-                  ? "text-white border-transparent"
+                  ? "text-white bg-[var(--chart-color)] border-[var(--chart-color)]"
                   : "bg-transparent text-muted-foreground border-border hover:border-foreground/30"
-              }`}
-              style={activeMetrics[key] ? { backgroundColor: color, borderColor: color } : {}}
+              )}
+              style={{ '--chart-color': color } as React.CSSProperties}
             >
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+              <span className="w-2 h-2 rounded-full bg-[var(--chart-color)]" />
               {label}
             </button>
           ))}
@@ -134,73 +130,78 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
       </div>
 
       <ResponsiveContainer width="100%" height={isComparisonMode ? 320 : 280}>
-        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis
-            dataKey="date"
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-            tickFormatter={(iso: string) => {
-              if (iso === "?") return "?";
-              const d = new Date(iso);
-              return isValid(d) ? format(d, "MMM d, HH:mm") : "?";
-            }}
-          />
-          <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-          <Tooltip
-            contentStyle={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "12px",
-              fontSize: "12px",
-            }}
-          />
-          <Legend wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }} />
-          {activeMetrics["riskScore"] && !isComparisonMode && (
-            <>
-              <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="4 4" label={{ value: "High Risk", fontSize: 10, fill: "#EF4444" }} />
-              <ReferenceLine y={20} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "Moderate Risk", fontSize: 10, fill: "#F59E0B" }} />
-            </>
-          )}
-          {isComparisonMode
-            ? patientGroups!.map((group) => {
-                const activeMetricKeys = METRICS.filter(m => activeMetrics[m.key]).map(m => m.key);
-                return activeMetricKeys.map((metricKey) => {
-                  const metricDef = METRICS.find(m => m.key === metricKey)!;
-                  const dataKey = `${group.patientName}_${metricKey}`;
-                  return (
-                    <Line
-                      key={dataKey}
-                      type="monotone"
-                      dataKey={dataKey}
-                      name={`${group.patientName} — ${metricDef.label}`}
-                      stroke={group.color}
-                      strokeWidth={2.5}
-                      dot={{ r: 4, fill: group.color, stroke: "white", strokeWidth: 1.5 }}
-                      activeDot={{ r: 6 }}
-                      connectNulls
-                    />
-                  );
-                });
-              })
-            : METRICS.map(({ key, label, color }) =>
-              activeMetrics[key] ? (
-                <Line
-                  key={key}
-                  type="monotone"
-                  dataKey={key}
-                  name={label}
-                  stroke={color}
-                  strokeWidth={2.5}
-                  dot={(props: any) => {
-                    const { cx, cy, payload } = props;
-                    const dotColor = key === "riskScore" ? getRiskColor(payload.riskScore) : color;
-                    return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={dotColor} stroke="white" strokeWidth={1.5} />;
-                  }}
-                  activeDot={{ r: 6 }}
-                />
-              ) : null
+        {isProcessing ? (
+          <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+             {t("charts.processing")}
+          </div>
+        ) : (
+          <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+              tickFormatter={(iso: string) => {
+                if (iso === "?") return "?";
+                return formatCompactDate(iso);
+              }}
+            />
+            <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+            <Tooltip
+              contentStyle={{
+                background: "hsl(var(--card))",
+                border: "1px solid hsl(var(--border))",
+                borderRadius: "12px",
+                fontSize: "12px",
+              }}
+            />
+            <Legend wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }} />
+            {activeMetrics["riskScore"] && !isComparisonMode && (
+              <>
+                <ReferenceLine y={50} stroke="hsl(var(--destructive))" strokeDasharray="4 4" label={{ value: t("charts.highRisk"), fontSize: 10, fill: "hsl(var(--destructive))" }} />
+                <ReferenceLine y={20} stroke="hsl(var(--chart-4))" strokeDasharray="4 4" label={{ value: t("charts.moderateRisk"), fontSize: 10, fill: "hsl(var(--chart-4))" }} />
+              </>
             )}
-        </LineChart>
+            {isComparisonMode
+              ? patientGroups!.map((group) => {
+                  const activeMetricKeys = METRICS.filter(m => activeMetrics[m.key]).map(m => m.key);
+                  return activeMetricKeys.map((metricKey) => {
+                    const metricDef = METRICS.find(m => m.key === metricKey)!;
+                    const dataKey = `${group.patientName}_${metricKey}`;
+                    return (
+                      <Line
+                        key={dataKey}
+                        type="monotone"
+                        dataKey={dataKey}
+                        name={`${group.patientName} — ${metricDef.label}`}
+                        stroke={group.color}
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: group.color, stroke: "currentColor", strokeWidth: 1.5 }}
+                        activeDot={{ r: 6 }}
+                        connectNulls
+                      />
+                    );
+                  });
+                })
+              : METRICS.map(({ key, label, color }) =>
+                  activeMetrics[key] ? (
+                    <Line
+                      key={key}
+                      type="monotone"
+                      dataKey={key}
+                      name={label}
+                      stroke={color}
+                      strokeWidth={2.5}
+                      dot={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        const dotColor = key === "riskScore" ? getRiskColor(payload.riskScore) : color;
+                        return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={dotColor} stroke="currentColor" strokeWidth={1.5} />;
+                      }}
+                      activeDot={{ r: 6 }}
+                    />
+                  ) : null
+                )}
+          </LineChart>
+        )}
       </ResponsiveContainer>
     </div>
   );

@@ -1,21 +1,29 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Activity, Stethoscope, UserCircle, TrendingDown, TrendingUp, Download, Printer, MonitorPlay, FileText, Loader2 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
+import { AlertCircle, FileText, CheckCircle2, TrendingUp, TrendingDown, Info, HeartPulse, Activity, UserCircle, Stethoscope, Eye, Share2, Loader2, Printer, Download, MonitorPlay, Pencil, X, Save, Calendar } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { HealthBadges } from "@/components/HealthBadges";
 import { CopySummaryButton } from "@/components/CopySummaryButton";
-import { useAssessments } from "@/hooks/use-assessments";
+import { useAssessments, useWhatIfAuto, useUpdateClinicalNote, usePatientAssessments } from "@/hooks/use-assessments";
 import { calculateHealthBadges } from "@/utils/healthBadges";
-import { downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
+import { downloadClinicalAssessmentPdf, downloadPatientHandoutPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { Recommendations } from "./Recommendations";
-import { DataQualityAlerts } from "./DataQualityAlerts";
 import { PredictionExplanation } from "./PredictionExplanation";
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
+import { DataQualityAlerts } from "./DataQualityAlerts";
+import { BiomarkerAlerts } from "./BiomarkerAlerts";
+import { ClinicalAttentionNavigator } from "./ClinicalAttentionNavigator";
+import { ClinicalCopilot } from "./ClinicalCopilot";
+import { ClinicalNoteViewer } from "./ClinicalNoteViewer";
+import { ExplainabilityPanel } from "./assessment/ExplainabilityPanel";
+import { CollaborativeNotes } from "./CollaborativeNotes";
+import { PathToImprovement } from "./assessment/PathToImprovement";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Textarea } from "@/components/ui/textarea";
+import { useTranslation } from "react-i18next";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -27,20 +35,20 @@ interface RiskFactor {
   description: string;
 }
 
-interface FactorBreakdown extends RiskFactor {
+export interface FactorBreakdown extends RiskFactor {
   strength: number;
   plainReason: string;
 }
 
 const factorReasoning: Record<string, string> = {
-  age: "Risk changes with age because blood vessels and metabolic control can become less resilient over time.",
-  bmi: "BMI helps estimate weight-related strain that can influence blood pressure, insulin resistance, and heart workload.",
-  "hba1c level": "HbA1c reflects longer-term blood sugar control, so higher values can point to sustained metabolic stress.",
-  "blood glucose level": "Blood glucose shows the current sugar level, which can reinforce or soften the overall diabetes risk signal.",
-  hypertension: "High blood pressure increases cardiovascular strain and can raise the chance of future heart complications.",
-  "heart disease": "Prior heart disease is a strong clinical history marker and usually increases baseline cardiovascular risk.",
-  "smoking history": "Smoking history affects blood vessels and inflammation, so current or past exposure can shift risk upward.",
-  gender: "Sex-linked population patterns can slightly shift the model's baseline risk estimate.",
+  age: "factorReasoning.age",
+  bmi: "factorReasoning.bmi",
+  "hba1c level": "factorReasoning.hba1c",
+  "blood glucose level": "factorReasoning.glucose",
+  hypertension: "factorReasoning.hypertension",
+  "heart disease": "factorReasoning.heartDisease",
+  "smoking history": "factorReasoning.smoking",
+  gender: "factorReasoning.gender",
 };
 
 const normalizeFactors = (rawFactors: AssessmentResponse["factors"]): RiskFactor[] => {
@@ -56,47 +64,47 @@ const normalizeFactors = (rawFactors: AssessmentResponse["factors"]): RiskFactor
   return Array.isArray(rawFactors) ? rawFactors as RiskFactor[] : [];
 };
 
-const getFactorReason = (factor: RiskFactor) => {
-  const key = factor.name.trim().toLowerCase();
-  return factorReasoning[key] ?? factor.description;
+const getFactorReason = (factor: RiskFactor, t: (key: string) => string) => {
+  const key = factor?.name?.trim()?.toLowerCase() || "";
+  const translatedKey = factorReasoning[key];
+  return translatedKey ? t(translatedKey) : factor.description;
 };
 
 export function AssessmentResult({ assessment }: AssessmentResultProps) {
+  const { t } = useTranslation();
   const [view, setView] = useState<"patient" | "clinician">("patient");
   const [isPresenting, setIsPresenting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isGeneratingPatientPDF, setIsGeneratingPatientPDF] = useState(false);
+  const [pdfError, setPdfError] = useState<string>("");
   const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string }[] | null>(null);
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [editNoteText, setEditNoteText] = useState("");
+  const updateNoteMutation = useUpdateClinicalNote();
 
   const generatePDF = async () => {
+    setPdfError("");
     setIsGeneratingPDF(true);
     try {
-      const element = document.getElementById("assessment-result-wrapper");
-      if (!element) return;
-      
-      const buttons = element.querySelector('.pdf-hide-buttons') as HTMLElement;
-      const originalDisplay = buttons ? buttons.style.display : '';
-      if (buttons) buttons.style.display = 'none';
-
-      const canvas = await html2canvas(element, { 
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-      
-      if (buttons) buttons.style.display = originalDisplay;
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Clinical_Insight_Report_${assessment.patientName?.replace(/\s+/g, '_') ?? 'Patient'}.pdf`);
+      await downloadClinicalAssessmentPdf(assessment);
     } catch (error) {
-      console.error("Error generating PDF:", error);
+      console.error("PDF export failed", error);
+      setPdfError(t("patientResult.pdfError"));
     } finally {
       setIsGeneratingPDF(false);
+    }
+  };
+
+  const generatePatientPDF = async (factorBreakdown: any[], patientGuidance: string[]) => {
+    setPdfError("");
+    setIsGeneratingPatientPDF(true);
+    try {
+      await downloadPatientHandoutPdf(assessment, factorBreakdown, patientGuidance, t);
+    } catch (error) {
+      console.error("Patient PDF export failed", error);
+      setPdfError(t("patientResult.pdfError"));
+    } finally {
+      setIsGeneratingPatientPDF(false);
     }
   };
 
@@ -110,7 +118,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     URL.revokeObjectURL(url);
   };
 
-  const getRiskColor = (category: string) => {
+  const getRiskColor = (category?: string | null) => {
+    if (!category) return "text-blue-600 bg-blue-50 border-blue-200";
     switch (category.toUpperCase()) {
       case "LOW": return "text-green-600 bg-green-50 border-green-200";
       case "MODERATE": return "text-amber-600 bg-amber-50 border-amber-200";
@@ -129,21 +138,40 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   };
 
   const { data: assessmentsResponse } = useAssessments();
-  const assessmentHistory = useMemo(
-    () => assessmentsResponse?.data ?? [],
-    [assessmentsResponse]
-  );
+  const assessmentHistory = assessmentsResponse?.data ?? [];
   const improvementBadges = useMemo(
     () => calculateHealthBadges(assessment, assessmentHistory),
     [assessment, assessmentHistory]
   );
+
+  const { data: patientAssessmentsResponse } = usePatientAssessments(assessment.patientName);
+  const patientHistory = useMemo(() => {
+    const history = patientAssessmentsResponse?.pages.flatMap(page => page.data) ?? [];
+    return history.sort((a, b) => new Date(a.createdAt!).getTime() - new Date(b.createdAt!).getTime());
+  }, [patientAssessmentsResponse]);
+
+  const timelineData = useMemo(() => {
+    return patientHistory.map(a => {
+      // Extract interventions from clinicianAdvice or patientAdvice if it's the current one, else standard
+      const interventions = a.prediction?.clinicianAdvice ?? [];
+      const hasIntervention = interventions.length > 0;
+      return {
+        date: new Date(a.createdAt!).toLocaleDateString(),
+        riskScore: Number(a.riskScore).toFixed(1),
+        hba1cLevel: (a as any).hba1cLevel ?? 0,
+        interventions,
+        hasIntervention,
+        riskCategory: a.riskCategory
+      };
+    });
+  }, [patientHistory]);
 
   const factors = normalizeFactors(assessment.factors);
   const totalFactors = Math.max(factors.length, 1);
   const factorBreakdown: FactorBreakdown[] = factors.map((factor, index) => ({
     ...factor,
     strength: Math.max(20, Math.round(((totalFactors - index) / totalFactors) * 100)),
-    plainReason: getFactorReason(factor),
+    plainReason: getFactorReason(factor, t),
   }));
   const increasedRiskFactors = factorBreakdown.filter((factor) => factor.impact === "positive");
   const reducedRiskFactors = factorBreakdown.filter((factor) => factor.impact !== "positive");
@@ -173,14 +201,14 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const positiveFactors = factors.filter((f: any) => f.impact === "positive");
   const protectiveFactors = factors.filter((f: any) => f.impact !== "positive");
   const patientGuidance = assessment.prediction?.patientAdvice ?? [
-    "Review these results with a qualified clinician before making medical decisions.",
-    "Focus first on the highlighted risk factors that can be changed through care planning.",
-    "Track BMI, HbA1c, and blood glucose over time so future assessments have context.",
+    t("patientResult.guidance1"),
+    t("patientResult.guidance2"),
+    t("patientResult.guidance3"),
   ];
   const clinicianActions = assessment.prediction?.clinicianAdvice ?? [
-    "Confirm risk category against the patient's full history and current medication profile.",
-    "Use the factor breakdown to prioritize follow-up labs, counselling, or referrals.",
-    "Compare this assessment with prior visits to identify meaningful trajectory changes.",
+    t("patientResult.clinicianAction1"),
+    t("patientResult.clinicianAction2"),
+    t("patientResult.clinicianAction3"),
   ];
 
   return (
@@ -195,14 +223,15 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
         <div className="relative flex flex-1 max-w-md bg-muted/65 p-1 gap-1 rounded-xl">
           <button
             onClick={() => setView("patient")}
-            className={`relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none ${
+            className={cn(
+              "relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none",
               view === "patient" 
                 ? "text-primary" 
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+            )}
           >
             <UserCircle className="w-4 h-4" />
-            Patient View
+            {t("patientResult.patientView")}
             {view === "patient" && (
               <motion.div
                 layoutId="activeTab"
@@ -213,14 +242,15 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
           </button>
           <button
             onClick={() => setView("clinician")}
-            className={`relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none ${
+            className={cn(
+              "relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none",
               view === "clinician" 
                 ? "text-primary" 
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+            )}
           >
             <Stethoscope className="w-4 h-4" />
-            Clinician View
+            {t("patientResult.clinicianView")}
             {view === "clinician" && (
               <motion.div
                 layoutId="activeTab"
@@ -230,64 +260,84 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
             )}
           </button>
         </div>
-        <div className="pdf-hide-buttons flex items-center gap-2 justify-end self-stretch print:hidden">
-          <button
-            type="button"
-            onClick={() => setIsPresenting(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
-          >
-            <MonitorPlay className="w-3.5 h-3.5" />
-            Present
-          </button>
-          <button
-            type="button"
-            onClick={generatePDF}
-            disabled={isGeneratingPDF}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 border border-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
-          >
-            {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-            {isGeneratingPDF ? "Generating..." : "Download PDF"}
-          </button>
-          <UiTooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <CopySummaryButton assessment={assessment} iconOnly />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Copy Summary</p>
-            </TooltipContent>
-          </UiTooltip>
-          <UiTooltip>
-            <TooltipTrigger asChild>
+
+        <div className="pdf-hide-buttons flex flex-col gap-2 justify-end self-stretch print:hidden">
+          <div className="flex flex-wrap gap-2 items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setIsPresenting(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
+            >
+              <MonitorPlay className="w-3.5 h-3.5" />
+              {t("patientResult.present")}
+            </button>
+            {view === "clinician" ? (
               <button
                 type="button"
-                onClick={exportToJson}
-                className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-                aria-label="Export JSON"
+                onClick={generatePDF}
+                disabled={isGeneratingPDF}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 border border-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
               >
-                <Download className="w-4 h-4" />
+                {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                {isGeneratingPDF ? t("patientResult.generating") : t("patientResult.exportOfficial")}
               </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Export JSON</p>
-            </TooltipContent>
-          </UiTooltip>
-          <UiTooltip>
-            <TooltipTrigger asChild>
+            ) : (
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-                aria-label="Print"
+                onClick={() => generatePatientPDF(factorBreakdown, patientGuidance)}
+                disabled={isGeneratingPatientPDF}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 border border-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
               >
-                <Printer className="w-4 h-4" />
+                {isGeneratingPatientPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                {isGeneratingPatientPDF ? t("patientResult.generating") : (t("patientResult.exportPatientHandout") || "Download Patient PDF")}
               </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Print Report</p>
-            </TooltipContent>
-          </UiTooltip>
+            )}
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <CopySummaryButton assessment={assessment} iconOnly />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{t("patientResult.copySummary")}</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={exportToJson}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label={t("patientResult.exportJson")}
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{t("patientResult.exportJson")}</p>
+              </TooltipContent>
+            </UiTooltip>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
+                  aria-label={t("patientResult.printReport")}
+                >
+                  <Printer className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{t("patientResult.printReport")}</p>
+              </TooltipContent>
+            </UiTooltip>
+          </div>
+          {pdfError ? (
+            <p role="alert" className="text-sm text-red-600 mt-1">
+              {pdfError}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -315,28 +365,30 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               <div className="text-center space-y-4 max-w-2xl mx-auto">
                 <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-xs font-bold uppercase tracking-wide text-primary">
                   <UserCircle className="h-4 w-4" />
-                  Plain-language summary
+                  {t("patientResult.plainLanguage")}
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-foreground">Your Health Assessment</h2>
-                <div className={`inline-flex flex-col items-center justify-center w-36 h-36 sm:w-48 sm:h-48 rounded-full border-8 shadow-inner ${getRiskColor(assessment.riskCategory)}`}>
-                  <span className="text-sm font-bold uppercase tracking-widest opacity-80 mb-1">Risk Level</span>
+                <h2 className="text-xl sm:text-2xl font-bold text-foreground">{t("patientResult.yourHealthAssessment")}</h2>
+                <div className={cn("inline-flex flex-col items-center justify-center w-36 h-36 sm:w-48 sm:h-48 rounded-full border-8 shadow-inner", getRiskColor(assessment.riskCategory))}>
+                  <span className="text-sm font-bold uppercase tracking-widest opacity-80 mb-1">{t("patientResult.riskLevel")}</span>
                   <span className="text-3xl sm:text-4xl font-display font-black">{assessment.riskCategory}</span>
                 </div>
                 <p className="text-muted-foreground text-lg">
-                  Based on your provided information, your preventive diabetes risk is considered <strong>{assessment.riskCategory.toLowerCase()}</strong>.
+                  {t("patientResult.basedOnInfo")}<strong>{assessment?.riskCategory?.toLowerCase() ?? "unknown"}</strong>.
                 </p>
               </div>
 
               <HealthBadges
                 badges={improvementBadges}
-                title="Progress badges"
-                description="See improvements and long-term trends based on this assessment and past history."
+                title={t("patientResult.progressBadges")}
+                description={t("patientResult.progressBadgesDesc")}
               />
+
+              <DataQualityAlerts alerts={assessment.qualityAlerts} />
 
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                  <Info className="w-5 h-5 text-primary" /> What this means for you
+                  <Info className="w-5 h-5 text-primary" /> {t("patientResult.whatThisMeans")}
                 </h3>
                 <div className="grid gap-4 md:grid-cols-2">
                   {factorBreakdown.map((factor, i) => (
@@ -368,7 +420,14 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <Recommendations recommendations={assessment.recommendations} audience="patient" />
 
+              <PathToImprovement assessment={assessment} />
+              <PredictionExplanation explanation={assessment.explanation} view="patient" />
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
+
               <WhatIfRiskSimulator assessment={assessment} onComparisonFactors={setWhatIfFactors} />
+
+              <ClinicalCopilot assessment={assessment} />
 
               <ExplainabilityPanel
                 factors={factorBreakdown}
@@ -388,14 +447,14 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-primary">Clinician decision support</p>
-                    <h2 className="mt-1 text-2xl font-bold text-foreground">Detailed risk interpretation</h2>
+                    <p className="text-xs font-bold uppercase tracking-wide text-primary">{t("patientResult.clinicianDecision")}</p>
+                    <h2 className="mt-1 text-2xl font-bold text-foreground">{t("patientResult.detailedInterpretation")}</h2>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                      This view keeps the quantitative score, model confidence, contributing factors, and follow-up actions together for clinical review.
+                      {t("patientResult.clinicianViewDesc")}
                     </p>
                   </div>
-                  <div className={`inline-flex w-fit rounded-full border px-3 py-1 text-sm font-bold ${getRiskColor(assessment.riskCategory)}`}>
-                    {assessment.riskCategory} risk
+                  <div className={cn("inline-flex w-fit rounded-full border px-3 py-1 text-sm font-bold", getRiskColor(assessment.riskCategory))}>
+                    {assessment.riskCategory} {t("patientResult.riskLabel")}
                   </div>
                 </div>
               </div>
@@ -403,12 +462,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               {/* Clinician Top Metrics */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Predicted Risk Score</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">{t("patientResult.predictedRisk")}</p>
                   <p className="text-3xl font-bold font-display flex items-baseline gap-1">
                     {riskScore}<span className="text-xl text-muted-foreground">%</span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Model probability
+                    {t("patientResult.modelProbability")}
                     {assessment.confidenceInterval && (
                       <span className="block text-[10px] mt-0.5 opacity-80">
                         (95% CI: {assessment.confidenceInterval})
@@ -417,44 +476,45 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   </p>
                 </div>
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Risk Category</p>
-                  <div className={`inline-flex px-3 py-1 rounded-full text-sm font-bold mt-1 ${getRiskColor(assessment.riskCategory)}`}>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">{t("assessment.riskCategory")}</p>
+                  <div className={cn("inline-flex px-3 py-1 rounded-full text-sm font-bold mt-1", getRiskColor(assessment.riskCategory))}>
                     {assessment.riskCategory}
                   </div>
                   {assessment.modelConfidence && (
                     <p className="text-[10px] text-muted-foreground mt-2 italic">
-                      Model confidence: {Number(assessment.modelConfidence).toFixed(2)}
+                      {t("patientResult.modelConfidenceLabel")}: {Number(assessment.modelConfidence).toFixed(2)}
                     </p>
                   )}
                 </div>
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Patient Vitals summary</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">{t("patientResult.vitalsSummary")}</p>
                   <div className="flex flex-col sm:flex-row gap-4 mt-2">
                     <div>
                       <p className="text-xs text-muted-foreground">BMI</p>
-                      <p className="font-semibold">{assessment.bmi}</p>
+                      <p className="font-semibold">{assessment?.bmi ?? "--"}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">HbA1c</p>
-                      <p className="font-semibold">{assessment.hba1cLevel}%</p>
+                      <p className="font-semibold">{assessment?.hba1cLevel ? `${assessment.hba1cLevel}%` : "--"}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Glucose</p>
-                      <p className="font-semibold">{assessment.bloodGlucoseLevel}</p>
+                      <p className="font-semibold">{assessment?.bloodGlucoseLevel ?? "--"}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4">
+              <div className="mt-4 space-y-4">
                 <DataQualityAlerts alerts={assessment.qualityAlerts} />
+                <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                   <h3 className="mb-3 flex items-center gap-2 font-bold">
                     <AlertCircle className="h-5 w-5 text-amber-500" />
-                    Risk-driving factors
+                    {t("patientResult.riskDrivingFactors")}
                   </h3>
                   <div className="space-y-3">
                     {positiveFactors.length > 0 ? positiveFactors.map((factor: any) => (
@@ -463,7 +523,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                         <p className="mt-1 text-amber-900/80">{factor.description}</p>
                       </div>
                     )) : (
-                      <p className="text-sm text-muted-foreground">No risk-driving factors were highlighted by the model.</p>
+                      <p className="text-sm text-muted-foreground">{t("patientResult.noRiskDriving")}</p>
                     )}
                   </div>
                 </div>
@@ -471,7 +531,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                   <h3 className="mb-3 flex items-center gap-2 font-bold">
                     <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    Protective or lower-risk signals
+                    {t("patientResult.protectiveSignals")}
                   </h3>
                   <div className="space-y-3">
                     {protectiveFactors.length > 0 ? protectiveFactors.map((factor: any) => (
@@ -480,7 +540,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                         <p className="mt-1 text-green-900/80">{factor.description}</p>
                       </div>
                     )) : (
-                      <p className="text-sm text-muted-foreground">No lower-risk signals were highlighted by the model.</p>
+                      <p className="text-sm text-muted-foreground">{t("patientResult.noProtectiveSignals")}</p>
                     )}
                   </div>
                 </div>
@@ -490,11 +550,11 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               <div className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-bold text-lg flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-primary" /> Factor Coefficient Impact
+                    <Activity className="w-5 h-5 text-primary" /> {t("patientResult.factorCoefficient")}
                   </h3>
                   {whatIfChartData && (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 text-xs font-semibold">
-                      What-If Comparison Active
+                      {t("patientResult.whatIfActive")}
                     </span>
                   )}
                 </div>
@@ -510,12 +570,12 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                             const data = payload[0].payload;
                             return (
                               <div className="bg-popover text-popover-foreground border border-border p-3 rounded-lg shadow-xl text-sm max-w-xs">
-                                <p className="font-bold mb-1">{data.name}{data.isWhatIf ? ' (What-If)' : ''}</p>
-                                <p className="text-muted-foreground">{data.description}</p>
-                                {!data.isWhatIf && <p className="text-muted-foreground mt-2">{data.plainReason}</p>}
-                                <p className={`mt-2 font-semibold ${data.impact === 'positive' ? 'text-red-500' : 'text-green-500'}`}>
-                                  Impact: {data.impact === 'positive' ? 'Increases Risk' : 'Decreases Risk'}
-                                </p>
+                                        <p className="font-bold mb-1">{data.name}</p>
+                                        <p className="text-muted-foreground">{data.description}</p>
+                                        {!data.isWhatIf && <p className="text-muted-foreground mt-2">{data.plainReason}</p>}
+                                        <p className={cn("mt-2 font-semibold", data.impact === 'positive' ? 'text-red-500' : 'text-green-500')}>
+                                          {t("patientResult.impactLabel")}: {data.impact === 'positive' ? t("patientResult.increasesRisk") : t("patientResult.reducesRisk")}
+                                        </p>
                               </div>
                             );
                           }
@@ -532,6 +592,89 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
               </div>
 
+              {/* Longitudinal Risk Tracking Chart */}
+              {timelineData.length > 0 && (
+                <div className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm overflow-hidden">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-primary" /> Longitudinal Patient Risk Tracking
+                    </h3>
+                  </div>
+                  <div className="h-64 sm:h-80 w-full overflow-x-auto">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={timelineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                        <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} dy={10} />
+                        <YAxis yAxisId="left" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} label={{ value: 'Risk Score (%)', angle: -90, position: 'insideLeft', style: { fill: 'hsl(var(--muted-foreground))' } }} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} label={{ value: 'HbA1c', angle: 90, position: 'insideRight', style: { fill: 'hsl(var(--muted-foreground))' } }} />
+                        <Tooltip 
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="bg-popover text-popover-foreground border border-border p-3 rounded-lg shadow-xl text-sm max-w-xs z-50">
+                                  <p className="font-bold mb-2 text-primary">{label}</p>
+                                  <p className="font-semibold flex justify-between gap-4">
+                                    <span>Risk Score:</span>
+                                    <span className={getRiskColor(data.riskCategory)}>{data.riskScore}%</span>
+                                  </p>
+                                  <p className="font-semibold flex justify-between gap-4 mt-1">
+                                    <span>HbA1c Level:</span>
+                                    <span>{data.hba1cLevel}</span>
+                                  </p>
+                                  {data.hasIntervention && (
+                                    <div className="mt-3 pt-3 border-t border-border">
+                                      <p className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-1">Interventions / Recommendations</p>
+                                      <ul className="list-disc pl-4 space-y-1 text-xs">
+                                        {data.interventions.map((intervention: string, i: number) => (
+                                          <li key={i}>{intervention}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                        <Line 
+                          yAxisId="left" 
+                          type="monotone" 
+                          dataKey="riskScore" 
+                          name="Risk Score" 
+                          stroke="#3b82f6" 
+                          strokeWidth={3}
+                          activeDot={{ r: 8 }}
+                          dot={(props: any) => {
+                            const { cx, cy, payload } = props;
+                            if (payload.hasIntervention) {
+                              return (
+                                <svg x={cx - 6} y={cy - 6} width={12} height={12} fill="#ef4444" viewBox="0 0 24 24">
+                                  <circle cx="12" cy="12" r="10" />
+                                </svg>
+                              );
+                            }
+                            return <circle cx={cx} cy={cy} r={4} fill="#3b82f6" />;
+                          }}
+                        />
+                        <Line 
+                          yAxisId="right" 
+                          type="monotone" 
+                          dataKey="hba1cLevel" 
+                          name="HbA1c" 
+                          stroke="#8b5cf6" 
+                          strokeDasharray="5 5" 
+                          strokeWidth={2}
+                          dot={{ r: 3, fill: '#8b5cf6' }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
               <ExplainabilityPanel
                 factors={factorBreakdown}
                 increasedRiskFactors={increasedRiskFactors}
@@ -539,9 +682,15 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               />
 
               <PredictionExplanation explanation={assessment.explanation} view="clinician" />
+              
+              <div className="mt-8">
+                <CollaborativeNotes assessmentId={assessment.id} />
+              </div>
+
+              <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
 
               <div className="rounded-xl border border-border bg-muted/30 p-5">
-                <h3 className="mb-4 font-bold">Suggested clinical follow-up</h3>
+                <h3 className="mb-4 font-bold">{t("patientResult.suggestedFollowUp")}</h3>
                 <div className="grid gap-3 md:grid-cols-3">
                   {clinicianActions.map((action) => (
                     <div key={action} className="rounded-lg border border-border bg-card p-4 text-sm leading-6 text-muted-foreground">
@@ -553,6 +702,85 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               <div className="mt-4">
                 <Recommendations recommendations={assessment.recommendations} audience="clinician" />
               </div>
+
+              <ClinicalCopilot assessment={assessment} />
+
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    {t("patientResult.yourHealthAssessment")}
+                  </h3>
+                  {!isEditingNote && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditNoteText(assessment.clinicalNote ?? "");
+                        setIsEditingNote(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      {assessment.clinicalNote ? t("patientResult.editNote") || "Edit" : t("patientResult.addNote") || "Add Note"}
+                    </button>
+                  )}
+                </div>
+
+                {isEditingNote ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      value={editNoteText}
+                      onChange={(e) => setEditNoteText(e.target.value)}
+                      placeholder="Enter clinical notes..."
+                      className="min-h-[120px] font-mono text-sm"
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingNote(false);
+                          setEditNoteText("");
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border hover:bg-muted transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateNoteMutation.mutate(
+                            { id: assessment.id!, clinicalNote: editNoteText },
+                            { onSuccess: () => setIsEditingNote(false) }
+                          );
+                        }}
+                        disabled={updateNoteMutation.isPending}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      >
+                        {updateNoteMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : assessment.clinicalNote && assessment.explainableInsights ? (
+                  <ClinicalNoteViewer
+                    noteText={assessment.clinicalNote}
+                    insights={assessment.explainableInsights as any}
+                  />
+                ) : assessment.clinicalNote ? (
+                  <div className="rounded-xl border border-border bg-muted/30 p-4">
+                    <p className="whitespace-pre-wrap leading-relaxed text-sm">{assessment.clinicalNote}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">
+                    {t("patientResult.noClinicalNotes") || "No clinical notes recorded for this assessment."}
+                  </p>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -561,87 +789,3 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   );
 }
 
-function ExplainabilityPanel({
-  factors,
-  increasedRiskFactors,
-  reducedRiskFactors,
-}: {
-  factors: FactorBreakdown[];
-  increasedRiskFactors: FactorBreakdown[];
-  reducedRiskFactors: FactorBreakdown[];
-}) {
-  if (factors.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-sm">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-5">
-        <div>
-          <h3 className="font-bold text-lg flex items-center gap-2">
-            <Info className="w-5 h-5 text-primary" /> Explainability breakdown
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Relative contribution is scaled from the model's returned factor ranking for this assessment.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
-          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-red-700">
-            <TrendingUp className="w-3.5 h-3.5" />
-            {increasedRiskFactors.length} raised
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-green-700">
-            <TrendingDown className="w-3.5 h-3.5" />
-            {reducedRiskFactors.length} reduced
-          </span>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {factors.map((factor) => {
-          const increasesRisk = factor.impact === "positive";
-          return (
-            <div
-              key={`${factor.name}-${factor.impact}`}
-              className="rounded-lg border border-border/70 bg-muted/20 p-4"
-            >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="font-semibold text-foreground">{factor.name}</p>
-                  <p className="text-sm text-muted-foreground mt-1">{factor.plainReason}</p>
-                </div>
-                <span
-                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
-                    increasesRisk
-                      ? "bg-red-50 text-red-700 border border-red-200"
-                      : "bg-green-50 text-green-700 border border-green-200"
-                  }`}
-                >
-                  {increasesRisk ? (
-                    <TrendingUp className="w-3.5 h-3.5" />
-                  ) : (
-                    <TrendingDown className="w-3.5 h-3.5" />
-                  )}
-                  {increasesRisk ? "Increases risk" : "Reduces risk"}
-                </span>
-              </div>
-
-              <div className="mt-4">
-                <div className="flex items-center justify-between text-xs font-medium text-muted-foreground mb-1.5">
-                  <span>Relative contribution</span>
-                  <span>{factor.strength}%</span>
-                </div>
-                <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${increasesRisk ? "bg-red-500" : "bg-green-500"}`}
-                    style={{ width: `${factor.strength}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}

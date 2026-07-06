@@ -21,10 +21,19 @@ export type AnalyticsStats = {
   distribution: AnalyticsDistribution[];
   averages: AnalyticsAverages;
   criticalAlerts: CriticalAlert[];
+  commonFactors: { factor: string; count: number }[];
+  demographics: {
+    gender: { gender: string; riskCategory: string; count: number }[];
+    age: { ageGroup: string; riskCategory: string; count: number }[];
+  };
 };
 
+/**
+ * React hook for  analytics.
+ * @returns The result of the operation.
+ */
 export function useAnalytics() {
   return useQuery<AnalyticsStats>({
-    queryKey: ["/api/assessments/analytics"],
+    queryKey: ["/api/analytics"],
   });
 }
