@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stethoscope, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { PasswordStrength } from "@/components/auth/PasswordStrength";
+import { ApiClient } from "@/lib/apiClient";
 
 interface FieldErrors {
   patientName?: string;
@@ -58,29 +60,19 @@ export default function PatientLogin() {
     if (!validateLogin()) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/patient/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 429) {
-          setError("Too many login attempts. Please try again later.");
-        } else {
-          setError(data.message || "Login failed. Check your credentials.");
-        }
-        return;
-      }
+      await ApiClient.post("/api/patient/auth/login", { email, password });
       if (rememberMe) {
         localStorage.setItem("patient_remember_email", email);
       } else {
         localStorage.removeItem("patient_remember_email");
       }
-      localStorage.setItem("patient_token", data.token);
       navigate("/my-health");
-    } catch {
-      setError("Connection error. Please try again.");
+    } catch (err: any) {
+      if (err?.status === 429) {
+        setError("Too many login attempts. Please try again later.");
+      } else {
+        setError(err?.message || "Connection error. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -92,26 +84,17 @@ export default function PatientLogin() {
     if (!validateRegister()) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/patient/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patientName, email, password, phone: phone || undefined }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.message?.toLowerCase().includes("email")) {
-          setFieldErrors((prev) => ({ ...prev, email: data.message }));
-        } else if (data.message?.toLowerCase().includes("name")) {
-          setFieldErrors((prev) => ({ ...prev, patientName: data.message }));
-        } else {
-          setError(data.message || "Registration failed.");
-        }
-        return;
-      }
-      localStorage.setItem("patient_token", data.token);
+      await ApiClient.post("/api/patient/auth/register", { patientName, email, password, phone: phone || undefined });
       navigate("/my-health");
-    } catch {
-      setError("Connection error. Please try again.");
+    } catch (err: any) {
+      const msg = err?.message || "";
+      if (msg.toLowerCase().includes("email")) {
+        setFieldErrors((prev) => ({ ...prev, email: msg }));
+      } else if (msg.toLowerCase().includes("name")) {
+        setFieldErrors((prev) => ({ ...prev, patientName: msg }));
+      } else {
+        setError(msg || "Connection error. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -296,3 +279,4 @@ export default function PatientLogin() {
     </div>
   );
 }
+

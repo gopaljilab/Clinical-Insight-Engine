@@ -3,9 +3,13 @@ import request from "supertest";
 import express from "express";
 import session from "express-session";
 import { eq } from "drizzle-orm";
-import { users } from "../server/db/schema";
+import { users } from "../shared/schema";
 
->>>>>>> 2bf55013 (Fix test failures and TypeScript compilation errors after merge)
+vi.mock("express-rate-limit", () => {
+  const rateLimit = () => (req: any, res: any, next: any) => next();
+  return { rateLimit, default: rateLimit };
+});
+
 const { mockSendVerificationEmail } = vi.hoisted(() => ({
   mockSendVerificationEmail: vi.fn().mockResolvedValue(true),
 }));
@@ -21,15 +25,7 @@ const mockDb = {
 };
 
 vi.mock("../server/db", () => ({
-  getDb: () => ({
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: async () => []
-        })
-      })
-    })
-  })
+  getDb: vi.fn(() => mockDb),
 }));
 
 vi.mock("../server/storage", () => ({
@@ -82,13 +78,24 @@ describe("POST /api/auth/resend-otp", () => {
     expect(res.body.message).toMatch(/email is required/i);
   });
 
-  it("returns 404 when user is not found for login mode", async () => {
+  it("returns 404 when user is not found (no pending otp scenario)", async () => {
+    await setMockDb({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve([]),
+          }),
+        }),
+      }),
+      transaction: vi.fn(),
+    });
     const app = await buildApp();
     return request(app)
       .post("/api/auth/resend-otp")
-      .send({ email: "noone@clinic.com", mode: "login" });
-    expect(res.status).toBe(404);
-    expect(res.body.message).toMatch(/user not found/i);
+      .send({ email: "noone@clinic.com", mode: "login" })
+      .expect(404)
+      .expect((res) => {
+        expect(res.body.message).toMatch(/User not found/i);      });
   });
 
   it("returns 404 when user is not found in database", async () => {

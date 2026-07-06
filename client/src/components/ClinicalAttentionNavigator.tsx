@@ -1,4 +1,5 @@
 import React from "react";
+import { cn } from "@/lib/utils";
 export type PriorityLevel = "high" | "moderate" | "monitor";
 
 export interface AttentionNavigatorItem {
@@ -41,7 +42,7 @@ export function ClinicalAttentionNavigator({ navigator }: { navigator?: Navigato
           >
             <div className="min-w-0">
               <div className="flex items-center gap-3">
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${PRIORITY_STYLES[item.priority]}`}>
+                <span className={cn("inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border", PRIORITY_STYLES[item.priority])}>
                   {item.priority === "high" ? "High" : item.priority === "moderate" ? "Moderate" : "Monitor"}
                 </span>
                 <h4 className="text-base font-semibold text-foreground truncate">{item.factor}</h4>

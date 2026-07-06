@@ -13,7 +13,13 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import pickle
+import gc
 
+try:
+    from fairlearn.metrics import demographic_parity_difference, equalized_odds_difference
+    FAIRLEARN_AVAILABLE = True
+except ImportError:
+    FAIRLEARN_AVAILABLE = False
 
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
 
@@ -43,6 +49,8 @@ def create_synthetic_data():
     bmi = np.random.normal(28, 5, n)
     hba1c_level = np.random.normal(5.5, 1.5, n)
     blood_glucose_level = np.random.normal(130, 40, n)
+    insulin = np.random.normal(80, 20, n)
+    skin_thickness = np.random.normal(20, 5, n)
     
     # Calculate a synthetic risk score 
     risk_score = (age * 0.05 + hypertension * 1.5 + heart_disease * 2.0 + 
@@ -61,6 +69,8 @@ def create_synthetic_data():
         "bmi": bmi,
         "HbA1c_level": hba1c_level,
         "blood_glucose_level": blood_glucose_level,
+        "insulin": insulin,
+        "skin_thickness": skin_thickness,
         "diabetes": diabetes
     })
     df.to_csv(DATA_FILE, index=False)
@@ -110,10 +120,14 @@ def train_model_pipeline():
         return None, None, None, None
     
     # Check for missing values and unrealistic zeros
-    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
+    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness']
+    thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50, 'insulin': 0, 'skin_thickness': 0}
+
     for col in clinical_cols:
-        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50}
-        invalid_mask = (df[col] < thresholds[col]) | (df[col].isna())
+        # Dataset may not include all columns (e.g., older/trimmed CSVs).
+        if col not in df.columns:
+            continue
+        invalid_mask = (df[col] < thresholds.get(col, 0)) | (df[col].isna())
         if invalid_mask.any():
             df.loc[invalid_mask, col] = df[col].median()
 
@@ -124,8 +138,10 @@ def train_model_pipeline():
     smoking_dummies = pd.get_dummies(df['smoking_history'], prefix='smoke', drop_first=True)
     df = pd.concat([df, smoking_dummies], axis=1)
     
-    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'gender_Male'] + list(smoking_dummies.columns)
-    
+    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness', 'gender_Male'] + list(smoking_dummies.columns)
+    # Only keep features that exist in the dataset (some trimmed datasets may not include insulin/skin_thickness)
+    features = [f for f in features if f in df.columns]
+
     X = df[features]
     y = df['diabetes']
     
@@ -151,10 +167,19 @@ def train_model_pipeline():
     I += (1.0 / C) * I_reg
     cov_beta = np.linalg.inv(I)
     
+    try:
+        del df, X, y, X_scaled, X_design, D, I, I_reg
+        gc.collect()
+    except Exception:
+        pass
+    
     return model, scaler, features, cov_beta
 
 
-def _compute_dataset_hash(filepath: str) -> str | None:
+from typing import Optional
+
+
+def _compute_dataset_hash(filepath: str) -> Optional[str]:
     """Compute SHA-256 hash of the dataset file contents."""
     if not os.path.exists(filepath):
         return None
@@ -328,10 +353,10 @@ def train_and_evaluate():
         print(json.dumps({"error": f"Error loading dataset: {e}"}))
         return None
 
-    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level']
+    clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness']
     for col in clinical_cols:
-        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50}
-        invalid_mask = (df[col] < thresholds[col]) | (df[col].isna())
+        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50, 'insulin': 0, 'skin_thickness': 0}
+        invalid_mask = (df[col] < thresholds.get(col, 0)) | (df[col].isna())
         if invalid_mask.any():
             df.loc[invalid_mask, col] = df[col].median()
 
@@ -341,7 +366,7 @@ def train_and_evaluate():
     smoking_dummies = pd.get_dummies(df['smoking_history'], prefix='smoke', drop_first=True)
     df = pd.concat([df, smoking_dummies], axis=1)
 
-    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'gender_Male'] + list(smoking_dummies.columns)
+    features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness', 'gender_Male'] + list(smoking_dummies.columns)
 
     X = df[features].values
     y = df['diabetes'].values
@@ -407,6 +432,29 @@ def train_and_evaluate():
         "dataset_size": size,
     }
 
+    if FAIRLEARN_AVAILABLE and 'gender_Male' in features:
+        try:
+            gender_idx = features.index('gender_Male')
+            sensitive_features_test = X_test[:, gender_idx]
+            dpd = demographic_parity_difference(
+                y_true=y_test,
+                y_pred=y_pred,
+                sensitive_features=sensitive_features_test
+            )
+            eod = equalized_odds_difference(
+                y_true=y_test,
+                y_pred=y_pred,
+                sensitive_features=sensitive_features_test
+            )
+            result["fairness_report"] = {
+                "sensitive_attribute": "gender",
+                "demographic_parity_difference": float(dpd),
+                "equalized_odds_difference": float(eod),
+                "interpretation": "Values closer to 0 indicate better fairness between groups. Higher values denote greater disparity."
+            }
+        except Exception as e:
+            result["fairness_report"] = {"error": f"Failed to compute fairness metrics: {str(e)}"}
+
     # Retrain on full data and save
     scaler_full = StandardScaler()
     X_scaled_full = scaler_full.fit_transform(X)
@@ -433,6 +481,13 @@ def train_and_evaluate():
     print(f"Model saved to {MODEL_FILE}", file=sys.stderr)
 
     print(json.dumps(result))
+    
+    try:
+        del df, X, y, X_train, X_test, y_train, y_test, X_train_scaled, X_test_scaled, X_scaled_full, X_design, D, I_mat, I_reg
+        gc.collect()
+    except Exception:
+        pass
+        
     return result
 
 
@@ -533,17 +588,39 @@ def validate_assessment_input(data):
     if not isinstance(data, dict):
         raise ValueError("Input must be an object")
 
-    age = data.get("age")
-    if age is None or age < 0 or age > 130:
-        raise ValueError("Invalid age")
+    validators = {
+        "age": {"type": (int, float), "min": 0, "max": 130},
+        "gender": {"type": str},
+        "hypertension": {"type": (bool, int), "in": (False, True, 0, 1)},
+        "heartDisease": {"type": (bool, int), "in": (False, True, 0, 1)},
+        "bmi": {"type": (int, float), "min": 0, "max": 100},
+        "hba1cLevel": {"type": (int, float), "min": 0, "max": 15},
+        "bloodGlucoseLevel": {"type": (int, float), "min": 0, "max": 500},
+        "smokingHistory": {
+            "type": str,
+            "in": ("never", "former", "current", "not specified", "ever", "No Info"),
+        },
+    }
 
-    gender = data.get("gender")
-    if not isinstance(gender, str) or not gender:
-        raise ValueError("Invalid gender")
+    for field, rules in validators.items():
+        if field not in data or data[field] is None:
+            raise ValueError(f"Missing or null field: {field}")
 
-    bmi = data.get("bmi")
-    if bmi is not None and (bmi < 0 or bmi > 100):
-        raise ValueError("Invalid BMI")
+        value = data[field]
+        if not isinstance(value, rules["type"]):
+            raise ValueError(f"Invalid type for {field}")
+
+        if isinstance(value, str) and not value:
+            raise ValueError(f"Invalid value for {field}")
+
+        if "in" in rules and value not in rules["in"]:
+            raise ValueError(f"Invalid value for {field}")
+
+        if "min" in rules and value < rules["min"]:
+            raise ValueError(f"Invalid value for {field}")
+
+        if "max" in rules and value > rules["max"]:
+            raise ValueError(f"Invalid value for {field}")
 
     return data
 
@@ -589,6 +666,8 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
         X_input[i, feature_indices['bmi']] = float(_safe_get(input_data, 'bmi', 25.0, 'BMI'))
         X_input[i, feature_indices['HbA1c_level']] = float(_safe_get(input_data, 'hba1cLevel', 5.5, 'HbA1c Level'))
         X_input[i, feature_indices['blood_glucose_level']] = float(_safe_get(input_data, 'bloodGlucoseLevel', 100.0, 'Blood Glucose Level'))
+        X_input[i, feature_indices['insulin']] = float(_safe_get(input_data, 'insulin', 80.0, 'Insulin Level'))
+        X_input[i, feature_indices['skin_thickness']] = float(_safe_get(input_data, 'skinThickness', 20.0, 'Skin Thickness'))
         
         gender_value = _safe_get(input_data, 'gender', 'Female')
         X_input[i, feature_indices['gender_Male']] = 1 if gender_value == 'Male' else 0
@@ -736,6 +815,18 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
             cache.set(input_data, result)
             results[original_idx] = result
             
+    try:
+        del X_input, imputed_fields_list
+        if 'X_uncached' in locals():
+            del X_uncached
+        if 'X_scaled' in locals():
+            del X_scaled
+        if 'probs' in locals():
+            del probs
+        gc.collect()
+    except Exception:
+        pass
+        
     return results
 
 @phi_redaction_middleware
@@ -997,6 +1088,8 @@ if __name__ == "__main__":
         model, scaler, features, cov_beta = get_model()
         result = get_counterfactuals(model, scaler, features, data, cov_beta)
         print(json.dumps(result))
+    elif len(sys.argv) > 1 and sys.argv[1] == "train_and_evaluate":
+        train_and_evaluate()
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")

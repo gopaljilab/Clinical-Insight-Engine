@@ -1,9 +1,10 @@
 import type { Request, Response, NextFunction } from "express";
-import { createRlsClient, runWithRlsDb, type RlsUserContext } from "../db-rls";
+import { createRlsClient, runWithRlsDb, unregisterRlsClient, type RlsUserContext } from "../db-rls";
 import { getDb } from "../db";
 import { patientUsers } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "../logger";
+import pg from "pg";
 
 async function resolvePatientName(userId: string): Promise<string | undefined> {
   try {
@@ -97,22 +98,53 @@ export async function rlsContextMiddleware(
     return next();
   }
 
-  try {
-    const { db, client } = await createRlsClient(context);
+  let client: pg.PoolClient | null = null;
 
+  try {
+    const rls = await createRlsClient(context);
+    client = rls.client;
+
+    let released = false;
     const releaseClient = () => {
-      try {
-        client.release();
-      } catch (err) {
-        logger.error({ err }, "Failed to release RLS database client");
+      if (released) return;
+      released = true;
+      if (client) {
+        try {
+          client.release();
+          unregisterRlsClient(client);
+        } catch (err) {
+          logger.error({ err }, "Failed to release RLS database client");
+        }
+        client = null;
       }
     };
 
     res.on("finish", releaseClient);
     res.on("close", releaseClient);
 
-    runWithRlsDb(db, next);
+    const safetyTimer = setTimeout(() => {
+      if (!released) {
+        logger.warn("RLS client not released within 30s, forcing release");
+        releaseClient();
+      }
+    }, 30000);
+
+    res.on("close", () => clearTimeout(safetyTimer));
+    res.on("finish", () => clearTimeout(safetyTimer));
+
+    try {
+      runWithRlsDb(rls.db, next);
+    } catch (err) {
+      releaseClient();
+      throw err;
+    }
   } catch (err) {
+    if (client) {
+      try {
+        client.release();
+        unregisterRlsClient(client);
+      } catch { /* ignore */ }
+    }
     logger.error({ err }, "Failed to set up RLS context");
     next(err);
   }

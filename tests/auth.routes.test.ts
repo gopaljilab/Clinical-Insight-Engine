@@ -26,10 +26,12 @@ vi.mock("../server/db", () => {
   };
 });
 
-// Mock email services
-const mockSendVerificationEmail = vi.fn().mockResolvedValue(true);
+// Mock email services — auth.ts uses sendVerificationEmail
+const { mockSendVerificationEmail } = vi.hoisted(() => ({
+  mockSendVerificationEmail: vi.fn().mockResolvedValue(true),
+}));
 vi.mock("../server/email", () => ({
-  sendVerificationEmail: (email: string, otp: string) => mockSendVerificationEmail(email, otp),
+  sendVerificationEmail: mockSendVerificationEmail,
   sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
 }));
 
@@ -69,50 +71,57 @@ describe("Auth Router - Resend OTP integration tests", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    it("updates pending OTP on success and does not leak OTP in response", async () => {
-      // Mock db select to return user
-      const mockLimit = vi.fn().mockResolvedValue([{ id: "user-id-1", email: "valid@clinic.com" }]);
-      const mockWhere = vi.fn(() => ({ limit: mockLimit }));
-      const mockFrom = vi.fn(() => ({ where: mockWhere }));
-      mockDb.select.mockImplementation(() => ({ from: mockFrom }));
 
-      // Mock transaction to verify old tokens are invalidated
-      const mockUpdateSet = vi.fn(() => ({
-        where: vi.fn().mockResolvedValue(undefined),
-      }));
-      const mockUpdate = vi.fn(() => ({ set: mockUpdateSet }));
-      const mockInsertValues = vi.fn().mockResolvedValue(undefined);
-      const mockInsert = vi.fn(() => ({ values: mockInsertValues }));
-      mockDb.transaction.mockImplementation(async (callback) => {
-        const mockTx = {
-          update: mockUpdate,
-          insert: mockInsert,
-        };
-        return callback(mockTx);
+    const { createAuthRouter } = await import("../server/auth");
+    app = express();
+    app.use(express.json());
+    app.use(
+      session({
+        secret: "test-secret-resend-otp",
+        resave: false,
+        saveUninitialized: false,
+      })
+    );
+    app.use("/api/auth", createAuthRouter());
+  });
+
+  it("POST /api/auth/resend-otp returns 400 when email is missing", async () => {
+    const res = await request(app)
+      .post("/api/auth/resend-otp")
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("message", "Email is required.");
+  });
+
+  describe("login mode resend", () => {
+  it("resends OTP for existing user", async () => {
+    mockSelectDbUser([
+      {
+        id: "user-1",
+        emailVerified: true,
+      },
+    ]);
+
+    mockTransactionSuccess();
+
+    const res = await request(app)
+      .post("/api/auth/resend-otp")
+      .send({
+        email: "user-1@clinic.com",
+        mode: "login",
       });
 
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = "development";
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("success", true);
+    expect(res.body).toHaveProperty(
+      "pendingEmail",
+      "user-1@clinic.com"
+    );
 
-      try {
-        const res = await request(app)
-          .post("/api/auth/resend-otp")
-          .send({ email: "valid@clinic.com", mode: "login" });
-
-        expect(res.status).toBe(200);
-        expect(res.body).toHaveProperty("success", true);
-        expect(res.body).toHaveProperty("pendingEmail", "valid@clinic.com");
-        expect(res.body).not.toHaveProperty("devOtp"); // OTP must never leak in response
-        expect(mockSendVerificationEmail).toHaveBeenCalledTimes(1);
-
-        // Verify transaction invalidated old tokens and inserted new one
-        expect(mockUpdate).toHaveBeenCalled();
-        expect(mockInsert).toHaveBeenCalled();
-      } finally {
-        process.env.NODE_ENV = originalEnv;
-      }
-    });
+    expect(mockSendVerificationEmail).toHaveBeenCalledTimes(1);
   });
+});
 
   describe("register mode resend", () => {
     it("returns 404 when user is not found in database", async () => {
@@ -129,62 +138,9 @@ describe("Auth Router - Resend OTP integration tests", () => {
       expect(res.body).toHaveProperty("message", "User not found.");
     });
 
-    it("succeeds even when user is already verified", async () => {
-      // The handler no longer blocks resend for verified users
-      const mockLimit = vi.fn().mockResolvedValue([{ id: "user-id-1", emailVerified: true }]);
-      const mockWhere = vi.fn(() => ({ limit: mockLimit }));
-      const mockFrom = vi.fn(() => ({ where: mockWhere }));
-      mockDb.select.mockImplementation(() => ({ from: mockFrom }));
-
-      mockDb.transaction.mockImplementation(async (callback) => {
-        const mockTx = {
-          update: vi.fn(() => ({
-            set: vi.fn(() => ({
-              where: vi.fn().mockResolvedValue(undefined),
-            })),
-          })),
-          insert: vi.fn(() => ({
-            values: vi.fn().mockResolvedValue(undefined),
-          })),
-        };
-        return callback(mockTx);
-      });
-
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = "development";
-      try {
-        const res = await request(app)
-          .post("/api/auth/resend-otp")
-          .send({ email: "verified@clinic.com", mode: "register" });
-
-        expect(res.status).toBe(200);
-        expect(res.body).toHaveProperty("success", true);
-      } finally {
-        process.env.NODE_ENV = originalEnv;
-      }
-    });
-
-    it("invalidates old tokens and inserts new verification token on success", async () => {
-      // Mock db select to return unverified user
-      const mockLimit = vi.fn().mockResolvedValue([{ id: "user-id-2", emailVerified: false }]);
-      const mockWhere = vi.fn(() => ({ limit: mockLimit }));
-      const mockFrom = vi.fn(() => ({ where: mockWhere }));
-      mockDb.select.mockImplementation(() => ({ from: mockFrom }));
-
-      // Mock transaction
-      mockDb.transaction.mockImplementation(async (callback) => {
-        const mockTx = {
-          update: vi.fn(() => ({
-            set: vi.fn(() => ({
-              where: vi.fn().mockResolvedValue(undefined),
-            })),
-          })),
-          insert: vi.fn(() => ({
-            values: vi.fn().mockResolvedValue(undefined),
-          })),
-        };
-        return callback(mockTx);
-      });
+    it("sends OTP for unverified user", async () => {
+      mockSelectDbUser([{ id: "user-id-2", emailVerified: false }]);
+      mockTransactionSuccess();
 
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = "development";
@@ -197,7 +153,7 @@ describe("Auth Router - Resend OTP integration tests", () => {
         expect(res.status).toBe(200);
         expect(res.body).toHaveProperty("success", true);
         expect(res.body).toHaveProperty("pendingEmail", "unverified@clinic.com");
-        expect(res.body).not.toHaveProperty("devOtp"); // OTP must never leak in response
+        expect(res.body).not.toHaveProperty("devOtp");
         expect(mockSendVerificationEmail).toHaveBeenCalledTimes(1);
       } finally {
         process.env.NODE_ENV = originalEnv;

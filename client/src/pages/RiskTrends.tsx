@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useCallback, useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -10,6 +11,7 @@ import {
   HeartPulse, Loader2, AlertCircle, Calendar,
 } from "lucide-react";
 import { formatCompactDate, formatReadableDate } from "@/utils/dateFormat";
+import { ApiClient } from "@/lib/apiClient";
 
 interface Assessment {
   id: number;
@@ -75,11 +77,8 @@ export default function RiskTrends() {
   const fetchSuggestions = useCallback(async (q: string) => {
     if (q.length < 2) { setSuggestions([]); return; }
     try {
-      const res = await fetch(`/api/assessments/autocomplete?q=${encodeURIComponent(q)}`, { credentials: "include" });
-      if (res.ok) {
-        const names = await res.json();
-        setSuggestions(names);
-      }
+      const names = await ApiClient.get<string[]>(`/api/assessments/autocomplete?q=${encodeURIComponent(q)}`);
+      setSuggestions(names);
     } catch {}
   }, []);
 
@@ -98,10 +97,8 @@ export default function RiskTrends() {
       const params = new URLSearchParams({ patientName: name });
       if (sd) params.set("startDate", sd);
       if (ed) params.set("endDate", ed);
-      const res = await fetch(`/api/assessments/trends/dashboard?${params.toString()}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load trends data");
-      const json = await res.json();
-      setData(json);
+      const json = await ApiClient.get(`/api/assessments/trends/dashboard?${params.toString()}`);
+      setData(json as any);
     } catch (err: any) {
       setError(err.message || "Failed to load trends data");
     } finally {
@@ -400,3 +397,4 @@ export default function RiskTrends() {
     </AppLayout>
   );
 }
+

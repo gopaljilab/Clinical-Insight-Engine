@@ -1,5 +1,7 @@
+import React from 'react';
 import { useTranslation } from "react-i18next";
 import { Languages } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const languages = [
   { code: "en", label: "EN" },
@@ -45,11 +47,12 @@ export function LanguageSwitcher({ variant = "default" }: { variant?: "default" 
             <button
               key={lang.code}
               onClick={() => handleChange(lang.code)}
-              className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${
+              className={cn(
+                "text-xs font-bold px-2 py-1 rounded-md transition-colors",
                 isActive
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-gray-800"
-              }`}
+              )}
               aria-label={`${t("language.switchTo")} - ${t(`language.${lang.code}`)}`}
             >
               {lang.label}
@@ -60,3 +63,4 @@ export function LanguageSwitcher({ variant = "default" }: { variant?: "default" 
     </div>
   );
 }
+
