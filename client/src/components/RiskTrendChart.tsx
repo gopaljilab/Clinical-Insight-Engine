@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -12,8 +12,9 @@ import {
 } from "recharts";
 import type { Assessment } from "@shared/schema";
 import { formatCompactDate } from "@/utils/dateFormat";
-// Vite's specific syntax to import as a web worker
 import ChartWorker from "@/utils/chartWorker?worker";
+import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface PatientGroup {
   patientName: string;
@@ -26,22 +27,23 @@ interface Props {
   patientGroups?: PatientGroup[];
 }
 
-const PATIENT_COLORS = ["#2563EB", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899"];
+const PATIENT_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))", "hsl(var(--primary))"];
 
 export const METRICS = [
-  { key: "riskScore", label: "Risk Score (%)", color: "#2563EB", active: true },
-  { key: "bmi", label: "BMI", color: "#06B6D4", active: false },
-  { key: "hba1cLevel", label: "HbA1c (%)", color: "#10B981", active: false },
-  { key: "bloodGlucoseLevel", label: "Blood Glucose", color: "#F59E0B", active: false },
+  { key: "riskScore", label: "Risk Score (%)", color: "hsl(var(--primary))", active: true },
+  { key: "bmi", label: "BMI", color: "hsl(var(--chart-2))", active: false },
+  { key: "hba1cLevel", label: "HbA1c (%)", color: "hsl(var(--chart-3))", active: false },
+  { key: "bloodGlucoseLevel", label: "Blood Glucose", color: "hsl(var(--chart-4))", active: false },
 ];
 
 function getRiskColor(score: number) {
   if (score >= 50) return "hsl(var(--destructive))";
-  if (score >= 20) return "hsl(var(--chart-3))";
-  return "hsl(var(--chart-2))";
+  if (score >= 20) return "hsl(var(--chart-4))"; // Moderate risk
+  return "hsl(var(--chart-2))"; // Low risk
 }
 
 export default function RiskTrendChart({ assessments, patientGroups }: Props) {
+  const { t } = useTranslation();
   const [activeMetrics, setActiveMetrics] = useState<Record<string, boolean>>(
     Object.fromEntries(METRICS.map(m => [m.key, m.active]))
   );
@@ -86,8 +88,8 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
     return (
       <div className="bg-card border border-border rounded-2xl p-6 text-center text-muted-foreground text-sm">
         {isComparisonMode
-          ? "Selected patients need at least 2 assessments each to display trend analytics."
-          : "At least 2 assessments are needed to display trend analytics."}
+          ? t("charts.needsMoreDataComparison")
+          : t("charts.needsMoreData")}
       </div>
     );
   }
@@ -97,12 +99,12 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-lg font-black text-foreground">
-            {isComparisonMode ? "Patient Comparison — Risk Trend" : "Risk Trend Analytics"}
+            {isComparisonMode ? t("charts.comparisonTitle") : t("charts.trendTitle")}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {isComparisonMode
-              ? "Comparing risk trajectories across selected patients"
-              : "Historical metabolic vector trends over time"}
+              ? t("charts.comparisonDesc")
+              : t("charts.trendDesc")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -112,11 +114,12 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
               type="button"
               aria-pressed={activeMetrics[key]}
               onClick={() => toggleMetric(key)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all",
                 activeMetrics[key]
                   ? "text-white bg-[var(--chart-color)] border-[var(--chart-color)]"
                   : "bg-transparent text-muted-foreground border-border hover:border-foreground/30"
-              }`}
+              )}
               style={{ '--chart-color': color } as React.CSSProperties}
             >
               <span className="w-2 h-2 rounded-full bg-[var(--chart-color)]" />
@@ -129,7 +132,7 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
       <ResponsiveContainer width="100%" height={isComparisonMode ? 320 : 280}>
         {isProcessing ? (
           <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-             Processing high-frequency metrics...
+             {t("charts.processing")}
           </div>
         ) : (
           <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -154,8 +157,8 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
             <Legend wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }} />
             {activeMetrics["riskScore"] && !isComparisonMode && (
               <>
-                <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="4 4" label={{ value: "High Risk", fontSize: 10, fill: "#EF4444" }} />
-                <ReferenceLine y={20} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "Moderate Risk", fontSize: 10, fill: "#F59E0B" }} />
+                <ReferenceLine y={50} stroke="hsl(var(--destructive))" strokeDasharray="4 4" label={{ value: t("charts.highRisk"), fontSize: 10, fill: "hsl(var(--destructive))" }} />
+                <ReferenceLine y={20} stroke="hsl(var(--chart-4))" strokeDasharray="4 4" label={{ value: t("charts.moderateRisk"), fontSize: 10, fill: "hsl(var(--chart-4))" }} />
               </>
             )}
             {isComparisonMode
@@ -172,7 +175,7 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
                         name={`${group.patientName} — ${metricDef.label}`}
                         stroke={group.color}
                         strokeWidth={2.5}
-                        dot={{ r: 4, fill: group.color, stroke: "white", strokeWidth: 1.5 }}
+                        dot={{ r: 4, fill: group.color, stroke: "currentColor", strokeWidth: 1.5 }}
                         activeDot={{ r: 6 }}
                         connectNulls
                       />
@@ -191,7 +194,7 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
                       dot={(props: any) => {
                         const { cx, cy, payload } = props;
                         const dotColor = key === "riskScore" ? getRiskColor(payload.riskScore) : color;
-                        return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={dotColor} stroke="white" strokeWidth={1.5} />;
+                        return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={dotColor} stroke="currentColor" strokeWidth={1.5} />;
                       }}
                       activeDot={{ r: 6 }}
                     />

@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useRef } from "react";
 import Papa from "papaparse";
 import { ApiClient } from "@/lib/apiClient";
@@ -129,12 +130,45 @@ export default function ImportData() {
           const res = await fetch("/api/assessments/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assessments: formattedData }), credentials: "include" });
           if (!res.ok) throw new Error("Import failed");
           const data = await res.json();
-          clearInterval(iv); setProgress(100); setResults(data.assessments);
-          toast({ title: "Success", description: "Successfully imported " + data.count + " patient records." });
+          if (data.jobId) {
+            const pollIv = setInterval(async () => {
+              try {
+                const statusRes = await fetch(`/api/assessments/jobs/${data.jobId}`, { credentials: "include" });
+                if (!statusRes.ok) throw new Error("Failed to fetch job status");
+                const statusData = await statusRes.json();
+                
+                if (statusData.status === "completed") {
+                  clearInterval(pollIv);
+                  clearInterval(iv);
+                  setProgress(100);
+                  setResults(statusData.result.assessments);
+                  toast({ title: "Success", description: "Successfully imported " + statusData.result.assessments.length + " patient records." });
+                  setIsProcessing(false);
+                } else if (statusData.status === "failed") {
+                  clearInterval(pollIv);
+                  clearInterval(iv);
+                  setProgress(0);
+                  setIsProcessing(false);
+                  toast({ title: "Import Failed", description: statusData.error || "Batch processing failed.", variant: "destructive" });
+                }
+              } catch (err: any) {
+                clearInterval(pollIv);
+                clearInterval(iv);
+                setProgress(0);
+                setIsProcessing(false);
+                toast({ title: "Status Check Failed", description: err.message, variant: "destructive" });
+              }
+            }, 2000);
+          } else {
+            clearInterval(iv); setProgress(100); setResults(data.assessments);
+            toast({ title: "Success", description: "Successfully imported " + data.count + " patient records." });
+            setIsProcessing(false);
+          }
         } catch (error: unknown) {
           clearInterval(iv); setProgress(0);
-          toast({ title: "Import Error", description: error instanceof Error ? (error as Error).message : String(error), variant: "destructive" });
-        } finally { setIsProcessing(false); }
+          toast({ title: "Import Error", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+          setIsProcessing(false);
+        }
       },
       error: (error: Error) => { toast({ title: "Parsing Error", description: (error as Error).message, variant: "destructive" }); },
     });
@@ -257,3 +291,4 @@ export default function ImportData() {
     </AppLayout>
   );
 }
+

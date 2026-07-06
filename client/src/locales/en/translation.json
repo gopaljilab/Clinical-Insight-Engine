@@ -171,13 +171,28 @@
     "dropZone": "Drop your CSV file here or click to browse",
     "upload": "Upload",
     "processing": "Processing...",
+    "deleteTitle": "Delete Assessment",
+    "deleteConfirm": "Are you sure you want to delete the assessment for {{patientName}} from {{assessmentDate}}? This action cannot be undone and will permanently remove this data from the system.",
+    "deleting": "Deleting...",
     "results": "Import Results"
   },
   "admin": {
     "title": "Admin Dashboard",
+    "desc": "Manage platform settings and view system-wide analytics",
     "users": "Users",
     "settings": "Settings",
     "logs": "Logs"
+  },
+  "charts": {
+    "comparisonTitle": "Patient Comparison — Risk Trend",
+    "trendTitle": "Risk Trend Analytics",
+    "comparisonDesc": "Comparing risk trajectories across selected patients",
+    "trendDesc": "Historical metabolic vector trends over time",
+    "needsMoreDataComparison": "Selected patients need at least 2 assessments each to display trend analytics.",
+    "needsMoreData": "At least 2 assessments are needed to display trend analytics.",
+    "processing": "Processing high-frequency metrics...",
+    "highRisk": "High Risk",
+    "moderateRisk": "Moderate Risk"
   },
   "notFound": {
     "title": "404 - Page Not Found",

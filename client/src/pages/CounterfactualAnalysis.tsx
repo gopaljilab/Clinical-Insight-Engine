@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { formatReadableDate } from "@/utils/dateFormat";
 import { useWhatIfBatch } from "@/hooks/use-assessments";
+import { ApiClient } from "@/lib/apiClient";
 
 function getBarColor(reduction: number) {
   if (reduction > 5) return "#10b981";
@@ -32,11 +34,8 @@ export default function CounterfactualAnalysis() {
   const fetchSuggestions = useCallback(async (q: string) => {
     if (q.length < 2) { setSuggestions([]); return; }
     try {
-      const res = await fetch(`/api/assessments/autocomplete?q=${encodeURIComponent(q)}`, { credentials: "include" });
-      if (res.ok) {
-        const names = await res.json();
-        setSuggestions(names);
-      }
+      const names = await ApiClient.get<string[]>(`/api/assessments/autocomplete?q=${encodeURIComponent(q)}`);
+      setSuggestions(names);
     } catch {}
   }, []);
 
@@ -53,9 +52,7 @@ export default function CounterfactualAnalysis() {
     setError(null);
     setLatestAssessment(null);
     try {
-      const res = await fetch(`/api/assessments/patient/${encodeURIComponent(name)}/trends`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load patient data");
-      const data = await res.json();
+      const data = await ApiClient.get<any>(`/api/assessments/patient/${encodeURIComponent(name)}/trends`);
       const assessments = data.data ?? [];
       if (assessments.length === 0) {
         setError("No assessments found for this patient.");
@@ -347,3 +344,4 @@ export default function CounterfactualAnalysis() {
     </AppLayout>
   );
 }
+

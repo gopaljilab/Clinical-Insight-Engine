@@ -1,3 +1,4 @@
+import React from 'react';
 import { AppLayout } from "@/components/layout/AppLayout";
 import type { Assessment, AssessmentFactor } from "@shared/schema";
 import { useAssessments, usePatientAssessments, useClearPatientCache, useDeleteAssessment } from "@/hooks/use-assessments";
@@ -33,6 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useTranslation } from "react-i18next";
+import { ApiClient } from "@/lib/apiClient";
 
 function HighlightText({ text, search }: { text: string; search: string }) {
   if (!search.trim()) return <>{text}</>;
@@ -270,12 +272,11 @@ export default function History() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("/api/upload/lab-results", {
+      const response = await ApiClient.requestRaw("/api/upload/lab-results", {
         method: "POST",
         body: formData
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to upload");
+      const data = await response.json();
       toast({ title: "Success", description: data.message });
     } catch (err: unknown) {
       toast({ title: "Upload Error", description: err instanceof Error ? (err as Error).message : String(err), variant: "destructive" });
@@ -1168,3 +1169,4 @@ export default function History() {
     </AppLayout>
   );
 }
+

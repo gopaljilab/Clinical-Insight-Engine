@@ -42,18 +42,18 @@ uploadRouter.post(
         return res.status(400).json({ message: (err as Error).message });
       }
       
-      const file = (req).file;
-      if (!file) {
-        return res.status(400).json({ message: "No file uploaded" });
+      if (!req.file) {
+        return res.status(400).json({ message: "api.errors.noFileUploaded" });
       }
 
       const createdBy = req.session.user?.email;
-      if (!createdBy) {
-        return res.status(401).json({ message: "Unauthorized" });
+      const userId = req.session.user?.id;
+      if (!userId || !createdBy) {
+        return res.status(401).json({ message: "api.errors.unauthorized" });
       }
 
       try {
-        const csvString = file.buffer.toString("utf-8");
+        const csvString = req.file.buffer.toString("utf-8");
         const parsed = Papa.parse(csvString, { header: true, skipEmptyLines: true });
 
         if (parsed.data.length > 100) {
@@ -85,7 +85,8 @@ uploadRouter.post(
             }
 
             const validData = parseResult.data;
-            const { prediction } = await MLService.runAssessmentInference(validData);
+            const rowId = (row as any).id || (row as any).patient_id || (row as any).patientName || processed;
+            const { prediction } = await MLService.runAssessmentInference(validData, rowId, { throwOnFailure: true });
             validRows.push({ rowData: validData, prediction });
           } catch (rowErr) {
             logger.error({ err: rowErr, row }, "Error processing CSV row");
@@ -110,15 +111,16 @@ uploadRouter.post(
           created = createdAssessments.length;
         }
 
-        return res.status(200).json({
+        return res.status(200).json({ 
           message: "Lab results imported successfully",
           processed,
+          imported: created,
           created,
           failed
         });
       } catch (parseErr: unknown) {
-        logger.error({ err: parseErr }, "Error parsing CSV file");
-        return res.status(500).json({ message: "Failed to parse CSV file" });
+        logger.error({ err: parseErr }, "CSV parse error");
+        return res.status(500).json({ message: "api.errors.csvParseFailed" });
       }
     });
   }

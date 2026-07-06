@@ -1,5 +1,6 @@
 import { eq, and, gte, sql } from "drizzle-orm";
 import { getDb } from "../db";
+import { logger } from "../logger";
 import { users, emailVerificationTokens, passwordResetTokens } from "@shared/schema";
 import type { User } from "@shared/schema";
 
@@ -30,13 +31,15 @@ export class AuthRepository {
         .values(userValues)
         .returning();
 
-      await tx.insert(emailVerificationTokens).values({
-        userId: newUser.id,
-        verificationCode: otp,
-        expiresAt,
-        used: false,
-        attemptCount: 0,
-      });
+await tx
+        .insert(emailVerificationTokens)
+        .values({
+          userId: newUser.id,
+          verificationCode: otp,
+          expiresAt,
+          used: false,
+          attemptCount: 0,
+        } as any);
 
       return newUser;
     });
@@ -51,30 +54,32 @@ export class AuthRepository {
     await db.transaction(async (tx) => {
       // Invalidate old unused tokens for this user
       await tx
-        .update(emailVerificationTokens)
-        .set({ used: true })
-        .where(
-          and(
-            eq(emailVerificationTokens.userId, userId),
-            eq(emailVerificationTokens.used, false),
-          ),
-        );
+      .update(emailVerificationTokens)
+      .set({ used: true } as any)
+      .where(
+        and(
+          eq(emailVerificationTokens.userId, userId),
+          eq(emailVerificationTokens.used, false),
+        ),
+      );
 
-      await tx.insert(emailVerificationTokens).values({
+await tx
+      .insert(emailVerificationTokens)
+      .values({
         userId,
         verificationCode: otp,
         expiresAt,
         used: false,
         attemptCount: 0,
-      });
+      } as any);
     });
   }
 
   async setUserEmailVerified(userId: string): Promise<void> {
     const db = getDb();
-    await db
+      await db
       .update(users)
-      .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() })
+      .set({ emailVerified: true, emailVerifiedAt: new Date(), updatedAt: new Date() } as any)
       .where(eq(users.id, userId));
   }
 
@@ -213,6 +218,38 @@ export class AuthRepository {
         await tx.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${userId}`);
       } catch (sessErr) {
         console.error("Failed to clear user sessions upon password reset", sessErr);
+      }
+    });
+  }
+
+  async claimPasswordResetToken(
+    token: string,
+    passwordHash: string
+  ): Promise<void> {
+    const db = getDb();
+    await db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(passwordResetTokens)
+        .set({ used: true })
+        .where(
+          and(
+            eq(passwordResetTokens.token, token),
+            eq(passwordResetTokens.used, false),
+            gte(passwordResetTokens.expiresAt, new Date()),
+          ),
+        )
+        .returning();
+
+      if (!claimed) {
+        throw Object.assign(new Error("Invalid or expired reset token."), { statusCode: 400 });
+      }
+
+      await tx.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, claimed.userId));
+
+      try {
+        await tx.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${claimed.userId}`);
+      } catch (sessErr) {
+        logger.error({ err: sessErr, userId: claimed.userId }, "Failed to clear user sessions upon password reset");
       }
     });
   }

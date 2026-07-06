@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { randomInt, randomBytes } from "crypto";
+import { randomInt, randomBytes, createHash } from "crypto";
 import bcrypt from "bcrypt";
 import { rateLimit } from "express-rate-limit";
 import { issueToken } from "./services/auth/tokenValidator";
@@ -9,6 +9,9 @@ import { logger } from "./logger";
 import { validateDTO } from "./middleware/validateDTO";
 import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswordDTOSchema, verifyEmailDTOSchema, verifyOtpDTOSchema } from "./validation/auth.dto";
 import { AuthRepository } from "./repositories/auth.repository";
+import { getDb } from "./db";
+import { and, eq, gte, sql } from "drizzle-orm";
+import { passwordResetTokens, users, emailVerificationTokens } from "@shared/schema";
 
 const authRepository = new AuthRepository();
 
@@ -100,7 +103,52 @@ function generateOtp(): string {
   return randomInt(100000, 999999).toString();
 }
 
-export const pendingOtps = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
+const MAX_PENDING_OTPS = 10000;
+const OTP_CLEANUP_INTERVAL_MS = 60_000;
+
+const _pendingOtps = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
+
+function setPendingOtp(email: string, value: { otp: string; expiresAt: number; attempts?: number }) {
+  if (_pendingOtps.size >= MAX_PENDING_OTPS) {
+    cleanupExpiredOtps();
+    if (_pendingOtps.size >= MAX_PENDING_OTPS) {
+      logger.warn({ email }, "pendingOtps map is full — rejecting new OTP");
+      return;
+    }
+  }
+  _pendingOtps.set(email, { ...value, attempts: value.attempts ?? 0 });
+}
+
+function getPendingOtp(email: string) {
+  return _pendingOtps.get(email);
+}
+
+function deletePendingOtp(email: string) {
+  _pendingOtps.delete(email);
+}
+
+function cleanupExpiredOtps() {
+  const now = Date.now();
+  for (const [email, entry] of _pendingOtps) {
+    if (now > entry.expiresAt) {
+      _pendingOtps.delete(email);
+    }
+  }
+}
+
+setInterval(cleanupExpiredOtps, OTP_CLEANUP_INTERVAL_MS);
+
+export const pendingOtps = {
+  get: getPendingOtp,
+  set: setPendingOtp,
+  delete: deletePendingOtp,
+  has: (email: string) => {
+    const entry = _pendingOtps.get(email);
+    return entry !== undefined && Date.now() <= entry.expiresAt;
+  },
+  get size() { return _pendingOtps.size; },
+  [Symbol.iterator]() { return _pendingOtps[Symbol.iterator](); },
+} as unknown as Map<string, { otp: string; expiresAt: number; attempts: number }>;
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -382,29 +430,7 @@ export function createAuthRouter(): Router {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     try {
-      if (mode === "login") {
-
-        const pending = pendingOtps.get(email);
-
-        if (!pending) {
-          return res.status(400).json({ message: "No pending verification found for this email. Please sign in again." });
-        }
-
-        if (Date.now() > pending.expiresAt) {
-          pendingOtps.delete(email);
-          return res.status(400).json({ message: "OTP has expired. Please sign in again." });
-        }
-
-        pendingOtps.set(email, { otp, expiresAt: expiresAt.getTime(), attempts: 0 });
-        const emailSent = await sendVerificationEmail(email, otp);
-        if (!emailSent) {
-
-          return res.status(503).json({ message: "Failed to send verification email. Please try again." });
-        }
-        logDevOtp(email, otp);
-
-        return res.json({ success: true, pendingEmail: email });
-      }
+      
 
       const user = await authRepository.findUserByEmail(email);
 
@@ -436,55 +462,81 @@ export function createAuthRouter(): Router {
    */
   router.post("/verify-otp", verifyEmailLimiter, validateDTO(verifyOtpDTOSchema), async (req: Request, res: Response) => {
     const { email, otp } = req.body;
+    const db = getDb();
 
-    const pending = pendingOtps.get(email);
+const [user] = await db
+  .select()
+  .from(users)
+  .where(eq(users.email, email))
+  .limit(1);
 
-    if (!pending) {
-      await storage.recordLoginAudit({
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-        loginStatus: "otp_failed",
-      });
-      return res.status(400).json({ message: "No pending verification found for this email." });
-    }
+if (!user) {
+  return res.status(404).json({ message: "User not found." });
+}
 
-    if (Date.now() > pending.expiresAt) {
-      pendingOtps.delete(email);
-      await storage.recordLoginAudit({
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-        loginStatus: "otp_expired",
-      });
-      return res.status(400).json({ message: "OTP has expired. Please sign in again." });
-    }
+type VerifyOutcome =
+  | { success: true }
+  | { success: false; status: number; message: string };
 
-    if (pending.otp !== otp) {
-      pending.attempts = (pending.attempts ?? 0) + 1;
+const outcome: VerifyOutcome = await db.transaction(async (tx) => {
+  const [token] = await tx
+    .select()
+    .from(emailVerificationTokens)
+    .where(
+      and(
+        eq(emailVerificationTokens.userId, user.id),
+        eq(emailVerificationTokens.used, false),
+        gte(emailVerificationTokens.expiresAt, new Date()),
+      ),
+    )
+    .orderBy(emailVerificationTokens.createdAt)
+    .limit(1);
 
-      if (pending.attempts >= 3) {
-        pendingOtps.delete(email);
-        await storage.recordLoginAudit({
-          ipAddress: req.ip,
-          userAgent: req.headers["user-agent"],
-          loginStatus: "otp_failed_lockout",
-        });
-        return res.status(429).json({
-          message: "Too many failed attempts. Please sign in again.",
-        });
-      }
+  if (!token) {
+    return {
+      success: false as const,
+      status: 400,
+      message: "No valid verification code found. Please request a new code.",
+    };
+  }
 
-      await storage.recordLoginAudit({
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"],
-        loginStatus: "otp_failed",
-      });
-      const remaining = 3 - pending.attempts;
-      return res.status(401).json({
-        message: `Invalid OTP. ${remaining} attempt(s) remaining.`,
-      });
-    }
+  const maxAttempts = 3;
 
-    pendingOtps.delete(email);
+  if ((token.attemptCount ?? 0) >= maxAttempts) {
+    return {
+      success: false as const,
+      status: 429,
+      message: "Too many failed attempts. Please request a new code.",
+    };
+  }
+
+  if (token.verificationCode !== otp) {
+    const newAttemptCount = (token.attemptCount ?? 0) + 1;
+
+await tx
+      .update(emailVerificationTokens)
+      .set({ attemptCount: newAttemptCount } as any)
+      .where(eq(emailVerificationTokens.id, token.id));
+
+    return {
+      success: false as const,
+      status: 401,
+      message: `Invalid OTP. ${maxAttempts - newAttemptCount} attempt(s) remaining.`,
+    };
+  }
+
+await tx
+    .update(emailVerificationTokens)
+    .set({ used: true } as any)
+    .where(eq(emailVerificationTokens.id, token.id));
+
+  return { success: true as const };
+});
+
+if (!outcome.success) {
+return res.status(400).json({ message: (outcome as any).message });
+}
+    
 
     const devEmail = process.env.DEV_CLINICIAN_EMAIL || "";
 
@@ -562,7 +614,7 @@ export function createAuthRouter(): Router {
       const outcome = await authRepository.verifyDbTokenAndSetVerified(user, code);
 
       if (!outcome.success) {
-        return res.status(outcome.status).json({ message: outcome.message });
+return res.status((outcome as any).status ?? 400).json({ message: (outcome as any).message });
       }
 
       // Upgrade session to fully authenticated
@@ -639,11 +691,12 @@ out
       }
 
       const token = randomBytes(32).toString("hex");
+      const tokenHash = createHash("sha256").update(token).digest("hex");
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-      await authRepository.createPasswordResetToken(user.id, token, expiresAt);
+      await authRepository.createPasswordResetToken(user.id, tokenHash, expiresAt);
 
-      const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password?token=${token}`;
+      const resetLink = `${process.env.APP_URL || "http://localhost:5173"}/reset-password#token=${token}`;
 
       const emailSent = await sendPasswordResetEmail(email, resetLink);
       if (!emailSent) {
@@ -665,18 +718,43 @@ out
     const { token, newPassword } = req.body;
 
     try {
-      const resetToken = await authRepository.findPasswordResetToken(token);
+      const db = getDb();
 
-      if (!resetToken) {
-        return res.status(400).json({ message: "Invalid or expired reset token." });
-      }
-
+      const tokenHash = createHash("sha256").update(token).digest("hex");
       const passwordHash = hashPassword(newPassword);
 
-      await authRepository.consumePasswordResetToken(resetToken.id, resetToken.userId, passwordHash);
+      await db.transaction(async (tx: any) => {
+        const [claimed] = await tx
+          .update(passwordResetTokens)
+          .set({ used: true })
+          .where(
+            and(
+              eq(passwordResetTokens.token, tokenHash),
+              eq(passwordResetTokens.used, false),
+              gte(passwordResetTokens.expiresAt, new Date()),
+            ),
+          )
+          .returning();
 
+        if (!claimed) {
+          throw Object.assign(new Error("Invalid or expired reset token."), { statusCode: 400 });
+        }
+
+        await tx.update(users).set({ passwordHash }).where(eq(users.id, claimed.userId));
+
+        try {
+          await tx.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${claimed.userId}`);
+        } catch (sessErr) {
+          logger.error({ err: sessErr, userId: claimed.userId }, "Failed to clear user sessions upon password reset");
+        }
+      });
+
+      await authRepository.claimPasswordResetToken(token, passwordHash);
       return res.json({ success: true, message: "Password has been reset successfully." });
-    } catch (err) {
+    } catch (err: any) {
+      if (err.statusCode === 400) {
+        return res.status(400).json({ message: err.message });
+      }
       logger.error({ err }, "Reset password error:");
       return res.status(500).json({ message: "Failed to reset password." });
     }
@@ -733,6 +811,4 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
   return res.status(403).json({ message: "Admin access required." });
 }
-
-
 
