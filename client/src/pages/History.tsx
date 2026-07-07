@@ -99,17 +99,10 @@ export default function History() {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   const { data: assessmentsData, isLoading, error } = useAssessments({
-    page: currentPage,
-    limit: PAGE_SIZE,
+    page: 1,
+    limit: 1000,
     sortBy: sortField,
     order: sortOrder,
-    searchTerm: searchTerm || undefined,
-    riskCategory: riskCategory !== "All" ? riskCategory : undefined,
-    gender: gender !== "All" ? gender : undefined,
-    minAge,
-    maxAge,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined
   });
 
   const assessments = assessmentsData?.data ?? [];
@@ -291,36 +284,51 @@ export default function History() {
     e.target.value = ''; // Reset input
   };
 
-  const buildExportParams = () => {
-    const params = new URLSearchParams();
-    params.set("page", "1");
-    params.set("limit", String(Math.min(Math.max(filteredRecords || PAGE_SIZE, PAGE_SIZE), 1000)));
-    params.set("sortBy", sortField);
-    params.set("order", sortOrder);
-
-    if (searchTerm) params.set("searchTerm", searchTerm);
-    if (riskCategory !== "All") params.set("riskCategory", riskCategory);
-    if (gender !== "All") params.set("gender", gender);
-    if (minAge !== undefined) params.set("minAge", String(minAge));
-    if (maxAge !== undefined) params.set("maxAge", String(maxAge));
-    if (startDate) params.set("startDate", startDate);
-    if (endDate) params.set("endDate", endDate);
-
-    return params;
-  };
-
   const exportFilteredCsv = () => {
-    window.location.href = `/api/assessments/export.csv?${buildExportParams().toString()}`;
+    const headers = [
+      "Date", "Patient", "Age", "BMI", "HbA1c", "Glucose",
+      "Hypertension", "Heart Disease", "Smoking", "Risk Score", "Risk Category",
+    ];
+
+    const csvEscape = (value: unknown) => {
+      const str = String(value ?? "");
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+
+    const rows = filteredAssessments.map((a) => [
+      formatAssessmentDate(a.createdAt),
+      a.patientName || "Unknown Patient",
+      a.age,
+      a.bmi,
+      a.hba1cLevel,
+      a.bloodGlucoseLevel,
+      a.hypertension ? "Yes" : "No",
+      a.heartDisease ? "Yes" : "No",
+      a.smokingHistory,
+      a.riskScore != null ? `${Number(a.riskScore).toFixed(1)}%` : "",
+      a.riskCategory,
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map(csvEscape).join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `assessments-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const exportFilteredPdf = async () => {
     try {
-      const params = buildExportParams();
-      params.set("limit", "1000");
-      const data = await ApiClient.get<any>(`/api/assessments/?${params.toString()}`);
-      downloadBulkAssessmentPdf(data.data ?? []);
-    } catch (err: unknown) {
-      toast({ title: "Export Error", description: err instanceof Error ? (err as Error).message : String(err), variant: "destructive" });
+      downloadBulkAssessmentPdf(filteredAssessments);
+    } catch (err: any) {
+      toast({ title: "Export Error", description: err.message, variant: "destructive" });
     }
   };
 
@@ -426,12 +434,18 @@ export default function History() {
     });
   }, [assessments, searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate]);
   // Pagination (Server-Side)
-  const totalRecords = assessmentsData?.total ?? 0;
-  const filteredRecords = assessmentsData?.total ?? 0;
-  const totalPages = assessmentsData?.totalPages ?? 1;
-  const safePage = currentPage;
-  const sortedAssessments = assessments;
-  const paginatedAssessments = assessments;
+  // Pagination (Client-Side) — filterAssessments does more than the server
+  // search supports (multi-field text match, custom gender semantics), so
+  // pagination math must be derived from the filtered result, not server totals.
+  const totalRecords = assessmentsData?.total ?? assessments.length;
+  const filteredRecords = filteredAssessments.length;
+  const totalPages = Math.max(1, Math.ceil(filteredRecords / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const sortedAssessments = useMemo(
+    () => filteredAssessments.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredAssessments, safePage]
+  );
+ 
 
   // Badges computation
   const latestBadgeAssessment = useMemo(() => {
@@ -725,7 +739,7 @@ export default function History() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {paginatedAssessments.map((assessment) => (
+                  {sortedAssessments.map((assessment) => (
                     <tr
                       key={assessment.id}
                       className={`hover:bg-muted/30 transition-colors text-sm ${

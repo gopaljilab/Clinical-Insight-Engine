@@ -16,6 +16,7 @@ if REPO_ROOT not in sys.path:
 from app.ml.security import (
     SafeUnpickler,
     safe_pickle_load,
+    patch_joblib,
     get_signing_secret,
     compute_signature,
     verify_signature,
@@ -209,6 +210,55 @@ class TestSignatureFunctions:
                 os.remove(f_name)
             if os.path.exists(sig_name):
                 os.remove(sig_name)
+
+
+class TestPatchJoblib:
+    def test_patch_joblib_replaces_load_with_safe_version(self):
+        """patch_joblib replaces joblib.load with a SafeUnpickler-backed version."""
+        import joblib
+        original_load = joblib.load
+        try:
+            patch_joblib()
+            assert joblib.load is not original_load, "joblib.load should be replaced"
+
+            # The patched version should accept a file path and return data
+            import numpy as np
+            import tempfile, os
+            arr = np.array([1, 2, 3])
+            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f:
+                import pickle
+                pickle.dump(arr, f)
+                f_name = f.name
+            try:
+                result = joblib.load(f_name)
+                assert result.tolist() == [1, 2, 3]
+            finally:
+                os.remove(f_name)
+        finally:
+            joblib.load = original_load
+
+    def test_patch_joblib_blocks_malicious_pickle(self):
+        """Patched joblib.load rejects malicious pickle payloads."""
+        import joblib
+        import tempfile, os, pickle
+        original_load = joblib.load
+        try:
+            patch_joblib()
+            # Craft a malicious pickle that tries to call os.system
+            class Malicious:
+                def __reduce__(self):
+                    return (os.system, ("echo exploited",))
+            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f:
+                pickle.dump(Malicious(), f)
+                f_name = f.name
+            try:
+                import pytest
+                with pytest.raises(pickle.UnpicklingError, match="Refused to unpickle"):
+                    joblib.load(f_name)
+            finally:
+                os.remove(f_name)
+        finally:
+            joblib.load = original_load
 
 
 class TestGetSigningSecret:

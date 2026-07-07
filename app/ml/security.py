@@ -41,6 +41,24 @@ def safe_pickle_load(file) -> object:
     return SafeUnpickler(file).load()
 
 
+def patch_joblib():
+    """Replace joblib.load with a version that uses SafeUnpickler by default.
+
+    Call this once at startup so that every call to joblib.load
+    deserialises through SafeUnpickler, guarding against arbitrary code
+    execution (CWE-502).
+    """
+    import joblib as _joblib
+
+    _original_load = _joblib.load
+
+    def _safe_load(filename, mmap_mode=None, *args, **kwargs):
+        with open(filename, "rb") as f:
+            return safe_pickle_load(f)
+
+    _joblib.load = _safe_load
+
+
 def get_signing_secret() -> bytes:
     # Use SESSION_SECRET, fallback to a stable dev secret if not set
     secret = os.environ.get("SESSION_SECRET") or os.environ.get("JWT_SECRET") or "clinical-insight-engine-dev-secret"

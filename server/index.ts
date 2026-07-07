@@ -34,6 +34,7 @@ import { registerOpenApiDocs } from "./openapi";
 import { initAssessmentSocket } from "./socket/assessmentSocket";
 import { initNotesSocket } from "./socket/notesSocket";
 import { rlsContextMiddleware } from "./middleware/rlsContext";
+import { drainRlsClients, getPoolMetrics } from "./db-rls";
 
 import compression from "compression";
 
@@ -311,8 +312,10 @@ registerOpenApiDocs(app);
 
     httpServer.close(async () => {
       logger.info({ source: "express" }, "HTTP server closed");
+      logger.info({ source: "express", metrics: getPoolMetrics() }, "Pool metrics before drain");
       await closeQueue();
       logger.info({ source: "express" }, "Assessment queue closed");
+      await drainRlsClients();
       await closePool();
       logger.info({ source: "express" }, "Database pool closed");
       process.exit(0);
