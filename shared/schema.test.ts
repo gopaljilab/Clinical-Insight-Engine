@@ -134,3 +134,6 @@ describe("insertAssessmentSchema", () => {
   });
 });
 
+  expect(result.success).toBe(false);
+});
+

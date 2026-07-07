@@ -373,12 +373,32 @@ export function startAssessmentWorker(): void {
     }
   );
 
-  assessmentWorkerInstance.on("failed", (job: Job | undefined, err: Error) => {
+  assessmentWorkerInstance.on("failed", async (job: Job | undefined, err: Error) => {
     const attempt = job?.attemptsMade ?? 0;
     logger.error(
       { jobId: job?.id, requestId: job?.data?.requestId, attempt, err },
       `Assessment queue job failed (attempt ${attempt}/${QUEUE_MAX_RETRIES})`,
     );
+
+    if (job && attempt >= QUEUE_MAX_RETRIES) {
+      try {
+        await withRetry("worker.insertDLQ", async () => {
+          const pool = getPool();
+          const client = await pool.connect();
+          try {
+            await client.query(
+              `INSERT INTO dead_letter_jobs (original_job_id, payload, error_reason) VALUES ($1, $2, $3)`,
+              [job.id ?? null, JSON.stringify(job.data), err.stack || err.message]
+            );
+          } finally {
+            client.release();
+          }
+        }, 3, 500, 2);
+        logger.info({ jobId: job.id }, "Moved failed job to dead_letter_jobs (DLQ)");
+      } catch (dlqErr) {
+        logger.error({ err: dlqErr, jobId: job.id }, "Failed to write to dead letter queue");
+      }
+    }
   });
 
   assessmentWorkerInstance.on("completed", (job: Job | undefined) => {
