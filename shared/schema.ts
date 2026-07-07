@@ -252,3 +252,13 @@ export const insertSmartGoalSchema = z.object({
 });
 export type SmartGoal = typeof smartGoals.$inferSelect;
 export type InsertSmartGoal = z.infer<typeof insertSmartGoalSchema>;
+export const deadLetterJobs = pgTable("dead_letter_jobs", {
+  id: serial("id").primaryKey(),
+  originalJobId: text("original_job_id"),
+  payload: jsonb("payload").notNull(),
+  errorReason: text("error_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type DeadLetterJob = typeof deadLetterJobs.$inferSelect;
+export type InsertDeadLetterJob = typeof deadLetterJobs.$inferInsert;

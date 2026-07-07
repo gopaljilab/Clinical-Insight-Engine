@@ -29,5 +29,6 @@ export default defineConfig({
     "patient_users",
     "patient_access_audit_logs",
     "smart_goals"
+    "dead_letter_jobs"
   ],
 });
