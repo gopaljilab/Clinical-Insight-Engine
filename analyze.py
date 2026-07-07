@@ -14,7 +14,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import pickle
 import gc
-import shap
 
 try:
     from fairlearn.metrics import demographic_parity_difference, equalized_odds_difference
@@ -686,12 +685,14 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
         X_scaled = scaler.transform(X_uncached)
         probs = model.predict_proba(X_scaled)[:, 1]
         
-        # Calculate SHAP values for the batch
         try:
+            import shap
+            # Use zeros as background (or could use median of training data if available)
             background = np.zeros((1, X_scaled.shape[1]))
             explainer = shap.LinearExplainer(model, background)
             shap_values_batch = explainer.shap_values(X_scaled)
-        except Exception:
+        except Exception as e:
+            print(f"SHAP explanation failed: {e}", file=sys.stderr)
             shap_values_batch = None
         
         # Calculate vectorized confidence intervals if cov_beta is available
