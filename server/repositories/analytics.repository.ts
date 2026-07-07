@@ -48,6 +48,55 @@ export class AnalyticsRepository {
     const baseAlerts = db.select().from(assessments).orderBy(desc(assessments.riskScore)).limit(5);
     const alerts = await (filters.length > 0 ? baseAlerts.where(and(...filters)) : baseAlerts);
 
+    // Common Factors
+    let factorsSql;
+    if (createdBy) {
+      factorsSql = sql`
+        SELECT 
+          f->>'name' as factor, 
+          COUNT(*)::int as count
+        FROM ${assessments}, jsonb_array_elements(${assessments.factors}) f
+        WHERE ${assessments.createdBy} = ${createdBy}
+        GROUP BY f->>'name'
+        ORDER BY count DESC
+        LIMIT 10
+      `;
+    } else {
+      factorsSql = sql`
+        SELECT 
+          f->>'name' as factor, 
+          COUNT(*)::int as count
+        FROM ${assessments}, jsonb_array_elements(${assessments.factors}) f
+        GROUP BY f->>'name'
+        ORDER BY count DESC
+        LIMIT 10
+      `;
+    }
+    const factorsResult = await db.execute(factorsSql);
+
+    // Demographics by Gender
+    const genderDistQuery = db.select({
+      gender: assessments.gender,
+      riskCategory: assessments.riskCategory,
+      count: sql<number>`count(*)::int`
+    }).from(assessments).groupBy(assessments.gender, assessments.riskCategory);
+    const genderDistResult = await (filters.length > 0 ? genderDistQuery.where(and(...filters)) : genderDistQuery);
+
+    // Demographics by Age Group
+    const ageGroupSql = sql<string>`
+      CASE 
+        WHEN ${assessments.age} < 40 THEN '< 40'
+        WHEN ${assessments.age} BETWEEN 40 AND 60 THEN '40-60'
+        ELSE '> 60'
+      END
+    `;
+    const ageDistQuery = db.select({
+      ageGroup: ageGroupSql,
+      riskCategory: assessments.riskCategory,
+      count: sql<number>`count(*)::int`
+    }).from(assessments).groupBy(ageGroupSql, assessments.riskCategory);
+    const ageDistResult = await (filters.length > 0 ? ageDistQuery.where(and(...filters)) : ageDistQuery);
+
     return {
       totalPatients,
       distribution: distResult.map((r: any) => ({ category: r.riskCategory, count: Number(r.count) })),
@@ -55,7 +104,12 @@ export class AnalyticsRepository {
         bmi: Number(avgResult[0]?.avgBmi || 0),
         hba1c: Number(avgResult[0]?.avgHba1c || 0)
       },
-      criticalAlerts: alerts
+      criticalAlerts: alerts,
+      commonFactors: factorsResult.rows.map((r: any) => ({ factor: r.factor, count: Number(r.count) })),
+      demographics: {
+        gender: genderDistResult.map((r: any) => ({ gender: r.gender, riskCategory: r.riskCategory, count: Number(r.count) })),
+        age: ageDistResult.map((r: any) => ({ ageGroup: r.ageGroup, riskCategory: r.riskCategory, count: Number(r.count) }))
+      }
     };
   }
 }

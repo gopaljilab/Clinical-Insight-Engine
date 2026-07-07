@@ -15,6 +15,10 @@ _lock = Lock()
 
 DEFAULT_MODEL_PATH = os.environ.get("MODEL_PATH", "models/diabetes_model.pkl")
 
+# Patch joblib.load to use SafeUnpickler by default
+from app.ml.security import patch_joblib  # noqa: E402
+patch_joblib()
+
 
 def load_model(model_path: str = DEFAULT_MODEL_PATH):
     """
@@ -54,16 +58,8 @@ def load_model(model_path: str = DEFAULT_MODEL_PATH):
                 "Refusing to deserialize untrusted model file to prevent Remote Code Execution."
             )
 
-        try:
-            import joblib
-            model = joblib.load(abs_path)
-        except Exception:
-            try:
-                from app.ml.security import safe_pickle_load
-                with open(abs_path, "rb") as f:
-                    model = safe_pickle_load(f)
-            except Exception as e:
-                raise RuntimeError(f"Failed to load model: {e}") from e
+        import joblib
+        model = joblib.load(abs_path)
 
         _model_cache[abs_path] = model
         logger.info(f"Model loaded successfully. Type: {type(model).__name__}")

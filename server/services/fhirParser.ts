@@ -1,4 +1,5 @@
 import { insertAssessmentSchema, type InsertAssessment } from "../../shared/schema";
+import { parseClinicalDate, extractDatesFromText, type ExtractedDate } from "../../shared/dateParser";
 
 export interface NormalizedPatient {
   id?: string;
@@ -213,6 +214,21 @@ export interface ExplainableInsight {
   source_index: [number, number] | null;
 }
 
+/**
+ * Extract dates from free-form clinical note text and return only those that
+ * are ambiguous or could not be parsed — these need clinician review.
+ *
+ * @param noteText - Raw clinical note text
+ * @returns Array of `ExtractedDate` entries where `ambiguous === true` or `date === null`
+ *          (confidence < 1.0 and not caused by a completely unrecognised format).
+ */
+export function extractClinicalNoteDateWarnings(noteText: string): ExtractedDate[] {
+  if (!noteText) return [];
+  return extractDatesFromText(noteText).filter(
+    (d) => d.ambiguous || (d.date === null && d.confidence > 0)
+  );
+}
+
 export function extractExplainableInsights(noteText: string): ExplainableInsight[] {
   const insights: ExplainableInsight[] = [];
   if (!noteText) {
@@ -317,10 +333,36 @@ export function extractExplainableInsights(noteText: string): ExplainableInsight
 }
 
 /**
+ * Return type for `convertToInternalSchema`.
+ * `dateWarnings` carries any ambiguous or low-confidence dates found inside
+ * clinical note text so callers can surface them in the API response.
+ */
+export interface ConvertedAssessment {
+  assessment: InsertAssessment;
+  /**
+   * Dates extracted from clinical notes that were ambiguous (confidence 0.3)
+   * or had only one valid interpretation but still required a format warning
+   * (confidence 0.7).  Empty array means no date issues were found.
+   */
+  dateWarnings: Array<{
+    rawMatch: string;
+    offset: number;
+    confidence: number;
+    ambiguous: boolean;
+    warning?: string;
+    mmddInterpretation: string | null;
+    ddmmInterpretation: string | null;
+  }>;
+}
+
+/**
  * Maps the normalized FHIR structure to the internal InsertAssessment schema.
  * Performs rigorous validations and throws clean error messages.
+ *
+ * Returns a `ConvertedAssessment` which bundles the validated assessment data
+ * with any date warnings extracted from clinical note text.
  */
-export function convertToInternalSchema(structure: NormalizedFhirStructure): InsertAssessment {
+export function convertToInternalSchema(structure: NormalizedFhirStructure): ConvertedAssessment {
   if (!structure.patient) {
     throw new Error("Missing required field: Patient Name");
   }
@@ -341,15 +383,27 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Ins
     throw new Error("Missing required field: Age");
   }
 
-  const birthDate = new Date(structure.patient.birthDate);
-  if (isNaN(birthDate.getTime())) {
-    throw new Error("Invalid birth date format");
+  // Use parseClinicalDate so ambiguous formats (e.g. 08/10/1990) are caught
+  // rather than silently misinterpreted by the JS Date constructor.
+  const parsedBirth = parseClinicalDate(structure.patient.birthDate);
+  if (!parsedBirth.date) {
+    if (parsedBirth.ambiguous) {
+      throw new Error(
+        `Ambiguous birth date "${structure.patient.birthDate}": ${parsedBirth.warning} ` +
+          "Please supply the date in ISO 8601 format (YYYY-MM-DD)."
+      );
+    }
+    throw new Error(
+      `Invalid birth date format "${structure.patient.birthDate}". ` +
+        "Use ISO 8601 (YYYY-MM-DD)."
+    );
   }
 
+  const birthDate = parsedBirth.date;
   const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+  let age = today.getFullYear() - birthDate.getUTCFullYear();
+  const m = today.getMonth() - birthDate.getUTCMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getUTCDate())) {
     age--;
   }
 
@@ -505,6 +559,40 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Ins
     .join("\n\n");
   const explainableInsights = clinicalNote ? extractExplainableInsights(clinicalNote) : null;
 
+  // ── Scan clinical notes for ambiguous / low-confidence dates ────────────
+  // Any date in a clinical note that can't be resolved unambiguously to a
+  // single calendar date is returned as a warning so the API can flag it
+  // to the caller rather than silently guessing.
+  const rawDateWarnings = clinicalNote
+    ? extractClinicalNoteDateWarnings(clinicalNote)
+    : [];
+
+  const dateWarnings = rawDateWarnings.map((d) => {
+    // Reconstruct both interpretations for display purposes
+    const a = parseInt(d.rawMatch.split(/[\/\-]/)[0], 10);
+    const b = parseInt(d.rawMatch.split(/[\/\-]/)[1], 10);
+    const y = parseInt(d.rawMatch.split(/[\/\-]/)[2], 10);
+    const makeISO = (yr: number, mo: number, dy: number) => {
+      if (!yr || !mo || !dy) return null;
+      const dt = new Date(Date.UTC(yr, mo - 1, dy));
+      if (
+        dt.getUTCFullYear() !== yr ||
+        dt.getUTCMonth() + 1 !== mo ||
+        dt.getUTCDate() !== dy
+      ) return null;
+      return `${yr}-${String(mo).padStart(2, "0")}-${String(dy).padStart(2, "0")}`;
+    };
+    return {
+      rawMatch: d.rawMatch,
+      offset: d.offset,
+      confidence: d.confidence,
+      ambiguous: d.ambiguous,
+      warning: d.warning,
+      mmddInterpretation: !isNaN(a) && !isNaN(b) && !isNaN(y) ? makeISO(y, a, b) : null,
+      ddmmInterpretation: !isNaN(a) && !isNaN(b) && !isNaN(y) ? makeISO(y, b, a) : null,
+    };
+  });
+
   const assessment: InsertAssessment = {
     patientName: structure.patient.name,
     gender: structure.patient.gender,
@@ -521,7 +609,8 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Ins
 
   // Zod parsing will validate range values
   try {
-    return insertAssessmentSchema.parse(assessment);
+    const validated = insertAssessmentSchema.parse(assessment);
+    return { assessment: validated, dateWarnings };
   } catch (err: unknown) {
     if ((err as any).errors && (err as any).errors.length > 0) {
       throw new Error((err as any).errors[0].message);
