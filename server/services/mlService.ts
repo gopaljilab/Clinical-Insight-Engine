@@ -175,6 +175,10 @@ export interface PredictionResult {
   }>;
   clinicianAdvice: string[];
   patientAdvice: string[];
+  shapValues?: Array<{
+    name: string;
+    value: number;
+  }>;
   confidenceInterval?: string;
   modelConfidence?: number;
   error?: string;

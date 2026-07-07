@@ -21,6 +21,7 @@ import { ClinicalNoteViewer } from "./ClinicalNoteViewer";
 import { ExplainabilityPanel } from "./assessment/ExplainabilityPanel";
 import { CollaborativeNotes } from "./CollaborativeNotes";
 import { PathToImprovement } from "./assessment/PathToImprovement";
+import { ShapWaterfallChart } from "./assessment/ShapWaterfallChart";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "react-i18next";
@@ -434,6 +435,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 increasedRiskFactors={increasedRiskFactors}
                 reducedRiskFactors={reducedRiskFactors}
               />
+
+              <ShapWaterfallChart shapValues={assessment.prediction?.shapValues} />
             </motion.div>
           ) : (
             <motion.div
@@ -591,6 +594,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   </ResponsiveContainer>
                 </div>
               </div>
+
+              <ShapWaterfallChart shapValues={assessment.prediction?.shapValues} />
 
               {/* Longitudinal Risk Tracking Chart */}
               {timelineData.length > 0 && (
