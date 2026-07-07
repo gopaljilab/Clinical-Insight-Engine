@@ -35,7 +35,7 @@ describe("logAccessAttempt", () => {
           reason: "owner match",
         }),
       }),
-      "Access Granted"
+      "PHI Access Granted"
     );
   });
 
@@ -52,7 +52,7 @@ describe("logAccessAttempt", () => {
         }),
         security: true,
       }),
-      "Access Denied"
+      "PHI Access Denied"
     );
   });
 
@@ -129,7 +129,91 @@ describe("logAccessAttempt", () => {
       expect.objectContaining({
         audit: expect.objectContaining({ resourceId: "abc-123" }),
       }),
-      "Access Granted"
+      "PHI Access Granted"
     );
+  });
+
+  it("includes purpose field for HIPAA compliance when provided", () => {
+    logAccessAttempt(
+      "user-1",
+      "Assessment",
+      42,
+      true,
+      "owner match",
+      "session",
+      undefined,
+      "clinical_review"
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audit: expect.objectContaining({
+          purpose: "clinical_review",
+        }),
+      }),
+      "PHI Access Granted"
+    );
+  });
+
+  it("includes sessionId for audit trail reconstruction when provided", () => {
+    logAccessAttempt(
+      "user-1",
+      "Assessment",
+      42,
+      true,
+      "owner match",
+      "session",
+      undefined,
+      undefined,
+      "sess_abc123xyz"
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audit: expect.objectContaining({
+          sessionId: "sess_abc123xyz",
+        }),
+      }),
+      "PHI Access Granted"
+    );
+  });
+
+  it("includes both purpose and sessionId for full HIPAA compliance", () => {
+    logAccessAttempt(
+      "user-1",
+      "Patient",
+      99,
+      true,
+      "authorized provider",
+      "jwt",
+      undefined,
+      "treatment_delivery",
+      "sess_xyz789"
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audit: expect.objectContaining({
+          type: "ACCESS_GRANTED",
+          userId: "user-1",
+          resourceType: "Patient",
+          resourceId: 99,
+          reason: "authorized provider",
+          authMethod: "jwt",
+          purpose: "treatment_delivery",
+          sessionId: "sess_xyz789",
+        }),
+      }),
+      "PHI Access Granted"
+    );
+  });
+
+  it("does not include purpose when not provided", () => {
+    logAccessAttempt("user-1", "Assessment", 42, true, "owner match");
+    const callArg = vi.mocked(logger.info).mock.calls[0][0];
+    expect(callArg.audit).not.toHaveProperty("purpose");
+  });
+
+  it("does not include sessionId when not provided", () => {
+    logAccessAttempt("user-1", "Assessment", 42, true, "owner match");
+    const callArg = vi.mocked(logger.info).mock.calls[0][0];
+    expect(callArg.audit).not.toHaveProperty("sessionId");
   });
 });
