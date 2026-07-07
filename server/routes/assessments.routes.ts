@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { assessmentLimiter, previewLimiter } from "../middleware/rateLimit";
+import { assessmentLimiter, previewLimiter, batchLimiter } from "../middleware/rateLimit";
 import { requireAuth, requireVerified } from "../auth";
 import { validateDTO } from "../middleware/validateDTO";
 import { api } from "@shared/routes";
+import { authenticateBatchOperation } from "../middleware/batchAuthMiddleware";
 
 import {
   previewAssessment,
@@ -52,6 +53,8 @@ assessmentsRouter.post(
   "/what-if/batch",
   requireAuth,
   requireVerified,
+  batchLimiter,
+  authenticateBatchOperation,
   batchWhatIf
 );
 
@@ -130,6 +133,12 @@ assessmentsRouter.get(
 );
 
 assessmentsRouter.get(
+  "/cohort",
+  requireAuth,
+  getCohortStats
+);
+
+assessmentsRouter.get(
   "/:id",
   requireAuth,
   requireVerified,
@@ -196,10 +205,5 @@ assessmentsRouter.delete(
   deleteAssessment
 );
 
-assessmentsRouter.get(
-  "/cohort",
-  requireAuth,
-  getCohortStats
-);
 
 export default assessmentsRouter;

@@ -683,3 +683,56 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
 
   pdf.save(getReportFilename(assessment));
 }
+
+/**
+ * Generate and download a simplified, patient-friendly PDF report.
+ */
+export function downloadPatientHandoutPdf(
+  assessment: ReportAssessment,
+  factorBreakdown: RiskFactor[],
+  patientGuidance: string[],
+  t: (key: string) => string
+) {
+  const pdf = new PdfDocument({ unit: "pt", format: "letter" });
+
+  pdf.text(t("patientResult.yourHealthAssessment") || "Your Health Assessment", MARGIN, { size: 21, font: "bold", color: SLATE });
+  pdf.text(`Prepared for ${assessment.patientName || "Patient"} on ${formatDate(assessment.createdAt)}`, MARGIN, { size: 10, color: MUTED });
+  pdf.moveDown(10);
+  pdf.line(MARGIN, pdf.y, PAGE_WIDTH - MARGIN, pdf.y, BORDER);
+  pdf.moveDown(20);
+
+  // Risk Level
+  pdf.sectionTitle(t("patientResult.riskLevel") || "Risk Level");
+  pdf.text(assessment.riskCategory.toUpperCase(), MARGIN, { size: 16, font: "bold", color: getRiskColor(assessment.riskCategory) });
+  pdf.moveDown(4);
+  pdf.text(`${t("patientResult.basedOnInfo") || "Based on the information provided, your estimated risk level is "} ${assessment.riskCategory.toLowerCase()}.`, MARGIN, { size: 11, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 14 });
+  pdf.moveDown(16);
+
+  // What this means for you
+  pdf.sectionTitle(t("patientResult.whatThisMeans") || "What this means for you");
+  factorBreakdown.forEach((factor) => {
+    pdf.ensureSpace(40);
+    const impactText = factor.impact === "positive" ? (t("patientResult.increasesRisk") || "Increases risk") : (t("patientResult.reducesRisk") || "Reduces risk");
+    const color = factor.impact === "positive" ? DANGER : SUCCESS;
+    pdf.text(`${factor.name} (${impactText})`, MARGIN, { size: 11, font: "bold", color: color });
+    pdf.moveDown(2);
+    pdf.text(factor.description, MARGIN, { size: 10, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 13 });
+    pdf.moveDown(8);
+  });
+  pdf.moveDown(8);
+
+  // Path to Improvement
+  pdf.sectionTitle(t("patientResult.suggestedFollowUp") || "Your Personalized Guidance");
+  patientGuidance.forEach((item) => {
+    pdf.ensureSpace(30);
+    pdf.bullet(item);
+  });
+
+  pdf.moveDown(20);
+  pdf.ensureSpace(60);
+  pdf.line(MARGIN, pdf.y, PAGE_WIDTH - MARGIN, pdf.y, BORDER);
+  pdf.moveDown(10);
+  pdf.text("This report is for informational purposes only. Please discuss these results with your healthcare provider.", MARGIN, { size: 9, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 12 });
+
+  pdf.save(`patient-handout-${assessment.patientName?.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "patient"}-${assessment.id || "report"}.pdf`);
+}

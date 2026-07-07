@@ -1,11 +1,13 @@
+import React from 'react';
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Search, TrendingUp, Activity, Weight, HeartPulse, Loader2, AlertCircle } from "lucide-react";
+import { Search, TrendingUp, Activity, Weight, HeartPulse, AlertCircle } from "lucide-react";
 import { formatCompactDate, formatReadableDate } from "@/utils/dateFormat";
+import { MedicalLoader } from "@/components/ui/medical-loader";
 
 interface Assessment {
   id: number;
@@ -104,6 +106,19 @@ export default function ProgressTracking() {
       dateFull: formatReadableDate(a.createdAt, { includeTime: false }),
     }));
 
+    const latest = chartData[chartData.length - 1];
+const previous = chartData[0];
+
+const getTrend = (current: number, old: number, lowerBetter = true) => {
+  if (current === old) return "No change";
+
+  const improved = lowerBetter
+    ? current < old
+    : current > old;
+
+  return improved ? "Improved" : "Declined";
+};
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -155,7 +170,7 @@ export default function ProgressTracking() {
 
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <MedicalLoader type="dna" size="lg" className="h-8 w-8 text-blue-600" />
           </div>
         )}
 
@@ -169,6 +184,87 @@ export default function ProgressTracking() {
 
         {chartData.length > 0 && (
           <>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+  <Card>
+    <CardContent className="p-4">
+      <p className="text-sm text-slate-500">BMI Trend</p>
+      <h3 className="text-lg font-bold">
+        {getTrend(latest.bmi, previous.bmi)}
+      </h3>
+    </CardContent>
+  </Card>
+
+  <Card>
+    <CardContent className="p-4">
+      <p className="text-sm text-slate-500">HbA1c Trend</p>
+      <h3 className="text-lg font-bold">
+        {getTrend(latest.hba1cLevel, previous.hba1cLevel)}
+      </h3>
+    </CardContent>
+  </Card>
+
+  <Card>
+    <CardContent className="p-4">
+      <p className="text-sm text-slate-500">
+        Blood Glucose Trend
+      </p>
+      <h3 className="text-lg font-bold">
+        {getTrend(
+          latest.bloodGlucoseLevel,
+          previous.bloodGlucoseLevel
+        )}
+      </h3>
+    </CardContent>
+  </Card>
+
+  <Card>
+    <CardContent className="p-4">
+      <p className="text-sm text-slate-500">
+        Risk Score Trend
+      </p>
+      <h3 className="text-lg font-bold">
+        {getTrend(
+          latest.riskScore,
+          previous.riskScore
+        )}
+      </h3>
+    </CardContent>
+  </Card>
+</div>
+
+<Card>
+  <CardHeader>
+    <CardTitle>Health Summary</CardTitle>
+    <CardDescription>
+      Overall progress based on historical assessments
+    </CardDescription>
+  </CardHeader>
+
+  <CardContent>
+    <p>
+      Total Assessments: {chartData.length}
+    </p>
+
+    <p>
+      First Assessment:
+      {" "}
+      {previous.dateFull}
+    </p>
+
+    <p>
+      Latest Assessment:
+      {" "}
+      {latest.dateFull}
+    </p>
+
+    <p>
+      Monitoring Duration:
+      {" "}
+      {chartData.length > 1 ? "Long-term tracking available" : "Single assessment available"}
+    </p>
+  </CardContent>
+</Card>
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
                 <HeartPulse className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -335,3 +431,4 @@ export default function ProgressTracking() {
     </AppLayout>
   );
 }
+

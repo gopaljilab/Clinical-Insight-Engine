@@ -1,3 +1,4 @@
+import React from 'react';
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 type ChangeType = "improved" | "regressed" | "stable" | "neutral" | "unknown";
@@ -50,3 +51,4 @@ export default function MetricChangeIndicator({
     </div>
   );
 }
+

@@ -1,3 +1,4 @@
+import React from 'react';
 import { Info, TrendingUp, TrendingDown } from "lucide-react";
 import type { PredictionExplanation as PredictionExplanationType } from "@shared/routes";
 import { useTranslation } from "react-i18next";
@@ -140,3 +141,4 @@ export function PredictionExplanation({
     </section>
   );
 }
+

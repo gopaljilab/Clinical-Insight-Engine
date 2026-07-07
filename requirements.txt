@@ -10,3 +10,4 @@ matplotlib
 seaborn
 pydantic>=2.13.4
 pytest>=8.3.0
+fairlearn>=0.10.0
