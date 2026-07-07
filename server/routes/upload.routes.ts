@@ -74,6 +74,10 @@ uploadRouter.post(
             
             const rowData = {
               ...row,
+              age: Number(row.age),
+              bmi: Number(row.bmi),
+              hba1cLevel: Number(row.hba1cLevel),
+              bloodGlucoseLevel: Number(row.bloodGlucoseLevel),
               hypertension: hypertensionVal === 'true' || hypertensionVal === 'yes' || hypertensionVal === '1',
               heartDisease: heartDiseaseVal === 'true' || heartDiseaseVal === 'yes' || heartDiseaseVal === '1',
             };

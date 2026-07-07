@@ -342,7 +342,7 @@ export function startAssessmentWorker(): void {
         emitAssessmentProgress(job.id ?? "", 100, "Assessment Complete");
         emitAssessmentCompleted(job.id ?? "", result);
         return result;
-      } catch (err: unknown) {
+      } catch (err: any) {
         logger.error(
           {
             jobId: job.id,

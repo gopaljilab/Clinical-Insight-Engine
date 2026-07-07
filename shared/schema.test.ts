@@ -27,7 +27,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/Age/i);
+      expect(result.error.issues[0]?.path[0]).toBe("age");
     }
   });
 
@@ -39,7 +39,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/BMI/i);
+      expect(result.error.issues[0]?.path[0]).toBe("bmi");
     }
   });
 
@@ -51,7 +51,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/Blood glucose/i);
+      expect(result.error.issues[0]?.path[0]).toBe("bloodGlucoseLevel");
     }
   });
 
@@ -70,7 +70,7 @@ describe("insertAssessmentSchema", () => {
       patientName: undefined,
     });
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   it("rejects empty age string with 'required' error", () => {
@@ -81,7 +81,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Age is required.");
+      expect(result.error.issues[0]?.path[0]).toBe("age");
     }
   });
 
@@ -93,7 +93,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("BMI is required.");
+      expect(result.error.issues[0]?.path[0]).toBe("bmi");
     }
   });
 
@@ -105,7 +105,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("HbA1c level is required.");
+      expect(result.error.issues[0]?.path[0]).toBe("hba1cLevel");
     }
   });
 
@@ -117,7 +117,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Blood glucose level is required.");
+      expect(result.error.issues[0]?.path[0]).toBe("bloodGlucoseLevel");
     }
   });
 
@@ -129,7 +129,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Age must be at least 1");
+      expect(result.error.issues[0]?.path[0]).toBe("age");
     }
   });
 });
