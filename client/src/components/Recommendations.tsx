@@ -1,5 +1,6 @@
 import React from "react";
 import type { Recommendation } from "@shared/routes";
+import { Brain, Activity, Heart, Target, Salad } from "lucide-react";
 import { Heart, CalendarClock, TestTube, Pill, Activity } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -61,13 +62,21 @@ export function Recommendations({
   return (
     <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
       <div className="flex items-center gap-3 mb-4">
-        <Heart className="w-5 h-5 text-primary" />
-        <h3 className="font-bold text-lg">{t("recommendations.title")}</h3>
-      </div>
+  <Brain className="w-6 h-6 text-primary" />
+  <div>
+    <h3 className="font-bold text-lg">
+      AI Personalized Diabetes Prevention Plan
+    </h3>
+    <p className="text-sm text-muted-foreground">
+      Customized health goals and lifestyle recommendations based on your assessment.
+    </p>
+  </div>
+</div>
       <div className="grid gap-3">
         {filtered.map((rec) => (
           <label
             key={rec.id}
+            className="flex items-start gap-3 p-4 rounded-lg border border-primary/30 bg-primary/5 hover:shadow-md transition"
             className="flex items-start gap-3 p-4 rounded-lg border border-primary/20 bg-primary/5 hover:shadow-md transition-all"
           >
             <input
@@ -78,8 +87,25 @@ export function Recommendations({
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 font-semibold text-foreground">
-                  {getRecommendationIcon(rec.title)}
-                  <span>{getTranslatedTitle(rec.title, t)}</span>
+                  {rec.title.toLowerCase().includes("diet") && (
+                    <Salad className="w-4 h-4 text-green-600" />
+                  )}
+
+                  {rec.title.toLowerCase().includes("exercise") && (
+                    <Activity className="w-4 h-4 text-blue-600" />
+                  )}
+
+                  {rec.title.toLowerCase().includes("goal") && (
+                    <Target className="w-4 h-4 text-purple-600" />
+                  )}
+
+                  {!rec.title.toLowerCase().includes("diet") &&
+                    !rec.title.toLowerCase().includes("exercise") &&
+                    !rec.title.toLowerCase().includes("goal") && (
+                      <Heart className="w-4 h-4 text-primary" />
+                    )}
+
+                  <span>{rec.title}</span>
                 </div>
                 {rec.urgency === "high" && (
                   <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">{t("recommendations.high")}</span>
