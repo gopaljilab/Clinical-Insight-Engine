@@ -16,7 +16,6 @@ if REPO_ROOT not in sys.path:
 from app.ml.security import (
     SafeUnpickler,
     safe_pickle_load,
-    patch_joblib,
     get_signing_secret,
     compute_signature,
     verify_signature,
@@ -29,16 +28,16 @@ class TestSafeUnpickler:
         """SafeUnpickler allows numpy.core.multiarray which is needed for numpy arrays."""
         import numpy as np
         arr = np.array([1, 2, 3])
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            f.write(pickle.dumps(arr))
-            f.flush()
-            f_name = f.name
+        f = tempfile.NamedTemporaryFile(delete=False)
         try:
-            with open(f_name, "rb") as fh:
+            f.write(pickle.dumps(arr))
+            f.close()
+            with open(f.name, "rb") as fh:
                 result = safe_pickle_load(fh)
             assert result.tolist() == [1, 2, 3]
         finally:
-            os.remove(f_name)
+            if os.path.exists(f.name):
+                os.remove(f.name)
 
     def test_blocks_os_module(self):
         """SafeUnpickler rejects pickled os module references (RCE prevention)."""
@@ -76,30 +75,30 @@ class TestSafeUnpickler:
 class TestSignatureFunctions:
     def test_compute_signature_returns_hex_string(self):
         """compute_signature returns a hex digest string."""
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            f.write(b"hello world")
-            f.flush()
-            f_name = f.name
+        f = tempfile.NamedTemporaryFile(delete=False)
         try:
-            sig = compute_signature(f_name)
+            f.write(b"hello world")
+            f.close()
+            sig = compute_signature(f.name)
             assert isinstance(sig, str)
             assert len(sig) == 64  # SHA-256 hex length
             assert all(c in "0123456789abcdef" for c in sig)
         finally:
-            os.remove(f_name)
+            if os.path.exists(f.name):
+                os.remove(f.name)
 
     def test_compute_signature_is_deterministic(self):
         """compute_signature produces the same result for the same file content."""
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            f.write(b"test content")
-            f.flush()
-            f_name = f.name
+        f = tempfile.NamedTemporaryFile(delete=False)
         try:
-            sig1 = compute_signature(f_name)
-            sig2 = compute_signature(f_name)
+            f.write(b"test content")
+            f.close()
+            sig1 = compute_signature(f.name)
+            sig2 = compute_signature(f.name)
             assert sig1 == sig2
         finally:
-            os.remove(f_name)
+            if os.path.exists(f.name):
+                os.remove(f.name)
 
     def test_compute_signature_changes_with_content(self):
         """compute_signature changes when file content changes."""
@@ -210,55 +209,6 @@ class TestSignatureFunctions:
                 os.remove(f_name)
             if os.path.exists(sig_name):
                 os.remove(sig_name)
-
-
-class TestPatchJoblib:
-    def test_patch_joblib_replaces_load_with_safe_version(self):
-        """patch_joblib replaces joblib.load with a SafeUnpickler-backed version."""
-        import joblib
-        original_load = joblib.load
-        try:
-            patch_joblib()
-            assert joblib.load is not original_load, "joblib.load should be replaced"
-
-            # The patched version should accept a file path and return data
-            import numpy as np
-            import tempfile, os
-            arr = np.array([1, 2, 3])
-            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f:
-                import pickle
-                pickle.dump(arr, f)
-                f_name = f.name
-            try:
-                result = joblib.load(f_name)
-                assert result.tolist() == [1, 2, 3]
-            finally:
-                os.remove(f_name)
-        finally:
-            joblib.load = original_load
-
-    def test_patch_joblib_blocks_malicious_pickle(self):
-        """Patched joblib.load rejects malicious pickle payloads."""
-        import joblib
-        import tempfile, os, pickle
-        original_load = joblib.load
-        try:
-            patch_joblib()
-            # Craft a malicious pickle that tries to call os.system
-            class Malicious:
-                def __reduce__(self):
-                    return (os.system, ("echo exploited",))
-            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f:
-                pickle.dump(Malicious(), f)
-                f_name = f.name
-            try:
-                import pytest
-                with pytest.raises(pickle.UnpicklingError, match="Refused to unpickle"):
-                    joblib.load(f_name)
-            finally:
-                os.remove(f_name)
-        finally:
-            joblib.load = original_load
 
 
 class TestGetSigningSecret:

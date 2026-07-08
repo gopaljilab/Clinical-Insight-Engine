@@ -1017,32 +1017,40 @@ if __name__ == "__main__":
             try:
                 request = json.loads(line_str)
                 request_id = request.get("requestId")
-                input_data = request.get("input")
+                request_type = request.get("type", "predict")
                 
-                if isinstance(input_data, list):
-                    validated_input = [
-                        validate_assessment_input(item)
-                        for item in input_data
-                        ]
-                    prediction = interpret_predictions_batch(
-                        model,
-                        scaler,
-                        features,
-                        validated_input,
-                        cov_beta,
-                    )
+                if request_type == "extract":
+                    from app.services.clinical_nlp import BioBERTClinicalExtractor
+                    extractor = BioBERTClinicalExtractor()
+                    text = request.get("text", "")
+                    # Sanitize text input securely using existing utility
+                    from app.utils.text_sanitizer import sanitize_text
+                    sanitized_text = sanitize_text(text)
+                    prediction = extractor.extract(sanitized_text)
                 else:
-                    validated_input = validate_assessment_input(
-                        input_data
+                    input_data = request.get("input")
+                    if isinstance(input_data, list):
+                        validated_input = [
+                            validate_assessment_input(item)
+                            for item in input_data
+                        ]
+                        prediction = interpret_predictions_batch(
+                            model,
+                            scaler,
+                            features,
+                            validated_input,
+                            cov_beta,
                         )
- 
-                    prediction = interpret_prediction(
-                        model,
-                        scaler,
-                        features,
-                        validated_input,
-                        cov_beta,
-                    )
+                    else:
+                        validated_input = validate_assessment_input(input_data)
+                        prediction = interpret_prediction(
+                            model,
+                            scaler,
+                            features,
+                            validated_input,
+                            cov_beta,
+                        )
+                
                 response = {
                     "requestId": request_id,
                     "prediction": prediction
