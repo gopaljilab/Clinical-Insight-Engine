@@ -317,7 +317,7 @@ export function startAssessmentWorker(): void {
           2
         );
 
-        if (resolvedPrediction.riskCategory === "HIGH" && userEmail) {
+        if ((resolvedPrediction.riskCategory === "HIGH" || Number(resolvedPrediction.riskScore) > 80) && userEmail) {
           const alertSent = await sendCriticalRiskAlert(
             userEmail,
             input.patientName ?? "Unknown Patient",
