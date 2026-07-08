@@ -16,6 +16,7 @@ import { filterAssessments, type GenderFilterValue, type RiskCategoryFilterValue
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import RiskTrendChart, { PATIENT_COLORS } from "@/components/RiskTrendChart";
+import PatientTimeline from "@/components/PatientTimeline";
 import { EmptyState } from "@/components/EmptyState";
 import HealthBadges from "@/components/HealthBadges";
 import { formatReadableDate } from "@/utils/dateFormat";
@@ -1102,30 +1103,7 @@ export default function History() {
                 title="Patient improvement badges"
                 description="Track earned badges for this patient's trajectory across the selected assessments."
               />
-              <RiskTrendChart assessments={selectedPatientHistory} />
-              
-              <div className="border border-border rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-left text-sm border-collapse">
-                  <thead className="bg-muted/50 border-b border-border">
-                    <tr>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">Date</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">Risk Score</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">BMI</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">HbA1c</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {selectedPatientHistory.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((a) => (
-                      <tr key={a.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="p-3 whitespace-nowrap">{formatAssessmentDate(a.createdAt)}</td>
-                        <td className="p-3 font-bold text-foreground">{Number(a.riskScore).toFixed(1)}%</td>
-                        <td className="p-3">{Number(a.bmi).toFixed(1)}</td>
-                        <td className="p-3">{Number(a.hba1cLevel).toFixed(1)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <PatientTimeline assessments={selectedPatientHistory} />
             </div>
           )}
         </SheetContent>
