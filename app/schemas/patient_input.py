@@ -23,8 +23,9 @@ class PatientInput(BaseModel):
     @field_validator("gender")
     @classmethod
     def validate_gender(cls, v):
-        if v not in ["Male", "Female"]:
-            raise ValueError("Gender must be 'Male' or 'Female'")
+        if not v.strip():
+            raise ValueError("Gender cannot be empty")
+        # We allow other genders and handle them in the ML layer
         return v
 
     @field_validator("smokingHistory")

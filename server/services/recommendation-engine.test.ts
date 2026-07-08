@@ -49,7 +49,11 @@ describe("generateRecommendations", () => {
 
     it("yields no rec when HbA1c < 7", () => {
       const recs = generateRecommendations({ ...emptyInput(), hba1cLevel: 6.5 });
-      const hba1cRecs = recs.filter((r) => r.title.toLowerCase().includes("hba1c") || r.title.toLowerCase().includes("medication"));
+      // The ">= 7" rule specifically generates "Repeat HbA1c testing" and
+      // "Consider medication review". Neither should appear below the threshold.
+      const hba1cRecs = recs.filter(
+        (r) => r.title === "Repeat HbA1c testing" || r.title === "Consider medication review"
+      );
       expect(hba1cRecs).toEqual([]);
     });
   });

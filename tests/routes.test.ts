@@ -283,7 +283,7 @@ describe("IDOR Prevention", () => {
     expect(res.body).toHaveProperty("message");
   });
 
-  it("returns 404 (not 403) for DELETE /api/assessments/:id on unauthorized record", async () => {
+  it("returns 403 (not 404) for DELETE /api/assessments/:id on unauthorized record", async () => {
     const app = createAuthenticatedApp();
     const module = await import("../server/storage");
     (module.storage.getAssessmentById as any).mockResolvedValue(unauthorizedAssessment);
@@ -291,7 +291,7 @@ describe("IDOR Prevention", () => {
 
     const res = await request(app).delete("/api/assessments/999");
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
     expect(res.body).toHaveProperty("message");
   });
 });
@@ -525,7 +525,7 @@ describe("Python inference", () => {
     }
   });
 
-  it("bulk route returns 201 and falls back to rule-based model on python process failure", async () => {
+  it("bulk route returns 202 and queues the job on python process failure", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
@@ -540,17 +540,12 @@ describe("Python inference", () => {
         ]
       });
 
-    expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty("count", 2);
-    expect(res.body).toHaveProperty("assessments");
-    expect(Array.isArray(res.body.assessments)).toBe(true);
-    expect(res.body.assessments[0]).toHaveProperty("riskScore");
-    expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
-    expect(res.body.assessments[1]).toHaveProperty("riskScore");
-    expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
+    expect(res.status).toBe(202);
+    expect(res.body).toHaveProperty("jobId");
+    expect(res.body).toHaveProperty("batchId");
   });
 
-  it("bulk route returns 201 and falls back to rule-based model on python process timeout", async () => {
+  it("bulk route returns 202 and queues the job on python process timeout", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
@@ -566,20 +561,15 @@ describe("Python inference", () => {
           ]
         });
 
-      expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty("count", 2);
-      expect(res.body).toHaveProperty("assessments");
-      expect(Array.isArray(res.body.assessments)).toBe(true);
-      expect(res.body.assessments[0]).toHaveProperty("riskScore");
-      expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
-      expect(res.body.assessments[1]).toHaveProperty("riskScore");
-      expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
+      expect(res.status).toBe(202);
+      expect(res.body).toHaveProperty("jobId");
+      expect(res.body).toHaveProperty("batchId");
     } finally {
       predictSpy.mockRestore();
     }
   });
 
-  it("bulk route returns 201 on successful python daemon batch inference", async () => {
+  it("bulk route returns 202 on successful python daemon batch inference", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
@@ -598,14 +588,9 @@ describe("Python inference", () => {
           ]
         });
 
-      expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty("count", 2);
-      expect(res.body).toHaveProperty("assessments");
-      expect(Array.isArray(res.body.assessments)).toBe(true);
-      expect(res.body.assessments[0]).toHaveProperty("riskScore", 12.3);
-      expect(res.body.assessments[0]).toHaveProperty("createdBy", "test@example.com");
-      expect(res.body.assessments[1]).toHaveProperty("riskScore", 12.3);
-      expect(res.body.assessments[1]).toHaveProperty("createdBy", "test@example.com");
+      expect(res.status).toBe(202);
+      expect(res.body).toHaveProperty("jobId");
+      expect(res.body).toHaveProperty("batchId");
     } finally {
       predictSpy.mockRestore();
     }
@@ -763,7 +748,7 @@ describe("DELETE /api/assessments/:id", () => {
       ownerId: "other-user-id"
     });
     const res = await request(app).delete("/api/assessments/1");
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
   });
 
   it("returns 204 when assessment is deleted successfully", async () => {

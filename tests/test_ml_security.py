@@ -30,7 +30,7 @@ class TestSafeUnpickler:
         arr = np.array([1, 2, 3])
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(pickle.dumps(arr))
-            f.flush()
+            f.close()
             try:
                 with open(f.name, "rb") as fh:
                     result = safe_pickle_load(fh)
@@ -76,7 +76,7 @@ class TestSignatureFunctions:
         """compute_signature returns a hex digest string."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"hello world")
-            f.flush()
+            f.close()
             try:
                 sig = compute_signature(f.name)
                 assert isinstance(sig, str)
@@ -89,7 +89,7 @@ class TestSignatureFunctions:
         """compute_signature produces the same result for the same file content."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"test content")
-            f.flush()
+            f.close()
             try:
                 sig1 = compute_signature(f.name)
                 sig2 = compute_signature(f.name)
@@ -101,11 +101,11 @@ class TestSignatureFunctions:
         """compute_signature changes when file content changes."""
         with tempfile.NamedTemporaryFile(delete=False) as f1:
             f1.write(b"content A")
-            f1.flush()
+            f1.close()
             f1_name = f1.name
         with tempfile.NamedTemporaryFile(delete=False) as f2:
             f2.write(b"content B")
-            f2.flush()
+            f2.close()
             f2_name = f2.name
         try:
             sig1 = compute_signature(f1_name)
@@ -119,7 +119,7 @@ class TestSignatureFunctions:
         """write_signature creates a .sig sidecar file next to the target."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"hello")
-            f.flush()
+            f.close()
             f_name = f.name
         sig_name = f_name + ".sig"
         try:
@@ -141,7 +141,7 @@ class TestSignatureFunctions:
         """verify_signature returns True when .sig file matches current file content."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"test data")
-            f.flush()
+            f.close()
             f_name = f.name
         sig_name = f_name + ".sig"
         try:
@@ -171,7 +171,7 @@ class TestSignatureFunctions:
         """verify_signature returns False when file content does not match .sig."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"original content")
-            f.flush()
+            f.close()
             f_name = f.name
         sig_name = f_name + ".sig"
         try:

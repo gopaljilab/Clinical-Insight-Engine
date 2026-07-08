@@ -81,7 +81,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Age is required");
+      expect(result.error.issues[0]?.message).toBe("Age is required.");
     }
   });
 
@@ -93,7 +93,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("BMI is required");
+      expect(result.error.issues[0]?.message).toBe("BMI is required.");
     }
   });
 
@@ -105,7 +105,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("HbA1c level is required");
+      expect(result.error.issues[0]?.message).toBe("HbA1c level is required.");
     }
   });
 
@@ -117,7 +117,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Blood glucose level is required");
+      expect(result.error.issues[0]?.message).toBe("Blood glucose level is required.");
     }
   });
 

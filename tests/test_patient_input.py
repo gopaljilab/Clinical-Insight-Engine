@@ -32,7 +32,7 @@ def test_valid_patient_input():
 
 def test_invalid_gender():
     payload = {
-        "gender": "Non-binary",
+        "gender": "  ",
         "age": 42,
         "smokingHistory": "never",
         "bmi": 24.5,
@@ -41,7 +41,7 @@ def test_invalid_gender():
     }
     with pytest.raises(ValidationError) as excinfo:
         PatientInput(**payload)
-    assert "Gender must be 'Male' or 'Female'" in str(excinfo.value)
+    assert "Gender cannot be empty" in str(excinfo.value)
 
 
 def test_invalid_smoking_history():

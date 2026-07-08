@@ -556,7 +556,7 @@ def validate_assessment_input(data):
     try:
         # Strict validation using Pydantic schema
         patient = PatientInput(**data)
-        return patient.model_dump()
+        return patient.model_dump(exclude_unset=True)
     except ValidationError as e:
         raise ValueError(f"Validation failed: {e}")
 
