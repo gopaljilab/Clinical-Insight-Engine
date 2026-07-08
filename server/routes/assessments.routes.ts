@@ -135,6 +135,7 @@ assessmentsRouter.get(
 assessmentsRouter.get(
   "/cohort",
   requireAuth,
+  requireVerified,
   getCohortStats
 );
 
