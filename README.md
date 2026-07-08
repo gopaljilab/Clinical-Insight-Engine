@@ -664,6 +664,7 @@ On the **Clinician View** tab of the results page, the clinical note is rendered
   * Press **Escape** to clear the selection and highlight.
 
 #### Example Request
+
 ```bash
 curl -X POST http://localhost:3000/api/ingest/fhir \
   -H "Content-Type: application/json" \
