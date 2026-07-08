@@ -95,7 +95,7 @@ export interface IStorage {
   updatePatientEmailVerified(id: string, verified: boolean): Promise<PatientUser>;
   getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, createdBy?: string, startDate?: string, endDate?: string): Promise<{ data: Assessment[]; total: number }>;
   getPatientTrends(patientName: string, createdBy?: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]>;
-  getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string): Promise<{
+  getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string, createdBy?: string): Promise<{
     assessments: any[];
     summary: { total: number; latestRiskScore: number | null; latestRiskCategory: string | null; earliestRiskScore: number | null; trend: string; avgRiskScore: number; change: number };
   }>;
@@ -301,8 +301,8 @@ export class DatabaseStorage implements IStorage {
     return this.assessmentRepository.getPatientTrends(patientName, createdBy);
   }
 
-  async getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string) {
-    return this.assessmentRepository.getTrendsDashboardData(patientName, startDate, endDate);
+  async getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string, createdBy?: string) {
+    return this.assessmentRepository.getTrendsDashboardData(patientName, startDate, endDate, createdBy);
   }
 }
 
