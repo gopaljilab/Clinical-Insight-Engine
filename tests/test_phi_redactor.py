@@ -149,6 +149,56 @@ class TestPHIRedactor(unittest.TestCase):
         self.assertEqual(self.redactor.redact_patient_data(None), None)
         self.assertEqual(self.redactor.redact_patient_data([]), [])
 
+    def test_numeric_patient_id_redaction(self):
+        """Verify numeric-string patient IDs/MRNs are redacted, while short
+        digit strings that plausibly represent internal PKs (<=3 digits)
+        are left untouched."""
+        # Short digit-only strings are treated as internal PKs, not MRNs.
+        self.assertEqual(
+            self.redactor.redact_patient_data({"id": "1"}),
+            {"id": "1"}
+        )
+        self.assertEqual(
+            self.redactor.redact_patient_data({"id": "42"}),
+            {"id": "42"}
+        )
+        self.assertEqual(
+            self.redactor.redact_patient_data({"id": "999"}),
+            {"id": "999"}
+        )
+
+        # 4+ digit numeric-string IDs are real MRN-style identifiers and
+        # must be redacted regardless of key (id, patientId, mrn).
+        self.assertEqual(
+            self.redactor.redact_patient_data({"id": "1234"}),
+            {"id": "[PATIENT_ID]"}
+        )
+        self.assertEqual(
+            self.redactor.redact_patient_data({"id": "123456"}),
+            {"id": "[PATIENT_ID]"}
+        )
+        self.assertEqual(
+            self.redactor.redact_patient_data({"patientId": "9876543210"}),
+            {"patientId": "[PATIENT_ID]"}
+        )
+        self.assertEqual(
+            self.redactor.redact_patient_data({"mrn": "7890123"}),
+            {"mrn": "[PATIENT_ID]"}
+        )
+
+        # Non-numeric ID formats continue to be redacted as before.
+        self.assertEqual(
+            self.redactor.redact_patient_data({"id": "MRN-9876"}),
+            {"id": "[PATIENT_ID]"}
+        )
+
+        # Numeric (int) IDs are untouched — only string values are redacted,
+        # matching existing behavior for internal integer primary keys.
+        self.assertEqual(
+            self.redactor.redact_patient_data({"id": 123456}),
+            {"id": 123456}
+        )
+
     def test_large_note_input(self):
         """Verify performance and memory stability on extremely large notes."""
         import time
