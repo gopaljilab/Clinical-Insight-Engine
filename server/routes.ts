@@ -694,7 +694,7 @@ export async function registerRoutes(
     }
   });
 
-  app.use("/api/upload", uploadRouter);
+  app.use("/api/upload", requireAuth, requireVerified, uploadRouter);
 
   // Endpoint to capture and log client-side React errors
   app.post("/api/logs/client-error", (req, res) => {
