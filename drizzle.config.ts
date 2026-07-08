@@ -15,6 +15,7 @@ export default defineConfig({
   dialect: "postgresql",
   dbCredentials: {
     url: dbUrl,
+    ...(useSSL ? { ssl: { rejectUnauthorized: true } } : {}),
     ...(useSSL ? { ssl: { rejectUnauthorized: false } } : {}),
   },
   // 💡 Explicitly declare your managed table names rather than using standard wildcards

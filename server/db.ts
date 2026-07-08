@@ -110,6 +110,16 @@ export function getPool() {
       max: 10,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
+      ...(useSSL
+        ? {
+            ssl: {
+              rejectUnauthorized: true,
+              ...(process.env.DATABASE_CA_CERT
+                ? { ca: process.env.DATABASE_CA_CERT }
+                : {}),
+            },
+          }
+        : {}),
       ...(useSSL ? { ssl: { rejectUnauthorized: false } } : {}),
     });
 
