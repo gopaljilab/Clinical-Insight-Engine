@@ -16,6 +16,7 @@ if REPO_ROOT not in sys.path:
 from app.ml.security import (
     SafeUnpickler,
     safe_pickle_load,
+    patch_joblib,
     get_signing_secret,
     compute_signature,
     verify_signature,
@@ -30,13 +31,14 @@ class TestSafeUnpickler:
         arr = np.array([1, 2, 3])
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(pickle.dumps(arr))
-            f.close()
-            try:
-                with open(f.name, "rb") as fh:
-                    result = safe_pickle_load(fh)
-                assert result.tolist() == [1, 2, 3]
-            finally:
-                os.remove(f.name)
+            f.flush()
+            f_name = f.name
+        try:
+            with open(f_name, "rb") as fh:
+                result = safe_pickle_load(fh)
+            assert result.tolist() == [1, 2, 3]
+        finally:
+            os.remove(f_name)
 
     def test_blocks_os_module(self):
         """SafeUnpickler rejects pickled os module references (RCE prevention)."""
@@ -76,36 +78,38 @@ class TestSignatureFunctions:
         """compute_signature returns a hex digest string."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"hello world")
-            f.close()
-            try:
-                sig = compute_signature(f.name)
-                assert isinstance(sig, str)
-                assert len(sig) == 64  # SHA-256 hex length
-                assert all(c in "0123456789abcdef" for c in sig)
-            finally:
-                os.remove(f.name)
+            f.flush()
+            f_name = f.name
+        try:
+            sig = compute_signature(f_name)
+            assert isinstance(sig, str)
+            assert len(sig) == 64  # SHA-256 hex length
+            assert all(c in "0123456789abcdef" for c in sig)
+        finally:
+            os.remove(f_name)
 
     def test_compute_signature_is_deterministic(self):
         """compute_signature produces the same result for the same file content."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"test content")
-            f.close()
-            try:
-                sig1 = compute_signature(f.name)
-                sig2 = compute_signature(f.name)
-                assert sig1 == sig2
-            finally:
-                os.remove(f.name)
+            f.flush()
+            f_name = f.name
+        try:
+            sig1 = compute_signature(f_name)
+            sig2 = compute_signature(f_name)
+            assert sig1 == sig2
+        finally:
+            os.remove(f_name)
 
     def test_compute_signature_changes_with_content(self):
         """compute_signature changes when file content changes."""
         with tempfile.NamedTemporaryFile(delete=False) as f1:
             f1.write(b"content A")
-            f1.close()
+            f1.flush()
             f1_name = f1.name
         with tempfile.NamedTemporaryFile(delete=False) as f2:
             f2.write(b"content B")
-            f2.close()
+            f2.flush()
             f2_name = f2.name
         try:
             sig1 = compute_signature(f1_name)
@@ -119,7 +123,7 @@ class TestSignatureFunctions:
         """write_signature creates a .sig sidecar file next to the target."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"hello")
-            f.close()
+            f.flush()
             f_name = f.name
         sig_name = f_name + ".sig"
         try:
@@ -141,7 +145,7 @@ class TestSignatureFunctions:
         """verify_signature returns True when .sig file matches current file content."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"test data")
-            f.close()
+            f.flush()
             f_name = f.name
         sig_name = f_name + ".sig"
         try:
@@ -171,7 +175,7 @@ class TestSignatureFunctions:
         """verify_signature returns False when file content does not match .sig."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"original content")
-            f.close()
+            f.flush()
             f_name = f.name
         sig_name = f_name + ".sig"
         try:
@@ -206,6 +210,55 @@ class TestSignatureFunctions:
                 os.remove(f_name)
             if os.path.exists(sig_name):
                 os.remove(sig_name)
+
+
+class TestPatchJoblib:
+    def test_patch_joblib_replaces_load_with_safe_version(self):
+        """patch_joblib replaces joblib.load with a SafeUnpickler-backed version."""
+        import joblib
+        original_load = joblib.load
+        try:
+            patch_joblib()
+            assert joblib.load is not original_load, "joblib.load should be replaced"
+
+            # The patched version should accept a file path and return data
+            import numpy as np
+            import tempfile, os
+            arr = np.array([1, 2, 3])
+            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f:
+                import pickle
+                pickle.dump(arr, f)
+                f_name = f.name
+            try:
+                result = joblib.load(f_name)
+                assert result.tolist() == [1, 2, 3]
+            finally:
+                os.remove(f_name)
+        finally:
+            joblib.load = original_load
+
+    def test_patch_joblib_blocks_malicious_pickle(self):
+        """Patched joblib.load rejects malicious pickle payloads."""
+        import joblib
+        import tempfile, os, pickle
+        original_load = joblib.load
+        try:
+            patch_joblib()
+            # Craft a malicious pickle that tries to call os.system
+            class Malicious:
+                def __reduce__(self):
+                    return (os.system, ("echo exploited",))
+            with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f:
+                pickle.dump(Malicious(), f)
+                f_name = f.name
+            try:
+                import pytest
+                with pytest.raises(pickle.UnpicklingError, match="Refused to unpickle"):
+                    joblib.load(f_name)
+            finally:
+                os.remove(f_name)
+        finally:
+            joblib.load = original_load
 
 
 class TestGetSigningSecret:

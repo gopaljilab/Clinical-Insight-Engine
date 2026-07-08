@@ -13,18 +13,10 @@ import { escapeCsvCell } from "./csvSanitizer";
  * ]);
  */
 export function assessmentsToCsv(data: Record<string, unknown>[]): string {
-  if (!Array.isArray(data) || data.length === 0) {
-    return "";
-  }
-
-  // Collect all unique keys across all records to build the header row
-  const keys = Object.keys(data[0]);
-
-  const header = keys.join(",");
-
-  const rows = data.map((record) =>
-    keys.map((key) => escapeCsvCell(record[key])).join(",")
+  if (!data || data.length === 0) return "";
+  const headers = Object.keys(data[0]);
+  const rows = data.map((row) =>
+    headers.map((h) => escapeCsvCell(row[h])).join(",")
   );
-
-  return [header, ...rows].join("\n");
+  return [headers.join(","), ...rows].join("\n");
 }

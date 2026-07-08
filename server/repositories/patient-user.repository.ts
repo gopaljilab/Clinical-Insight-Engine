@@ -38,4 +38,14 @@ export class PatientUserRepository {
     const [result] = await db.insert(patientUsers).values(data).returning();
     return result;
   }
+
+  async updateEmailVerified(id: string, verified: boolean): Promise<PatientUser> {
+    const db = getDb();
+    const [result] = await db
+      .update(patientUsers)
+      .set({ emailVerified: verified, updatedAt: new Date() })
+      .where(eq(patientUsers.id, id))
+      .returning();
+    return result;
+  }
 }

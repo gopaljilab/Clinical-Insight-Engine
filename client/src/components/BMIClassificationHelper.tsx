@@ -1,3 +1,4 @@
+import React from 'react';
 import { AlertCircle, CheckCircle2, Info, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -97,3 +98,4 @@ export function BMIClassificationHelper({
     </div>
   );
 }
+
