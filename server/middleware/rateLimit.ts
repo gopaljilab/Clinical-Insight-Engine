@@ -54,12 +54,14 @@ export const previewLimiter = rateLimit({
   message: { error: "Too many preview requests, please try again later." }
 });
 
-// Batch operation endpoints: 5 requests per minute (per user, not per IP)
-export const batchLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  limit: 5, // Limit to 5 requests per minute
+// CSV batch upload endpoint: 10 requests per window. Each upload can run up
+// to 100 rows through ML inference, so this is deliberately as strict as
+// assessmentLimiter/previewLimiter to prevent a single user from repeatedly
+// saturating the mlConcurrency semaphore.
+export const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 10, // Limit each IP to 10 requests per `window`
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => (req as any).session?.user?.id || req.ip || "",
-  message: { error: "Too many batch requests, please try again later." }
+  message: { error: "Too many upload requests, please try again later." }
 });

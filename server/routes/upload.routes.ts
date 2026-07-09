@@ -7,6 +7,7 @@ import { insertAssessmentSchema, type InsertAssessment } from "@shared/schema";
 import { MLService } from "../services/mlService";
 import { storage } from "../storage";
 import { logger } from "../logger";
+import { uploadLimiter } from "../middleware/rateLimit";
 
 const uploadRouter = Router();
 
@@ -36,6 +37,7 @@ uploadRouter.post(
   "/lab-results",
   requireAuth,
   requireVerified,
+  uploadLimiter,
   (req, res) => {
     upload.single("file")(req, res, async (err: unknown) => {
       if (err) {
@@ -60,14 +62,14 @@ uploadRouter.post(
           return res.status(400).json({ message: "CSV exceeds maximum limit of 100 rows." });
         }
         
-        // Phase 1: Validate all rows and collect predictions
-        const validRows: { rowData: InsertAssessment; prediction: any }[] = [];
+        // Phase 1: Validate all rows (no ML inference yet)
+        const validRows: { rowData: InsertAssessment; rowId: string | number }[] = [];
         let processed = 0;
         let failed = 0;
 
         for (const row of parsed.data as Record<string, unknown>[]) {
           processed++;
-          
+
           try {
             const hypertensionVal = String(row.hypertension).toLowerCase();
             const heartDiseaseVal = String(row.heartDisease).toLowerCase();
@@ -90,19 +92,40 @@ uploadRouter.post(
 
             const validData = parseResult.data;
             const rowId = (row as any).id || (row as any).patient_id || (row as any).patientName || processed;
-            const { prediction } = await MLService.runAssessmentInference(validData, rowId, { throwOnFailure: true });
-            validRows.push({ rowData: validData, prediction });
+            validRows.push({ rowData: validData, rowId });
           } catch (rowErr) {
             logger.error({ err: rowErr, row }, "Error processing CSV row");
             failed++;
           }
         }
 
-        // Phase 2: Insert all valid assessments in a single transaction
-        let created = 0;
+        // Phase 2: Run ML inference for every valid row in a single batch
+        // call. runAssessmentInferenceBatch acquires only ONE mlConcurrency
+        // semaphore slot for the entire upload (instead of one slot per row),
+        // so a single CSV upload can no longer saturate the semaphore and
+        // starve concurrent /preview, /simulate, or queue-worker inference.
+        const inferred: { rowData: InsertAssessment; prediction: any }[] = [];
         if (validRows.length > 0) {
+          try {
+            const { predictions } = await MLService.runAssessmentInferenceBatch(
+              validRows.map((v) => v.rowData),
+              "csv-upload",
+              { throwOnFailure: true }
+            );
+            validRows.forEach((v, i) => {
+              inferred.push({ rowData: v.rowData, prediction: predictions[i] });
+            });
+          } catch (batchErr) {
+            logger.error({ err: batchErr }, "Batch ML inference failed for CSV upload");
+            failed += validRows.length;
+          }
+        }
+
+        // Phase 3: Insert all valid assessments in a single transaction
+        let created = 0;
+        if (inferred.length > 0) {
           const createdAssessments = await storage.createAssessmentsBatch(
-            validRows.map(({ rowData, prediction }) => ({
+            inferred.map(({ rowData, prediction }) => ({
               ...rowData,
               riskScore: prediction.riskScore,
               riskCategory: prediction.riskCategory,
@@ -113,7 +136,7 @@ uploadRouter.post(
             }))
           );
           created = createdAssessments.length;
-        }
+        }   
 
         return res.status(200).json({ 
           message: "Lab results imported successfully",
