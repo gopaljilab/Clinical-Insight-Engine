@@ -27,7 +27,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/Age/i);
+      expect(result.error.issues[0]?.message).toMatch(/greater than or equal to 1/);
     }
   });
 
@@ -39,7 +39,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/BMI/i);
+      expect(result.error.issues[0]?.message).toMatch(/greater than or equal to 10/);
     }
   });
 
@@ -51,7 +51,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/Blood glucose/i);
+      expect(result.error.issues[0]?.message).toMatch(/greater than or equal to 50/);
     }
   });
 
@@ -64,13 +64,16 @@ describe("insertAssessmentSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("accepts missing patient name as optional", () => {
+  it("rejects missing patient name as required", () => {
     const result = insertAssessmentSchema.safeParse({
       ...validAssessment,
       patientName: undefined,
     });
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe("Required");
+    }
   });
 
   it("rejects empty age string with 'required' error", () => {
@@ -81,7 +84,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      
+      expect(result.error.issues[0]?.message).toBe("Expected number, received string");
     }
   });
 
@@ -93,7 +96,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      
+      expect(result.error.issues[0]?.message).toBe("Expected number, received string");
     }
   });
 
@@ -105,7 +108,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      
+      expect(result.error.issues[0]?.message).toBe("Expected number, received string");
     }
   });
 
@@ -117,7 +120,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      
+      expect(result.error.issues[0]?.message).toBe("Expected number, received string");
     }
   });
 
@@ -129,8 +132,55 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
+<<<<<<< HEAD
       
+=======
+      expect(result.error.issues[0]?.message).toBe("Number must be greater than or equal to 1");
+>>>>>>> origin/main
     }
   });
 });
 
+<<<<<<< HEAD
+=======
+  expect(result.success).toBe(false);
+});
+
+it("accepts patient name at minimum valid length", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    patientName: "A",
+  });
+
+  expect(result.success).toBe(true);
+});
+
+it("accepts special characters in patient name", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    patientName: "John O'Connor-Smith",
+  });
+
+  expect(result.success).toBe(true);
+});
+
+it("rejects invalid gender value", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    gender: "Unknown",
+  });
+
+  expect(result.success).toBe(false);
+});
+
+it("rejects extremely large age value", () => {
+  const result = insertAssessmentSchema.safeParse({
+    ...validAssessment,
+    age: 999999,
+  });
+
+  expect(result.success).toBe(false);
+});
+
+
+>>>>>>> origin/main

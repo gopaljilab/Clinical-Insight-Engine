@@ -16,6 +16,7 @@ import { filterAssessments, type GenderFilterValue, type RiskCategoryFilterValue
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import RiskTrendChart, { PATIENT_COLORS } from "@/components/RiskTrendChart";
+import PatientTimeline from "@/components/PatientTimeline";
 import { EmptyState } from "@/components/EmptyState";
 import HealthBadges from "@/components/HealthBadges";
 import { formatReadableDate } from "@/utils/dateFormat";
@@ -25,7 +26,7 @@ import { AssessmentFilters } from "@/components/AssessmentFilters";
 import { ActiveFilterChips } from "@/components/ActiveFilterChips";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
-import { downloadPatientSummaryPdf } from "@/utils/clinicalPdfReport";
+import { downloadPatientSummaryPdf, downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { downloadBulkAssessmentPdf } from "@/utils/bulkPdfExport";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem
@@ -99,17 +100,10 @@ export default function History() {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   const { data: assessmentsData, isLoading, error } = useAssessments({
-    page: currentPage,
-    limit: PAGE_SIZE,
+    page: 1,
+    limit: 1000,
     sortBy: sortField,
     order: sortOrder,
-    searchTerm: searchTerm || undefined,
-    riskCategory: riskCategory !== "All" ? riskCategory : undefined,
-    gender: gender !== "All" ? gender : undefined,
-    minAge,
-    maxAge,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined
   });
 
   const assessments = assessmentsData?.data ?? [];
@@ -291,36 +285,51 @@ export default function History() {
     e.target.value = ''; // Reset input
   };
 
-  const buildExportParams = () => {
-    const params = new URLSearchParams();
-    params.set("page", "1");
-    params.set("limit", String(Math.min(Math.max(filteredRecords || PAGE_SIZE, PAGE_SIZE), 1000)));
-    params.set("sortBy", sortField);
-    params.set("order", sortOrder);
-
-    if (searchTerm) params.set("searchTerm", searchTerm);
-    if (riskCategory !== "All") params.set("riskCategory", riskCategory);
-    if (gender !== "All") params.set("gender", gender);
-    if (minAge !== undefined) params.set("minAge", String(minAge));
-    if (maxAge !== undefined) params.set("maxAge", String(maxAge));
-    if (startDate) params.set("startDate", startDate);
-    if (endDate) params.set("endDate", endDate);
-
-    return params;
-  };
-
   const exportFilteredCsv = () => {
-    window.location.href = `/api/assessments/export.csv?${buildExportParams().toString()}`;
+    const headers = [
+      "Date", "Patient", "Age", "BMI", "HbA1c", "Glucose",
+      "Hypertension", "Heart Disease", "Smoking", "Risk Score", "Risk Category",
+    ];
+
+    const csvEscape = (value: unknown) => {
+      const str = String(value ?? "");
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+
+    const rows = filteredAssessments.map((a) => [
+      formatAssessmentDate(a.createdAt),
+      a.patientName || "Unknown Patient",
+      a.age,
+      a.bmi,
+      a.hba1cLevel,
+      a.bloodGlucoseLevel,
+      a.hypertension ? "Yes" : "No",
+      a.heartDisease ? "Yes" : "No",
+      a.smokingHistory,
+      a.riskScore != null ? `${Number(a.riskScore).toFixed(1)}%` : "",
+      a.riskCategory,
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map(csvEscape).join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `assessments-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const exportFilteredPdf = async () => {
     try {
-      const params = buildExportParams();
-      params.set("limit", "1000");
-      const data = await ApiClient.get<any>(`/api/assessments/?${params.toString()}`);
-      downloadBulkAssessmentPdf(data.data ?? []);
-    } catch (err: unknown) {
-      toast({ title: "Export Error", description: err instanceof Error ? (err as Error).message : String(err), variant: "destructive" });
+      downloadBulkAssessmentPdf(filteredAssessments);
+    } catch (err: any) {
+      toast({ title: "Export Error", description: err.message, variant: "destructive" });
     }
   };
 
@@ -399,44 +408,8 @@ export default function History() {
 
   function exportAsPdf(assessment: Assessment) {
     if (!assessment) return;
-
-    const patientName = escapeHtml(assessment.patientName || "Unknown Patient");
-    const date = escapeHtml(formatReadableDate(assessment.createdAt, { fallback: "Unknown Date" }));
-    const age = escapeHtml(assessment.age ?? "N/A");
-    const bmi = escapeHtml(assessment.bmi ?? "N/A");
-    const hba1cLevel = escapeHtml(assessment.hba1cLevel ?? "N/A");
-    const bloodGlucoseLevel = escapeHtml(assessment.bloodGlucoseLevel ?? "N/A");
-    const hypertension = escapeHtml(assessment.hypertension === true ? "Yes" : assessment.hypertension === false ? "No" : "N/A");
-    const heartDisease = escapeHtml(assessment.heartDisease === true ? "Yes" : assessment.heartDisease === false ? "No" : "N/A");
-    const smokingHistory = escapeHtml(assessment.smokingHistory || "N/A");
-
-    const riskScore = escapeHtml(
-      assessment.riskScore ? `${Number(assessment.riskScore).toFixed(1)}%` : "N/A"
-    );
-
-    const category = escapeHtml(assessment.riskCategory || "Unknown");
-
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Assessment ${escapeHtml(assessment.id ?? "Export")}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body { font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5; } .container { max-width: 800px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); } h1 { color: #1e40af; margin-bottom: 20px; } .section { margin-bottom: 25px; } .section-title { font-size: 16px; font-weight: bold; color: #374151; margin-bottom: 10px; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; } .field { display: flex; justify-content: space-between; margin-bottom: 8px; padding: 8px 0; border-bottom: 1px solid #f3f4f6; } .label { color: #6b7280; font-weight: 500; } .value { color: #1f2937; font-weight: 600; } .risk-score { font-size: 28px; font-weight: bold; color: #dc2626; } .factors { margin-top: 15px; } .factors-list { list-style: none; padding: 0; margin: 0; }</style></head><body><div class="container"><h1>Patient Risk Assessment Report</h1><div class="section"><div class="section-title">Patient Information</div><div class="field"><span class="label">Name:</span><span class="value">${patientName}</span></div><div class="field"><span class="label">Age:</span><span class="value">${age}</span></div><div class="field"><span class="label">Assessment Date:</span><span class="value">${date}</span></div></div><div class="section"><div class="section-title">Clinical Measurements</div><div class="field"><span class="label">BMI:</span><span class="value">${bmi}</span></div><div class="field"><span class="label">HbA1c (%):</span><span class="value">${hba1cLevel}</span></div><div class="field"><span class="label">Blood Glucose (mg/dL):</span><span class="value">${bloodGlucoseLevel}</span></div><div class="field"><span class="label">Hypertension:</span><span class="value">${hypertension}</span></div><div class="field"><span class="label">Heart Disease:</span><span class="value">${heartDisease}</span></div><div class="field"><span class="label">Smoking History:</span><span class="value">${smokingHistory}</span></div></div><div class="section"><div class="section-title">Risk Assessment</div><div style="text-align: center; margin: 20px 0;"><div class="risk-score">${riskScore}</div><div style="color: #6b7280; margin-top: 5px;">Risk Category: <span style="font-weight: bold; color: #1f2937;">${category}</span></div></div></div><div class="section"><div class="section-title">Risk Factors</div><ul class="factors-list">${(
-      assessment.factors || []
-    )
-      .slice(0, 5)
-      .map((f: AssessmentFactor) => `<li>${escapeHtml(f.name || "Unknown")} — ${escapeHtml(f.description || "")} (${escapeHtml(f.impact || "N/A")})</li>`)
-      .join("")}</ul></div></div></body></html>`;
-
-    // Use Blob URL + anchor download instead of window.open + document.write:
-    // - avoids deprecated document.write()
-    // - works when popups are blocked (default in most modern browsers)
-    // - no window.alert() needed — errors shown as in-app toast
     try {
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `assessment-${assessment.id ?? "export"}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadClinicalAssessmentPdf(assessment as any);
     } catch {
       toast({
         title: "Export failed",
@@ -462,12 +435,18 @@ export default function History() {
     });
   }, [assessments, searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate]);
   // Pagination (Server-Side)
-  const totalRecords = assessmentsData?.total ?? 0;
-  const filteredRecords = assessmentsData?.total ?? 0;
-  const totalPages = assessmentsData?.totalPages ?? 1;
-  const safePage = currentPage;
-  const sortedAssessments = assessments;
-  const paginatedAssessments = assessments;
+  // Pagination (Client-Side) — filterAssessments does more than the server
+  // search supports (multi-field text match, custom gender semantics), so
+  // pagination math must be derived from the filtered result, not server totals.
+  const totalRecords = assessmentsData?.total ?? assessments.length;
+  const filteredRecords = filteredAssessments.length;
+  const totalPages = Math.max(1, Math.ceil(filteredRecords / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const sortedAssessments = useMemo(
+    () => filteredAssessments.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredAssessments, safePage]
+  );
+ 
 
   // Badges computation
   const latestBadgeAssessment = useMemo(() => {
@@ -761,7 +740,7 @@ export default function History() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {paginatedAssessments.map((assessment) => (
+                  {sortedAssessments.map((assessment) => (
                     <tr
                       key={assessment.id}
                       className={`hover:bg-muted/30 transition-colors text-sm ${
@@ -1124,30 +1103,7 @@ export default function History() {
                 title="Patient improvement badges"
                 description="Track earned badges for this patient's trajectory across the selected assessments."
               />
-              <RiskTrendChart assessments={selectedPatientHistory} />
-              
-              <div className="border border-border rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-left text-sm border-collapse">
-                  <thead className="bg-muted/50 border-b border-border">
-                    <tr>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">Date</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">Risk Score</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">BMI</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase text-xs tracking-wider">HbA1c</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {selectedPatientHistory.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((a) => (
-                      <tr key={a.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="p-3 whitespace-nowrap">{formatAssessmentDate(a.createdAt)}</td>
-                        <td className="p-3 font-bold text-foreground">{Number(a.riskScore).toFixed(1)}%</td>
-                        <td className="p-3">{Number(a.bmi).toFixed(1)}</td>
-                        <td className="p-3">{Number(a.hba1cLevel).toFixed(1)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <PatientTimeline assessments={selectedPatientHistory} />
             </div>
           )}
         </SheetContent>
