@@ -380,24 +380,10 @@ export function startAssessmentWorker(): void {
       `Assessment queue job failed (attempt ${attempt}/${QUEUE_MAX_RETRIES})`,
     );
 
-    if (job && attempt >= QUEUE_MAX_RETRIES) {
-      try {
-        await withRetry("worker.insertDLQ", async () => {
-          const pool = getPool();
-          const client = await pool.connect();
-          try {
-            await client.query(
-              `INSERT INTO dead_letter_jobs (original_job_id, payload, error_reason) VALUES ($1, $2, $3)`,
-              [job.id ?? null, JSON.stringify(job.data), err.stack || err.message]
-            );
-          } finally {
-            client.release();
-          }
-        }, 3, 500, 2);
-        logger.info({ jobId: job.id }, "Moved failed job to dead_letter_jobs (DLQ)");
-      } catch (dlqErr) {
-        logger.error({ err: dlqErr, jobId: job.id }, "Failed to write to dead letter queue");
-      }
+    const maxAttempts = job?.opts?.attempts ?? QUEUE_MAX_RETRIES;
+    const fingerprint = (job?.data as any)?.requestFingerprint;
+    if (fingerprint && attempt >= maxAttempts) {
+      MLService.activeInferenceRequests.delete(fingerprint);
     }
   });
 
@@ -406,6 +392,11 @@ export function startAssessmentWorker(): void {
       { jobId: job?.id, requestId: job?.data?.requestId },
       "Assessment queue job completed successfully",
     );
+
+    const fingerprint = (job?.data as any)?.requestFingerprint;
+    if (fingerprint) {
+      MLService.activeInferenceRequests.delete(fingerprint);
+    }
   });
 
   assessmentWorkerInstance.on("error", (err: Error) => {
