@@ -65,3 +65,13 @@ export const uploadLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many upload requests, please try again later." }
 });
+
+// Batch operation endpoints: 5 requests per minute (per user, not per IP)
+export const batchLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  limit: 5, // Limit to 5 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req as any).session?.user?.id || req.ip || "",
+  message: { error: "Too many batch requests, please try again later." }
+});
