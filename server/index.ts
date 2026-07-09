@@ -4,6 +4,7 @@ import express, { type Request, Response, NextFunction, RequestHandler } from "e
 import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
+import cookieParser from "cookie-parser";
 import connectPgSimple from "connect-pg-simple";
 import rateLimit from "express-rate-limit";
 import {
@@ -34,6 +35,7 @@ import { registerOpenApiDocs } from "./openapi";
 import { initAssessmentSocket } from "./socket/assessmentSocket";
 import { initNotesSocket } from "./socket/notesSocket";
 import { rlsContextMiddleware } from "./middleware/rlsContext";
+import { drainRlsClients, getPoolMetrics } from "./db-rls";
 
 import compression from "compression";
 
@@ -41,19 +43,28 @@ const app = express();
 app.use(compression());
 const httpServer = createServer(app);
 
-// CORS configuration - hardened to reject requests missing the Origin header
+// CORS configuration - hardened to reject requests missing the Origin header in production
 const allowedOrigins = process.env.CORS_ORIGINS 
   ? process.env.CORS_ORIGINS.split(",") 
   : [process.env.APP_URL, process.env.API_URL, "http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:3000", "http://127.0.0.1:3000"].filter(Boolean) as string[];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (browser initial load, Vite HMR, curl)
-    if (!origin) {
+    // In development, allow missing origin (for curl, local tools, Vite HMR)
+    if (!origin && process.env.NODE_ENV !== "production") {
       return callback(null, true);
     }
     
-    if (allowedOrigins.includes(origin)) {
+    // In production, require and validate Origin
+    if (!origin && process.env.NODE_ENV === "production") {
+      console.warn(
+        "CORS: Request with no Origin header blocked " +
+        "(production mode requires Origin for all requests)"
+      );
+      return callback(new Error("Origin header is required"), false);
+    }
+    
+    if (origin && allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error("Not allowed by CORS"), false);
@@ -126,6 +137,7 @@ app.use(
 
 app.use(express.urlencoded({ extended: false, limit: REQUEST_BODY_LIMIT }));
 app.use(requestIdMiddleware);
+app.use(cookieParser());
 app.use(loggingAnomalyMiddleware);
 
 // Nonce middleware - generates a unique cryptographic nonce per request for CSP
@@ -157,6 +169,11 @@ app.use(
       },
     },
     crossOriginEmbedderPolicy: false,
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
   })
 );
 
@@ -311,8 +328,10 @@ registerOpenApiDocs(app);
 
     httpServer.close(async () => {
       logger.info({ source: "express" }, "HTTP server closed");
+      logger.info({ source: "express", metrics: getPoolMetrics() }, "Pool metrics before drain");
       await closeQueue();
       logger.info({ source: "express" }, "Assessment queue closed");
+      await drainRlsClients();
       await closePool();
       logger.info({ source: "express" }, "Database pool closed");
       process.exit(0);
