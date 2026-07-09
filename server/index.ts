@@ -4,6 +4,7 @@ import express, { type Request, Response, NextFunction, RequestHandler } from "e
 import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
+import cookieParser from "cookie-parser";
 import connectPgSimple from "connect-pg-simple";
 import rateLimit from "express-rate-limit";
 import {
@@ -42,19 +43,28 @@ const app = express();
 app.use(compression());
 const httpServer = createServer(app);
 
-// CORS configuration - hardened to reject requests missing the Origin header
+// CORS configuration - hardened to reject requests missing the Origin header in production
 const allowedOrigins = process.env.CORS_ORIGINS 
   ? process.env.CORS_ORIGINS.split(",") 
   : [process.env.APP_URL, process.env.API_URL, "http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:3000", "http://127.0.0.1:3000"].filter(Boolean) as string[];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Reject requests with no Origin header (CSRF protection for clinical PHI endpoints)
-    if (!origin) {
-      return callback(new Error("Origin header required — requests without Origin are blocked for CSRF protection"), false);
+    // In development, allow missing origin (for curl, local tools, Vite HMR)
+    if (!origin && process.env.NODE_ENV !== "production") {
+      return callback(null, true);
     }
     
-    if (allowedOrigins.includes(origin)) {
+    // In production, require and validate Origin
+    if (!origin && process.env.NODE_ENV === "production") {
+      console.warn(
+        "CORS: Request with no Origin header blocked " +
+        "(production mode requires Origin for all requests)"
+      );
+      return callback(new Error("Origin header is required"), false);
+    }
+    
+    if (origin && allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error("Not allowed by CORS"), false);
@@ -127,6 +137,7 @@ app.use(
 
 app.use(express.urlencoded({ extended: false, limit: REQUEST_BODY_LIMIT }));
 app.use(requestIdMiddleware);
+app.use(cookieParser());
 app.use(loggingAnomalyMiddleware);
 
 // Nonce middleware - generates a unique cryptographic nonce per request for CSP
@@ -158,6 +169,11 @@ app.use(
       },
     },
     crossOriginEmbedderPolicy: false,
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
   })
 );
 
