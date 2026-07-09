@@ -1,18 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-const { mockInfo, mockWarn, mockError, mockResendSend } = vi.hoisted(() => ({
+const { mockInfo, mockWarn, mockError, mockSend } = vi.hoisted(() => ({
   mockInfo: vi.fn(),
   mockWarn: vi.fn(),
   mockError: vi.fn(),
-  mockResendSend: vi.fn(),
-}));
-
-vi.mock("resend", () => ({
-  Resend: vi.fn().mockImplementation(() => ({
-    emails: {
-      send: mockResendSend,
-    },
-  })),
+  mockSend: vi.fn(),
 }));
 
 vi.mock("./logger", () => ({
@@ -23,12 +15,12 @@ vi.mock("./logger", () => ({
   },
 }));
 
-vi.mock("resend", () => ({
-  Resend: vi.fn(() => ({
-    emails: {
-      send: mockSend,
-    },
-  })),
+vi.mock("nodemailer", () => ({
+  default: {
+    createTransport: vi.fn(() => ({
+      sendMail: mockSend,
+    })),
+  },
 }));
 
 import {
@@ -43,8 +35,10 @@ describe("sendVerificationEmail", () => {
     mockInfo.mockClear();
     mockWarn.mockClear();
     mockError.mockClear();
-    mockResendSend.mockReset();
-    delete process.env.RESEND_API_KEY;
+    mockSend.mockReset();
+    delete process.env.SMTP_HOST;
+    delete process.env.SMTP_USER;
+    delete process.env.SMTP_PASS;
   });
 
   afterEach(() => {
@@ -62,7 +56,7 @@ describe("sendVerificationEmail", () => {
       expect(loggedOutput).not.toContain("123456");
     } finally {
       process.env.NODE_ENV = originalEnv;
-      delete process.env.RESEND_API_KEY;
+      delete process.env.SMTP_HOST;
     }
   });
 
@@ -80,35 +74,43 @@ describe("sendVerificationEmail", () => {
     }
   });
 
-  it("returns false in production when Resend API send fails", async () => {
+  it("returns false in production when nodemailer fails", async () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
-    process.env.RESEND_API_KEY = "re_test_key";
-    mockResendSend.mockResolvedValueOnce({ data: null, error: new Error("Resend API error") });
+    process.env.SMTP_HOST = "smtp.test.com";
+    process.env.SMTP_USER = "user";
+    process.env.SMTP_PASS = "pass";
+    mockSend.mockRejectedValueOnce(new Error("SMTP auth failed"));
 
     try {
       const sent = await sendVerificationEmail("test@example.com", "123456");
       expect(sent).toBe(false);
-      expect(mockResendSend).toHaveBeenCalledOnce();
+      expect(mockSend).toHaveBeenCalledOnce();
     } finally {
       process.env.NODE_ENV = originalEnv;
-      delete process.env.RESEND_API_KEY;
+      delete process.env.SMTP_HOST;
+      delete process.env.SMTP_USER;
+      delete process.env.SMTP_PASS;
     }
   });
 
-  it("returns true in production when Resend API send succeeds", async () => {
+  it("returns true in production when nodemailer succeeds", async () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
-    process.env.RESEND_API_KEY = "re_test_key";
-    mockResendSend.mockResolvedValueOnce({ data: { id: "email-test-id" }, error: null });
+    process.env.SMTP_HOST = "smtp.test.com";
+    process.env.SMTP_USER = "user";
+    process.env.SMTP_PASS = "pass";
+    mockSend.mockResolvedValueOnce({ messageId: "test-id" });
 
     try {
       const sent = await sendVerificationEmail("test@example.com", "123456");
       expect(sent).toBe(true);
-      expect(mockResendSend).toHaveBeenCalledOnce();
+      expect(mockSend).toHaveBeenCalledOnce();
     } finally {
       process.env.NODE_ENV = originalEnv;
-      delete process.env.RESEND_API_KEY;
+      delete process.env.SMTP_HOST;
+      delete process.env.SMTP_USER;
+      delete process.env.SMTP_PASS;
     }
   });
 });
@@ -118,8 +120,10 @@ describe("sendCriticalRiskAlert", () => {
     mockInfo.mockClear();
     mockWarn.mockClear();
     mockError.mockClear();
-    mockResendSend.mockReset();
-    delete process.env.RESEND_API_KEY;
+    mockSend.mockReset();
+    delete process.env.SMTP_HOST;
+    delete process.env.SMTP_USER;
+    delete process.env.SMTP_PASS;
   });
 
   afterEach(() => {
@@ -146,16 +150,20 @@ describe("sendCriticalRiskAlert", () => {
   it("does not log mock critical risk details to console in production", async () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
-    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.SMTP_HOST = "smtp.test.com";
+    process.env.SMTP_USER = "user";
+    process.env.SMTP_PASS = "pass";
     try {
-      mockSend.mockResolvedValueOnce({ data: { id: "test-id" }, error: null });
+      mockSend.mockResolvedValueOnce({ messageId: "test-id" });
       const sent = await sendCriticalRiskAlert("doc@example.com", "Jane Doe", 85.5, 123);
       expect(sent).toBe(true);
       const loggedOutput = mockInfo.mock.calls.map((call: any) => JSON.stringify(call)).join(" ");
       expect(loggedOutput).not.toContain("CRITICAL RISK ALERT MOCK LOG");
     } finally {
       process.env.NODE_ENV = originalEnv;
-      delete process.env.RESEND_API_KEY;
+      delete process.env.SMTP_HOST;
+      delete process.env.SMTP_USER;
+      delete process.env.SMTP_PASS;
     }
   });
 });
@@ -165,7 +173,9 @@ describe("validateEmailConfig", () => {
 
   afterEach(() => {
     process.env.NODE_ENV = originalEnv;
-    delete process.env.RESEND_API_KEY;
+    delete process.env.SMTP_HOST;
+    delete process.env.SMTP_USER;
+    delete process.env.SMTP_PASS;
   });
 
   it("does not throw outside production", () => {
@@ -173,14 +183,16 @@ describe("validateEmailConfig", () => {
     expect(() => validateEmailConfig()).not.toThrow();
   });
 
-  it("throws EmailConfigurationError when production RESEND_API_KEY is missing", () => {
+  it("throws EmailConfigurationError when production SMTP_HOST is missing", () => {
     process.env.NODE_ENV = "production";
     expect(() => validateEmailConfig()).toThrow(EmailConfigurationError);
   });
 
-  it("does not throw in production when RESEND_API_KEY is set", () => {
+  it("does not throw in production when SMTP variables are set", () => {
     process.env.NODE_ENV = "production";
-    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.SMTP_HOST = "smtp.test.com";
+    process.env.SMTP_USER = "user";
+    process.env.SMTP_PASS = "pass";
     expect(() => validateEmailConfig()).not.toThrow();
   });
 });

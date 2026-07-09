@@ -5,13 +5,20 @@
  * Production: sends via Resend API.
  */
 
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { logger } from "./logger";
 
 const FROM_ADDRESS = process.env.EMAIL_FROM || "noreply@clinicalinsight.dev";
-const resend = new Resend(process.env.RESEND_API_KEY || "re_mock_123");
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
+  port: parseInt(process.env.SMTP_PORT || '587', 10),
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
-// Support test mock reference — some tests reference mockResendSend globally
+// Support test mock reference
 if (typeof globalThis !== "undefined" && !("mockResendSend" in globalThis)) {
   const noopMock: any = () => {};
   noopMock.mockRejectedValueOnce = () => noopMock;
@@ -38,9 +45,9 @@ export function validateEmailConfig(): void {
     return;
   }
 
-  if (!process.env.RESEND_API_KEY) {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
     throw new EmailConfigurationError(
-      `Missing required RESEND_API_KEY environment variable in production.`
+      `Missing required SMTP environment variables in production.`
     );
   }
 }
@@ -53,16 +60,16 @@ function logDevOtp(email: string, code: string): void {
 }
 
 /**
- * Sends an email using the Resend API.
+ * Sends an email using nodemailer.
  * Returns true when delivery succeeds (or in dev mock mode), false on failure.
  */
 async function sendEmail(options: EmailOptions): Promise<boolean> {
   const isProduction = process.env.NODE_ENV === "production";
 
-  if (!process.env.RESEND_API_KEY && isProduction) {
+  if (!process.env.SMTP_HOST && isProduction) {
     logger.error(
       { to: options.to, subject: options.subject },
-      "Email not sent — RESEND_API_KEY is not configured"
+      "Email not sent — SMTP_HOST is not configured"
     );
     return false;
   }
@@ -73,28 +80,18 @@ async function sendEmail(options: EmailOptions): Promise<boolean> {
   }
 
   try {
-    const result = await resend.emails.send({
+    await transporter.sendMail({
       from: FROM_ADDRESS,
       to: options.to,
       subject: options.subject,
       text: options.text,
       html: options.html,
     });
-    const { data, error } = result || {};
-
-    if (error) {
-      logger.error(
-        { err: error, to: options.to, subject: options.subject },
-        "Failed to send email via Resend"
-      );
-      return false;
-    }
-
     return true;
   } catch (err) {
     logger.error(
       { err, to: options.to, subject: options.subject },
-      "Exception while sending email via Resend"
+      "Exception while sending email via nodemailer"
     );
     return false;
   }
@@ -209,7 +206,11 @@ export async function sendCriticalRiskAlert(
         </table>
 
         <p style="line-height: 1.5; color: #475569;">
-          Please log in to the dashboard to review the patient's full vital stats, history, and model recommendations immediately.
+          Please log in to the dashboard to review the patient's full vital stats, history, and model recommendations immediately:
+          <br/><br/>
+          <a href="${process.env.APP_URL || 'http://localhost:5000'}/history?assessmentId=${assessmentId}" style="background: #2563EB; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">
+            View Assessment
+          </a>
         </p>
       </div>
       <div style="background: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 14px 24px; text-align: center; font-size: 11px; color: #64748B;">
