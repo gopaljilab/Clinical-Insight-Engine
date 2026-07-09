@@ -106,6 +106,19 @@ export default function ProgressTracking() {
       dateFull: formatReadableDate(a.createdAt, { includeTime: false }),
     }));
 
+    const latest = chartData[chartData.length - 1];
+const previous = chartData[0];
+
+const getTrend = (current: number, old: number, lowerBetter = true) => {
+  if (current === old) return "No change";
+
+  const improved = lowerBetter
+    ? current < old
+    : current > old;
+
+  return improved ? "Improved" : "Declined";
+};
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -171,6 +184,87 @@ export default function ProgressTracking() {
 
         {chartData.length > 0 && (
           <>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+  <Card>
+    <CardContent className="p-4">
+      <p className="text-sm text-slate-500">BMI Trend</p>
+      <h3 className="text-lg font-bold">
+        {getTrend(latest.bmi, previous.bmi)}
+      </h3>
+    </CardContent>
+  </Card>
+
+  <Card>
+    <CardContent className="p-4">
+      <p className="text-sm text-slate-500">HbA1c Trend</p>
+      <h3 className="text-lg font-bold">
+        {getTrend(latest.hba1cLevel, previous.hba1cLevel)}
+      </h3>
+    </CardContent>
+  </Card>
+
+  <Card>
+    <CardContent className="p-4">
+      <p className="text-sm text-slate-500">
+        Blood Glucose Trend
+      </p>
+      <h3 className="text-lg font-bold">
+        {getTrend(
+          latest.bloodGlucoseLevel,
+          previous.bloodGlucoseLevel
+        )}
+      </h3>
+    </CardContent>
+  </Card>
+
+  <Card>
+    <CardContent className="p-4">
+      <p className="text-sm text-slate-500">
+        Risk Score Trend
+      </p>
+      <h3 className="text-lg font-bold">
+        {getTrend(
+          latest.riskScore,
+          previous.riskScore
+        )}
+      </h3>
+    </CardContent>
+  </Card>
+</div>
+
+<Card>
+  <CardHeader>
+    <CardTitle>Health Summary</CardTitle>
+    <CardDescription>
+      Overall progress based on historical assessments
+    </CardDescription>
+  </CardHeader>
+
+  <CardContent>
+    <p>
+      Total Assessments: {chartData.length}
+    </p>
+
+    <p>
+      First Assessment:
+      {" "}
+      {previous.dateFull}
+    </p>
+
+    <p>
+      Latest Assessment:
+      {" "}
+      {latest.dateFull}
+    </p>
+
+    <p>
+      Monitoring Duration:
+      {" "}
+      {chartData.length > 1 ? "Long-term tracking available" : "Single assessment available"}
+    </p>
+  </CardContent>
+</Card>
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
                 <HeartPulse className="h-5 w-5 text-blue-600 dark:text-blue-400" />
