@@ -57,7 +57,7 @@ uploadRouter.post(
         const parsed = Papa.parse(csvString, { header: true, skipEmptyLines: true });
 
         if (parsed.data.length > 100) {
-          return res.status(400).json({ message: "api.errors.csvLimitExceeded" });
+          return res.status(400).json({ message: "CSV exceeds maximum limit of 100 rows." });
         }
         
         // Phase 1: Validate all rows and collect predictions
@@ -76,6 +76,10 @@ uploadRouter.post(
               ...row,
               hypertension: hypertensionVal === 'true' || hypertensionVal === 'yes' || hypertensionVal === '1',
               heartDisease: heartDiseaseVal === 'true' || heartDiseaseVal === 'yes' || heartDiseaseVal === '1',
+              age: parseInt(String(row.age ?? ''), 10) || 0,
+              bmi: parseFloat(String(row.bmi ?? '')) || 0,
+              hba1cLevel: parseFloat(String(row.hba1cLevel ?? '')) || 0,
+              bloodGlucoseLevel: parseFloat(String(row.bloodGlucoseLevel ?? '')) || 0,
             };
 
             const parseResult = insertAssessmentSchema.safeParse(rowData);
@@ -112,7 +116,8 @@ uploadRouter.post(
         }
 
         return res.status(200).json({ 
-          message: "api.messages.importSuccess",
+          message: "Lab results imported successfully",
+          processed,
           imported: created,
           created,
           failed

@@ -66,7 +66,13 @@ class PHIRedactor:
             r'\b\d+\s+(?:Avenue|Ave|Street|St|Road|Rd|Way|Drive|Dr|Boulevard|Blvd|Plaza|Pl)\s+of\s+the\s+[A-Z][a-zA-Z0-9\s]*\b',
             re.IGNORECASE
         )
-        self.zip_regex = re.compile(r'\b\d{5}(?:-\d{4})?\b')
+        # Context-aware zip code regex — only redacts 5-digit numbers preceded by zip/postal
+        # indicators, preventing false positives against clinical measurements (CPT codes,
+        # MRNs, lab values, encounter IDs, etc.)
+        self.zip_regex = re.compile(
+            r'(\b(?:zip(?:\s*code)?|postal(?:\s*code)?|postcode)[\s:]*)(\d{5}(?:-\d{4})?)',
+            re.IGNORECASE
+        )
 
         # Heuristics for Patient Name detection in text
         # Sorted by length to avoid premature matches
@@ -123,7 +129,7 @@ class PHIRedactor:
             val = match.group(2)
             if val.lower() in {"yes", "no", "male", "female", "other", "never", "former", "current"}:
                 return match.group(0)
-            if prefix.lower() == "id" and val.isdigit() and len(val) <= 2:
+            if prefix.lower() == "id" and val.isdigit():
                 return match.group(0)
             
             start_idx = match.group(0).index(val)
@@ -134,7 +140,7 @@ class PHIRedactor:
         # 6. Redact Addresses
         text = self.street_regex1.sub("[ADDRESS]", text)
         text = self.street_regex2.sub("[ADDRESS]", text)
-        text = self.zip_regex.sub("[ADDRESS]", text)
+        text = self.zip_regex.sub(lambda m: m.group(1) + "[ADDRESS]", text)
 
         # 7. Redact names based on indicators / patterns
         def name_replacer(match):

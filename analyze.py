@@ -15,6 +15,12 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import pickle
 import gc
 
+try:
+    from fairlearn.metrics import demographic_parity_difference, equalized_odds_difference
+    FAIRLEARN_AVAILABLE = True
+except ImportError:
+    FAIRLEARN_AVAILABLE = False
+
 from services.safe_csv_reader import read_csv_safely, SafeCSVError
 
 LOCK_TIMEOUT = 60
@@ -115,8 +121,12 @@ def train_model_pipeline():
     
     # Check for missing values and unrealistic zeros
     clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness']
+    thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50, 'insulin': 0, 'skin_thickness': 0}
+
     for col in clinical_cols:
-        thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50, 'insulin': 0, 'skin_thickness': 0}
+        # Dataset may not include all columns (e.g., older/trimmed CSVs).
+        if col not in df.columns:
+            continue
         invalid_mask = (df[col] < thresholds.get(col, 0)) | (df[col].isna())
         if invalid_mask.any():
             df.loc[invalid_mask, col] = df[col].median()
@@ -129,7 +139,9 @@ def train_model_pipeline():
     df = pd.concat([df, smoking_dummies], axis=1)
     
     features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness', 'gender_Male'] + list(smoking_dummies.columns)
-    
+    # Only keep features that exist in the dataset (some trimmed datasets may not include insulin/skin_thickness)
+    features = [f for f in features if f in df.columns]
+
     X = df[features]
     y = df['diabetes']
     
@@ -164,7 +176,10 @@ def train_model_pipeline():
     return model, scaler, features, cov_beta
 
 
-def _compute_dataset_hash(filepath: str) -> str | None:
+from typing import Optional
+
+
+def _compute_dataset_hash(filepath: str) -> Optional[str]:
     """Compute SHA-256 hash of the dataset file contents."""
     if not os.path.exists(filepath):
         return None
@@ -416,6 +431,29 @@ def train_and_evaluate():
         "dataset_mtime": mtime,
         "dataset_size": size,
     }
+
+    if FAIRLEARN_AVAILABLE and 'gender_Male' in features:
+        try:
+            gender_idx = features.index('gender_Male')
+            sensitive_features_test = X_test[:, gender_idx]
+            dpd = demographic_parity_difference(
+                y_true=y_test,
+                y_pred=y_pred,
+                sensitive_features=sensitive_features_test
+            )
+            eod = equalized_odds_difference(
+                y_true=y_test,
+                y_pred=y_pred,
+                sensitive_features=sensitive_features_test
+            )
+            result["fairness_report"] = {
+                "sensitive_attribute": "gender",
+                "demographic_parity_difference": float(dpd),
+                "equalized_odds_difference": float(eod),
+                "interpretation": "Values closer to 0 indicate better fairness between groups. Higher values denote greater disparity."
+            }
+        except Exception as e:
+            result["fairness_report"] = {"error": f"Failed to compute fairness metrics: {str(e)}"}
 
     # Retrain on full data and save
     scaler_full = StandardScaler()
@@ -1050,6 +1088,8 @@ if __name__ == "__main__":
         model, scaler, features, cov_beta = get_model()
         result = get_counterfactuals(model, scaler, features, data, cov_beta)
         print(json.dumps(result))
+    elif len(sys.argv) > 1 and sys.argv[1] == "train_and_evaluate":
+        train_and_evaluate()
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")

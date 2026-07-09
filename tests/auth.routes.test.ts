@@ -94,6 +94,34 @@ describe("Auth Router - Resend OTP integration tests", () => {
     expect(res.body).toHaveProperty("message", "Email is required.");
   });
 
+  describe("login mode resend", () => {
+  it("resends OTP for existing user", async () => {
+    mockSelectDbUser([
+      {
+        id: "user-1",
+        emailVerified: true,
+      },
+    ]);
+
+    mockTransactionSuccess();
+
+    const res = await request(app)
+      .post("/api/auth/resend-otp")
+      .send({
+        email: "user-1@clinic.com",
+        mode: "login",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("success", true);
+    expect(res.body).toHaveProperty(
+      "pendingEmail",
+      "user-1@clinic.com"
+    );
+
+    expect(mockSendVerificationEmail).toHaveBeenCalledTimes(1);
+  });
+});
 
   describe("register mode resend", () => {
     it("returns 404 when user is not found in database", async () => {

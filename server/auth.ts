@@ -11,7 +11,7 @@ import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswo
 import { AuthRepository } from "./repositories/auth.repository";
 import { getDb } from "./db";
 import { and, eq, gte, sql } from "drizzle-orm";
-import { passwordResetTokens, users } from "@shared/schema";
+import { passwordResetTokens, users, emailVerificationTokens } from "@shared/schema";
 
 const authRepository = new AuthRepository();
 
@@ -384,6 +384,7 @@ export function createAuthRouter(): Router {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     try {
+
       const user = await authRepository.findUserByEmail(email);
 
       if (!user) {
@@ -433,6 +434,7 @@ export function createAuthRouter(): Router {
       const user = await authRepository.findUserByEmail(email);
       if (!user) {
         await storage.recordLoginAudit({
+          userId: "system",
           ipAddress: req.ip,
           userAgent: req.headers["user-agent"],
           loginStatus: "otp_failed",
@@ -506,7 +508,7 @@ export function createAuthRouter(): Router {
       const outcome = await authRepository.verifyDbTokenAndSetVerified(user, code);
 
       if (!outcome.success) {
-        return res.status(outcome.status).json({ message: outcome.message });
+return res.status((outcome as any).status ?? 400).json({ message: (outcome as any).message });
       }
 
       // Upgrade session to fully authenticated
@@ -612,6 +614,7 @@ out
     try {
       const db = getDb();
 
+      const tokenHash = createHash("sha256").update(token).digest("hex");
       const passwordHash = hashPassword(newPassword);
 
       await db.transaction(async (tx: any) => {
@@ -620,7 +623,7 @@ out
           .set({ used: true })
           .where(
             and(
-              eq(passwordResetTokens.token, token),
+              eq(passwordResetTokens.token, tokenHash),
               eq(passwordResetTokens.used, false),
               gte(passwordResetTokens.expiresAt, new Date()),
             ),
@@ -640,6 +643,7 @@ out
         }
       });
 
+      await authRepository.claimPasswordResetToken(token, passwordHash);
       return res.json({ success: true, message: "Password has been reset successfully." });
     } catch (err: any) {
       if (err.statusCode === 400) {
@@ -701,5 +705,4 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
   return res.status(403).json({ message: "Admin access required." });
 }
-
 
