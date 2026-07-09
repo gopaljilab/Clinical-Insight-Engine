@@ -1,6 +1,14 @@
 import { Queue, Worker, Job, BackoffOptions } from "bullmq";
 import { storage } from "./storage";
 import IORedis from "ioredis";
+import { safeExecFile } from "./utils/exec";
+import { promisify } from "util";
+import path from "path";
+import os from "os";
+import { randomUUID } from "crypto";
+import { writeFile, unlink } from "fs/promises";
+import { existsSync } from "fs";
+import { fileURLToPath } from "url";
 import { sendCriticalRiskAlert } from "./email";
 import { logger } from "./logger";
 import { MLService, calculateClinicalFallback } from "./services/mlService";
@@ -21,28 +29,7 @@ const QUEUE_LOCK_DURATION = parseInt(getConfig("QUEUE_LOCK_DURATION", "30000"), 
 const QUEUE_STALLED_INTERVAL = parseInt(getConfig("QUEUE_STALLED_INTERVAL", "30000"), 10);
 const QUEUE_MAX_STALLED_COUNT = parseInt(getConfig("QUEUE_MAX_STALLED_COUNT", "3"), 10);
 
-const backoff: BackoffOptions = {
-  type: "exponential",
-  delay: QUEUE_BACKOFF_DELAY,
-};
 
-export function getPythonExecutable(): string {
-  const candidates =
-    process.platform === "win32"
-      ? [path.resolve(".venv", "Scripts", "python.exe"), path.resolve("venv", "Scripts", "python.exe")]
-      : [path.resolve(".venv", "bin", "python"), path.resolve("venv", "bin", "python")];
-
-  for (const c of candidates) {
-    try {
-      require("fs").accessSync(c);
-      return c;
-    } catch {
-      // ignore
-    }
-  }
-
-  return process.platform === "win32" ? "python" : "python3";
-}
 
 let redisConnectionInstance: IORedis | null = null;
 let assessmentQueueInstance: Queue | null = null;
