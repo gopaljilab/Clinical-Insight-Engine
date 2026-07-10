@@ -213,7 +213,7 @@ export class AuthRepository {
       try {
         await tx.execute(sql`DELETE FROM "session" WHERE (sess->'user'->>'id') = ${userId}`);
       } catch (sessErr) {
-        console.error("Failed to clear user sessions upon password reset", sessErr);
+        logger.error({ err: sessErr }, "Failed to clear user sessions upon password reset");
       }
     });
   }
