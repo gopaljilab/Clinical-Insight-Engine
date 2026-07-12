@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import { execFile, spawn, ChildProcess } from "child_process";
 import { existsSync } from "fs";
+import { access } from "fs/promises";
 import { writeFile, unlink } from "fs/promises";
 import os from "os";
 import path from "path";
@@ -345,11 +346,29 @@ class PythonDaemonManager {
   private pendingRequests = new Map<string, PendingRequest>();
   private isRestarting = false;
   private restartAttempts = 0;
+  private maxRestartAttempts = 10;
+  private baseDelayMs = 1000;
+  private maxDelayMs = 300000;
+  private daemonStatus: 'stopped' | 'running' | 'crashed' = 'stopped';
+  private fallbackMode = false;
+  private circuitBreakerState: 'closed' | 'open' | 'half-open' = 'closed';
+  private circuitBreakerFailures = 0;
+  private circuitBreakerThreshold = 10;
+  private circuitBreakerResetTimeoutMs = 60000;
+  private lastFailureTime = 0;
+  private daemonStartTime = 0;
+  private lastCrashTime = 0;
+  private restartAttempts = 0;
 
   private init() {
     if (this.process) return;
 
-    this.restartAttempts = 0;
+    if (this.isCircuitBreakerOpen()) {
+      logger.warn("Circuit breaker is open — refusing to start daemon");
+      this.fallbackMode = true;
+      return;
+    }
+
     logger.info("Starting persistent Python ML daemon...");
     const pythonExe = getPythonExecutable();
 
@@ -403,6 +422,13 @@ class PythonDaemonManager {
 
     this.process.on("close", exitHandler);
     this.process.on("error", errorHandler);
+
+    this.daemonStatus = 'running';
+    this.daemonStartTime = Date.now();
+    this.restartAttempts = 0;
+    this.circuitBreakerFailures = 0;
+    this.circuitBreakerState = 'closed';
+    this.fallbackMode = false;
   }
 
   private cleanup() {
@@ -422,6 +448,17 @@ class PythonDaemonManager {
     if (this.isRestarting) return;
     this.isRestarting = true;
 
+    this.daemonStatus = 'crashed';
+    this.lastCrashTime = Date.now();
+    this.restartAttempts++;
+
+    this.circuitBreakerFailures++;
+    if (this.circuitBreakerFailures >= this.circuitBreakerThreshold) {
+      this.circuitBreakerState = 'open';
+      this.lastFailureTime = Date.now();
+      logger.error("Circuit breaker OPEN — ML daemon restarts suspended");
+    }
+
     // Reject all pending requests with a crash error
     const activeRequests = Array.from(this.pendingRequests.entries());
     this.pendingRequests.clear();
@@ -430,18 +467,63 @@ class PythonDaemonManager {
       pending.reject(new Error("Python daemon crashed."));
     }
 
-    this.restartAttempts++;
-    if (this.restartAttempts > MAX_DAEMON_RESTART_ATTEMPTS) {
-      logger.error({ attempts: this.restartAttempts }, "Python daemon exceeded max restart attempts — giving up");
+    if (this.restartAttempts > this.maxRestartAttempts) {
+      logger.error(
+        `Python daemon crashed ${this.restartAttempts} times consecutively. ` +
+        `Giving up. Falling back to JS-based predictions.`
+      );
+      this.daemonStatus = 'crashed';
+      this.fallbackMode = true;
+      this.isRestarting = false;
       return;
     }
 
-    const delay = DAEMON_RESTART_BASE_DELAY_MS * Math.pow(2, this.restartAttempts - 1);
-    logger.warn({ attempt: this.restartAttempts, delay }, "Scheduling Python daemon restart with backoff");
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s, 64s, 128s, 256s, 300s (capped)
+    const delayMs = Math.min(
+      this.baseDelayMs * Math.pow(2, this.restartAttempts - 1),
+      this.maxDelayMs
+    );
+
+    // Add jitter: ±25% random variation to prevent thundering herd
+    const jitter = delayMs * (0.75 + Math.random() * 0.5);
+    const actualDelay = Math.round(jitter);
+
+    logger.warn(
+      `Python daemon crashed (attempt ${this.restartAttempts}/${this.maxRestartAttempts}). ` +
+      `Restarting in ${Math.round(actualDelay / 1000)}s...`
+    );
+
     setTimeout(() => {
       this.isRestarting = false;
       this.init();
-    }, delay);
+    }, actualDelay);
+  }
+
+  private isCircuitBreakerOpen(): boolean {
+    if (this.circuitBreakerState === 'open') {
+      if (Date.now() - this.lastFailureTime > this.circuitBreakerResetTimeoutMs) {
+        this.circuitBreakerState = 'half-open';
+        logger.info('Circuit breaker HALF-OPEN — allowing trial ML daemon start');
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  public getStatus() {
+    return {
+      daemonStatus: this.daemonStatus,
+      circuitBreakerState: this.circuitBreakerState,
+      restartAttempts: this.restartAttempts,
+      maxRestartAttempts: this.maxRestartAttempts,
+      fallbackMode: this.fallbackMode,
+      uptime: this.daemonStatus === 'running' && this.daemonStartTime > 0
+        ? Math.floor((Date.now() - this.daemonStartTime) / 1000)
+        : 0,
+      lastCrashTime: this.lastCrashTime ? new Date(this.lastCrashTime).toISOString() : null,
+      pendingRequests: this.pendingRequests.size,
+    };
   }
 
   public async predict(input: unknown): Promise<PredictionResult> {
@@ -502,6 +584,16 @@ class PythonDaemonManager {
         }
       });
     });
+  }
+
+  public enableFallbackMode() {
+    this.fallbackMode = true;
+    this.daemonStatus = 'crashed';
+    logger.warn("ML daemon fallback mode enabled — using JS-based predictions");
+  }
+
+  public isInFallbackMode(): boolean {
+    return this.fallbackMode;
   }
 
   public shutdown() {

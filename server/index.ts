@@ -276,9 +276,19 @@ registerOpenApiDocs(app);
   app.use("/api/patient", patientPortalRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
-  safeExecML(getPythonExecutable(), ["analyze.py", "train"])
-    .then(() => logger.info({ source: "ml" }, "ML model ready."))
-    .catch((err: unknown) => logger.warn({ source: "ml" }, `ML warmup warning: ${(err as Error).message}`));
+  const warmupResult = await safeExecML(getPythonExecutable(), ["analyze.py", "train"])
+    .then(() => {
+      logger.info({ source: "ml" }, "ML model ready.");
+      return true;
+    })
+    .catch((err: unknown) => {
+      logger.warn({ source: "ml" }, `ML warmup warning: ${(err as Error).message}`);
+      return false;
+    });
+
+  if (!warmupResult) {
+    logger.warn("Server starting in degraded mode (ML model unavailable)");
+  }
   initAssessmentSocket(httpServer);
   initNotesSocket(httpServer);
   await registerRoutes(httpServer, app);

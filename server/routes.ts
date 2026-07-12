@@ -22,7 +22,7 @@ import {
 } from "./middleware/rateLimit";
 import { setCsrfToken, requireCsrfToken } from "./middleware/csrf";
 import { rateLimit } from "express-rate-limit";
-import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
+import { MLService, pythonDaemon, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
 import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
@@ -692,6 +692,10 @@ export async function registerRoutes(
       logger.error({ err }, "Admin model retrain error:");
       res.status(500).json({ message: (err as any).stderr || "Model retraining failed." });
     }
+  });
+
+  app.get("/api/admin/ml/status", requireAuth, requireAdmin, async (_req, res) => {
+    res.json(pythonDaemon.getStatus());
   });
 
   app.use("/api/upload", uploadRouter);
