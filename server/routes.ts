@@ -20,8 +20,9 @@ import {
   adminLimiter,
   exportLimiter,
 } from "./middleware/rateLimit";
+import { setCsrfToken, requireCsrfToken } from "./middleware/csrf";
 import { rateLimit } from "express-rate-limit";
-import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
+import { MLService, pythonDaemon, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
 import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
@@ -193,6 +194,12 @@ export async function registerRoutes(
     });
   });
 
+  // CSRF token endpoint — clients call this to get a csrf-token cookie
+  app.get("/api/csrf-token", (req, res) => {
+    setCsrfToken(req, res);
+    res.json({ token: res.locals.csrfToken });
+  });
+
   // Mount auth router
   app.use("/api/auth", authRouter);
   app.use("/api/ingest", fhirRouter);
@@ -204,6 +211,7 @@ export async function registerRoutes(
     api.assessments.preview.path,
     requireAuth,
     requireVerified,
+    requireCsrfToken,
     previewLimiter,
     validateDTO(api.assessments.preview.input),
     async (req, res) => {
@@ -580,7 +588,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
+  app.patch("/api/admin/users/:id", requireAuth, requireAdmin, requireCsrfToken, async (req, res) => {
     try {
       const id = req.params.id as string;
       const { isActive, role } = req.body;
@@ -634,7 +642,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/model/retrain", requireAuth, requireAdmin, async (req, res) => {
+  app.post("/api/admin/model/retrain", requireAuth, requireAdmin, requireCsrfToken, async (req, res) => {
     try {
       const { stdout, stderr } = await execFileAsync(
         getPythonExecutable(),
@@ -684,6 +692,10 @@ export async function registerRoutes(
       logger.error({ err }, "Admin model retrain error:");
       res.status(500).json({ message: (err as any).stderr || "Model retraining failed." });
     }
+  });
+
+  app.get("/api/admin/ml/status", requireAuth, requireAdmin, async (_req, res) => {
+    res.json(pythonDaemon.getStatus());
   });
 
   app.use("/api/upload", uploadRouter);

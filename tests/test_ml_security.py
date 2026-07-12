@@ -72,6 +72,18 @@ class TestSafeUnpickler:
         denied = any("malicious.module".startswith(p) for p in su.ALLOWED_MODULE_PREFIXES)
         assert denied is False
 
+    def test_builtins_eval_rejected(self):
+        """SafeUnpickler rejects builtins.eval (RCE prevention)."""
+        su = SafeUnpickler.__new__(SafeUnpickler)
+        with pytest.raises(pickle.UnpicklingError, match="builtins|forbidden"):
+            su.find_class("builtins", "eval")
+
+    def test_builtins_exec_rejected(self):
+        """SafeUnpickler rejects builtins.exec (RCE prevention)."""
+        su = SafeUnpickler.__new__(SafeUnpickler)
+        with pytest.raises(pickle.UnpicklingError, match="builtins|forbidden"):
+            su.find_class("builtins", "exec")
+
 
 class TestSignatureFunctions:
     def test_compute_signature_returns_hex_string(self):
