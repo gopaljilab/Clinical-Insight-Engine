@@ -11,6 +11,7 @@ import { searchQuerySchema, assessmentsQuerySchema, cohortQuerySchema } from "..
 import { canAccessPatientRecord } from "../services/authz/patient-access";
 import { logAccessAttempt } from "../security/access-audit";
 import { validateDTO } from "../middleware/validateDTO";
+import { getSafeServerErrorMessage } from "../security/errorSanitizer";
 import { existsSync } from "fs";
 import { execFile } from "child_process";
 import { fileURLToPath } from "url";
@@ -51,7 +52,8 @@ export const previewAssessment = async (req: Request, res: Response) => {
     if ((err as Error).message === "Clinical assessment timed out." || (err as Error).message.includes("timed out")) {
       return res.status(503).json({ message: "Clinical assessment preview timed out." });
     }
-    return res.status(500).json({ message: (err as Error).message || "Internal server error" });
+    logger.error({ err, endpoint: "previewAssessment" }, "Error in preview assessment");
+    return res.status(500).json({ message: getSafeServerErrorMessage(err) });
   }
 };
 
@@ -74,7 +76,8 @@ export const simulateWhatIf = async (req: Request, res: Response) => {
     if ((err as Error).message === "Clinical assessment timed out." || (err as Error).message.includes("timed out")) {
       return res.status(503).json({ message: "What-if assessment timed out." });
     }
-    return res.status(500).json({ message: (err as Error).message || "Internal server error" });
+    logger.error({ err, endpoint: "simulateWhatIf" }, "Error in what-if simulation");
+    return res.status(500).json({ message: getSafeServerErrorMessage(err) });
   }
 };
 
@@ -404,7 +407,7 @@ export const searchAssessments = async (req: Request, res: Response) => {
           "Injection-like pattern detected in search query parameter",
           req,
           {
-            matchedPattern: analysis.pattern,
+            matchedPattern: (analysis as any).pattern,
             userId: (req.session.user)?.id,
           }
         );
@@ -436,7 +439,7 @@ export const searchAssessments = async (req: Request, res: Response) => {
           "Validated search term contains a suspicious pattern",
           req,
           {
-            matchedPattern: analysis.pattern,
+            matchedPattern: (analysis as any).pattern,
             userId: (req.session.user)?.id,
           }
         );

@@ -473,6 +473,7 @@ describe("Python inference", () => {
     try {
       const res = await request(app)
         .post("/api/assessments/preview")
+        .set("x-api-key", "test-key")
         .send(validPayload);
 
       expect(res.status).toBe(200);
@@ -493,6 +494,7 @@ describe("Python inference", () => {
     try {
       const res = await request(app)
         .post("/api/assessments/preview")
+        .set("x-api-key", "test-key")
         .send(validPayload);
 
       expect(res.status).toBe(200);
@@ -514,6 +516,7 @@ describe("Python inference", () => {
     try {
       const res = await request(app)
       .post("/api/assessments/preview")
+      .set("x-api-key", "test-key")
       .send(validPayload);
       
       expect(predictSpy).toHaveBeenCalledTimes(1);

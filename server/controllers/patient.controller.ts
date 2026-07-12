@@ -62,8 +62,10 @@ export const registerPatient = async (req: Request, res: Response) => {
       patientName: body.patientName,
       email: body.email,
       passwordHash,
-      phone: body.phone ?? null,
+      // patient_users.phone exists in DB schema but older repo typing may not include it
+      phone: ((body as any).phone ?? null) as any,
       isActive: true,
+
       emailVerified: false,
     });
 

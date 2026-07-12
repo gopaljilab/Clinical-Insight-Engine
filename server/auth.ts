@@ -11,7 +11,7 @@ import { registerDTOSchema, loginDTOSchema, forgotPasswordDTOSchema, resetPasswo
 import { AuthRepository } from "./repositories/auth.repository";
 import { getDb } from "./db";
 import { and, eq, gte, sql } from "drizzle-orm";
-import { passwordResetTokens, users } from "@shared/schema";
+import { passwordResetTokens, users, emailVerificationTokens } from "@shared/schema";
 
 const authRepository = new AuthRepository();
 
@@ -513,9 +513,9 @@ const outcome: VerifyOutcome = await db.transaction(async (tx) => {
   if (token.verificationCode !== otp) {
     const newAttemptCount = (token.attemptCount ?? 0) + 1;
 
-    await tx
+await tx
       .update(emailVerificationTokens)
-      .set({ attemptCount: newAttemptCount })
+      .set({ attemptCount: newAttemptCount } as any)
       .where(eq(emailVerificationTokens.id, token.id));
 
     return {
@@ -525,18 +525,16 @@ const outcome: VerifyOutcome = await db.transaction(async (tx) => {
     };
   }
 
-  await tx
+await tx
     .update(emailVerificationTokens)
-    .set({ used: true })
+    .set({ used: true } as any)
     .where(eq(emailVerificationTokens.id, token.id));
 
   return { success: true as const };
 });
 
 if (!outcome.success) {
-  return res.status(outcome.status).json({
-    message: outcome.message,
-  });
+return res.status(400).json({ message: (outcome as any).message });
 }
     
 
@@ -616,7 +614,7 @@ if (!outcome.success) {
       const outcome = await authRepository.verifyDbTokenAndSetVerified(user, code);
 
       if (!outcome.success) {
-        return res.status(outcome.status).json({ message: outcome.message });
+return res.status((outcome as any).status ?? 400).json({ message: (outcome as any).message });
       }
 
       // Upgrade session to fully authenticated

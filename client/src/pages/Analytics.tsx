@@ -3,10 +3,12 @@ import { useMemo } from "react";
 import { useAnalytics, type CriticalAlert } from "@/hooks/use-analytics";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Activity, Users, AlertTriangle, BarChart3 } from "lucide-react";
+import { Activity, Users, AlertTriangle, BarChart3, Download } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { EmptyState } from "@/components/EmptyState";
 import { formatReadableDate } from "@/utils/dateFormat";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 const COLORS = {
   LOW: "#10b981", // Emerald 500
@@ -16,6 +18,35 @@ const COLORS = {
 
 export default function Analytics() {
   const { data: stats, isLoading, error } = useAnalytics();
+  const { toast } = useToast();
+
+  const handleResearchExport = async () => {
+    try {
+      const response = await fetch("/api/exports/research.csv");
+      if (!response.ok) throw new Error("Export failed");
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "research_cohort.csv";
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Export Successful",
+        description: "Anonymized cohort data has been exported.",
+      });
+    } catch (err) {
+      toast({
+        title: "Export Failed",
+        description: "There was an error exporting the research data.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const distData = useMemo(
     () =>
@@ -108,9 +139,14 @@ export default function Analytics() {
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-black tracking-tight text-foreground">Provider Analytics</h1>
-            <p className="text-muted-foreground">Population health management and risk distribution across your patients.</p>
+          <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-3xl font-black tracking-tight text-foreground">Provider Analytics</h1>
+              <p className="text-muted-foreground">Population health management and risk distribution across your patients.</p>
+            </div>
+            <Button onClick={handleResearchExport} variant="outline" className="flex items-center gap-2">
+              <Download className="w-4 h-4" /> Secure Research Export
+            </Button>
           </div>
 
           <div className="grid gap-6 md:grid-cols-3">
