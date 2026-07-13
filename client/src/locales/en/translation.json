@@ -262,28 +262,26 @@
       "descriptionNone": "Trend charts will appear here once assessment results are available for this account.",
       "actionLabel": "Refresh Trends"
     }
-  }
+  },
   "patientEducation": {
-  "title": "Patient Health Education",
-  "healthyDiet": "Maintain a balanced diet rich in vegetables, fruits, whole grains, and lean proteins.",
-  "physicalActivity": "Engage in at least 150 minutes of moderate physical activity every week.",
-  "weightManagement": "Maintain a healthy body weight to reduce diabetes-related complications.",
-  "bloodSugarMonitoring": "Regularly monitor your blood glucose levels and follow your healthcare provider's guidance.",
-  "medicationAdherence": "Take prescribed medications consistently and never stop treatment without medical advice.",
-  "regularCheckups": "Attend regular medical checkups to identify and prevent health complications early."
-},
-
-"followUpReminders": {
-  "title": "Medical Follow-up Reminders",
-  "appointment": "Schedule your next healthcare appointment on time for proper monitoring.",
-  "hba1cTest": "Repeat HbA1c testing according to your doctor's recommendation.",
-  "glucoseCheck": "Track your blood glucose regularly to monitor your diabetes risk.",
-  "lifestyleReview": "Review your diet, exercise routine, and lifestyle goals periodically."
-},
-
-"riskExplanation": {
-  "lowRisk": "Your current diabetes risk is low. Continue maintaining healthy lifestyle habits and routine screenings.",
-  "moderateRisk": "Your diabetes risk is moderate. Improving diet, increasing physical activity, and regular monitoring can help reduce future risk.",
-  "highRisk": "Your diabetes risk is high. Consult a healthcare professional for a detailed prevention and management plan."
-}
+    "title": "Patient Health Education",
+    "healthyDiet": "Maintain a balanced diet rich in vegetables, fruits, whole grains, and lean proteins.",
+    "physicalActivity": "Engage in at least 150 minutes of moderate physical activity every week.",
+    "weightManagement": "Maintain a healthy body weight to reduce diabetes-related complications.",
+    "bloodSugarMonitoring": "Regularly monitor your blood glucose levels and follow your healthcare provider's guidance.",
+    "medicationAdherence": "Take prescribed medications consistently and never stop treatment without medical advice.",
+    "regularCheckups": "Attend regular medical checkups to identify and prevent health complications early."
+  },
+  "followUpReminders": {
+    "title": "Medical Follow-up Reminders",
+    "appointment": "Schedule your next healthcare appointment on time for proper monitoring.",
+    "hba1cTest": "Repeat HbA1c testing according to your doctor's recommendation.",
+    "glucoseCheck": "Track your blood glucose regularly to monitor your diabetes risk.",
+    "lifestyleReview": "Review your diet, exercise routine, and lifestyle goals periodically."
+  },
+  "riskExplanation": {
+    "lowRisk": "Your current diabetes risk is low. Continue maintaining healthy lifestyle habits and routine screenings.",
+    "moderateRisk": "Your diabetes risk is moderate. Improving diet, increasing physical activity, and regular monitoring can help reduce future risk.",
+    "highRisk": "Your diabetes risk is high. Consult a healthcare professional for a detailed prevention and management plan."
+  }
 }
