@@ -749,7 +749,6 @@ out
         }
       });
 
-      await authRepository.claimPasswordResetToken(token, passwordHash);
       return res.json({ success: true, message: "Password has been reset successfully." });
     } catch (err: any) {
       if (err.statusCode === 400) {
