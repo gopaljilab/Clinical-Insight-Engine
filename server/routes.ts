@@ -701,9 +701,27 @@ export async function registerRoutes(
   app.use("/api/upload", uploadRouter);
 
   // Endpoint to capture and log client-side React errors
-  app.post("/api/logs/client-error", (req, res) => {
+  // Requires authentication and applies rate limiting + input sanitization
+  const clientErrorLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many error reports. Please try again later." },
+  });
+
+  function sanitizeLogField(str: unknown, maxLength: number): string {
+    if (typeof str !== "string") return "";
+    return str.replace(/<[^>]*>/g, "").slice(0, maxLength);
+  }
+
+  app.post("/api/logs/client-error", requireAuth, clientErrorLimiter, (req, res) => {
     try {
-      const { message, stack, componentStack, url, timestamp } = req.body;
+      const message = sanitizeLogField(req.body?.message, 500);
+      const stack = sanitizeLogField(req.body?.stack, 2000);
+      const componentStack = sanitizeLogField(req.body?.componentStack, 2000);
+      const url = sanitizeLogField(req.body?.url, 500);
+      const timestamp = sanitizeLogField(req.body?.timestamp, 100);
       logger.error(
         {
           source: "client",
