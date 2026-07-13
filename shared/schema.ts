@@ -35,10 +35,11 @@ export const assessments = pgTable("assessments", {
   userId: text("user_id"),
   clinicalNote: text("clinical_note"),
   explainableInsights: jsonb("explainable_insights").$type<Array<{
-    insight: string;
-    source_snippet: string | null;
-    source_index: [number, number] | null;
-  }>>(),
+  insight: string;
+  source_snippet: string | null;
+  source_index: [number, number] | null;
+  confidence: "high" | "medium" | "low";
+}>(),
 }, (table) => [
   index("created_by_id_idx").on(table.createdBy, table.id),
   index("owner_id_idx").on(table.ownerId),
@@ -113,11 +114,12 @@ export const insertAssessmentSchema = createInsertSchema(assessments, {
   ),
   createdBy: z.string().email("Created by email must be a valid email address.").optional(),
   clinicalNote: z.string().optional().nullable(),
-  explainableInsights: z.array(z.object({
-    insight: z.string(),
-    source_snippet: z.string().nullable(),
-    source_index: z.tuple([z.number(), z.number()]).nullable()
-  })).optional().nullable(),
+ explainableInsights: z.array(z.object({
+  insight: z.string(),
+  source_snippet: z.string().nullable(),
+  source_index: z.tuple([z.number(), z.number()]).nullable(),
+  confidence: z.enum(["high", "medium", "low"]),
+})).optional().nullable(),
 }).omit({
   id: true,
   userId: true,

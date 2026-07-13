@@ -211,6 +211,7 @@ export interface ExplainableInsight {
   insight: string;
   source_snippet: string | null;
   source_index: [number, number] | null;
+  confidence: "high" | "medium" | "low";
 }
 
 export function extractExplainableInsights(noteText: string): ExplainableInsight[] {
@@ -226,7 +227,12 @@ export function extractExplainableInsights(noteText: string): ExplainableInsight
   const lowerText = noteText.toLowerCase();
 
   // 1. Hypertension
-  let htInsight: ExplainableInsight = { insight: "Patient shows signs of hypertension", source_snippet: null, source_index: null };
+  let htInsight: ExplainableInsight = {
+  insight: "Patient shows signs of hypertension",
+  source_snippet: null,
+  source_index: null,
+  confidence: "low",
+};
   const bpRegex = /\b(?:bp|blood pressure|reading|vitals)?\s*(\d{2,3})\s*[/|-]\s*(\d{2,3})\b/i;
   const bpMatch = noteText.match(bpRegex);
   if (bpMatch) {
@@ -235,10 +241,11 @@ export function extractExplainableInsights(noteText: string): ExplainableInsight
     if (systolic > 140 || diastolic > 90) {
       const sentence = getSentenceContaining(noteText, bpMatch.index!, bpMatch[0].length);
       htInsight = {
-        insight: "Patient shows signs of hypertension",
-        source_snippet: sentence.snippet,
-        source_index: [sentence.start, sentence.end],
-      };
+  insight: "Patient shows signs of hypertension",
+  source_snippet: sentence.snippet,
+  source_index: [sentence.start, sentence.end],
+  confidence: "high",
+};
     }
   }
   
@@ -252,6 +259,7 @@ export function extractExplainableInsights(noteText: string): ExplainableInsight
           insight: "Patient shows signs of hypertension",
           source_snippet: sentence.snippet,
           source_index: [sentence.start, sentence.end],
+          confidence: "high",
         };
         break;
       }

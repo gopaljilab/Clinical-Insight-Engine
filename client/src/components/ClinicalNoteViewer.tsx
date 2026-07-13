@@ -7,6 +7,7 @@ export interface ExplainableInsight {
   insight: string;
   source_snippet: string | null;
   source_index: [number, number] | null;
+  confidence: "high" | "medium" | "low";
 }
 
 interface ClinicalNoteViewerProps {
@@ -125,6 +126,20 @@ export function ClinicalNoteViewer({ noteText, insights }: ClinicalNoteViewerPro
               {insights.map((ins, idx) => {
                 const isSelected = selectedIndex === idx;
                 const hasCitation = ins.source_index !== null;
+                const confidenceBadge = {
+  high: {
+    label: "🟢 High Confidence",
+    className: "bg-green-100 text-green-700",
+  },
+  medium: {
+    label: "🟡 Medium Confidence",
+    className: "bg-yellow-100 text-yellow-700",
+  },
+  low: {
+    label: "🔴 Low Confidence",
+    className: "bg-red-100 text-red-700",
+  },
+}[ins.confidence];
 
                 return (
                   <button
@@ -149,6 +164,14 @@ export function ClinicalNoteViewer({ noteText, insights }: ClinicalNoteViewerPro
                       )}
                       <span className="font-semibold text-sm leading-tight flex-1">{ins.insight}</span>
                     </div>
+                    <span
+  className={cn(
+    "mt-2 inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium",
+    confidenceBadge.className
+  )}
+>
+  {confidenceBadge.label}
+</span>
                     {ins.source_snippet && (
                       <span className="text-[11px] mt-1.5 opacity-80 italic line-clamp-2 bg-slate-100/60 dark:bg-slate-900/60 px-2 py-1 rounded w-full border border-slate-200/40 dark:border-slate-800/40">
                         "{ins.source_snippet}"
