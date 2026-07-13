@@ -331,6 +331,12 @@ export function createAuthRouter(): Router {
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+      // Send verification email first to avoid orphaned accounts on failure
+      const emailSent = await sendVerificationEmail(email, otp);
+      if (!emailSent) {
+        return res.status(503).json({ message: "Failed to send verification email. Please try again." });
+      }
+
       const newUser = await authRepository.registerUserWithOtp(
         {
           fullName,
@@ -344,11 +350,6 @@ export function createAuthRouter(): Router {
         expiresAt
       );
       const registeredUserId = newUser.id;
-
-      const emailSent = await sendVerificationEmail(email, otp);
-      if (!emailSent) {
-        return res.status(503).json({ message: "Failed to send verification email. Please try again." });
-      }
 
       logDevOtp(email, otp);
 
