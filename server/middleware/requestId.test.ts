@@ -41,21 +41,29 @@ describe("requestIdMiddleware", () => {
 
   it("sets X-Request-ID header on the response", () => {
     requestIdMiddleware(mockReq as Request, mockRes as Response, mockNext);
-    expect(mockRes.setHeader).toHaveBeenCalledWith("X-Request-ID", expect.any(String));
+    expect(mockRes.setHeader).toHaveBeenCalledWith(
+      "X-Request-ID",
+      expect.any(String)
+    );
   });
 
   it("uses existing x-request-id header when present", () => {
     mockReq.headers = { "x-request-id": "existing-id-123" };
     requestIdMiddleware(mockReq as Request, mockRes as Response, mockNext);
-    expect(mockRes.setHeader).toHaveBeenCalledWith("X-Request-ID", "existing-id-123");
+    expect(mockRes.setHeader).toHaveBeenCalledWith(
+      "X-Request-ID",
+      "existing-id-123"
+    );
   });
 
   it("generates a new UUID when x-request-id header is absent", () => {
     requestIdMiddleware(mockReq as Request, mockRes as Response, mockNext);
-    const headerCall = (mockRes.setHeader as ReturnType<typeof vi.fn>).mock.calls.find(
-      (call) => call[0] === "X-Request-ID"
+    const headerCall = (
+      mockRes.setHeader as ReturnType<typeof vi.fn>
+    ).mock.calls.find((call) => call[0] === "X-Request-ID");
+    expect(headerCall[1]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     );
-    expect(headerCall[1]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
   });
 
   it("attaches the request ID to req.id", () => {
@@ -67,7 +75,10 @@ describe("requestIdMiddleware", () => {
     mockReq.headers = { "x-request-id": "my-custom-id" };
     requestIdMiddleware(mockReq as Request, mockRes as Response, mockNext);
     expect((mockReq as any).id).toBe("my-custom-id");
-    expect(mockRes.setHeader).toHaveBeenCalledWith("X-Request-ID", "my-custom-id");
+    expect(mockRes.setHeader).toHaveBeenCalledWith(
+      "X-Request-ID",
+      "my-custom-id"
+    );
   });
 
   it("runs next within requestContext.run", () => {
@@ -76,5 +87,22 @@ describe("requestIdMiddleware", () => {
       expect.any(String),
       expect.any(Function)
     );
+  });
+  it("falls back to generating a new UUID when x-request-id header is an empty string", () => {
+    mockReq.headers = { "x-request-id": "" };
+    requestIdMiddleware(mockReq as Request, mockRes as Response, mockNext);
+    const headerCall = (mockRes.setHeader as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call) => call[0] === "X-Request-ID"
+    );
+    expect(headerCall[1]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(headerCall[1]).not.toBe("");
+  });
+
+  it("does not crash when x-request-id header arrives as an array (duplicate headers)", () => {
+    mockReq.headers = { "x-request-id": ["first-id", "second-id"] as any };
+    expect(() =>
+      requestIdMiddleware(mockReq as Request, mockRes as Response, mockNext)
+    ).not.toThrow();
+    expect(mockNext).toHaveBeenCalledTimes(1);
   });
 });
