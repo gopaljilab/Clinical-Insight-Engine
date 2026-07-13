@@ -82,19 +82,19 @@ export function validateFileUpload(
     };
   }
 
-  // 4. Validate MIME type
-  if (!config.allowedMimeTypes.includes(file.mimetype)) {
-    return {
-      valid: false,
-      error: `MIME type '${file.mimetype}' is not allowed. Allowed types: ${config.allowedMimeTypes.join(", ")}`,
-    };
-  }
-
-  // 5. Validate extension
+  // 4. Validate extension
   if (!config.allowedExtensions.map((e) => e.toLowerCase()).includes(extension.toLowerCase())) {
     return {
       valid: false,
       error: `File extension '${extension}' is not allowed. Allowed extensions: ${config.allowedExtensions.join(", ")}`,
+    };
+  }
+
+  // 5. Validate MIME type
+  if (!config.allowedMimeTypes.includes(file.mimetype)) {
+    return {
+      valid: false,
+      error: `MIME type '${file.mimetype}' is not allowed. Allowed types: ${config.allowedMimeTypes.join(", ")}`,
     };
   }
 
