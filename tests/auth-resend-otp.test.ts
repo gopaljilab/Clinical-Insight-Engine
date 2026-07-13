@@ -124,6 +124,15 @@ describe("POST /api/auth/resend-otp", () => {
       }),
       transaction: async (cb: any) => {
         const tx = {
+          select: vi.fn(() => ({
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                orderBy: vi.fn(() => ({
+                  limit: vi.fn().mockResolvedValue([{ attemptCount: 0 }]),
+                })),
+              })),
+            })),
+          })),
           update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
           insert: () => ({ values: () => Promise.resolve() }),
         };
