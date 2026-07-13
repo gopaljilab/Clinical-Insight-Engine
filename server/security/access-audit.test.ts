@@ -62,7 +62,7 @@ describe("logAccessAttempt", () => {
       expect.objectContaining({
         audit: expect.objectContaining({ authMethod: "jwt" }),
       }),
-      "Access Granted"
+      "PHI Access Granted"
     );
   });
 
