@@ -53,6 +53,15 @@ function mockSelectDbUser(users: Array<{ id: string; emailVerified: boolean }>) 
 function mockTransactionSuccess() {
   mockDb.transaction.mockImplementation(async (callback: (tx: any) => any) => {
     const mockTx = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            orderBy: vi.fn(() => ({
+              limit: vi.fn().mockResolvedValue([{ attemptCount: 0 }]),
+            })),
+          })),
+        })),
+      })),
       update: vi.fn(() => ({
         set: vi.fn(() => ({
           where: vi.fn().mockResolvedValue(undefined),
