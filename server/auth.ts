@@ -783,11 +783,20 @@ out
  * Express middleware that blocks unauthenticated requests.
  * Attach this to any route that requires a valid session.
  */
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (req.session?.user) {
-    return next();
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.session?.user) {
+    return res.status(401).json({ message: "Authentication required." });
   }
-  return res.status(401).json({ message: "Authentication required." });
+  try {
+    const dbUser = await storage.getUserById(req.session.user.id);
+    if (!dbUser || !dbUser.isActive) {
+      req.session.destroy(() => {});
+      return res.status(403).json({ message: "Account has been deactivated." });
+    }
+    next();
+  } catch {
+    return res.status(500).json({ message: "Authentication check failed." });
+  }
 }
 
 /**
