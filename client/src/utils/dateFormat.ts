@@ -52,3 +52,7 @@ export function formatCompactDate(value: DateInput, fallback = "?"): string {
     day: "numeric",
   }).format(date);
 }
+
+export function formatAssessmentDate(value: DateInput): string {
+  return formatReadableDate(value);
+}

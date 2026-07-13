@@ -52,6 +52,21 @@ await tx
   ): Promise<void> {
     const db = getDb();
     await db.transaction(async (tx) => {
+      // Read previous attempt count before invalidating
+      const [prevToken] = await tx
+        .select({ attemptCount: emailVerificationTokens.attemptCount })
+        .from(emailVerificationTokens)
+        .where(
+          and(
+            eq(emailVerificationTokens.userId, userId),
+            eq(emailVerificationTokens.used, false),
+          ),
+        )
+        .orderBy(emailVerificationTokens.createdAt)
+        .limit(1);
+
+      const previousAttempts = (prevToken?.attemptCount as number) ?? 0;
+
       // Invalidate old unused tokens for this user
       await tx
       .update(emailVerificationTokens)
@@ -70,7 +85,7 @@ await tx
         verificationCode: otp,
         expiresAt,
         used: false,
-        attemptCount: 0,
+        attemptCount: previousAttempts,
       } as any);
     });
   }
