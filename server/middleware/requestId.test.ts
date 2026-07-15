@@ -106,3 +106,55 @@ describe("requestIdMiddleware", () => {
     expect(mockNext).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("requestIdMiddleware - client-supplied X-Request-ID validation (security)", () => {
+  let mockReq: Partial<Request>;
+  let mockRes: Partial<Response>;
+  let mockNext: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(requestContext.run).mockImplementation(
+      (id: string, fn: () => void) => fn()
+    );
+    mockReq = { headers: {} };
+    mockRes = { setHeader: vi.fn(), statusCode: 200 };
+    mockNext = vi.fn();
+  });
+
+  // Documents current behavior: no sanitization is applied to a client-supplied
+  // X-Request-ID. Flagging for maintainer review — control characters could
+  // enable log/header injection downstream.
+  it("passes a header containing control characters straight through unsanitized", () => {
+    const malicious = "id-with-\r\nSet-Cookie:evil=1";
+    mockReq.headers = { "x-request-id": malicious };
+
+    requestIdMiddleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect((mockReq as any).id).toBe(malicious);
+    expect(mockRes.setHeader).toHaveBeenCalledWith("X-Request-ID", malicious);
+  });
+
+  // Documents current behavior: no length cap is enforced on a client-supplied
+  // X-Request-ID. Flagging for maintainer review — unbounded values get
+  // reflected into every log line for the request.
+  it("passes an excessively long header value straight through with no length cap", () => {
+    const oversized = "a".repeat(10000);
+    mockReq.headers = { "x-request-id": oversized };
+
+    requestIdMiddleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect((mockReq as any).id).toHaveLength(10000);
+    expect(mockRes.setHeader).toHaveBeenCalledWith("X-Request-ID", oversized);
+  });
+
+  // Documents current behavior: no format/charset validation (e.g. UUID shape)
+  // is enforced on a client-supplied X-Request-ID.
+  it("accepts any non-empty string as a valid request id with no format check", () => {
+    mockReq.headers = { "x-request-id": "!!!not-a-uuid???" };
+
+    requestIdMiddleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect((mockReq as any).id).toBe("!!!not-a-uuid???");
+  });
+});
