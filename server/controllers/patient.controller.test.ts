@@ -2,8 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // ── Hoisted mocks (must be created before vi.mock calls) ───────────────────
 
-const { mockStorage, mockPendingOtps, mockIssueToken, mockSendVerificationEmail, mockBcryptCompare } = vi.hoisted(() => {
-  const map = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
+const { mockStorage, mockIssueToken, mockSendVerificationEmail, mockBcryptCompare } = vi.hoisted(() => {
   return {
     mockStorage: {
       getPatientUserByEmail: vi.fn(),
@@ -13,8 +12,10 @@ const { mockStorage, mockPendingOtps, mockIssueToken, mockSendVerificationEmail,
       updatePatientEmailVerified: vi.fn(),
       getAssessmentsByPatientName: vi.fn(),
       getPatientTrends: vi.fn(),
+      createPatientOtp: vi.fn(),
+      replacePatientOtp: vi.fn(),
+      verifyPatientOtpAndSetVerified: vi.fn(),
     },
-    mockPendingOtps: map,
     mockIssueToken: vi.fn(() => "mock-jwt-token"),
     mockSendVerificationEmail: vi.fn(async () => true),
     mockBcryptCompare: vi.fn(() => true),
@@ -23,10 +24,6 @@ const { mockStorage, mockPendingOtps, mockIssueToken, mockSendVerificationEmail,
 
 vi.mock("../storage", () => ({
   storage: mockStorage,
-}));
-
-vi.mock("../auth", () => ({
-  pendingOtps: mockPendingOtps,
 }));
 
 vi.mock("../email", () => ({
@@ -90,18 +87,18 @@ describe("registerPatient", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPendingOtps.clear();
   });
 
-  it("creates a patient with emailVerified: false and returns requiresOTP", async () => {
+  it("creates a patient with emailVerified: false and stores OTP in DB", async () => {
     mockStorage.getPatientUserByEmail.mockResolvedValue(undefined);
     mockStorage.getPatientUserByPatientName.mockResolvedValue(undefined);
-    mockStorage.createPatientUser.mockResolvedValue({
+    const createdUser = {
       id: "patient-1",
       patientName: "TestPatient",
       email: "patient@example.com",
       emailVerified: false,
-    });
+    };
+    mockStorage.createPatientUser.mockResolvedValue(createdUser);
 
     const req = mockRequest({ body: validBody });
     const res = mockResponse();
@@ -113,16 +110,18 @@ describe("registerPatient", () => {
       expect.objectContaining({ emailVerified: false }),
     );
 
-    // Verify OTP was stored
-    expect(mockPendingOtps.size).toBe(1);
-    const pending = mockPendingOtps.get("patient@example.com");
-    expect(pending).toBeDefined();
-    expect(pending!.otp).toMatch(/^\d{6}$/);
-    expect(pending!.expiresAt).toBeGreaterThan(Date.now());
-    expect(pending!.attempts).toBe(0);
+    // Verify OTP was stored in DB via storage.createPatientOtp
+    expect(mockStorage.createPatientOtp).toHaveBeenCalledWith(
+      "patient-1",
+      expect.stringMatching(/^\d{6}$/),
+      expect.any(Date),
+    );
+    const otpArg = mockStorage.createPatientOtp.mock.calls[0][1];
+    const expiresAtArg = mockStorage.createPatientOtp.mock.calls[0][2];
+    expect(expiresAtArg.getTime()).toBeGreaterThan(Date.now());
 
     // Verify verification email was sent
-    expect(mockSendVerificationEmail).toHaveBeenCalledWith("patient@example.com", pending!.otp);
+    expect(mockSendVerificationEmail).toHaveBeenCalledWith("patient@example.com", otpArg);
 
     // Verify response
     expect(res.status).toHaveBeenCalledWith(201);
@@ -200,7 +199,6 @@ describe("loginPatient", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPendingOtps.clear();
   });
 
   it("logs in verified patient successfully", async () => {
@@ -227,14 +225,15 @@ describe("loginPatient", () => {
   });
 
   it("blocks login for unverified patient and sends OTP", async () => {
-    mockStorage.getPatientUserByEmail.mockResolvedValue({
+    const user = {
       id: "patient-1",
       patientName: "TestPatient",
       email: "patient@example.com",
       passwordHash: "$2b$10$hashed",
       isActive: true,
       emailVerified: false,
-    });
+    };
+    mockStorage.getPatientUserByEmail.mockResolvedValue(user);
 
     const req = mockRequest({ body: validBody });
     const res = mockResponse();
@@ -243,10 +242,12 @@ describe("loginPatient", () => {
 
     expect(mockIssueToken).not.toHaveBeenCalled();
 
-    expect(mockPendingOtps.size).toBe(1);
-    const pending = mockPendingOtps.get("patient@example.com");
-    expect(pending).toBeDefined();
-    expect(pending!.otp).toMatch(/^\d{6}$/);
+    // Verify OTP was stored via replacePatientOtp (invalidates old tokens)
+    expect(mockStorage.replacePatientOtp).toHaveBeenCalledWith(
+      "patient-1",
+      expect.stringMatching(/^\d{6}$/),
+      expect.any(Date),
+    );
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({
@@ -291,29 +292,26 @@ describe("verifyPatientOTP", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPendingOtps.clear();
   });
 
   it("verifies OTP and issues JWT", async () => {
-    mockPendingOtps.set(email, { otp, expiresAt: Date.now() + 600000, attempts: 0 });
     mockStorage.getPatientUserByEmail.mockResolvedValue({
       id: "patient-1",
       patientName: "TestPatient",
       email,
       emailVerified: false,
     });
-    mockStorage.updatePatientEmailVerified.mockResolvedValue({
-      id: "patient-1",
-      emailVerified: true,
-    });
+    mockStorage.verifyPatientOtpAndSetVerified.mockResolvedValue({ success: true });
 
     const req = mockRequest({ body: { email, otp } });
     const res = mockResponse();
 
     await verifyPatientOTP(req, res);
 
-    expect(mockPendingOtps.has(email)).toBe(false);
-    expect(mockStorage.updatePatientEmailVerified).toHaveBeenCalledWith("patient-1", true);
+    expect(mockStorage.verifyPatientOtpAndSetVerified).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "patient-1", email }),
+      otp,
+    );
     expect(mockIssueToken).toHaveBeenCalledWith("patient-1", email, "PATIENT", "24h");
     expect(res.cookie).toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith({
@@ -323,7 +321,17 @@ describe("verifyPatientOTP", () => {
   });
 
   it("rejects invalid OTP", async () => {
-    mockPendingOtps.set(email, { otp, expiresAt: Date.now() + 600000, attempts: 0 });
+    mockStorage.getPatientUserByEmail.mockResolvedValue({
+      id: "patient-1",
+      patientName: "TestPatient",
+      email,
+      emailVerified: false,
+    });
+    mockStorage.verifyPatientOtpAndSetVerified.mockResolvedValue({
+      success: false,
+      status: 401,
+      message: "Invalid OTP. 2 attempt(s) remaining.",
+    });
 
     const req = mockRequest({ body: { email, otp: "999999" } });
     const res = mockResponse();
@@ -332,11 +340,20 @@ describe("verifyPatientOTP", () => {
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(mockIssueToken).not.toHaveBeenCalled();
-    expect(mockPendingOtps.get(email)!.attempts).toBe(1);
   });
 
-  it("locks out after 3 failed attempts", async () => {
-    mockPendingOtps.set(email, { otp, expiresAt: Date.now() + 600000, attempts: 2 });
+  it("locks out after too many failed attempts", async () => {
+    mockStorage.getPatientUserByEmail.mockResolvedValue({
+      id: "patient-1",
+      patientName: "TestPatient",
+      email,
+      emailVerified: false,
+    });
+    mockStorage.verifyPatientOtpAndSetVerified.mockResolvedValue({
+      success: false,
+      status: 429,
+      message: "Too many failed attempts. Please register or sign in again.",
+    });
 
     const req = mockRequest({ body: { email, otp: "000000" } });
     const res = mockResponse();
@@ -344,36 +361,42 @@ describe("verifyPatientOTP", () => {
     await verifyPatientOTP(req, res);
 
     expect(res.status).toHaveBeenCalledWith(429);
-    expect(mockPendingOtps.has(email)).toBe(false);
-    expect(mockIssueToken).not.toHaveBeenCalled();
-  });
-
-  it("rejects expired OTP", async () => {
-    mockPendingOtps.set(email, { otp, expiresAt: Date.now() - 1000, attempts: 0 });
-
-    const req = mockRequest({ body: { email, otp } });
-    const res = mockResponse();
-
-    await verifyPatientOTP(req, res);
-
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith({
-      message: "OTP has expired. Please register or sign in again.",
-    });
-    expect(mockPendingOtps.has(email)).toBe(false);
     expect(mockIssueToken).not.toHaveBeenCalled();
   });
 
   it("rejects OTP when no pending verification exists", async () => {
+    mockStorage.getPatientUserByEmail.mockResolvedValue({
+      id: "patient-1",
+      patientName: "TestPatient",
+      email,
+      emailVerified: false,
+    });
+    mockStorage.verifyPatientOtpAndSetVerified.mockResolvedValue({
+      success: false,
+      status: 400,
+      message: "No pending verification found for this email. Please register or sign in again.",
+    });
+
     const req = mockRequest({ body: { email, otp } });
     const res = mockResponse();
 
     await verifyPatientOTP(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith({
-      message: "No pending verification found for this email. Please register or sign in again.",
-    });
+    expect(mockIssueToken).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 if user not found", async () => {
+    mockStorage.getPatientUserByEmail.mockResolvedValue(undefined);
+
+    const req = mockRequest({ body: { email, otp } });
+    const res = mockResponse();
+
+    await verifyPatientOTP(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(mockStorage.verifyPatientOtpAndSetVerified).not.toHaveBeenCalled();
+    expect(mockIssueToken).not.toHaveBeenCalled();
   });
 
   it("returns 400 for invalid input", async () => {

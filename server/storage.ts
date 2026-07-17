@@ -11,6 +11,7 @@ import { AuditRepository, type AuditLogFilters } from "./repositories/audit.repo
 import { AnalyticsRepository } from "./repositories/analytics.repository";
 import { ModelVersionRepository } from "./repositories/model-version.repository";
 import { PatientUserRepository } from "./repositories/patient-user.repository";
+import { PatientAuthRepository, type VerifyOutcome } from "./repositories/patient-auth.repository";
 
 export interface IStorage {
   getAssessments(
@@ -93,6 +94,9 @@ export interface IStorage {
   getPatientUserById(id: string): Promise<PatientUser | undefined>;
   createPatientUser(data: InsertPatientUser): Promise<PatientUser>;
   updatePatientEmailVerified(id: string, verified: boolean): Promise<PatientUser>;
+  createPatientOtp(patientUserId: string, otp: string, expiresAt: Date): Promise<void>;
+  replacePatientOtp(patientUserId: string, otp: string, expiresAt: Date): Promise<void>;
+  verifyPatientOtpAndSetVerified(patientUser: PatientUser, code: string): Promise<VerifyOutcome>;
   getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, createdBy?: string, startDate?: string, endDate?: string): Promise<{ data: Assessment[]; total: number }>;
   getPatientTrends(patientName: string, createdBy?: string): Promise<{ date: string; riskScore: number; riskCategory: string }[]>;
   getTrendsDashboardData(patientName: string, startDate?: string, endDate?: string): Promise<{
@@ -121,6 +125,7 @@ export class DatabaseStorage implements IStorage {
   private analyticsRepository = new AnalyticsRepository();
   private modelVersionRepository = new ModelVersionRepository();
   private patientUserRepository = new PatientUserRepository();
+  private patientAuthRepository = new PatientAuthRepository();
 
   async getAssessments(limitOrParams?: number | {
     limit?: number;
@@ -291,6 +296,18 @@ export class DatabaseStorage implements IStorage {
 
   async updatePatientEmailVerified(id: string, verified: boolean): Promise<PatientUser> {
     return this.patientUserRepository.updateEmailVerified(id, verified);
+  }
+
+  async createPatientOtp(patientUserId: string, otp: string, expiresAt: Date): Promise<void> {
+    return this.patientAuthRepository.createPatientOtp(patientUserId, otp, expiresAt);
+  }
+
+  async replacePatientOtp(patientUserId: string, otp: string, expiresAt: Date): Promise<void> {
+    return this.patientAuthRepository.replacePatientOtp(patientUserId, otp, expiresAt);
+  }
+
+  async verifyPatientOtpAndSetVerified(patientUser: PatientUser, code: string): Promise<VerifyOutcome> {
+    return this.patientAuthRepository.verifyPatientOtpAndSetVerified(patientUser, code);
   }
 
   async getAssessmentsByPatientName(patientName: string, limit?: number, offset?: number, createdBy?: string, startDate?: string, endDate?: string) {

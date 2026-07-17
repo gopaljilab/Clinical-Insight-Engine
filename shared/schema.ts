@@ -208,6 +208,18 @@ export const patientUsers = pgTable("patient_users", {
 export type PatientUser = typeof patientUsers.$inferSelect;
 export type InsertPatientUser = typeof patientUsers.$inferInsert;
 
+export const patientEmailVerificationTokens = pgTable("patient_email_verification_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  patientUserId: uuid("patient_user_id")
+    .notNull()
+    .references(() => patientUsers.id),
+  verificationCode: varchar("verification_code", { length: 6 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  attemptCount: integer("attempt_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export type ModelVersion = typeof modelVersions.$inferSelect;
 export type InsertModelVersion = typeof modelVersions.$inferInsert;
 

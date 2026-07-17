@@ -138,6 +138,9 @@ function cleanupExpiredOtps() {
 
 setInterval(cleanupExpiredOtps, OTP_CLEANUP_INTERVAL_MS);
 
+/** @deprecated Patient OTPs now use DB-backed `patientEmailVerificationTokens` table.
+ *  Use `storage.createPatientOtp()`, `storage.replacePatientOtp()`, and
+ *  `storage.verifyPatientOtpAndSetVerified()` instead. Will be removed in a future update. */
 export const pendingOtps = {
   get: getPendingOtp,
   set: setPendingOtp,
