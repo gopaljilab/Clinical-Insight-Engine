@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Assessment } from '@shared/schema';
 import RiskTrendChart from './RiskTrendChart';
-import { formatAssessmentDate } from '@/utils/dateFormat';
+import { formatReadableDate } from '@/utils/dateFormat';
 import { Badge } from '@/components/ui/badge';
 import { Activity, Calendar, FileText, Droplets, Weight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -51,7 +51,7 @@ export default function PatientTimeline({ assessments }: Props) {
                 <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-border bg-background shadow-sm transition-shadow hover:shadow-md">
                   <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2 mb-3">
                     <time className="text-sm font-bold text-foreground">
-                      {formatAssessmentDate(assessment.createdAt)}
+                      {formatReadableDate(assessment.createdAt)}
                     </time>
                     <Badge variant="outline" className={cn("w-fit font-bold", riskColor, badgeBorderColor)}>
                       {assessment.riskCategory} RISK - {Number(assessment.riskScore).toFixed(1)}%

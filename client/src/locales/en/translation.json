@@ -146,15 +146,15 @@
     },
     "emptyState": {
       "noAssessments": {
-      "title": "No Assessments Found",
-      "description": "There are no patient assessments loaded yet. Create your first assessment to start tracking patient health trajectories.",
-      "actionLabel": "Create First Assessment"
+        "title": "No Assessments Found",
+        "description": "There are no patient assessments loaded yet. Create your first assessment to start tracking patient health trajectories.",
+        "actionLabel": "Create First Assessment"
       },
       "noMatching": {
-      "title": "No Matching Records",
-      "description": "No patient records match the current filters. Clear the filters to return to the full assessment history, or create a new assessment if this patient needs fresh data.",
-      "actionLabel": "Clear Filters",
-      "secondaryActionLabel": "Create Assessment"
+        "title": "No Matching Records",
+        "description": "No patient records match the current filters. Clear the filters to return to the full assessment history, or create a new assessment if this patient needs fresh data.",
+        "actionLabel": "Clear Filters",
+        "secondaryActionLabel": "Create Assessment"
       }
     }
   },
@@ -243,9 +243,9 @@
   },
   "dashboard": {
     "emptyState": {
-    "title": "No Assessments Yet",
-    "description": "Your statistics will appear here once you run your first risk assessment.",
-    "actionLabel": "Run First Assessment"
+      "title": "No Assessments Yet",
+      "description": "Your statistics will appear here once you run your first risk assessment.",
+      "actionLabel": "Run First Assessment"
     }
   },
   "myHealth": {
@@ -262,7 +262,25 @@
       "descriptionNone": "Trend charts will appear here once assessment results are available for this account.",
       "actionLabel": "Refresh Trends"
     }
-  }
+  },
+  "patientAdviceText": {
+    "lowRisk": "Keep up the good work! Continue your healthy lifestyle and routine checkups.",
+    "moderateRisk": "Consider increasing physical activity and managing your diet to lower your risk.",
+    "highRisk": "Please consult your doctor soon to discuss a detailed prevention plan.",
+    "hba1c": "Focus on managing your blood sugar through diet and prescribed medications.",
+    "glucose": "Monitor your daily glucose readings closely and follow your meal plan.",
+    "bmi": "Work on achieving a healthier weight through balanced nutrition and regular exercise.",
+    "hypertension": "Regularly check your blood pressure and reduce salt intake.",
+    "smoking": "Quitting smoking is one of the most effective ways to reduce your diabetes risk.",
+    "heartDisease": "Manage your heart health as it is closely linked to diabetes risk.",
+    "age": "As you get older, it's more important to stay active and monitor your health.",
+    "fallbackHigh": "Please schedule an appointment with your clinician to check diagnostic lab ranges.",
+    "fallbackModerate": "Making positive dietary changes and staying active helps lower type 2 diabetes risk.",
+    "fallbackLow": "Continue maintaining a healthy, balanced lifestyle and regular physical activity.",
+    "default1": "Review these results with a qualified clinician before making medical decisions.",
+    "default2": "Focus first on the highlighted risk factors that can be changed through care planning.",
+    "default3": "Track BMI, HbA1c, and blood glucose over time so future assessments have context."
+  },
   "patientEducation": {
   "title": "Patient Health Education",
   "healthyDiet": "Maintain a balanced diet rich in vegetables, fruits, whole grains, and lean proteins.",
