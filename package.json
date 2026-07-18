@@ -101,7 +101,7 @@
     "resend": "^6.17.1",
     "sanitize-html": "^2.17.5",
     "swagger-ui-express": "^5.0.1",
-    "tailwind-merge": "^2.6.1",
+    "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.2.5",
     "uuid": "^14.0.0",
     "vaul": "^1.1.2",
