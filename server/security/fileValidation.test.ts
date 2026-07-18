@@ -71,7 +71,7 @@ describe("fileValidation", () => {
       });
 
       expect(result.valid).toBe(false);
-      expect(result.error).toContain("extension");
+      expect(result.error).toContain("MIME type");
     });
 
     it("rejects MIME type mismatch with extension", () => {

@@ -178,6 +178,7 @@ function createAuthenticatedApp() {
       email: "test@example.com",
       name: "Test User",
       emailVerified: true,
+      verified: true,
     };
     next();
   });
