@@ -61,5 +61,6 @@ export const batchLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => (req as any).session?.user?.id || req.ip || "",
+  validate: { ip: false },
   message: { error: "Too many batch requests, please try again later." }
 });

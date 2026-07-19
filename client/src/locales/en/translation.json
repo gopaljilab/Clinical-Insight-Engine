@@ -146,15 +146,15 @@
     },
     "emptyState": {
       "noAssessments": {
-      "title": "No Assessments Found",
-      "description": "There are no patient assessments loaded yet. Create your first assessment to start tracking patient health trajectories.",
-      "actionLabel": "Create First Assessment"
+        "title": "No Assessments Found",
+        "description": "There are no patient assessments loaded yet. Create your first assessment to start tracking patient health trajectories.",
+        "actionLabel": "Create First Assessment"
       },
       "noMatching": {
-      "title": "No Matching Records",
-      "description": "No patient records match the current filters. Clear the filters to return to the full assessment history, or create a new assessment if this patient needs fresh data.",
-      "actionLabel": "Clear Filters",
-      "secondaryActionLabel": "Create Assessment"
+        "title": "No Matching Records",
+        "description": "No patient records match the current filters. Clear the filters to return to the full assessment history, or create a new assessment if this patient needs fresh data.",
+        "actionLabel": "Clear Filters",
+        "secondaryActionLabel": "Create Assessment"
       }
     }
   },
@@ -243,9 +243,9 @@
   },
   "dashboard": {
     "emptyState": {
-    "title": "No Assessments Yet",
-    "description": "Your statistics will appear here once you run your first risk assessment.",
-    "actionLabel": "Run First Assessment"
+      "title": "No Assessments Yet",
+      "description": "Your statistics will appear here once you run your first risk assessment.",
+      "actionLabel": "Run First Assessment"
     }
   },
   "myHealth": {

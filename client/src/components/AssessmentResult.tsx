@@ -25,6 +25,8 @@ import { ShapWaterfallChart } from "./assessment/ShapWaterfallChart";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "react-i18next";
+import i18next from "i18next";
+import { translatePatientAdvice } from "@/utils/adviceTranslator";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -72,7 +74,7 @@ const getFactorReason = (factor: RiskFactor, t: (key: string) => string) => {
 };
 
 export function AssessmentResult({ assessment }: AssessmentResultProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [view, setView] = useState<"patient" | "clinician">("patient");
   const [isPresenting, setIsPresenting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -100,7 +102,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     setPdfError("");
     setIsGeneratingPatientPDF(true);
     try {
-      await downloadPatientHandoutPdf(assessment, factorBreakdown, patientGuidance, t);
+      const targetT = i18next.getFixedT(i18n.language || "en");
+      const localizedGuidance = translatePatientAdvice(patientGuidance, targetT);
+      await downloadPatientHandoutPdf(assessment, factorBreakdown, localizedGuidance, targetT);
     } catch (error) {
       console.error("Patient PDF export failed", error);
       setPdfError(t("patientResult.pdfError"));

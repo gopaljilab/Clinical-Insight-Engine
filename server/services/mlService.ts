@@ -358,7 +358,6 @@ class PythonDaemonManager {
   private lastFailureTime = 0;
   private daemonStartTime = 0;
   private lastCrashTime = 0;
-  private restartAttempts = 0;
 
   private init() {
     if (this.process) return;
