@@ -32,7 +32,7 @@ export async function authenticateBatchOperation(
     }
 
     // 2. Verify user is verified (email confirmed, etc)
-    if (!req.session?.user?.verified) {
+    if (!req.session?.user?.emailVerified) {
       logger.warn(
         { userId: req.session.user.id, email: req.session.user.email },
         "Batch operation attempted by unverified user"
@@ -79,7 +79,7 @@ export async function authenticateBatchOperation(
     (req as any).validatedUser = {
       id: req.session.user.id,
       email: req.session.user.email,
-      verified: req.session.user.verified,
+      verified: req.session.user.emailVerified,
     };
 
     next();

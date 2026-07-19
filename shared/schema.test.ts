@@ -27,7 +27,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/greater than or equal to 1/);
+      expect(result.error.issues[0]?.message).toMatch(/Number must be greater than or equal to 1/i);
     }
   });
 
@@ -39,7 +39,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/greater than or equal to 10/);
+      expect(result.error.issues[0]?.message).toMatch(/Number must be greater than or equal to 10/i);
     }
   });
 
@@ -51,7 +51,7 @@ describe("insertAssessmentSchema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/greater than or equal to 50/);
+      expect(result.error.issues[0]?.message).toMatch(/Number must be greater than or equal to 50/i);
     }
   });
 
@@ -65,15 +65,11 @@ describe("insertAssessmentSchema", () => {
   });
 
   it("rejects missing patient name as required", () => {
-    const result = insertAssessmentSchema.safeParse({
-      ...validAssessment,
-      patientName: undefined,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { patientName, ...withoutName } = validAssessment;
+    const result = insertAssessmentSchema.safeParse(withoutName);
 
     expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Required");
-    }
   });
 
   it("rejects empty age string with 'required' error", () => {

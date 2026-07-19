@@ -5,8 +5,9 @@ import PatientTimeline from "./PatientTimeline";
 import { type Assessment } from "@shared/schema";
 
 vi.mock("@/utils/dateFormat", () => ({
-  formatReadableDate: (date: any) => "Mock Date",
-  formatCompactDate: (date: any) => "Mock Date"
+  formatAssessmentDate: (date: any) => "Mock Date",
+  formatCompactDate: (date: any) => "Mock Date",
+  formatReadableDate: (date: any) => "Mock Date"
 }));
 
 // Mock RiskTrendChart because it uses canvas/recharts which is hard to test in JSDOM
