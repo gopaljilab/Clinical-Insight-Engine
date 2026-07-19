@@ -1051,7 +1051,7 @@ if __name__ == "__main__":
             except Exception as e:
                 try:
                     request_id = request.get("requestId") if 'request' in locals() else None
-                except:
+                except Exception:
                     request_id = None
                 response = {
                     "requestId": request_id,
