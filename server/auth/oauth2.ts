@@ -1,5 +1,6 @@
 import passport from "passport";
 import { Strategy as OAuth2Strategy } from "passport-oauth2";
+import type { VerifyCallback } from "passport-oauth2";
 
 const OAUTH2_AUTH_URL = process.env.OAUTH2_AUTH_URL;
 const OAUTH2_TOKEN_URL = process.env.OAUTH2_TOKEN_URL;
@@ -23,7 +24,7 @@ if (
         clientSecret: OAUTH2_CLIENT_SECRET,
         callbackURL: OAUTH2_CALLBACK_URL,
       },
-      (_accessToken: string, _refreshToken: string, _profile: any, cb: any) => {
+      (_accessToken: string, _refreshToken: string, _profile: any, cb: VerifyCallback) => {
         // OAuth2 user lookup is not yet implemented.
         // Do NOT replace this with a hardcoded identity — every OAuth2 user would
         // share the same account and see all other users' patient records.
