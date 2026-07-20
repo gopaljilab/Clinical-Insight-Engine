@@ -163,7 +163,7 @@ export function startAssessmentWorker(): void {
     "assessmentQueue",
     async (job: Job) => {
       if (job.name === "predictBatch") {
-        const { assessments, userId } = job.data;
+        const { assessments, userId, userEmail } = job.data;
         const startedAt = Date.now();
         const requestId = (job.data as any).requestFingerprint ?? job.id;
         
@@ -213,7 +213,7 @@ export function startAssessmentWorker(): void {
                       JSON.stringify(prediction.factors || []),
                       prediction.confidenceInterval ?? null,
                       prediction.modelConfidence == null ? null : Number(prediction.modelConfidence),
-                      userId,
+                      userEmail || userId,
                       userId,
                     ]
                   );
