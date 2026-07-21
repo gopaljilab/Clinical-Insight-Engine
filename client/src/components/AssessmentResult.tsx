@@ -688,6 +688,10 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               <PredictionExplanation explanation={assessment.explanation} view="clinician" />
               
               <div className="mt-8">
+                <WhatIfRiskSimulator assessment={assessment} />
+              </div>
+              
+              <div className="mt-8">
                 <CollaborativeNotes assessmentId={assessment.id} />
               </div>
 
