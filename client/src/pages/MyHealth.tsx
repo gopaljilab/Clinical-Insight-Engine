@@ -122,7 +122,18 @@ export default function MyHealth() {
   }
 
   function handleDownloadPdf(assessment: Assessment) {
+    const password = window.prompt(t("myHealth.enterPdfPassword") || "Secure PDF: Enter a password to protect your health summary (optional, leave empty for no password):");
+    if (password === null) return; // cancelled
+
     const doc = new jsPDF();
+    if (password) {
+      (doc as any).setProtection(128, password, "cie-owner-secret-passphrase", {
+        print: "full",
+        modify: false,
+        copy: false,
+      });
+    }
+
     doc.setFontSize(18);
     doc.text(t("myHealth.pdfTitle"), 14, 22);
     doc.setFontSize(11);

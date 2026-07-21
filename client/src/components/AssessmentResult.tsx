@@ -86,9 +86,11 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
   const generatePDF = async () => {
     setPdfError("");
+    const password = window.prompt(t("patientResult.enterPdfPassword") || "Secure PDF: Enter a password to protect this clinical report (optional, leave empty for no password):");
+    if (password === null) return; // cancelled
     setIsGeneratingPDF(true);
     try {
-      await downloadClinicalAssessmentPdf(assessment);
+      await downloadClinicalAssessmentPdf(assessment, password || undefined);
     } catch (error) {
       console.error("PDF export failed", error);
       setPdfError(t("patientResult.pdfError"));
@@ -99,11 +101,13 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
   const generatePatientPDF = async (factorBreakdown: any[], patientGuidance: string[]) => {
     setPdfError("");
+    const password = window.prompt(t("patientResult.enterPdfPassword") || "Secure PDF: Enter a password to protect this clinical report (optional, leave empty for no password):");
+    if (password === null) return; // cancelled
     setIsGeneratingPatientPDF(true);
     try {
       const targetT = i18next.getFixedT(i18n.language || "en");
       const localizedGuidance = translatePatientAdvice(patientGuidance, targetT);
-      await downloadPatientHandoutPdf(assessment, factorBreakdown, localizedGuidance, targetT);
+      await downloadPatientHandoutPdf(assessment, factorBreakdown, localizedGuidance, targetT, password || undefined);
     } catch (error) {
       console.error("Patient PDF export failed", error);
       setPdfError(t("patientResult.pdfError"));

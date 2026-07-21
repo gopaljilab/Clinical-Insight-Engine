@@ -137,8 +137,17 @@ declare module "jspdf" {
     bullet: (text: string) => jsPDF;
     textAt: (text: string, x: number, y: number, opts?: any) => jsPDF;
     y: number;
-
-
+    setProtection: (
+      encryptionLevel: number,
+      userPassword?: string,
+      ownerPassword?: string,
+      options?: {
+        print?: "full" | "low" | "none" | string;
+        modify?: boolean;
+        copy?: boolean;
+        annotForms?: boolean;
+      }
+    ) => jsPDF;
   }
 }
 
@@ -408,7 +417,7 @@ export class PdfDocument extends jsPDF {
  * @param assessments - The assessments parameter.
  * @returns The result of the operation.
  */
-export function downloadPatientSummaryPdf(assessments: PatientSummaryAssessment[]) {
+export function downloadPatientSummaryPdf(assessments: PatientSummaryAssessment[], password?: string) {
   const summary = preparePatientSummaryReport(assessments);
   const pdf = new PdfDocument({ unit: "pt", format: "letter" });
 
@@ -468,6 +477,14 @@ export function downloadPatientSummaryPdf(assessments: PatientSummaryAssessment[
     { size: 10, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 14 },
   );
 
+  if (password) {
+    pdf.setProtection(128, password, "cie-owner-secret-passphrase", {
+      print: "full",
+      modify: false,
+      copy: false,
+    });
+  }
+
   pdf.save(getPatientSummaryFilename(summary.patientName));
 }
 
@@ -476,7 +493,7 @@ export function downloadPatientSummaryPdf(assessments: PatientSummaryAssessment[
  * @param assessment - The assessment parameter.
  * @returns The result of the operation.
  */
-export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
+export function downloadClinicalAssessmentPdf(assessment: ReportAssessment, password?: string) {
   const pdf = new PdfDocument({ unit: "pt", format: "letter" });
   let y = 50;
 
@@ -716,6 +733,14 @@ pdf.text(
   pdf.text("Date: ___________________________", MARGIN, { size: 10, color: MUTED });
   pdf.text("License / NPI Number: ___________________________", MARGIN, { size: 10, color: MUTED });
 
+  if (password) {
+    pdf.setProtection(128, password, "cie-owner-secret-passphrase", {
+      print: "full",
+      modify: false,
+      copy: false,
+    });
+  }
+
   pdf.save(getReportFilename(assessment));
 }
 
@@ -726,7 +751,8 @@ export function downloadPatientHandoutPdf(
   assessment: ReportAssessment,
   factorBreakdown: RiskFactor[],
   patientGuidance: string[],
-  t: (key: string) => string
+  t: (key: string) => string,
+  password?: string
 ) {
   const pdf = new PdfDocument({ unit: "pt", format: "letter" });
 
@@ -768,6 +794,14 @@ export function downloadPatientHandoutPdf(
   pdf.line(MARGIN, pdf.y, PAGE_WIDTH - MARGIN, pdf.y, BORDER);
   pdf.moveDown(10);
   pdf.text("This report is for informational purposes only. Please discuss these results with your healthcare provider.", MARGIN, { size: 9, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 12 });
+
+  if (password) {
+    pdf.setProtection(128, password, "cie-owner-secret-passphrase", {
+      print: "full",
+      modify: false,
+      copy: false,
+    });
+  }
 
   pdf.save(`patient-handout-${assessment.patientName?.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "patient"}-${assessment.id || "report"}.pdf`);
 }

@@ -408,8 +408,10 @@ export default function History() {
 
   function exportAsPdf(assessment: Assessment) {
     if (!assessment) return;
+    const password = window.prompt("Secure PDF: Enter a password to protect this clinical report (optional, leave empty for no password):");
+    if (password === null) return;
     try {
-      downloadClinicalAssessmentPdf(assessment as any);
+      downloadClinicalAssessmentPdf(assessment as any, password || undefined);
     } catch {
       toast({
         title: "Export failed",
@@ -493,7 +495,9 @@ export default function History() {
       return;
     }
 
-    downloadPatientSummaryPdf(sortedSelectedPatientHistory);
+    const password = window.prompt("Secure PDF: Enter a password to protect this patient summary (optional, leave empty for no password):");
+    if (password === null) return; // cancelled
+    downloadPatientSummaryPdf(sortedSelectedPatientHistory, password || undefined);
   };
 
   // Reset to first page when filters or sort change
