@@ -191,7 +191,7 @@ export default function ProgressTracking() {
                 <CardContent>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
+                      <LineChart data={chartData} syncId="progress-sync">
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                         <YAxis domain={[3, 15]} tick={{ fontSize: 12 }} label={{ value: "HbA1c (%)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }} />
@@ -201,7 +201,6 @@ export default function ProgressTracking() {
                           <ReferenceLine key={rl.label} y={rl.value} stroke={rl.color} strokeDasharray="4 4" label={{ value: rl.label, position: "right", style: { fontSize: 10, fill: rl.color } }} />
                         ))}
                         <Line type="monotone" dataKey="hba1cLevel" stroke="#2563eb" strokeWidth={2} dot={{ r: 4, fill: "#2563eb" }} name="HbA1c" />
-                        <Brush dataKey="date" height={30} stroke="#2563eb" fill="transparent" tickFormatter={(v: string) => v} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -219,7 +218,7 @@ export default function ProgressTracking() {
                 <CardContent>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
+                      <LineChart data={chartData} syncId="progress-sync">
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                         <YAxis domain={[50, 300]} tick={{ fontSize: 12 }} label={{ value: "mg/dL", angle: -90, position: "insideLeft", style: { fontSize: 12 } }} />
@@ -229,7 +228,6 @@ export default function ProgressTracking() {
                           <ReferenceLine key={rl.label} y={rl.value} stroke={rl.color} strokeDasharray="4 4" label={{ value: rl.label, position: "right", style: { fontSize: 10, fill: rl.color } }} />
                         ))}
                         <Line type="monotone" dataKey="bloodGlucoseLevel" stroke="#ea580c" strokeWidth={2} dot={{ r: 4, fill: "#ea580c" }} name="Blood Glucose" />
-                        <Brush dataKey="date" height={30} stroke="#ea580c" fill="transparent" tickFormatter={(v: string) => v} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -247,7 +245,7 @@ export default function ProgressTracking() {
                 <CardContent>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
+                      <LineChart data={chartData} syncId="progress-sync">
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                         <YAxis domain={[10, 50]} tick={{ fontSize: 12 }} label={{ value: "BMI", angle: -90, position: "insideLeft", style: { fontSize: 12 } }} />
@@ -257,7 +255,6 @@ export default function ProgressTracking() {
                           <ReferenceLine key={rl.label} y={rl.value} stroke={rl.color} strokeDasharray="4 4" label={{ value: rl.label, position: "right", style: { fontSize: 10, fill: rl.color } }} />
                         ))}
                         <Line type="monotone" dataKey="bmi" stroke="#059669" strokeWidth={2} dot={{ r: 4, fill: "#059669" }} name="BMI" />
-                        <Brush dataKey="date" height={30} stroke="#059669" fill="transparent" tickFormatter={(v: string) => v} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -275,7 +272,7 @@ export default function ProgressTracking() {
                 <CardContent>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
+                      <LineChart data={chartData} syncId="progress-sync">
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} label={{ value: "Risk Score (%)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }} />
