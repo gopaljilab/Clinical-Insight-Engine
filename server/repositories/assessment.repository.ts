@@ -669,6 +669,49 @@ export class AssessmentRepository {
       .from(assessments)
       .where(where ? and(where, sql`${assessments.hypertension} = true OR ${assessments.heartDisease} = true`) : sql`${assessments.hypertension} = true OR ${assessments.heartDisease} = true`);
 
+    // Common Factors in Cohort
+    let factorsSql;
+    if (where) {
+      factorsSql = sql`
+        SELECT 
+          f->>'name' as factor, 
+          COUNT(*)::int as count
+        FROM ${assessments}, jsonb_array_elements(${assessments.factors}) f
+        WHERE ${where}
+        GROUP BY f->>'name'
+        ORDER BY count DESC
+        LIMIT 10
+      `;
+    } else {
+      factorsSql = sql`
+        SELECT 
+          f->>'name' as factor, 
+          COUNT(*)::int as count
+        FROM ${assessments}, jsonb_array_elements(${assessments.factors}) f
+        GROUP BY f->>'name'
+        ORDER BY count DESC
+        LIMIT 10
+      `;
+    }
+    const factorsResult = await db.execute(factorsSql);
+
+    // Critical Alerts in Cohort
+    const alertsQuery = db
+      .select({
+        id: assessments.id,
+        patientName: assessments.patientName,
+        gender: assessments.gender,
+        age: assessments.age,
+        riskScore: assessments.riskScore,
+        riskCategory: assessments.riskCategory,
+        createdAt: assessments.createdAt
+      })
+      .from(assessments)
+      .orderBy(desc(assessments.riskScore))
+      .limit(5);
+
+    const alerts = await (where ? alertsQuery.where(where) : alertsQuery);
+
     const total = Number(agg?.total ?? 0);
     const comorbidityCount = Number(comorbidityResult?.count ?? 0);
 
@@ -683,6 +726,8 @@ export class AssessmentRepository {
       genderDistribution: genderDist.map(g => ({ gender: g.gender ?? "Unknown", count: Number(g.count) })),
       smokingDistribution: smokingDist.map(s => ({ status: s.status ?? "Unknown", count: Number(s.count) })),
       comorbidityRate: total > 0 ? Number((comorbidityCount / total * 100).toFixed(1)) : 0,
+      commonFactors: factorsResult.rows.map((r: any) => ({ factor: r.factor, count: Number(r.count) })),
+      criticalAlerts: alerts,
     };
   }
 }

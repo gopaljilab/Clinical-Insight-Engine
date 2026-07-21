@@ -61,7 +61,7 @@ export interface IStorage {
   recordLoginAudit(params: { userId?: string; ipAddress?: string; userAgent?: string; loginStatus: string; }): Promise<void>;
   recordPatientAccess(params: { userId: string; resourceType: string; resourceId?: string; action: string; ipAddress?: string; userAgent?: string; granted: boolean; }): Promise<void>;
   getPatientAccessAuditLogs(page: number, limit: number): Promise<{ data: typeof patientAccessAuditLogs.$inferSelect[]; total: number }>;
-  getAnalyticsStats(createdBy?: string): Promise<any>;
+  getAnalyticsStats(createdBy?: string, cohortFilters?: any): Promise<any>;
   getCohortStats(params: {
     minAge?: number; maxAge?: number;
     minBmi?: number; maxBmi?: number;
@@ -231,8 +231,8 @@ export class DatabaseStorage implements IStorage {
     return this.analyticsRepository.getSystemStats();
   }
 
-  async getAnalyticsStats(createdBy?: string): Promise<any> {
-    return this.analyticsRepository.getAnalyticsStats(createdBy);
+  async getAnalyticsStats(createdBy?: string, cohortFilters?: any): Promise<any> {
+    return this.analyticsRepository.getAnalyticsStats(createdBy, cohortFilters);
   }
 
   async getCohortStats(params: {
