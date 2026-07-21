@@ -91,7 +91,7 @@ export default function Analytics() {
 
   const distData = useMemo(
     () =>
-      stats?.distribution.map((d) => ({
+      stats?.distribution.map((d: any) => ({
         name: d.category,
         value: d.count,
         color: COLORS[d.category as keyof typeof COLORS] ?? "#94a3b8",
@@ -103,7 +103,7 @@ export default function Analytics() {
   const genderChartData = useMemo(() => {
     if (!stats?.demographics.gender) return [];
     const map: Record<string, Record<string, number>> = {};
-    stats.demographics.gender.forEach((r) => {
+    stats.demographics.gender.forEach((r: any) => {
       if (!map[r.gender]) {
         map[r.gender] = { LOW: 0, MODERATE: 0, HIGH: 0 };
       }
@@ -118,7 +118,7 @@ export default function Analytics() {
   const ageChartData = useMemo(() => {
     if (!stats?.demographics.age) return [];
     const map: Record<string, Record<string, number>> = {};
-    stats.demographics.age.forEach((r) => {
+    stats.demographics.age.forEach((r: any) => {
       if (!map[r.ageGroup]) {
         map[r.ageGroup] = { LOW: 0, MODERATE: 0, HIGH: 0 };
       }
@@ -257,7 +257,7 @@ export default function Analytics() {
                       type="number"
                       placeholder="Min"
                       value={ageMin}
-                      onChange={(e) => setAgeMin(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgeMin(e.target.value)}
                       className="w-full"
                     />
                     <span className="text-muted-foreground">-</span>
@@ -265,7 +265,7 @@ export default function Analytics() {
                       type="number"
                       placeholder="Max"
                       value={ageMax}
-                      onChange={(e) => setAgeMax(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgeMax(e.target.value)}
                       className="w-full"
                     />
                   </div>
@@ -296,7 +296,7 @@ export default function Analytics() {
                       step="0.1"
                       placeholder="Min"
                       value={bmiMin}
-                      onChange={(e) => setBmiMin(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBmiMin(e.target.value)}
                       className="w-full"
                     />
                     <span className="text-muted-foreground">-</span>
@@ -305,7 +305,7 @@ export default function Analytics() {
                       step="0.1"
                       placeholder="Max"
                       value={bmiMax}
-                      onChange={(e) => setBmiMax(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBmiMax(e.target.value)}
                       className="w-full"
                     />
                   </div>
@@ -320,7 +320,7 @@ export default function Analytics() {
                       step="0.1"
                       placeholder="Min"
                       value={hba1cMin}
-                      onChange={(e) => setHba1cMin(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHba1cMin(e.target.value)}
                       className="w-full"
                     />
                     <span className="text-muted-foreground">-</span>
@@ -329,7 +329,7 @@ export default function Analytics() {
                       step="0.1"
                       placeholder="Max"
                       value={hba1cMax}
-                      onChange={(e) => setHba1cMax(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHba1cMax(e.target.value)}
                       className="w-full"
                     />
                   </div>
@@ -343,7 +343,7 @@ export default function Analytics() {
                       type="number"
                       placeholder="Min"
                       value={glucoseMin}
-                      onChange={(e) => setGlucoseMin(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGlucoseMin(e.target.value)}
                       className="w-full"
                     />
                     <span className="text-muted-foreground">-</span>
@@ -351,7 +351,7 @@ export default function Analytics() {
                       type="number"
                       placeholder="Max"
                       value={glucoseMax}
-                      onChange={(e) => setGlucoseMax(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGlucoseMax(e.target.value)}
                       className="w-full"
                     />
                   </div>
@@ -364,7 +364,7 @@ export default function Analytics() {
                     <Switch
                       id="hypertension"
                       checked={hypertension === true}
-                      onCheckedChange={(checked) => setHypertension(checked ? true : undefined)}
+                      onCheckedChange={(checked: boolean) => setHypertension(checked ? true : undefined)}
                     />
                   </div>
                   <div className="flex items-center justify-between">
@@ -372,7 +372,7 @@ export default function Analytics() {
                     <Switch
                       id="heartDisease"
                       checked={heartDisease === true}
-                      onCheckedChange={(checked) => setHeartDisease(checked ? true : undefined)}
+                      onCheckedChange={(checked: boolean) => setHeartDisease(checked ? true : undefined)}
                     />
                   </div>
                 </div>
@@ -397,7 +397,7 @@ export default function Analytics() {
                   <Input
                     placeholder="Cohort name..."
                     value={newCohortName}
-                    onChange={(e) => setNewCohortName(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewCohortName(e.target.value)}
                   />
                   <Button size="icon" onClick={handleSaveCohort} title="Save current filters">
                     <Plus className="h-4 w-4" />
@@ -417,7 +417,7 @@ export default function Analytics() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
-                          onClick={(e) => handleDeleteCohort(c.id, e)}
+                          onClick={(e: React.MouseEvent) => handleDeleteCohort(c.id, e)}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -542,7 +542,7 @@ export default function Analytics() {
                             dataKey="value"
                             label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                           >
-                            {distData.map((entry, index) => (
+                            {distData.map((entry: any, index: number) => (
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                           </Pie>
@@ -567,7 +567,7 @@ export default function Analytics() {
                             <YAxis dataKey="factor" type="category" width={110} stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
                             <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
                             <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}>
-                              {stats.commonFactors.map((entry, index) => (
+                              {stats.commonFactors.map((entry: any, index: number) => (
                                 <Cell key={`cell-${index}`} fill={`hsl(var(--primary) / ${1 - index * 0.07})`} />
                               ))}
                             </Bar>
