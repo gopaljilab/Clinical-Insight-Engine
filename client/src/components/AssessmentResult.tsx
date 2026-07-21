@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import { translatePatientAdvice } from "@/utils/adviceTranslator";
+import { SecurePdfDialog } from "@/components/SecurePdfDialog";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -84,31 +85,45 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [editNoteText, setEditNoteText] = useState("");
   const updateNoteMutation = useUpdateClinicalNote();
 
-  const generatePDF = async () => {
-    setPdfError("");
-    setIsGeneratingPDF(true);
-    try {
-      await downloadClinicalAssessmentPdf(assessment);
-    } catch (error) {
-      console.error("PDF export failed", error);
-      setPdfError(t("patientResult.pdfError"));
-    } finally {
-      setIsGeneratingPDF(false);
-    }
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+  const [pdfType, setPdfType] = useState<"clinical" | "patient">("clinical");
+  const [pdfData, setPdfData] = useState<{factorBreakdown?: any[], patientGuidance?: string[]}>({});
+
+  const generatePDF = () => {
+    setPdfType("clinical");
+    setPdfDialogOpen(true);
   };
 
-  const generatePatientPDF = async (factorBreakdown: any[], patientGuidance: string[]) => {
+  const generatePatientPDF = (factorBreakdown: any[], patientGuidance: string[]) => {
+    setPdfData({ factorBreakdown, patientGuidance });
+    setPdfType("patient");
+    setPdfDialogOpen(true);
+  };
+
+  const executePdfDownload = async (password: string) => {
     setPdfError("");
-    setIsGeneratingPatientPDF(true);
-    try {
-      const targetT = i18next.getFixedT(i18n.language || "en");
-      const localizedGuidance = translatePatientAdvice(patientGuidance, targetT);
-      await downloadPatientHandoutPdf(assessment, factorBreakdown, localizedGuidance, targetT);
-    } catch (error) {
-      console.error("Patient PDF export failed", error);
-      setPdfError(t("patientResult.pdfError"));
-    } finally {
-      setIsGeneratingPatientPDF(false);
+    if (pdfType === "clinical") {
+      setIsGeneratingPDF(true);
+      try {
+        await downloadClinicalAssessmentPdf(assessment, password || undefined);
+      } catch (error) {
+        console.error("PDF export failed", error);
+        setPdfError(t("patientResult.pdfError"));
+      } finally {
+        setIsGeneratingPDF(false);
+      }
+    } else {
+      setIsGeneratingPatientPDF(true);
+      try {
+        const targetT = i18next.getFixedT(i18n.language || "en");
+        const localizedGuidance = translatePatientAdvice(pdfData.patientGuidance || [], targetT);
+        await downloadPatientHandoutPdf(assessment, pdfData.factorBreakdown || [], localizedGuidance, targetT, password || undefined);
+      } catch (error) {
+        console.error("Patient PDF export failed", error);
+        setPdfError(t("patientResult.pdfError"));
+      } finally {
+        setIsGeneratingPatientPDF(false);
+      }
     }
   };
 
@@ -789,6 +804,13 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
           )}
         </AnimatePresence>
       </div>
+      <SecurePdfDialog
+        open={pdfDialogOpen}
+        onOpenChange={setPdfDialogOpen}
+        onConfirm={executePdfDownload}
+        title={pdfType === "clinical" ? "Secure Clinical Report" : "Secure Patient Handout"}
+        description="Enter a password to protect this PDF document. Leave blank to export without password protection."
+      />
     </motion.div>
   );
 }
