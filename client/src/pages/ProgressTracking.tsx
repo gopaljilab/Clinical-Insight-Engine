@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine, Brush } from "recharts";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Search, TrendingUp, Activity, Weight, HeartPulse, Loader2, AlertCircle } from "lucide-react";
 import { formatCompactDate, formatReadableDate } from "@/utils/dateFormat";
@@ -201,6 +201,7 @@ export default function ProgressTracking() {
                           <ReferenceLine key={rl.label} y={rl.value} stroke={rl.color} strokeDasharray="4 4" label={{ value: rl.label, position: "right", style: { fontSize: 10, fill: rl.color } }} />
                         ))}
                         <Line type="monotone" dataKey="hba1cLevel" stroke="#2563eb" strokeWidth={2} dot={{ r: 4, fill: "#2563eb" }} name="HbA1c" />
+                        <Brush dataKey="date" height={30} stroke="#2563eb" fill="transparent" tickFormatter={(v: string) => v} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -228,6 +229,7 @@ export default function ProgressTracking() {
                           <ReferenceLine key={rl.label} y={rl.value} stroke={rl.color} strokeDasharray="4 4" label={{ value: rl.label, position: "right", style: { fontSize: 10, fill: rl.color } }} />
                         ))}
                         <Line type="monotone" dataKey="bloodGlucoseLevel" stroke="#ea580c" strokeWidth={2} dot={{ r: 4, fill: "#ea580c" }} name="Blood Glucose" />
+                        <Brush dataKey="date" height={30} stroke="#ea580c" fill="transparent" tickFormatter={(v: string) => v} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -255,6 +257,7 @@ export default function ProgressTracking() {
                           <ReferenceLine key={rl.label} y={rl.value} stroke={rl.color} strokeDasharray="4 4" label={{ value: rl.label, position: "right", style: { fontSize: 10, fill: rl.color } }} />
                         ))}
                         <Line type="monotone" dataKey="bmi" stroke="#059669" strokeWidth={2} dot={{ r: 4, fill: "#059669" }} name="BMI" />
+                        <Brush dataKey="date" height={30} stroke="#059669" fill="transparent" tickFormatter={(v: string) => v} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -282,6 +285,7 @@ export default function ProgressTracking() {
                           <ReferenceLine key={b.label} y={b.min} stroke={b.color} strokeDasharray="4 4" label={{ value: b.label, position: "right", style: { fontSize: 10, fill: b.color } }} />
                         ))}
                         <Line type="monotone" dataKey="riskScore" stroke="#7c3aed" strokeWidth={2} dot={{ r: 4, fill: "#7c3aed" }} name="Risk Score" />
+                        <Brush dataKey="date" height={30} stroke="#7c3aed" fill="transparent" tickFormatter={(v: string) => v} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
