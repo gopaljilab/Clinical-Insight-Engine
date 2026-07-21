@@ -23,6 +23,7 @@ import { CollaborativeNotes } from "./CollaborativeNotes";
 import { PathToImprovement } from "./assessment/PathToImprovement";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import { translatePatientAdvice } from "@/utils/adviceTranslator";
@@ -679,13 +680,25 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 </div>
               )}
 
-              <ExplainabilityPanel
-                factors={factorBreakdown}
-                increasedRiskFactors={increasedRiskFactors}
-                reducedRiskFactors={reducedRiskFactors}
-              />
-
-              <PredictionExplanation explanation={assessment.explanation} view="clinician" />
+              <Tabs defaultValue="explanation" className="mt-8">
+                <TabsList className="grid w-full grid-cols-2 max-w-[600px] mb-4">
+                  <TabsTrigger value="explanation">{t("patientResult.riskExplanation") || "Risk Explanation"}</TabsTrigger>
+                  <TabsTrigger value="whatif">{t("patientResult.whatIfAnalysis") || "What-If Analysis"}</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="explanation" className="space-y-6">
+                  <ExplainabilityPanel
+                    factors={factorBreakdown}
+                    increasedRiskFactors={increasedRiskFactors}
+                    reducedRiskFactors={reducedRiskFactors}
+                  />
+                  <PredictionExplanation explanation={assessment.explanation} view="clinician" />
+                </TabsContent>
+                
+                <TabsContent value="whatif">
+                  <WhatIfRiskSimulator assessment={assessment} />
+                </TabsContent>
+              </Tabs>
               
               <div className="mt-8">
                 <CollaborativeNotes assessmentId={assessment.id} />
