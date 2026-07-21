@@ -478,7 +478,7 @@ export function downloadPatientSummaryPdf(assessments: PatientSummaryAssessment[
   );
 
   if (password) {
-    pdf.setProtection(128, password, "cie-owner-secret-passphrase", {
+    pdf.setProtection(128, password, crypto.randomUUID(), {
       print: "full",
       modify: false,
       copy: false,
@@ -734,7 +734,7 @@ pdf.text(
   pdf.text("License / NPI Number: ___________________________", MARGIN, { size: 10, color: MUTED });
 
   if (password) {
-    pdf.setProtection(128, password, "cie-owner-secret-passphrase", {
+    pdf.setProtection(128, password, crypto.randomUUID(), {
       print: "full",
       modify: false,
       copy: false,
@@ -796,7 +796,7 @@ export function downloadPatientHandoutPdf(
   pdf.text("This report is for informational purposes only. Please discuss these results with your healthcare provider.", MARGIN, { size: 9, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 12 });
 
   if (password) {
-    pdf.setProtection(128, password, "cie-owner-secret-passphrase", {
+    pdf.setProtection(128, password, crypto.randomUUID(), {
       print: "full",
       modify: false,
       copy: false,

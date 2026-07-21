@@ -26,6 +26,7 @@ import { AssessmentFilters } from "@/components/AssessmentFilters";
 import { ActiveFilterChips } from "@/components/ActiveFilterChips";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import AssessmentComparisonCard from "@/components/AssessmentComparisonCard";
+import { SecurePdfDialog } from "@/components/SecurePdfDialog";
 import { downloadPatientSummaryPdf, downloadClinicalAssessmentPdf } from "@/utils/clinicalPdfReport";
 import { downloadBulkAssessmentPdf } from "@/utils/bulkPdfExport";
 import {
@@ -406,18 +407,30 @@ export default function History() {
       .replace(/'/g, "&#039;");
   }
 
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+  const [pdfType, setPdfType] = useState<"clinical" | "summary">("clinical");
+  const [pdfAssessment, setPdfAssessment] = useState<Assessment | null>(null);
+
   function exportAsPdf(assessment: Assessment) {
     if (!assessment) return;
-    const password = window.prompt("Secure PDF: Enter a password to protect this clinical report (optional, leave empty for no password):");
-    if (password === null) return;
-    try {
-      downloadClinicalAssessmentPdf(assessment as any, password || undefined);
-    } catch {
-      toast({
-        title: "Export failed",
-        description: "Could not generate the PDF export. Please try again.",
-        variant: "destructive",
-      });
+    setPdfAssessment(assessment);
+    setPdfType("clinical");
+    setPdfDialogOpen(true);
+  }
+
+  function executePdfDownload(password: string) {
+    if (pdfType === "clinical" && pdfAssessment) {
+      try {
+        downloadClinicalAssessmentPdf(pdfAssessment as any, password || undefined);
+      } catch {
+        toast({
+          title: "Export failed",
+          description: "Could not generate the PDF export. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } else if (pdfType === "summary") {
+      downloadPatientSummaryPdf(sortedSelectedPatientHistory, password || undefined);
     }
   }
 
@@ -495,9 +508,8 @@ export default function History() {
       return;
     }
 
-    const password = window.prompt("Secure PDF: Enter a password to protect this patient summary (optional, leave empty for no password):");
-    if (password === null) return; // cancelled
-    downloadPatientSummaryPdf(sortedSelectedPatientHistory, password || undefined);
+    setPdfType("summary");
+    setPdfDialogOpen(true);
   };
 
   // Reset to first page when filters or sort change
@@ -539,6 +551,7 @@ export default function History() {
   }, [searchTerm, riskCategory, gender, minAge, maxAge, startDate, endDate]);
 
   return (
+    <>
     <AppLayout>
       <div className="space-y-6">
         {/* Header Section */}
@@ -1112,7 +1125,14 @@ export default function History() {
           )}
         </SheetContent>
       </Sheet>
-    </AppLayout>
+      </AppLayout>
+      <SecurePdfDialog
+        open={pdfDialogOpen}
+        onOpenChange={setPdfDialogOpen}
+        onConfirm={executePdfDownload}
+        title={pdfType === "clinical" ? "Secure Clinical Report" : "Secure Patient Summary"}
+        description="Enter a password to protect this PDF document. Leave blank to export without password protection."
+      />
+    </>
   );
 }
-
