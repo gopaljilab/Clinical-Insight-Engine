@@ -1,0 +1,1 @@
+import { createInsertSchema } from 'drizzle-zod'; import { assessments } from './shared/schema'; type SchemaType = typeof createInsertSchema(assessments); type Keys = keyof SchemaType['shape']; let a: Keys = 'id';

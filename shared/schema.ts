@@ -226,6 +226,32 @@ export const insertUserSchema = z.object({
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
+export const smartGoals = pgTable("smart_goals", {
+  id: serial("id").primaryKey(),
+  assessmentId: integer("assessment_id").notNull().references(() => assessments.id, { onDelete: 'cascade' }),
+  description: text("description").notNull(),
+  targetValue: text("target_value"),
+  dueDate: timestamp("due_date"),
+  reminderDate: timestamp("reminder_date"),
+  clinicianNotes: text("clinician_notes"),
+  patientExplanation: text("patient_explanation"),
+  status: text("status").default("Not Started").notNull(), // 'Not Started', 'In Progress', 'Completed'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertSmartGoalSchema = z.object({
+  assessmentId: z.number().int(),
+  description: z.string(),
+  targetValue: z.string().optional().nullable(),
+  dueDate: z.date().optional().nullable(),
+  reminderDate: z.date().optional().nullable(),
+  clinicianNotes: z.string().optional().nullable(),
+  patientExplanation: z.string().optional().nullable(),
+  status: z.string().default("Not Started"),
+});
+export type SmartGoal = typeof smartGoals.$inferSelect;
+export type InsertSmartGoal = z.infer<typeof insertSmartGoalSchema>;
 export const deadLetterJobs = pgTable("dead_letter_jobs", {
   id: serial("id").primaryKey(),
   originalJobId: text("original_job_id"),

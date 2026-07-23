@@ -43,7 +43,7 @@ export class PatientUserRepository {
     const db = getDb();
     const [result] = await db
       .update(patientUsers)
-      .set({ emailVerified: verified, updatedAt: new Date() })
+      .set({ emailVerified: verified, updatedAt: new Date() } as any)
       .where(eq(patientUsers.id, id))
       .returning();
     return result;

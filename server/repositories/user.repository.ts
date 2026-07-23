@@ -5,7 +5,7 @@ import { users, type User, type InsertUser } from "@shared/schema";
 export class UserRepository {
   async createUser(data: InsertUser): Promise<User> {
     const db = getDb();
-    const [user] = await db.insert(users).values(data).returning();
+    const [user] = await db.insert(users).values(data as any).returning();
     return user;
   }
 
@@ -31,7 +31,7 @@ export class UserRepository {
 
   async updateUser(id: string, data: Partial<Pick<User, "isActive" | "role">>): Promise<User> {
     const db = getDb();
-    const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    const [updated] = await db.update(users).set(data as any).where(eq(users.id, id)).returning();
     return updated;
   }
 }

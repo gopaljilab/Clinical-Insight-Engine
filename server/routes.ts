@@ -6,6 +6,7 @@ import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
 import authRouter from "./routes/auth.routes";
 import settingsRouter from "./routes/settings.routes";
+import goalsRouter from "./routes/goals.routes";
 import type { Express } from "express";
 import type { Server } from "http";
 
@@ -96,7 +97,7 @@ async function seedDatabase() {
 
   const seedUserId = "seed@clinical-insight-engine.dev";
 
-  const samples: AssessmentCreateInput[] = [
+  const samples: any[] = [
     {
       createdBy: seedUserId,
       patientName: "John Doe",
@@ -449,6 +450,7 @@ export async function registerRoutes(
   app.use("/api/assessments", exportsRouter);
   app.use("/api/assessments", analyticsRouter);
   app.use("/api/assessments", generalLimiter, assessmentsRouter);
+  app.use("/api", goalsRouter);
 
   /**
    * GET /api/assessments/:id
