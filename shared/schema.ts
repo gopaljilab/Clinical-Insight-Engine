@@ -54,15 +54,59 @@ export const assessments = pgTable(
 // Using drizzle-zod omit() triggers TS typing issues in this repo's current
 // drizzle/drizzle-zod versions.
 export const insertAssessmentSchema = z.object({
-  patientName: z.string().trim().min(1),
+  patientName: z.string().trim().min(1).optional(),
   gender: z.enum(["Male", "Female"]),
-  age: z.number().int().min(1).max(120),
+  age: z.preprocess(
+    (v) => {
+      if (v === "" || v === undefined || v === null) return undefined;
+      const n = Number(v);
+      return Number.isNaN(n) ? v : n;
+    },
+    z
+      .number({ required_error: "Age is required.", invalid_type_error: "Age must be a valid number." })
+      .int("Age must be a whole number")
+      .min(1, "Age must be at least 1")
+      .max(120, "Age must be 120 or below")
+  ),
   hypertension: z.boolean().default(false),
   heartDisease: z.boolean().default(false),
   smokingHistory: z.enum(["never", "No Info", "current", "former"]),
-  bmi: z.number().min(10).max(60),
-  hba1cLevel: z.number().min(3).max(15),
-  bloodGlucoseLevel: z.number().min(50).max(400),
+  bmi: z.preprocess(
+    (v) => {
+      if (v === "" || v === undefined || v === null) return undefined;
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
+      return Number.isNaN(n) ? v : n;
+    },
+    z
+      .number({ required_error: "BMI is required.", invalid_type_error: "BMI must be a valid number." })
+      .min(10, "BMI must be at least 10")
+      .max(60, "BMI must be 60 or below")
+  ),
+  hba1cLevel: z.preprocess(
+    (v) => {
+      if (v === "" || v === undefined || v === null) return undefined;
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
+      return Number.isNaN(n) ? v : n;
+    },
+    z
+      .number({ required_error: "HbA1c level is required.", invalid_type_error: "HbA1c level must be a valid number." })
+      .min(3, "HbA1c must be at least 3")
+      .max(15, "HbA1c must be 15 or below")
+  ),
+  bloodGlucoseLevel: z.preprocess(
+    (v) => {
+      if (v === "" || v === undefined || v === null) return undefined;
+      const sanitized = typeof v === "string" ? v.replace(/,/g, ".") : v;
+      const n = Number(sanitized);
+      return Number.isNaN(n) ? v : n;
+    },
+    z
+      .number({ required_error: "Blood glucose level is required.", invalid_type_error: "Blood glucose must be a valid number." })
+      .min(50, "Blood glucose must be at least 50")
+      .max(400, "Blood glucose must be 400 or below")
+  ),
   createdBy: z.string().email().optional(),
   clinicalNote: z.string().optional().nullable(),
   explainableInsights: z
