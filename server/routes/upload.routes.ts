@@ -54,7 +54,7 @@ uploadRouter.post(
 
       try {
         const csvString = req.file.buffer.toString("utf-8");
-        const parsed = Papa.parse(csvString, { header: true, skipEmptyLines: true });
+        const parsed = Papa.parse(csvString, { header: true, skipEmptyLines: true, dynamicTyping: true });
 
         if (parsed.data.length > 100) {
           return res.status(400).json({ message: "CSV exceeds maximum limit of 100 rows." });
@@ -76,6 +76,10 @@ uploadRouter.post(
               ...row,
               hypertension: hypertensionVal === 'true' || hypertensionVal === 'yes' || hypertensionVal === '1',
               heartDisease: heartDiseaseVal === 'true' || heartDiseaseVal === 'yes' || heartDiseaseVal === '1',
+              age: parseInt(String(row.age ?? ''), 10) || 0,
+              bmi: parseFloat(String(row.bmi ?? '')) || 0,
+              hba1cLevel: parseFloat(String(row.hba1cLevel ?? '')) || 0,
+              bloodGlucoseLevel: parseFloat(String(row.bloodGlucoseLevel ?? '')) || 0,
             };
 
             const parseResult = insertAssessmentSchema.safeParse(rowData);

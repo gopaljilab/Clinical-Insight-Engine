@@ -5,6 +5,7 @@ import { storage } from "../storage";
 import { assessmentsToCsv } from "../utils/csvExport";
 import { exportLimiter } from "../middleware/rateLimit";
 import { assessmentExportQuerySchema } from "../validation/searchValidation";
+import crypto from "crypto";
 
 const exportsRouter = Router();
 
@@ -37,6 +38,50 @@ exportsRouter.get(
       return res.send(csv);
     } catch (err) {
       logger.error({ err }, "Export failed");
+      return res.status(500).json({ message: "api.errors.failedToExport" });
+    }
+  }
+);
+
+exportsRouter.get(
+  "/research.csv",
+  requireAuth,
+  requireVerified,
+  exportLimiter,
+  async (req, res) => {
+    try {
+      const parseResult = assessmentExportQuerySchema.safeParse(req.query);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          message: parseResult.error.errors[0]?.message ?? "api.errors.invalidExportParams",
+        });
+      }
+
+      // Query assessments without filtering by createdBy for cohort export
+      const assessments = await storage.getAssessments({
+        ...parseResult.data,
+        limit: 10000,
+      });
+
+      // Strip PHI and hash ID
+      const sanitizedData = assessments.data.map((a) => {
+        const { id, patientName, createdBy, userId, ownerId, clinicalNote, ...rest } = a;
+        const hashedId = crypto.createHash("sha256").update(String(id)).digest("hex").substring(0, 8);
+        return {
+          researchId: hashedId,
+          ...rest,
+        };
+      });
+
+      const csv = assessmentsToCsv(
+        sanitizedData as unknown as Record<string, unknown>[]
+      );
+
+      res.header("Content-Type", "text/csv");
+      res.attachment("research_cohort.csv");
+      return res.send(csv);
+    } catch (err) {
+      logger.error({ err }, "Research export failed");
       return res.status(500).json({ message: "api.errors.failedToExport" });
     }
   }

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import { execFile, spawn, ChildProcess } from "child_process";
 import { existsSync } from "fs";
+import { access } from "fs/promises";
 import { writeFile, unlink } from "fs/promises";
 import os from "os";
 import path from "path";
@@ -18,14 +19,88 @@ interface QueuedEntry {
   abort: () => void;
 }
 
-/** A concurrency-limiting semaphore designed to throttle intensive Machine Learning inference tasks and manage server resource boundaries. */
-const DEFAULT_MAX_QUEUE_SIZE = 200;
+interface QueueNode {
+  entry: QueuedEntry;
+  next: QueueNode | null;
+  prev: QueueNode | null;
+}
 
+/** Linked list-based queue with O(1) enqueue/dequeue/remove operations. */
+class LinkedQueue {
+  private head: QueueNode | null = null;
+  private tail: QueueNode | null = null;
+  private _length = 0;
+
+  enqueue(entry: QueuedEntry): void {
+    const node: QueueNode = { entry, next: null, prev: null };
+    if (!this.tail) {
+      this.head = this.tail = node;
+    } else {
+      node.prev = this.tail;
+      this.tail.next = node;
+      this.tail = node;
+    }
+    this._length++;
+  }
+
+  dequeue(): QueuedEntry | null {
+    if (!this.head) return null;
+    const node = this.head;
+    this.head = node.next;
+    if (this.head) this.head.prev = null;
+    else this.tail = null;
+    this._length--;
+    return node.entry;
+  }
+
+  remove(entry: QueuedEntry): boolean {
+    let current = this.head;
+    while (current) {
+      if (current.entry === entry) {
+        if (current.prev) current.prev.next = current.next;
+        else this.head = current.next;
+        if (current.next) current.next.prev = current.prev;
+        else this.tail = current.prev;
+        this._length--;
+        return true;
+      }
+      current = current.next;
+    }
+    return false;
+  }
+
+  clear(): QueuedEntry[] {
+    const entries: QueuedEntry[] = [];
+    let current = this.head;
+    while (current) {
+      entries.push(current.entry);
+      current = current.next;
+    }
+    this.head = this.tail = null;
+    this._length = 0;
+    return entries;
+  }
+
+  get length(): number {
+    return this._length;
+  }
+}
+
+/** A concurrency-limiting semaphore with bounded queue, backpressure, and metrics. */
 export class SimpleSemaphore {
   private activeCount = 0;
-  private queue: QueuedEntry[] = [];
+  private queue: LinkedQueue;
+  private maxQueueSize: number;
+  private rejectedCount = 0;
+  private totalProcessed = 0;
+  private totalTimeouts = 0;
+  private totalWaitTime = 0;
+  private waitTimeSamples = 0;
 
-  constructor(private maxConcurrency: number, private maxQueueSize: number = DEFAULT_MAX_QUEUE_SIZE) {}
+  constructor(private maxConcurrency: number, maxQueueSize: number = 100) {
+    this.queue = new LinkedQueue();
+    this.maxQueueSize = maxQueueSize;
+  }
 
   async acquire(timeoutMs?: number): Promise<() => void> {
     if (this.activeCount < this.maxConcurrency) {
@@ -34,21 +109,34 @@ export class SimpleSemaphore {
     }
 
     if (this.queue.length >= this.maxQueueSize) {
-      return Promise.reject(new Error("Semaphore queue full — too many pending requests"));
+      this.rejectedCount++;
+      const err = new Error(
+        `Server is busy. ${this.queue.length} requests waiting, ` +
+        `${this.activeCount} active. Please try again later.`
+      ) as Error & { statusCode: number; retryAfter: number };
+      err.statusCode = 503;
+      err.retryAfter = Math.min(30, this.queue.length);
+      throw err;
     }
+
+    const enqueuedAt = Date.now();
 
     return new Promise<() => void>((resolve, reject) => {
       const entry: QueuedEntry = {
-        execute: () => resolve(() => this.release()),
+        execute: () => {
+          this.totalWaitTime += Date.now() - enqueuedAt;
+          this.waitTimeSamples++;
+          this.totalProcessed++;
+          resolve(() => this.release());
+        },
         abort: () => reject(new Error("Semaphore acquisition aborted")),
       };
-      this.queue.push(entry);
+      this.queue.enqueue(entry);
 
       if (timeoutMs && timeoutMs > 0) {
         setTimeout(() => {
-          const idx = this.queue.indexOf(entry);
-          if (idx !== -1) {
-            this.queue.splice(idx, 1);
+          if (this.queue.remove(entry)) {
+            this.totalTimeouts++;
             reject(new Error("Semaphore acquisition timed out"));
           }
         }, timeoutMs);
@@ -58,7 +146,7 @@ export class SimpleSemaphore {
 
   release(): void {
     this.activeCount--;
-    const next = this.queue.shift();
+    const next = this.queue.dequeue();
     if (next) {
       this.activeCount++;
       next.execute();
@@ -74,12 +162,38 @@ export class SimpleSemaphore {
     }
   }
 
+  drain(reason: string): void {
+    const entries = this.queue.clear();
+    for (const entry of entries) {
+      entry.abort();
+    }
+  }
+
   get pending(): number {
     return this.queue.length;
   }
 
   get active(): number {
     return this.activeCount;
+  }
+
+  get totalRejected(): number {
+    return this.rejectedCount;
+  }
+
+  getMetrics() {
+    return {
+      activeCount: this.activeCount,
+      queueLength: this.queue.length,
+      maxQueueSize: this.maxQueueSize,
+      maxConcurrency: this.maxConcurrency,
+      totalProcessed: this.totalProcessed,
+      totalRejected: this.rejectedCount,
+      totalTimeouts: this.totalTimeouts,
+      averageWaitTimeMs: this.waitTimeSamples > 0
+        ? Math.round(this.totalWaitTime / this.waitTimeSamples)
+        : 0,
+    };
   }
 }
 
@@ -97,6 +211,8 @@ export function getRetryBackoffFactor(): number {
 
 const maxConcurrency = parseInt(process.env.ML_MAX_CONCURRENCY || "2", 10);
 const mlConcurrency = new SimpleSemaphore(maxConcurrency);
+
+export { mlConcurrency };
 
 /**
  * Tracks currently running inference requests to prevent
@@ -341,11 +457,28 @@ class PythonDaemonManager {
   private pendingRequests = new Map<string, PendingRequest>();
   private isRestarting = false;
   private restartAttempts = 0;
+  private maxRestartAttempts = 10;
+  private baseDelayMs = 1000;
+  private maxDelayMs = 300000;
+  private daemonStatus: 'stopped' | 'running' | 'crashed' = 'stopped';
+  private fallbackMode = false;
+  private circuitBreakerState: 'closed' | 'open' | 'half-open' = 'closed';
+  private circuitBreakerFailures = 0;
+  private circuitBreakerThreshold = 10;
+  private circuitBreakerResetTimeoutMs = 60000;
+  private lastFailureTime = 0;
+  private daemonStartTime = 0;
+  private lastCrashTime = 0;
 
   private init() {
     if (this.process) return;
 
-    this.restartAttempts = 0;
+    if (this.isCircuitBreakerOpen()) {
+      logger.warn("Circuit breaker is open — refusing to start daemon");
+      this.fallbackMode = true;
+      return;
+    }
+
     logger.info("Starting persistent Python ML daemon...");
     const pythonExe = getPythonExecutable();
 
@@ -399,6 +532,13 @@ class PythonDaemonManager {
 
     this.process.on("close", exitHandler);
     this.process.on("error", errorHandler);
+
+    this.daemonStatus = 'running';
+    this.daemonStartTime = Date.now();
+    this.restartAttempts = 0;
+    this.circuitBreakerFailures = 0;
+    this.circuitBreakerState = 'closed';
+    this.fallbackMode = false;
   }
 
   private cleanup() {
@@ -418,6 +558,17 @@ class PythonDaemonManager {
     if (this.isRestarting) return;
     this.isRestarting = true;
 
+    this.daemonStatus = 'crashed';
+    this.lastCrashTime = Date.now();
+    this.restartAttempts++;
+
+    this.circuitBreakerFailures++;
+    if (this.circuitBreakerFailures >= this.circuitBreakerThreshold) {
+      this.circuitBreakerState = 'open';
+      this.lastFailureTime = Date.now();
+      logger.error("Circuit breaker OPEN — ML daemon restarts suspended");
+    }
+
     // Reject all pending requests with a crash error
     const activeRequests = Array.from(this.pendingRequests.entries());
     this.pendingRequests.clear();
@@ -429,15 +580,56 @@ class PythonDaemonManager {
     this.restartAttempts++;
     if (this.restartAttempts > MAX_DAEMON_RESTART_ATTEMPTS) {
       logger.error({ attempts: this.restartAttempts }, "Python daemon exceeded max restart attempts — giving up");
+      mlConcurrency.drain("ML daemon permanently unavailable. Retry later.");
       return;
     }
 
-    const delay = DAEMON_RESTART_BASE_DELAY_MS * Math.pow(2, this.restartAttempts - 1);
-    logger.warn({ attempt: this.restartAttempts, delay }, "Scheduling Python daemon restart with backoff");
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s, 64s, 128s, 256s, 300s (capped)
+    const delayMs = Math.min(
+      this.baseDelayMs * Math.pow(2, this.restartAttempts - 1),
+      this.maxDelayMs
+    );
+
+    // Add jitter: ±25% random variation to prevent thundering herd
+    const jitter = delayMs * (0.75 + Math.random() * 0.5);
+    const actualDelay = Math.round(jitter);
+
+    logger.warn(
+      `Python daemon crashed (attempt ${this.restartAttempts}/${this.maxRestartAttempts}). ` +
+      `Restarting in ${Math.round(actualDelay / 1000)}s...`
+    );
+
     setTimeout(() => {
       this.isRestarting = false;
       this.init();
-    }, delay);
+    }, actualDelay);
+  }
+
+  private isCircuitBreakerOpen(): boolean {
+    if (this.circuitBreakerState === 'open') {
+      if (Date.now() - this.lastFailureTime > this.circuitBreakerResetTimeoutMs) {
+        this.circuitBreakerState = 'half-open';
+        logger.info('Circuit breaker HALF-OPEN — allowing trial ML daemon start');
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  public getStatus() {
+    return {
+      daemonStatus: this.daemonStatus,
+      circuitBreakerState: this.circuitBreakerState,
+      restartAttempts: this.restartAttempts,
+      maxRestartAttempts: this.maxRestartAttempts,
+      fallbackMode: this.fallbackMode,
+      uptime: this.daemonStatus === 'running' && this.daemonStartTime > 0
+        ? Math.floor((Date.now() - this.daemonStartTime) / 1000)
+        : 0,
+      lastCrashTime: this.lastCrashTime ? new Date(this.lastCrashTime).toISOString() : null,
+      pendingRequests: this.pendingRequests.size,
+    };
   }
 
   public async predict(input: unknown): Promise<PredictionResult> {
