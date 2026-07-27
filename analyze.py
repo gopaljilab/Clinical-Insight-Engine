@@ -355,6 +355,8 @@ def train_and_evaluate():
 
     clinical_cols = ['bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness']
     for col in clinical_cols:
+        if col not in df.columns:
+            continue
         thresholds = {'bmi': 10, 'HbA1c_level': 3, 'blood_glucose_level': 50, 'insulin': 0, 'skin_thickness': 0}
         invalid_mask = (df[col] < thresholds.get(col, 0)) | (df[col].isna())
         if invalid_mask.any():
@@ -368,6 +370,7 @@ def train_and_evaluate():
 
     features = ['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'insulin', 'skin_thickness', 'gender_Male'] + list(smoking_dummies.columns)
 
+    features = [f for f in features if f in df.columns]
     X = df[features].values
     y = df['diabetes'].values
 
