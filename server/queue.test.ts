@@ -42,6 +42,13 @@ vi.mock("ioredis", () => {
   };
 });
 
+vi.mock("./db", () => {
+  return {
+    getPool: vi.fn(),
+    withRetry: vi.fn(async (name, fn) => fn()),
+  };
+});
+
 import {
   isQueueAvailable,
   getAssessmentQueue,
@@ -113,5 +120,75 @@ describe("queue module", () => {
     const conn1 = getRedisConnection();
     const conn2 = getRedisConnection();
     expect(conn1).toBe(conn2);
+  });
+});
+
+describe("worker DLQ handling", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { closeQueue } = await import("./queue");
+    await closeQueue();
+  });
+
+  it("inserts failed job into DLQ when retries are exhausted", async () => {
+    const mockQuery = vi.fn().mockResolvedValue({ rowCount: 1 });
+    const mockRelease = vi.fn();
+    const mockConnect = vi.fn().mockResolvedValue({ query: mockQuery, release: mockRelease });
+    
+    const dbModule = await import("./db");
+    vi.mocked(dbModule.getPool).mockReturnValue({ connect: mockConnect } as any);
+
+    const { startAssessmentWorker, verifyRedisConnection } = await import("./queue");
+    await verifyRedisConnection();
+    startAssessmentWorker();
+
+    const { Worker } = await import("bullmq");
+    const workerMock = vi.mocked(Worker).mock.results[0].value;
+    
+    // Find the 'failed' event handler
+    const failedHandlerCall = workerMock.on.mock.calls.find((call: any[]) => call[0] === "failed");
+    expect(failedHandlerCall).toBeDefined();
+    
+    const failedHandler = failedHandlerCall[1];
+    
+    // Trigger the handler with max retries
+    const mockJob = { id: "test-job-123", data: { foo: "bar" }, attemptsMade: 5 };
+    await failedHandler(mockJob, new Error("ML crashed"));
+    
+    expect(mockConnect).toHaveBeenCalled();
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO dead_letter_jobs"),
+      expect.arrayContaining(["test-job-123", JSON.stringify({ foo: "bar" }), expect.any(String)])
+    );
+    expect(mockRelease).toHaveBeenCalled();
+  });
+
+  it("does NOT insert into DLQ when retries are less than max", async () => {
+    const mockQuery = vi.fn();
+    const mockRelease = vi.fn();
+    const mockConnect = vi.fn().mockResolvedValue({ query: mockQuery, release: mockRelease });
+    
+    const dbModule = await import("./db");
+    vi.mocked(dbModule.getPool).mockReturnValue({ connect: mockConnect } as any);
+
+    const { startAssessmentWorker, verifyRedisConnection } = await import("./queue");
+    await verifyRedisConnection();
+    startAssessmentWorker();
+
+    const { Worker } = await import("bullmq");
+    const workerMock = vi.mocked(Worker).mock.results[0].value;
+    
+    const failedHandlerCall = workerMock.on.mock.calls.find((call: any[]) => call[0] === "failed");
+    expect(failedHandlerCall).toBeDefined();
+    
+    const failedHandler = failedHandlerCall[1];
+    
+    // Trigger with 3 attempts (less than QUEUE_MAX_RETRIES which is 5)
+    const mockJob = { id: "test-job-early-fail", data: {}, attemptsMade: 3 };
+    await failedHandler(mockJob, new Error("Transient network error"));
+    
+    // DB connect/query should NOT be called
+    expect(mockConnect).not.toHaveBeenCalled();
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 });

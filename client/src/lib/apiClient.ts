@@ -3,6 +3,21 @@
  * Consolidates fetch logic, error handling, credentials, and JSON parsing.
  */
 
+let csrfToken: string | null = null;
+
+export async function fetchCsrfToken(): Promise<string> {
+  const res = await fetch("/api/csrf-token", {
+    credentials: "include",
+  });
+  const data = await res.json();
+  csrfToken = data.token;
+  return csrfToken;
+}
+
+export function getCsrfToken(): string | null {
+  return csrfToken;
+}
+
 /**
  * Resolves a relative API path against VITE_API_BASE when configured.
  * This ensures all ApiClient calls work correctly when the app is deployed
@@ -74,6 +89,9 @@ export class ApiClient {
      */
     static async post<T = unknown>(url: string, data?: unknown, options?: RequestInit): Promise<T> {
     const headers: HeadersInit = data ? { "Content-Type": "application/json" } : {};
+    if (csrfToken) {
+      (headers as Record<string, string>)["X-CSRF-Token"] = csrfToken;
+    }
     if (options?.headers) {
       Object.assign(headers, options.headers);
     }
@@ -96,6 +114,9 @@ export class ApiClient {
      */
     static async put<T = unknown>(url: string, data?: unknown, options?: RequestInit): Promise<T> {
     const headers: HeadersInit = data ? { "Content-Type": "application/json" } : {};
+    if (csrfToken) {
+      (headers as Record<string, string>)["X-CSRF-Token"] = csrfToken;
+    }
     if (options?.headers) {
       Object.assign(headers, options.headers);
     }
@@ -116,9 +137,14 @@ export class ApiClient {
      * @returns The result of the operation.
      */
     static async delete<T = unknown>(url: string, options?: RequestInit): Promise<T> {
+    const headers: HeadersInit = {};
+    if (csrfToken) {
+      (headers as Record<string, string>)["X-CSRF-Token"] = csrfToken;
+    }
     const res = await fetch(resolveUrl(url), {
       method: "DELETE",
       credentials: "include",
+      headers,
       ...options,
     });
     return this.handleResponse<T>(res);

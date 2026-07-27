@@ -247,5 +247,23 @@
       "descriptionNone": "Los gráficos de tendencia aparecerán aquí una vez que haya resultados de evaluación disponibles para esta cuenta.",
       "actionLabel": "Actualizar Tendencias"
     }
+  },
+  "patientAdviceText": {
+    "lowRisk": "¡Siga así! Continúe con su estilo de vida saludable y chequeos de rutina.",
+    "moderateRisk": "Considere aumentar la actividad física y controlar su dieta para reducir su riesgo.",
+    "highRisk": "Por favor consulte a su médico pronto para discutir un plan de prevención detallado.",
+    "hba1c": "Concéntrese en controlar su nivel de azúcar en la sangre mediante dieta y medicamentos recetados.",
+    "glucose": "Controle sus lecturas diarias de glucosa de cerca y siga su plan de comidas.",
+    "bmi": "Trabaje para lograr un peso más saludable mediante una nutrición equilibrada y ejercicio regular.",
+    "hypertension": "Controle su presión arterial regularmente y reduzca la ingesta de sal.",
+    "smoking": "Dejar de fumar es una de las formas más efectivas de reducir su riesgo de diabetes.",
+    "heartDisease": "Maneje la salud de su corazón, ya que está estrechamente relacionada con el riesgo de diabetes.",
+    "age": "A medida que envejece, es más importante mantenerse activo y controlar su salud.",
+    "fallbackHigh": "Por favor programe una cita con su médico para revisar los rangos de laboratorio de diagnóstico.",
+    "fallbackModerate": "Hacer cambios dietéticos positivos y mantenerse activo ayuda a reducir el riesgo de diabetes tipo 2.",
+    "fallbackLow": "Continúe manteniendo un estilo de vida saludable y equilibrado y actividad física regular.",
+    "default1": "Revise estos resultados con un médico calificado antes de tomar decisiones médicas.",
+    "default2": "Concéntrese primero en los factores de riesgo resaltados que se pueden cambiar mediante la planificación de la atención.",
+    "default3": "Rastree el IMC, HbA1c y glucosa en sangre a lo largo del tiempo para que las evaluaciones futuras tengan contexto."
   }
 }
