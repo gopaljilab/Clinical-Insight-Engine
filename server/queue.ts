@@ -8,7 +8,7 @@ import { MLService, calculateClinicalFallback } from "./services/mlService";
 import { execFile } from "child_process";
 import { emitAssessmentProgress, emitAssessmentCompleted, emitAssessmentFailed } from "./socket/assessmentSocket";
 import fs from "fs/promises";
-import { getPool, withRetry } from "./db";
+import { withRetry } from "./db";
 import path from "path";
 
 function getConfig(key: string, defaultValue: string): string {
@@ -189,44 +189,29 @@ export function startAssessmentWorker(): void {
               predictions = calculateClinicalFallback(chunk) as any[];
             }
 
-            const chunkCreated = await Promise.all(
-              chunk.map(async (assessment: any, index: number) => {
-                const prediction = predictions[index];
-                const pool = getPool();
-                const client = await pool.connect();
-                try {
-                  await client.query("BEGIN");
-                  const result = await client.query(
-                    `INSERT INTO assessments (
-                      "patientName", "age", "gender", "hypertension", "heartDisease",
-                      "smokingHistory", "bmi", "hba1cLevel", "bloodGlucoseLevel",
-                      "riskScore", "riskCategory", "factors", "confidenceInterval",
-                      "modelConfidence", "createdBy", "userId"
-                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-                    RETURNING *`,
-                    [
-                      assessment.patientName, assessment.age, assessment.gender, assessment.hypertension,
-                      assessment.heartDisease, assessment.smokingHistory, assessment.bmi,
-                      assessment.hba1cLevel, assessment.bloodGlucoseLevel,
-                      Number(prediction.riskScore),
-                      prediction.riskCategory,
-                      JSON.stringify(prediction.factors || []),
-                      prediction.confidenceInterval ?? null,
-                      prediction.modelConfidence == null ? null : Number(prediction.modelConfidence),
-                      userId,
-                      userId,
-                    ]
-                  );
-                  await client.query("COMMIT");
-                  return result.rows[0];
-                } catch (err) {
-                  await client.query("ROLLBACK").catch(() => {});
-                  throw err;
-                } finally {
-                  client.release();
-                }
-              })
-            );
+                const chunkCreated = await Promise.all(
+                  chunk.map(async (assessment: any, index: number) => {
+                    const prediction = predictions[index];
+                    return storage.createAssessment({
+                      patientName: assessment.patientName,
+                      age: assessment.age,
+                      gender: assessment.gender,
+                      hypertension: assessment.hypertension,
+                      heartDisease: assessment.heartDisease,
+                      smokingHistory: assessment.smokingHistory,
+                      bmi: assessment.bmi,
+                      hba1cLevel: assessment.hba1cLevel,
+                      bloodGlucoseLevel: assessment.bloodGlucoseLevel,
+                      riskScore: Number(prediction.riskScore),
+                      riskCategory: prediction.riskCategory,
+                      factors: prediction.factors || [],
+                      confidenceInterval: prediction.confidenceInterval ?? null,
+                      modelConfidence: prediction.modelConfidence == null ? null : Number(prediction.modelConfidence),
+                      createdBy: userId,
+                      userId: userId,
+                    });
+                  })
+                );
             createdAssessments.push(...chunkCreated);
           }
           
@@ -276,41 +261,26 @@ export function startAssessmentWorker(): void {
         const assessment = await withRetry(
           "worker.createAssessment",
           async () => {
-            const pool = getPool();
-            const client = await pool.connect();
-            try {
-              await client.query("BEGIN");
-              const result = await client.query(
-                `INSERT INTO assessments (
-                  "patientName", "age", "gender", "hypertension", "heartDisease",
-                  "smokingHistory", "bmi", "hba1cLevel", "bloodGlucoseLevel",
-                  "riskScore", "riskCategory", "factors", "confidenceInterval",
-                  "modelConfidence", "createdBy", "userId"
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-                RETURNING *`,
-                [
-                  input.patientName, input.age, input.gender, input.hypertension,
-                  input.heartDisease, input.smokingHistory, input.bmi,
-                  input.hba1cLevel, input.bloodGlucoseLevel,
-                  Number(resolvedPrediction.riskScore),
-                  resolvedPrediction.riskCategory,
-                  JSON.stringify(resolvedPrediction.factors || []),
-                  resolvedPrediction.confidenceInterval ?? null,
-                  resolvedPrediction.modelConfidence == null
-                    ? null
-                    : Number(resolvedPrediction.modelConfidence),
-                  userEmail || userId,
-                  userId,
-                ]
-              );
-              await client.query("COMMIT");
-              return result.rows[0];
-            } catch (err) {
-              await client.query("ROLLBACK").catch(() => {});
-              throw err;
-            } finally {
-              client.release();
-            }
+            return storage.createAssessment({
+              patientName: input.patientName,
+              age: input.age,
+              gender: input.gender,
+              hypertension: input.hypertension,
+              heartDisease: input.heartDisease,
+              smokingHistory: input.smokingHistory,
+              bmi: input.bmi,
+              hba1cLevel: input.hba1cLevel,
+              bloodGlucoseLevel: input.bloodGlucoseLevel,
+              riskScore: Number(resolvedPrediction.riskScore),
+              riskCategory: resolvedPrediction.riskCategory,
+              factors: resolvedPrediction.factors || [],
+              confidenceInterval: resolvedPrediction.confidenceInterval ?? null,
+              modelConfidence: resolvedPrediction.modelConfidence == null
+                ? null
+                : Number(resolvedPrediction.modelConfidence),
+              createdBy: userEmail || userId,
+              userId: userId,
+            });
           },
           3,
           500,
