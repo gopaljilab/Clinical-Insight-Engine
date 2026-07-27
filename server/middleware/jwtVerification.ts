@@ -36,7 +36,7 @@ declare global {
  * Extracts the raw token string from the Authorization header.
  * Returns null if the header is missing or malformed.
  */
-function extractBearerToken(req: Request): string | null {
+export function extractBearerToken(req: Request): string | null {
   const authHeader = req.headers.authorization;
 
   if (!authHeader) {

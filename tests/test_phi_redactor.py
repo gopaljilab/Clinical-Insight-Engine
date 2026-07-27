@@ -73,12 +73,36 @@ class TestPHIRedactor(unittest.TestCase):
         test_cases = [
             ("Lives at 123 Main Street, Boston", "Lives at [ADDRESS], Boston"),
             ("Address: 999 Broadway Blvd", "Address: [ADDRESS]"),
-            ("Zip code is 02115-4432", "Zip code is [ADDRESS]"),
-            ("Mail to 500 Avenue of the Americas, 10001", "Mail to [ADDRESS], [ADDRESS]"),
+            ("Zip code: 02115-4432", "Zip code: [ADDRESS]"),
+            ("Mail to 500 Avenue of the Americas", "Mail to [ADDRESS]"),
+            ("Patient ZIP: 94105", "Patient ZIP: [ADDRESS]"),
+            ("Postal code 10001", "Postal code [ADDRESS]"),
         ]
         for text, expected in test_cases:
             with self.subTest(text=text):
                 self.assertEqual(self.redactor.redact_text(text), expected)
+
+    def test_zip_code_does_not_match_clinical_values(self):
+        """Verify clinical measurement values are NOT falsely redacted as zip codes."""
+        clinical_texts = [
+            "Blood pressure: 120/80 mmHg",
+            "HbA1c: 7.2%",
+            "Weight: 185 lbs",
+            "Temperature: 98.6 F",
+            "Heart rate: 72 bpm",
+            "Respiratory rate: 16",
+            "O2 saturation: 98%",
+            "Platelets: 250000",
+            "Labs drawn at 1430 hours",
+            "CPT code 99213 for office visit",
+            "Patient seen for 30 minutes",
+            "Lab result ID: 90210",
+            "Glucose: 10025",
+        ]
+        for text in clinical_texts:
+            with self.subTest(text=text):
+                result = self.redactor.redact_text(text)
+                self.assertEqual(result, text, f"Clinical value falsely redacted: '{text}' → '{result}'")
 
     def test_known_patient_name_redaction(self):
         """Verify known patient names are redacted from text when context is provided."""
@@ -98,14 +122,14 @@ class TestPHIRedactor(unittest.TestCase):
             "Clinical Note:\n"
             "Patient: Jane Doe, DOB: 06/13/2026, MRN: MRN888777\n"
             "Phone: 555-123-4567, Email: jane.doe@example.com\n"
-            "Address: 456 Oak Road, Boston, MA 02111\n"
+            "Address: 456 Oak Road, Boston, MA\n"
             "Reason for visit: Diabetes screening."
         )
         expected = (
             "Clinical Note:\n"
             "Patient: [PATIENT_NAME], DOB: [DATE], MRN: [PATIENT_ID]\n"
             "Phone: [PHONE], Email: [EMAIL]\n"
-            "Address: [ADDRESS], Boston, MA [ADDRESS]\n"
+            "Address: [ADDRESS], Boston, MA\n"
             "Reason for visit: Diabetes screening."
         )
         # Traversed as patient data (where Jane Doe is the known patient name)

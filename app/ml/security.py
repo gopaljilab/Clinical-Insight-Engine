@@ -26,6 +26,11 @@ class SafeUnpickler(pickle.Unpickler):
     ]
 
     def find_class(self, module: str, name: str) -> type:
+        if module == "builtins":
+            raise pickle.UnpicklingError(
+                f"Refused to unpickle '{name}' from forbidden module 'builtins'. "
+                "The pickle file contains potentially malicious code (CWE-502)."
+            )
         if module in self.ALLOWED_MODULES:
             return super().find_class(module, name)
         if any(module.startswith(prefix) for prefix in self.ALLOWED_MODULE_PREFIXES):

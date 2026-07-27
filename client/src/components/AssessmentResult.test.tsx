@@ -12,6 +12,12 @@ vi.mock("@/hooks/use-assessments", () => ({
   usePatientAssessments: () => ({ data: { pages: [] }, fetchNextPage: vi.fn(), hasNextPage: false, isFetchingNextPage: false }),
 }));
 
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}));
+
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
   BarChart: () => <div data-testid="bar-chart" />,
@@ -76,7 +82,7 @@ const mockAssessment = {
 
 test("renders patient view with correct risk category", () => {
   render(<AssessmentResult assessment={mockAssessment as any} />);
-  expect(screen.getByText(/Your Health Assessment/i)).toBeInTheDocument();
+  expect(screen.getByText(/patientResult\.yourHealthAssessment/i)).toBeInTheDocument();
   // We expect "LOW" since riskCategory is LOW
   expect(screen.getAllByText("LOW").length).toBeGreaterThan(0);
 });
