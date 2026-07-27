@@ -1,6 +1,8 @@
 import passport from "passport";
 import { Strategy as OAuth2Strategy } from "passport-oauth2";
 
+import { logger } from "../logger";
+
 const OAUTH2_AUTH_URL = process.env.OAUTH2_AUTH_URL;
 const OAUTH2_TOKEN_URL = process.env.OAUTH2_TOKEN_URL;
 const OAUTH2_CLIENT_ID = process.env.OAUTH2_CLIENT_ID;
