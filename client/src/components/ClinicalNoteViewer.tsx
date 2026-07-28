@@ -1,7 +1,13 @@
 import React from 'react';
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { FileText, ShieldAlert, Sparkles, HelpCircle } from "lucide-react";
+import {
+  FileText,
+  Sparkles,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ExplainableInsight {
@@ -17,6 +23,7 @@ interface ClinicalNoteViewerProps {
 
 export function ClinicalNoteViewer({ noteText, insights }: ClinicalNoteViewerProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [expandedEvidence, setExpandedEvidence] = useState<number | null>(null);
   const highlightRef = useRef<HTMLElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -154,34 +161,61 @@ const renderMedicalTerms = (text: string) => {
                 const hasCitation = ins.source_index !== null;
 
                 return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setSelectedIndex(isSelected ? null : idx)}
-                    disabled={!hasCitation}
-                    className={cn(
-                      "flex flex-col items-start text-left p-3.5 rounded-xl border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500",
-                      isSelected
-                        ? "bg-blue-50/70 border-blue-500 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200 shadow-sm"
-                        : hasCitation
-                        ? "bg-white dark:bg-gray-800/40 border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800/80 cursor-pointer"
-                        : "bg-slate-50 dark:bg-gray-950/20 border-slate-100 dark:border-gray-900/40 text-slate-400 dark:text-slate-600 opacity-60 cursor-not-allowed"
-                    )}
-                  >
-                    <div className="flex items-center gap-2 w-full">
-                      {hasCitation ? (
-                        <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                      ) : (
-                        <HelpCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      )}
-                      <span className="font-semibold text-sm leading-tight flex-1">{ins.insight}</span>
-                    </div>
-                    {ins.source_snippet && (
-                      <span className="text-[11px] mt-1.5 opacity-80 italic line-clamp-2 bg-slate-100/60 dark:bg-slate-900/60 px-2 py-1 rounded w-full border border-slate-200/40 dark:border-slate-800/40">
-                        "{ins.source_snippet}"
-                      </span>
-                    )}
-                  </button>
+                  <div key={idx} className="rounded-xl border border-slate-200 dark:border-gray-800 overflow-hidden">
+  <button
+    type="button"
+    onClick={() => setSelectedIndex(isSelected ? null : idx)}
+    disabled={!hasCitation}
+    className={cn(
+      "w-full flex flex-col items-start text-left p-3.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500",
+      isSelected
+        ? "bg-blue-50/70 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200"
+        : hasCitation
+        ? "bg-white dark:bg-gray-800/40 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800/80"
+        : "bg-slate-50 dark:bg-gray-950/20 text-slate-400 dark:text-slate-600 opacity-60 cursor-not-allowed"
+    )}
+  >
+    <div className="flex items-center gap-2 w-full">
+      {hasCitation ? (
+        <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+      ) : (
+        <HelpCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+      )}
+
+      <span className="font-semibold text-sm flex-1">
+        {ins.insight}
+      </span>
+    </div>
+  </button>
+
+  {hasCitation && (
+    <>
+      <button
+        type="button"
+        onClick={() =>
+          setExpandedEvidence(expandedEvidence === idx ? null : idx)
+        }
+        className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium bg-slate-100 dark:bg-gray-900 hover:bg-slate-200 dark:hover:bg-gray-800 transition-colors"
+      >
+        <span>Supporting Evidence</span>
+
+        {expandedEvidence === idx ? (
+          <ChevronUp className="w-4 h-4" />
+        ) : (
+          <ChevronDown className="w-4 h-4" />
+        )}
+      </button>
+
+      {expandedEvidence === idx && (
+        <div className="px-3 py-3 bg-slate-50 dark:bg-gray-950 border-t border-slate-200 dark:border-gray-800">
+          <ul className="list-disc pl-5 text-xs space-y-2 text-slate-700 dark:text-gray-300">
+            <li>{ins.source_snippet || "No supporting evidence available."}</li>
+          </ul>
+        </div>
+      )}
+    </>
+  )}
+</div>
                 );
               })}
             </div>
