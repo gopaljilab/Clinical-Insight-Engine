@@ -388,6 +388,19 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               />
 
               <DataQualityAlerts alerts={assessment.qualityAlerts} />
+              <ReportQualityChecklist
+  hasSummary={true}
+  hasFindings={factorBreakdown.length > 0}
+  hasRecommendations={
+    !!assessment.recommendations &&
+    assessment.recommendations.length > 0
+  }
+  hasReferences={
+    !!assessment.clinicalNote &&
+    !!assessment.explainableInsights &&
+    assessment.explainableInsights.length > 0
+  }
+/>
 
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
@@ -511,6 +524,19 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <div className="mt-4 space-y-4">
                 <DataQualityAlerts alerts={assessment.qualityAlerts} />
+                <ReportQualityChecklist
+  hasSummary={true}
+  hasFindings={factorBreakdown.length > 0}
+  hasRecommendations={
+    !!assessment.recommendations &&
+    assessment.recommendations.length > 0
+  }
+  hasReferences={
+    !!assessment.clinicalNote &&
+    !!assessment.explainableInsights &&
+    assessment.explainableInsights.length > 0
+  }
+/>
                 <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
               </div>
 
