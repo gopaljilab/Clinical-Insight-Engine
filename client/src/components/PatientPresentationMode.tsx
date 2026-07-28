@@ -1,7 +1,9 @@
+import React from 'react';
 import { useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { X, UserCircle, Target, CheckCircle2, TrendingDown } from "lucide-react";
 import { motion } from "framer-motion";
+import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
@@ -133,6 +135,10 @@ export function PatientPresentationMode({ assessment, onClose }: Props) {
           </div>
         </div>
 
+        <div className="mt-8 sm:mt-16 max-w-4xl mx-auto">
+          <WhatIfRiskSimulator assessment={assessment} />
+        </div>
+
         <div className="mt-8 sm:mt-16 text-center pb-8 sm:pb-12">
           <button
             onClick={onClose}
@@ -145,3 +151,4 @@ export function PatientPresentationMode({ assessment, onClose }: Props) {
     </motion.div>
   );
 }
+

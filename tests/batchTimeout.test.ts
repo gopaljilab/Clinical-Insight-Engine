@@ -31,6 +31,16 @@ vi.mock("../server/storage", () => {
   };
 });
 
+vi.mock("@shared/schema", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    insertAssessmentSchema: {
+      safeParse: vi.fn().mockImplementation((data) => ({ success: true, data }))
+    }
+  };
+});
+
 vi.mock("../server/db", () => ({
   getDb: vi.fn().mockReturnValue({}),
   verifyDatabaseConnection: vi.fn().mockResolvedValue(undefined),
@@ -218,7 +228,7 @@ Patient Success 2,Male,60,false,true,current,28.0,5.8,110`;
       console.log("Upload route returned body:", res.body);
 
       expect(res.status).toBe(200);
-      expect(res.body.processed).toBe(3);
+      expect(res.body.imported).toBe(2);
       expect(res.body.created).toBe(2);
       expect(res.body.failed).toBe(1);
 
@@ -241,3 +251,4 @@ Patient Success 2,Male,60,false,true,current,28.0,5.8,110`;
     }
   }, 20000);
 });
+

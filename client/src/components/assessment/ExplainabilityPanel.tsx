@@ -1,3 +1,4 @@
+import React from 'react';
 import { Info, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
@@ -89,3 +90,4 @@ export function ExplainabilityPanel({
     </div>
   );
 }
+

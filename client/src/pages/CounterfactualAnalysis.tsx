@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -343,3 +344,4 @@ export default function CounterfactualAnalysis() {
     </AppLayout>
   );
 }
+

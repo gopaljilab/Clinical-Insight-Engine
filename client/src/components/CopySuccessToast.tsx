@@ -1,3 +1,4 @@
+import React from 'react';
 import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -24,3 +25,4 @@ export function CopySuccessToast({
 
   return null;
 }
+

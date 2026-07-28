@@ -267,7 +267,7 @@ describe("FHIR Parser Unit Tests", () => {
   describe("convertToInternalSchema", () => {
     it("converts valid FHIR structure to InsertAssessment and validates age", () => {
       const parsed = parseFhirBundle(validFhirBundle);
-      const assessment = convertToInternalSchema(parsed);
+      const { assessment } = convertToInternalSchema(parsed);
 
       expect(assessment.patientName).toBe("John Edward Smith");
       expect(assessment.gender).toBe("Male");
@@ -285,7 +285,7 @@ describe("FHIR Parser Unit Tests", () => {
         attachmentContent: "Patient diagnosed with hypertension and congestive heart failure. Also a former smoker.",
       });
 
-      const assessment = convertToInternalSchema(parsed);
+      const { assessment } = convertToInternalSchema(parsed);
       expect(assessment.hypertension).toBe(true);
       expect(assessment.heartDisease).toBe(true);
       expect(assessment.smokingHistory).toBe("former");
@@ -308,7 +308,7 @@ describe("FHIR Parser Unit Tests", () => {
         ],
       });
 
-      const assessment = convertToInternalSchema(parsed);
+      const { assessment } = convertToInternalSchema(parsed);
       expect(assessment.hypertension).toBe(true);
     });
 

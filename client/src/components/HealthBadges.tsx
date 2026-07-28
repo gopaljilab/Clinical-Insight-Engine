@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import React, { type FC } from "react";
 import { Activity, Award, HeartPulse, ShieldCheck, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {

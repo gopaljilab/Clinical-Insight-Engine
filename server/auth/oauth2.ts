@@ -1,6 +1,8 @@
 import passport from "passport";
 import { Strategy as OAuth2Strategy } from "passport-oauth2";
 
+import { logger } from "../logger";
+
 const OAUTH2_AUTH_URL = process.env.OAUTH2_AUTH_URL;
 const OAUTH2_TOKEN_URL = process.env.OAUTH2_TOKEN_URL;
 const OAUTH2_CLIENT_ID = process.env.OAUTH2_CLIENT_ID;
@@ -28,7 +30,7 @@ if (
         // Do NOT replace this with a hardcoded identity — every OAuth2 user would
         // share the same account and see all other users' patient records.
         // Implement a real DB lookup (e.g. by profile.emails[0].value) before enabling.
-        return cb(new Error("OAuth2 authentication is not yet configured for this application."));
+        return (cb as any)(new Error("OAuth2 authentication is not yet configured for this application."));
       }
     )
   );
@@ -38,6 +40,7 @@ import { Router, type Request, type Response } from "express";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
 import { getDb } from "../db";
+import { logger } from "../logger";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -278,7 +281,7 @@ export function createOAuth2Router(): Router {
         });
       });
     } catch (err: any) {
-      console.error("OAuth callback error:", err);
+      logger.error({ err }, "OAuth callback error");
       res.status(500).json({
         message: "OAuth2 authentication failed. Please try again.",
       });

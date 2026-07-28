@@ -28,6 +28,7 @@ export default defineConfig({
     projects: [
       {
         name: "client",
+        plugins: [react()],
         test: {
           include: ["client/src/**/*.test.{ts,tsx}"],
           globals: true,

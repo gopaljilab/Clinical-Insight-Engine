@@ -1,3 +1,4 @@
+import React from 'react';
 import { Calendar } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { AgeRangeFilter } from "@/components/AgeRangeFilter";
@@ -91,3 +92,4 @@ export function AssessmentFilters({
     </div>
   );
 }
+

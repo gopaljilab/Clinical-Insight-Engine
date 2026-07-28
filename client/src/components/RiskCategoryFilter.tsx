@@ -1,3 +1,4 @@
+import React from 'react';
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { RiskCategoryFilterValue } from "@/utils/filterAssessments";
@@ -44,3 +45,4 @@ export function RiskCategoryFilter({ value, onChange }: RiskCategoryFilterProps)
     </div>
   );
 }
+

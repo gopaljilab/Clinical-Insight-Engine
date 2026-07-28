@@ -3,7 +3,11 @@
  * Replaces the HTTP polling loop in use-assessments.ts for 202 responses.
  *
  * Usage:
- *   const { percent, stage, result, error } = useAssessmentProgress(jobId, userId);
+ *   const { percent, stage, result, error } = useAssessmentProgress(jobId, userId, token);
+ *
+ * The `token` param is a JWT Bearer token used for WebSocket authentication.
+ * It is passed as a query parameter (browser WebSocket API does not support
+ * custom headers). The token is validated server-side on connection.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -17,14 +21,16 @@ export interface AssessmentProgressState {
 }
 
 /**
- * React hook for  assessment progress.
- * @param jobId - The jobId parameter.
- * @param userId - The userId parameter.
- * @returns The result of the operation.
+ * React hook for assessment progress via authenticated WebSocket.
+ * @param jobId - The job identifier to subscribe to.
+ * @param userId - The authenticated user's ID (for display/logging).
+ * @param token  - JWT token for WebSocket authentication (required).
+ * @returns The assessment progress state.
  */
 export function useAssessmentProgress(
   jobId: string | null,
-  userId: string | null
+  userId: string | null,
+  token: string | null
 ): AssessmentProgressState {
   const [state, setState] = useState<AssessmentProgressState>({
     percent: 0,
@@ -37,10 +43,10 @@ export function useAssessmentProgress(
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    if (!jobId || !userId) return;
+    if (!jobId || !userId || !token) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${window.location.host}/ws/assessments?jobId=${encodeURIComponent(jobId)}&userId=${encodeURIComponent(userId)}`;
+    const url = `${protocol}//${window.location.host}/ws/assessments?jobId=${encodeURIComponent(jobId)}&userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
 
     const ws = new WebSocket(url);
     wsRef.current = ws;
@@ -84,11 +90,28 @@ export function useAssessmentProgress(
       }));
     };
 
+    ws.onclose = (event) => {
+      // Detect auth-related close codes from the server
+      if (event.code === 4001) {
+        setState((prev) => ({
+          ...prev,
+          error: "Authentication required. Please log in again.",
+          isComplete: true,
+        }));
+      } else if (event.code === 4003 || event.code === 4004) {
+        setState((prev) => ({
+          ...prev,
+          error: "Authentication failed. Please log in again.",
+          isComplete: true,
+        }));
+      }
+    };
+
     return () => {
       ws.close();
       wsRef.current = null;
     };
-  }, [jobId, userId]);
+  }, [jobId, userId, token]);
 
   return state;
 }

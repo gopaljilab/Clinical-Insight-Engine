@@ -628,6 +628,28 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
     }
   }
 
+  pdf.sectionTitle("Personalized Health Insights");
+
+const insights = [];
+
+if (assessment.bmi >= 25) {
+  insights.push("Weight management may help reduce diabetes risk.");
+}
+
+if (assessment.hba1cLevel >= 5.7) {
+  insights.push("Maintain regular HbA1c monitoring and glucose control.");
+}
+
+if (assessment.smokingHistory === "current") {
+  insights.push("Smoking cessation can significantly improve long-term health.");
+}
+
+if (insights.length === 0) {
+  insights.push("Maintain your healthy lifestyle and continue regular checkups.");
+}
+
+insights.forEach((item) => pdf.bullet(item));
+
   pdf.text("Clinician Recommendations", MARGIN, { size: 10.5, font: "bold", color: SLATE });
   pdf.moveDown(2);
   clinicianAdvice.forEach((action) => pdf.bullet(action));
@@ -663,6 +685,19 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
   pdf.bullet("Results should be reviewed by a qualified healthcare provider before any clinical action.");
   pdf.bullet("Repeat assessment after meaningful changes to modifiable risk factors.");
 
+  pdf.sectionTitle("Clinician Notes");
+
+pdf.text(
+  "Additional observations, treatment plans, and follow-up notes can be documented here.",
+  MARGIN,
+  {
+    size: 10,
+    color: MUTED,
+    maxWidth: CONTENT_WIDTH,
+    lineHeight: 14,
+  },
+);
+
   pdf.sectionTitle("Compliance & Versioning");
   pdf.keyValueRows([
     ["Report Identifier", reportId],
@@ -682,4 +717,57 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
   pdf.text("License / NPI Number: ___________________________", MARGIN, { size: 10, color: MUTED });
 
   pdf.save(getReportFilename(assessment));
+}
+
+/**
+ * Generate and download a simplified, patient-friendly PDF report.
+ */
+export function downloadPatientHandoutPdf(
+  assessment: ReportAssessment,
+  factorBreakdown: RiskFactor[],
+  patientGuidance: string[],
+  t: (key: string) => string
+) {
+  const pdf = new PdfDocument({ unit: "pt", format: "letter" });
+
+  pdf.text(t("patientResult.yourHealthAssessment") || "Your Health Assessment", MARGIN, { size: 21, font: "bold", color: SLATE });
+  pdf.text(`Prepared for ${assessment.patientName || "Patient"} on ${formatDate(assessment.createdAt)}`, MARGIN, { size: 10, color: MUTED });
+  pdf.moveDown(10);
+  pdf.line(MARGIN, pdf.y, PAGE_WIDTH - MARGIN, pdf.y, BORDER);
+  pdf.moveDown(20);
+
+  // Risk Level
+  pdf.sectionTitle(t("patientResult.riskLevel") || "Risk Level");
+  pdf.text(assessment.riskCategory.toUpperCase(), MARGIN, { size: 16, font: "bold", color: getRiskColor(assessment.riskCategory) });
+  pdf.moveDown(4);
+  pdf.text(`${t("patientResult.basedOnInfo") || "Based on the information provided, your estimated risk level is "} ${assessment.riskCategory.toLowerCase()}.`, MARGIN, { size: 11, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 14 });
+  pdf.moveDown(16);
+
+  // What this means for you
+  pdf.sectionTitle(t("patientResult.whatThisMeans") || "What this means for you");
+  factorBreakdown.forEach((factor) => {
+    pdf.ensureSpace(40);
+    const impactText = factor.impact === "positive" ? (t("patientResult.increasesRisk") || "Increases risk") : (t("patientResult.reducesRisk") || "Reduces risk");
+    const color = factor.impact === "positive" ? DANGER : SUCCESS;
+    pdf.text(`${factor.name} (${impactText})`, MARGIN, { size: 11, font: "bold", color: color });
+    pdf.moveDown(2);
+    pdf.text(factor.description, MARGIN, { size: 10, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 13 });
+    pdf.moveDown(8);
+  });
+  pdf.moveDown(8);
+
+  // Path to Improvement
+  pdf.sectionTitle(t("patientResult.suggestedFollowUp") || "Your Personalized Guidance");
+  patientGuidance.forEach((item) => {
+    pdf.ensureSpace(30);
+    pdf.bullet(item);
+  });
+
+  pdf.moveDown(20);
+  pdf.ensureSpace(60);
+  pdf.line(MARGIN, pdf.y, PAGE_WIDTH - MARGIN, pdf.y, BORDER);
+  pdf.moveDown(10);
+  pdf.text("This report is for informational purposes only. Please discuss these results with your healthcare provider.", MARGIN, { size: 9, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 12 });
+
+  pdf.save(`patient-handout-${assessment.patientName?.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "patient"}-${assessment.id || "report"}.pdf`);
 }

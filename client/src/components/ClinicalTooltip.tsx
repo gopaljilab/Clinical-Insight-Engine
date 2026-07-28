@@ -1,3 +1,4 @@
+import React from 'react';
 import { type ReactNode } from "react";
 import { Info } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -44,3 +45,4 @@ export function ClinicalTooltip({ metric, children, className }: ClinicalTooltip
     </Tooltip>
   );
 }
+

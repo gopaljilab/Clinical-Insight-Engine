@@ -1,11 +1,14 @@
+import React from 'react';
 import { useMemo } from "react";
 import { useAnalytics, type CriticalAlert } from "@/hooks/use-analytics";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Activity, Users, AlertTriangle, BarChart3 } from "lucide-react";
+import { Activity, Users, AlertTriangle, BarChart3, Download } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { EmptyState } from "@/components/EmptyState";
 import { formatReadableDate } from "@/utils/dateFormat";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 const COLORS = {
   LOW: "#10b981", // Emerald 500
@@ -15,6 +18,35 @@ const COLORS = {
 
 export default function Analytics() {
   const { data: stats, isLoading, error } = useAnalytics();
+  const { toast } = useToast();
+
+  const handleResearchExport = async () => {
+    try {
+      const response = await fetch("/api/exports/research.csv");
+      if (!response.ok) throw new Error("Export failed");
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "research_cohort.csv";
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Export Successful",
+        description: "Anonymized cohort data has been exported.",
+      });
+    } catch (err) {
+      toast({
+        title: "Export Failed",
+        description: "There was an error exporting the research data.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const distData = useMemo(
     () =>
@@ -36,6 +68,41 @@ export default function Analytics() {
         : [],
     [stats]
   );
+
+  const factorsData = useMemo(() => {
+    return stats?.commonFactors.map(f => ({
+      name: f.factor,
+      count: f.count
+    })) ?? [];
+  }, [stats?.commonFactors]);
+
+  const ageData = useMemo(() => {
+    if (!stats?.demographics?.age) return [];
+    const groups = [...new Set(stats.demographics.age.map(a => a.ageGroup))];
+    return groups.map(group => {
+      const data = stats.demographics.age.filter(a => a.ageGroup === group);
+      return {
+        name: group,
+        LOW: data.find(d => d.riskCategory === 'LOW')?.count || 0,
+        MODERATE: data.find(d => d.riskCategory === 'MODERATE')?.count || 0,
+        HIGH: data.find(d => d.riskCategory === 'HIGH')?.count || 0,
+      };
+    });
+  }, [stats?.demographics?.age]);
+
+  const genderData = useMemo(() => {
+    if (!stats?.demographics?.gender) return [];
+    const groups = [...new Set(stats.demographics.gender.map(g => g.gender))];
+    return groups.map(group => {
+      const data = stats.demographics.gender.filter(g => g.gender === group);
+      return {
+        name: group,
+        LOW: data.find(d => d.riskCategory === 'LOW')?.count || 0,
+        MODERATE: data.find(d => d.riskCategory === 'MODERATE')?.count || 0,
+        HIGH: data.find(d => d.riskCategory === 'HIGH')?.count || 0,
+      };
+    });
+  }, [stats?.demographics?.gender]);
 
   return (
     <AppLayout>
@@ -72,9 +139,14 @@ export default function Analytics() {
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-black tracking-tight text-foreground">Provider Analytics</h1>
-            <p className="text-muted-foreground">Population health management and risk distribution across your patients.</p>
+          <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-3xl font-black tracking-tight text-foreground">Provider Analytics</h1>
+              <p className="text-muted-foreground">Population health management and risk distribution across your patients.</p>
+            </div>
+            <Button onClick={handleResearchExport} variant="outline" className="flex items-center gap-2">
+              <Download className="w-4 h-4" /> Secure Research Export
+            </Button>
           </div>
 
           <div className="grid gap-6 md:grid-cols-3">
@@ -181,8 +253,70 @@ export default function Analytics() {
               </CardContent>
             </Card>
           </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="border-border shadow-sm bg-card">
+              <CardHeader>
+                <CardTitle className="text-foreground">Demographics (Risk by Age)</CardTitle>
+                <CardDescription className="text-muted-foreground">Breakdown of cardiometabolic risk across age groups.</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={ageData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--popover-foreground))" }} />
+                    <Legend wrapperStyle={{ color: "hsl(var(--foreground))" }} />
+                    <Bar dataKey="LOW" stackId="a" fill={COLORS.LOW} />
+                    <Bar dataKey="MODERATE" stackId="a" fill={COLORS.MODERATE} />
+                    <Bar dataKey="HIGH" stackId="a" fill={COLORS.HIGH} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border shadow-sm bg-card">
+              <CardHeader>
+                <CardTitle className="text-foreground">Demographics (Risk by Gender)</CardTitle>
+                <CardDescription className="text-muted-foreground">Breakdown of cardiometabolic risk by gender.</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={genderData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--popover-foreground))" }} />
+                    <Legend wrapperStyle={{ color: "hsl(var(--foreground))" }} />
+                    <Bar dataKey="LOW" stackId="a" fill={COLORS.LOW} />
+                    <Bar dataKey="MODERATE" stackId="a" fill={COLORS.MODERATE} />
+                    <Bar dataKey="HIGH" stackId="a" fill={COLORS.HIGH} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-6">
+            <Card className="border-border shadow-sm bg-card">
+              <CardHeader>
+                <CardTitle className="text-foreground">Most Common Risk Factors</CardTitle>
+                <CardDescription className="text-muted-foreground">Most frequent contributing factors across the patient cohort.</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[350px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={factorsData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <XAxis type="number" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis type="category" dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} width={150} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px", color: "hsl(var(--popover-foreground))" }} />
+                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Occurrences" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
     </AppLayout>
   );
 }
+

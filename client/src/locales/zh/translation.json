@@ -452,5 +452,23 @@
     "needsMoreData": "Needs more data",
     "earned": "Earned",
     "tapForDetails": "Tap for details"
+  },
+  "patientAdviceText": {
+    "lowRisk": "继续保持！继续您的健康生活方式和常规体检。",
+    "moderateRisk": "考虑增加体育活动并管理您的饮食以降低风险。",
+    "highRisk": "请尽快咨询您的医生，讨论详细的预防计划。",
+    "hba1c": "专注于通过饮食和处方药控制血糖。",
+    "glucose": "密切监控每日血糖读数并遵循您的膳食计划。",
+    "bmi": "通过均衡营养和定期锻炼努力达到更健康的体重。",
+    "hypertension": "定期检查血压并减少盐的摄入。",
+    "smoking": "戒烟是降低糖尿病风险最有效的方法之一。",
+    "heartDisease": "管理您的心脏健康，因为它与糖尿病风险密切相关。",
+    "age": "随着年龄的增长，保持活跃和监控您的健康变得更加重要。",
+    "fallbackHigh": "请安排与您的临床医生预约以检查诊断实验室范围。",
+    "fallbackModerate": "做出积极的饮食改变并保持活跃有助于降低2型糖尿病风险。",
+    "fallbackLow": "继续保持健康平衡的生活方式和定期体育活动。",
+    "default1": "在做出医疗决定之前，请与合格的临床医生一起审查这些结果。",
+    "default2": "首先关注可以通过护理计划改变的突出风险因素。",
+    "default3": "随时间跟踪BMI、HbA1c和血糖，以便未来的评估有背景信息。"
   }
 }

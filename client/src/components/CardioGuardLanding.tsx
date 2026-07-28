@@ -1,3 +1,4 @@
+import React from 'react';
 import { useLocation } from "wouter";
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -421,3 +422,4 @@ export function CardioGuardLanding() {
     </div>
   );
 }
+

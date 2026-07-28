@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useRef } from "react";
 import Papa from "papaparse";
 import { ApiClient } from "@/lib/apiClient";
@@ -290,3 +291,4 @@ export default function ImportData() {
     </AppLayout>
   );
 }
+

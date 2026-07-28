@@ -1,3 +1,4 @@
+import React from "react";
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { AssessmentResult } from "./AssessmentResult";
@@ -8,6 +9,13 @@ vi.mock("@/hooks/use-assessments", () => ({
   useWhatIfAssessment: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useWhatIfBatch: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useUpdateClinicalNote: () => ({ mutate: vi.fn(), isPending: false }),
+  usePatientAssessments: () => ({ data: { pages: [] }, fetchNextPage: vi.fn(), hasNextPage: false, isFetchingNextPage: false }),
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
 }));
 
 vi.mock("recharts", () => ({
@@ -19,6 +27,10 @@ vi.mock("recharts", () => ({
   Tooltip: () => null,
   ReferenceLine: () => null,
   Cell: () => null,
+  LineChart: () => <div data-testid="line-chart" />,
+  Line: () => null,
+  CartesianGrid: () => null,
+  Legend: () => null,
 }));
 
 vi.mock("@/components/ui/tooltip", () => ({
@@ -70,7 +82,7 @@ const mockAssessment = {
 
 test("renders patient view with correct risk category", () => {
   render(<AssessmentResult assessment={mockAssessment as any} />);
-  expect(screen.getByText(/Your Health Assessment/i)).toBeInTheDocument();
+  expect(screen.getByText(/patientResult\.yourHealthAssessment/i)).toBeInTheDocument();
   // We expect "LOW" since riskCategory is LOW
   expect(screen.getAllByText("LOW").length).toBeGreaterThan(0);
 });

@@ -1,3 +1,4 @@
+import React from 'react';
 import { ReactNode } from "react";
 import { motion } from "framer-motion";
 
@@ -35,3 +36,4 @@ export function AuthCard({ children, title, subtitle }: AuthCardProps) {
     </motion.div>
   );
 }
+

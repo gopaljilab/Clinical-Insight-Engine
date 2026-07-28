@@ -1,3 +1,4 @@
+import React from 'react';
 import { useTranslation } from "react-i18next";
 import { Languages } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -62,3 +63,4 @@ export function LanguageSwitcher({ variant = "default" }: { variant?: "default" 
     </div>
   );
 }
+

@@ -1,3 +1,4 @@
+import React from 'react';
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
 
 interface OtpInputProps {
@@ -93,3 +94,4 @@ export function OtpInput({ value, onChange, length = 6, disabled = false }: OtpI
     </div>
   );
 }
+

@@ -1,3 +1,4 @@
+import React from 'react';
 import { ReactNode } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { ShieldCheck, Brain, TrendingUp, Users, Zap } from "lucide-react";
@@ -128,3 +129,4 @@ export function AuthLayout({ children }: AuthLayoutProps) {
     </div>
   );
 }
+

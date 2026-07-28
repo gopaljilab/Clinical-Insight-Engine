@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import { execFile, spawn, ChildProcess } from "child_process";
 import { existsSync } from "fs";
+import { access } from "fs/promises";
 import { writeFile, unlink } from "fs/promises";
 import os from "os";
 import path from "path";
@@ -18,12 +19,88 @@ interface QueuedEntry {
   abort: () => void;
 }
 
-/** A concurrency-limiting semaphore designed to throttle intensive Machine Learning inference tasks and manage server resource boundaries. */
+interface QueueNode {
+  entry: QueuedEntry;
+  next: QueueNode | null;
+  prev: QueueNode | null;
+}
+
+/** Linked list-based queue with O(1) enqueue/dequeue/remove operations. */
+class LinkedQueue {
+  private head: QueueNode | null = null;
+  private tail: QueueNode | null = null;
+  private _length = 0;
+
+  enqueue(entry: QueuedEntry): void {
+    const node: QueueNode = { entry, next: null, prev: null };
+    if (!this.tail) {
+      this.head = this.tail = node;
+    } else {
+      node.prev = this.tail;
+      this.tail.next = node;
+      this.tail = node;
+    }
+    this._length++;
+  }
+
+  dequeue(): QueuedEntry | null {
+    if (!this.head) return null;
+    const node = this.head;
+    this.head = node.next;
+    if (this.head) this.head.prev = null;
+    else this.tail = null;
+    this._length--;
+    return node.entry;
+  }
+
+  remove(entry: QueuedEntry): boolean {
+    let current = this.head;
+    while (current) {
+      if (current.entry === entry) {
+        if (current.prev) current.prev.next = current.next;
+        else this.head = current.next;
+        if (current.next) current.next.prev = current.prev;
+        else this.tail = current.prev;
+        this._length--;
+        return true;
+      }
+      current = current.next;
+    }
+    return false;
+  }
+
+  clear(): QueuedEntry[] {
+    const entries: QueuedEntry[] = [];
+    let current = this.head;
+    while (current) {
+      entries.push(current.entry);
+      current = current.next;
+    }
+    this.head = this.tail = null;
+    this._length = 0;
+    return entries;
+  }
+
+  get length(): number {
+    return this._length;
+  }
+}
+
+/** A concurrency-limiting semaphore with bounded queue, backpressure, and metrics. */
 export class SimpleSemaphore {
   private activeCount = 0;
-  private queue: QueuedEntry[] = [];
+  private queue: LinkedQueue;
+  private maxQueueSize: number;
+  private rejectedCount = 0;
+  private totalProcessed = 0;
+  private totalTimeouts = 0;
+  private totalWaitTime = 0;
+  private waitTimeSamples = 0;
 
-  constructor(private maxConcurrency: number) {}
+  constructor(private maxConcurrency: number, maxQueueSize: number = 100) {
+    this.queue = new LinkedQueue();
+    this.maxQueueSize = maxQueueSize;
+  }
 
   async acquire(timeoutMs?: number): Promise<() => void> {
     if (this.activeCount < this.maxConcurrency) {
@@ -31,18 +108,35 @@ export class SimpleSemaphore {
       return () => this.release();
     }
 
+    if (this.queue.length >= this.maxQueueSize) {
+      this.rejectedCount++;
+      const err = new Error(
+        `Server is busy. ${this.queue.length} requests waiting, ` +
+        `${this.activeCount} active. Please try again later.`
+      ) as Error & { statusCode: number; retryAfter: number };
+      err.statusCode = 503;
+      err.retryAfter = Math.min(30, this.queue.length);
+      throw err;
+    }
+
+    const enqueuedAt = Date.now();
+
     return new Promise<() => void>((resolve, reject) => {
       const entry: QueuedEntry = {
-        execute: () => resolve(() => this.release()),
+        execute: () => {
+          this.totalWaitTime += Date.now() - enqueuedAt;
+          this.waitTimeSamples++;
+          this.totalProcessed++;
+          resolve(() => this.release());
+        },
         abort: () => reject(new Error("Semaphore acquisition aborted")),
       };
-      this.queue.push(entry);
+      this.queue.enqueue(entry);
 
       if (timeoutMs && timeoutMs > 0) {
         setTimeout(() => {
-          const idx = this.queue.indexOf(entry);
-          if (idx !== -1) {
-            this.queue.splice(idx, 1);
+          if (this.queue.remove(entry)) {
+            this.totalTimeouts++;
             reject(new Error("Semaphore acquisition timed out"));
           }
         }, timeoutMs);
@@ -52,7 +146,7 @@ export class SimpleSemaphore {
 
   release(): void {
     this.activeCount--;
-    const next = this.queue.shift();
+    const next = this.queue.dequeue();
     if (next) {
       this.activeCount++;
       next.execute();
@@ -68,12 +162,38 @@ export class SimpleSemaphore {
     }
   }
 
+  drain(reason: string): void {
+    const entries = this.queue.clear();
+    for (const entry of entries) {
+      entry.abort();
+    }
+  }
+
   get pending(): number {
     return this.queue.length;
   }
 
   get active(): number {
     return this.activeCount;
+  }
+
+  get totalRejected(): number {
+    return this.rejectedCount;
+  }
+
+  getMetrics() {
+    return {
+      activeCount: this.activeCount,
+      queueLength: this.queue.length,
+      maxQueueSize: this.maxQueueSize,
+      maxConcurrency: this.maxConcurrency,
+      totalProcessed: this.totalProcessed,
+      totalRejected: this.rejectedCount,
+      totalTimeouts: this.totalTimeouts,
+      averageWaitTimeMs: this.waitTimeSamples > 0
+        ? Math.round(this.totalWaitTime / this.waitTimeSamples)
+        : 0,
+    };
   }
 }
 
@@ -91,6 +211,8 @@ export function getRetryBackoffFactor(): number {
 
 const maxConcurrency = parseInt(process.env.ML_MAX_CONCURRENCY || "2", 10);
 const mlConcurrency = new SimpleSemaphore(maxConcurrency);
+
+export { mlConcurrency };
 
 /**
  * Tracks currently running inference requests to prevent
@@ -326,14 +448,36 @@ interface PendingRequest {
   timeoutId: NodeJS.Timeout;
 }
 
+const MAX_DAEMON_RESTART_ATTEMPTS = 5;
+const DAEMON_RESTART_BASE_DELAY_MS = 1000;
+
 class PythonDaemonManager {
   private process: ChildProcess | null = null;
   private rl: readline.Interface | null = null;
   private pendingRequests = new Map<string, PendingRequest>();
   private isRestarting = false;
+  private restartAttempts = 0;
+  private maxRestartAttempts = 10;
+  private baseDelayMs = 1000;
+  private maxDelayMs = 300000;
+  private daemonStatus: 'stopped' | 'running' | 'crashed' = 'stopped';
+  private fallbackMode = false;
+  private circuitBreakerState: 'closed' | 'open' | 'half-open' = 'closed';
+  private circuitBreakerFailures = 0;
+  private circuitBreakerThreshold = 10;
+  private circuitBreakerResetTimeoutMs = 60000;
+  private lastFailureTime = 0;
+  private daemonStartTime = 0;
+  private lastCrashTime = 0;
 
   private init() {
     if (this.process) return;
+
+    if (this.isCircuitBreakerOpen()) {
+      logger.warn("Circuit breaker is open — refusing to start daemon");
+      this.fallbackMode = true;
+      return;
+    }
 
     logger.info("Starting persistent Python ML daemon...");
     const pythonExe = getPythonExecutable();
@@ -388,6 +532,13 @@ class PythonDaemonManager {
 
     this.process.on("close", exitHandler);
     this.process.on("error", errorHandler);
+
+    this.daemonStatus = 'running';
+    this.daemonStartTime = Date.now();
+    this.restartAttempts = 0;
+    this.circuitBreakerFailures = 0;
+    this.circuitBreakerState = 'closed';
+    this.fallbackMode = false;
   }
 
   private cleanup() {
@@ -407,6 +558,17 @@ class PythonDaemonManager {
     if (this.isRestarting) return;
     this.isRestarting = true;
 
+    this.daemonStatus = 'crashed';
+    this.lastCrashTime = Date.now();
+    this.restartAttempts++;
+
+    this.circuitBreakerFailures++;
+    if (this.circuitBreakerFailures >= this.circuitBreakerThreshold) {
+      this.circuitBreakerState = 'open';
+      this.lastFailureTime = Date.now();
+      logger.error("Circuit breaker OPEN — ML daemon restarts suspended");
+    }
+
     // Reject all pending requests with a crash error
     const activeRequests = Array.from(this.pendingRequests.entries());
     this.pendingRequests.clear();
@@ -415,11 +577,59 @@ class PythonDaemonManager {
       pending.reject(new Error("Python daemon crashed."));
     }
 
-    // Try to restart after a delay
+    this.restartAttempts++;
+    if (this.restartAttempts > MAX_DAEMON_RESTART_ATTEMPTS) {
+      logger.error({ attempts: this.restartAttempts }, "Python daemon exceeded max restart attempts — giving up");
+      mlConcurrency.drain("ML daemon permanently unavailable. Retry later.");
+      return;
+    }
+
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s, 64s, 128s, 256s, 300s (capped)
+    const delayMs = Math.min(
+      this.baseDelayMs * Math.pow(2, this.restartAttempts - 1),
+      this.maxDelayMs
+    );
+
+    // Add jitter: ±25% random variation to prevent thundering herd
+    const jitter = delayMs * (0.75 + Math.random() * 0.5);
+    const actualDelay = Math.round(jitter);
+
+    logger.warn(
+      `Python daemon crashed (attempt ${this.restartAttempts}/${this.maxRestartAttempts}). ` +
+      `Restarting in ${Math.round(actualDelay / 1000)}s...`
+    );
+
     setTimeout(() => {
       this.isRestarting = false;
       this.init();
-    }, 1000);
+    }, actualDelay);
+  }
+
+  private isCircuitBreakerOpen(): boolean {
+    if (this.circuitBreakerState === 'open') {
+      if (Date.now() - this.lastFailureTime > this.circuitBreakerResetTimeoutMs) {
+        this.circuitBreakerState = 'half-open';
+        logger.info('Circuit breaker HALF-OPEN — allowing trial ML daemon start');
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  public getStatus() {
+    return {
+      daemonStatus: this.daemonStatus,
+      circuitBreakerState: this.circuitBreakerState,
+      restartAttempts: this.restartAttempts,
+      maxRestartAttempts: this.maxRestartAttempts,
+      fallbackMode: this.fallbackMode,
+      uptime: this.daemonStatus === 'running' && this.daemonStartTime > 0
+        ? Math.floor((Date.now() - this.daemonStartTime) / 1000)
+        : 0,
+      lastCrashTime: this.lastCrashTime ? new Date(this.lastCrashTime).toISOString() : null,
+      pendingRequests: this.pendingRequests.size,
+    };
   }
 
   public async predict(input: unknown): Promise<PredictionResult> {
@@ -482,6 +692,36 @@ class PythonDaemonManager {
     });
   }
 
+  public async extract(text: string): Promise<ClinicalAnalysisResult> {
+    this.init();
+
+    if (!this.process || !this.process.stdin) {
+      throw new Error("Python daemon is not running.");
+    }
+
+    const requestId = randomUUID();
+
+    return new Promise<ClinicalAnalysisResult>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        if (this.pendingRequests.has(requestId)) {
+          this.pendingRequests.delete(requestId);
+          reject(new Error("Clinical analysis timed out."));
+        }
+      }, getRequestTimeout());
+
+      this.pendingRequests.set(requestId, { resolve: resolve as any, reject, timeoutId });
+
+      const payload = JSON.stringify({ requestId, type: "extract", text });
+      this.process!.stdin!.write(payload + "\n", (err) => {
+        if (err) {
+          clearTimeout(timeoutId);
+          this.pendingRequests.delete(requestId);
+          reject(err);
+        }
+      });
+    });
+  }
+
   public shutdown() {
     this.cleanup();
     this.pendingRequests.clear();
@@ -496,6 +736,92 @@ process.on("exit", () => {
 
 export interface InferenceOptions {
   throwOnFailure?: boolean;
+}
+
+export interface ClinicalAnalysisResult {
+  symptoms: string[];
+  medications: string[];
+  model_name: string;
+}
+
+/**
+ * Optimized rule-based clinical fallback matcher for extracting symptoms and medications when Python is unavailable.
+ */
+export function clinicalAnalysisFallback(text: string): ClinicalAnalysisResult {
+  const symptoms = [
+    "polyuria", "polydipsia", "polyphagia", "weight loss", "fatigue", "blurred vision", 
+    "blurry vision", "numbness", "tingling", "slow healing sores", "frequent infections",
+    "cough", "fever", "pain", "dyspnea", "shortness of breath", "nausea", "vomiting", 
+    "headache", "dizziness", "weakness", "lethargy"
+  ];
+  const medications = [
+    "metformin", "insulin", "glipizide", "glyburide", "pioglitazone", 
+    "lisinopril", "atorvastatin", "amlodipine", "metoprolol", "aspirin", 
+    "albuterol", "gabapentin", "levothyroxine", "ibuprofen", "acetaminophen"
+  ];
+  
+  const textLower = text.toLowerCase();
+  const matchedSymptoms = symptoms.filter(s => new RegExp(`\\b${s}\\b`, 'i').test(textLower));
+  const matchedMedications = medications.filter(m => new RegExp(`\\b${m}\\b`, 'i').test(textLower));
+  
+  return {
+    symptoms: matchedSymptoms.sort(),
+    medications: matchedMedications.sort(),
+    model_name: "rule-based-fallback"
+  };
+}
+
+/**
+ * Runs clinical Note Analysis (entity extraction) through the Python daemon with fallback.
+ */
+export async function runClinicalAnalysis(
+  text: string,
+  options: InferenceOptions = {}
+): Promise<{ result: ClinicalAnalysisResult; isFallback: boolean }> {
+  const { throwOnFailure = false } = options;
+  const release = await mlConcurrency.acquire(getRequestTimeout());
+  let attempt = 0;
+
+  try {
+    while (true) {
+      attempt++;
+      try {
+        const result = await pythonDaemon.extract(text);
+        return { result, isFallback: false };
+      } catch (error: any) {
+        const isTimeout = error.message?.includes("timed out") || error.message?.includes("Timeout");
+        const isConnection =
+          error.message?.includes("connection") ||
+          error.message?.includes("ECONNREFUSED") ||
+          error.message?.includes("not running") ||
+          error.message?.includes("crashed");
+
+        const shouldRetry = isTimeout || isConnection;
+        const maxRetries = getMaxRetries();
+        const backoffFactor = getRetryBackoffFactor();
+
+        if (shouldRetry && attempt <= maxRetries) {
+          const delay = 1000 * Math.pow(backoffFactor, attempt - 1);
+          logger.info(
+            { attempt, maxRetries, delay, err: error.message },
+            `Retrying clinical analysis (attempt ${attempt}/${maxRetries}) after ${delay}ms`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        throw error;
+      }
+    }
+  } catch (error: any) {
+    if (throwOnFailure) {
+      throw error;
+    }
+    logger.warn({ err: error }, "Clinical analysis failed, using clinical fallback");
+    return { result: clinicalAnalysisFallback(text), isFallback: true };
+  } finally {
+    release();
+  }
 }
 
 /**
@@ -643,4 +969,5 @@ export const MLService = {
   generateRequestFingerprint,
   runAssessmentInference,
   runAssessmentInferenceBatch,
+  runClinicalAnalysis,
 };

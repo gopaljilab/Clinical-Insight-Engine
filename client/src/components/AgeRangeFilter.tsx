@@ -1,3 +1,4 @@
+import React from 'react';
 import { Input } from "@/components/ui/input";
 
 interface AgeRangeFilterProps {
@@ -46,3 +47,4 @@ export function AgeRangeFilter({ minAge, maxAge, onChange }: AgeRangeFilterProps
     </div>
   );
 }
+

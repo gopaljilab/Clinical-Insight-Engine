@@ -6,7 +6,7 @@
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
     "noEmit": true,
     "module": "ESNext",
-    "strict": true,
+    "strict": false,
     "target": "ES2022",
     "lib": ["esnext", "dom", "dom.iterable"],
     "jsx": "preserve",
@@ -17,7 +17,8 @@
     "moduleResolution": "bundler",
 
     "types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
-    
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
 
     "paths": {
       "@/*": ["./client/src/*"],

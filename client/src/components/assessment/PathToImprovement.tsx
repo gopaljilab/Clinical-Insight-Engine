@@ -1,3 +1,4 @@
+import React from 'react';
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, TrendingDown, CheckCircle2 } from "lucide-react";
@@ -59,3 +60,4 @@ export function PathToImprovement({ assessment }: { assessment: AssessmentRespon
     </div>
   );
 }
+

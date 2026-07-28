@@ -279,7 +279,7 @@ This command will:
 * Launch the full-stack server with live-reloading (HMR) enabled.
 
 Once started, open your browser and navigate to:
-* **Web App & REST API:** [http://localhost:3000](http://localhost:3000)
+  * **Web App & REST API:** [http://localhost:5000](http://localhost:5000)
 
 ### 2. Stop the App
 To stop the services while preserving your data:

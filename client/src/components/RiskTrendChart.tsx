@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -27,19 +27,19 @@ interface Props {
   patientGroups?: PatientGroup[];
 }
 
-const PATIENT_COLORS = ["#2563EB", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899"];
+const PATIENT_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))", "hsl(var(--primary))"];
 
 export const METRICS = [
-  { key: "riskScore", label: "Risk Score (%)", color: "#2563EB", active: true },
-  { key: "bmi", label: "BMI", color: "#06B6D4", active: false },
-  { key: "hba1cLevel", label: "HbA1c (%)", color: "#10B981", active: false },
-  { key: "bloodGlucoseLevel", label: "Blood Glucose", color: "#F59E0B", active: false },
+  { key: "riskScore", label: "Risk Score (%)", color: "hsl(var(--primary))", active: true },
+  { key: "bmi", label: "BMI", color: "hsl(var(--chart-2))", active: false },
+  { key: "hba1cLevel", label: "HbA1c (%)", color: "hsl(var(--chart-3))", active: false },
+  { key: "bloodGlucoseLevel", label: "Blood Glucose", color: "hsl(var(--chart-4))", active: false },
 ];
 
 function getRiskColor(score: number) {
   if (score >= 50) return "hsl(var(--destructive))";
-  if (score >= 20) return "hsl(var(--chart-3))";
-  return "hsl(var(--chart-2))";
+  if (score >= 20) return "hsl(var(--chart-4))"; // Moderate risk
+  return "hsl(var(--chart-2))"; // Low risk
 }
 
 export default function RiskTrendChart({ assessments, patientGroups }: Props) {
@@ -157,8 +157,8 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
             <Legend wrapperStyle={{ fontSize: "12px", color: "hsl(var(--foreground))" }} />
             {activeMetrics["riskScore"] && !isComparisonMode && (
               <>
-                <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="4 4" label={{ value: t("charts.highRisk"), fontSize: 10, fill: "#EF4444" }} />
-                <ReferenceLine y={20} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: t("charts.moderateRisk"), fontSize: 10, fill: "#F59E0B" }} />
+                <ReferenceLine y={50} stroke="hsl(var(--destructive))" strokeDasharray="4 4" label={{ value: t("charts.highRisk"), fontSize: 10, fill: "hsl(var(--destructive))" }} />
+                <ReferenceLine y={20} stroke="hsl(var(--chart-4))" strokeDasharray="4 4" label={{ value: t("charts.moderateRisk"), fontSize: 10, fill: "hsl(var(--chart-4))" }} />
               </>
             )}
             {isComparisonMode
@@ -175,7 +175,7 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
                         name={`${group.patientName} — ${metricDef.label}`}
                         stroke={group.color}
                         strokeWidth={2.5}
-                        dot={{ r: 4, fill: group.color, stroke: "white", strokeWidth: 1.5 }}
+                        dot={{ r: 4, fill: group.color, stroke: "currentColor", strokeWidth: 1.5 }}
                         activeDot={{ r: 6 }}
                         connectNulls
                       />
@@ -194,7 +194,7 @@ export default function RiskTrendChart({ assessments, patientGroups }: Props) {
                       dot={(props: any) => {
                         const { cx, cy, payload } = props;
                         const dotColor = key === "riskScore" ? getRiskColor(payload.riskScore) : color;
-                        return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={dotColor} stroke="white" strokeWidth={1.5} />;
+                        return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={dotColor} stroke="currentColor" strokeWidth={1.5} />;
                       }}
                       activeDot={{ r: 6 }}
                     />

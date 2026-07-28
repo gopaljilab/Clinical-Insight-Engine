@@ -1,3 +1,4 @@
+import React from 'react';
 import { useEffect, useMemo, useState } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import AssessmentSelector from "@/components/AssessmentSelector";
@@ -123,3 +124,4 @@ export default function AssessmentComparisonCard({
     </section>
   );
 }
+

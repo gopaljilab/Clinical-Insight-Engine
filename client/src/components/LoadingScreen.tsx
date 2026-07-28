@@ -1,3 +1,4 @@
+import React from 'react';
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -17,3 +18,4 @@ export function LoadingScreen() {
     </div>
   );
 }
+

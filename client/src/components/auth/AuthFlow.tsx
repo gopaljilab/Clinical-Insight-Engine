@@ -1,3 +1,4 @@
+import React from 'react';
 import { FormEvent, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
@@ -505,3 +506,4 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
     </AuthLayout>
   );
 }
+

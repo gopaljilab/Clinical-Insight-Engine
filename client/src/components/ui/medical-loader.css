@@ -1,0 +1,104 @@
+/* Heartbeat Loader */
+.medical-loader-heartbeat {
+  display: inline-block;
+  position: relative;
+  width: 64px;
+  height: 64px;
+  transform: rotate(45deg);
+  transform-origin: 32px 32px;
+  animation: heartbeat-pulse 1.2s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+.medical-loader-heartbeat div {
+  top: 23px;
+  left: 19px;
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  background: currentColor;
+}
+.medical-loader-heartbeat div:after,
+.medical-loader-heartbeat div:before {
+  content: " ";
+  position: absolute;
+  display: block;
+  width: 26px;
+  height: 26px;
+  background: currentColor;
+  border-radius: 50%;
+}
+.medical-loader-heartbeat div:before {
+  top: -17px;
+  left: 0;
+}
+.medical-loader-heartbeat div:after {
+  top: 0;
+  left: -17px;
+}
+@keyframes heartbeat-pulse {
+  0% { transform: scale(0.95) rotate(45deg); }
+  5% { transform: scale(1.1) rotate(45deg); }
+  39% { transform: scale(0.85) rotate(45deg); }
+  45% { transform: scale(1) rotate(45deg); }
+  60% { transform: scale(0.95) rotate(45deg); }
+  100% { transform: scale(0.9) rotate(45deg); }
+}
+
+/* Cross Loader */
+.medical-loader-cross {
+  display: inline-block;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  animation: cross-spin 2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+}
+.medical-loader-cross::before,
+.medical-loader-cross::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+  border-radius: 4px;
+}
+.medical-loader-cross::before {
+  top: 0; left: 14px; width: 12px; height: 40px;
+}
+.medical-loader-cross::after {
+  top: 14px; left: 0; width: 40px; height: 12px;
+}
+@keyframes cross-spin {
+  0% { transform: rotate(0deg) scale(0.8); }
+  50% { transform: rotate(180deg) scale(1.1); }
+  100% { transform: rotate(360deg) scale(0.8); }
+}
+
+/* DNA Loader */
+.medical-loader-dna {
+  display: inline-block;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  animation: dna-rotate 2s infinite linear;
+}
+.medical-loader-dna-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: currentColor;
+  top: 14px;
+}
+.medical-loader-dna-dot:nth-child(1) {
+  left: 0;
+  animation: dna-bounce 2s infinite ease-in-out;
+}
+.medical-loader-dna-dot:nth-child(2) {
+  right: 0;
+  animation: dna-bounce 2s infinite ease-in-out;
+  animation-delay: -1s;
+}
+@keyframes dna-rotate {
+  100% { transform: rotate(360deg); }
+}
+@keyframes dna-bounce {
+  0%, 100% { transform: scale(0.6); }
+  50% { transform: scale(1.2); }
+}

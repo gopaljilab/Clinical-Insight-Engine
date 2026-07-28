@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -410,3 +411,4 @@ export default function CohortDiscovery() {
     </AppLayout>
   );
 }
+

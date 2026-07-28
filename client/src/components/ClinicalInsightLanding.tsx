@@ -1,3 +1,4 @@
+import React from 'react';
 import { useLocation } from "wouter";
 import { useState } from "react";
 import { Logo } from "@/components/ui/Logo";
@@ -591,3 +592,4 @@ export function ClinicalInsightLanding() {
     </div>
   );
 }
+

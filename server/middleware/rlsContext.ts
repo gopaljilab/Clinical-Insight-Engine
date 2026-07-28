@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { createRlsClient, runWithRlsDb, type RlsUserContext } from "../db-rls";
+import { createRlsClient, runWithRlsDb, unregisterRlsClient, type RlsUserContext } from "../db-rls";
 import { getDb } from "../db";
 import { patientUsers } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -111,6 +111,7 @@ export async function rlsContextMiddleware(
       if (client) {
         try {
           client.release();
+          unregisterRlsClient(client);
         } catch (err) {
           logger.error({ err }, "Failed to release RLS database client");
         }
@@ -139,7 +140,10 @@ export async function rlsContextMiddleware(
     }
   } catch (err) {
     if (client) {
-      try { client.release(); } catch { /* ignore */ }
+      try {
+        client.release();
+        unregisterRlsClient(client);
+      } catch { /* ignore */ }
     }
     logger.error({ err }, "Failed to set up RLS context");
     next(err);

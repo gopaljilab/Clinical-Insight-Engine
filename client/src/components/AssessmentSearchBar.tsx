@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect, useRef } from "react";
 import { Search, X, ShieldAlert, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -128,3 +129,4 @@ export function AssessmentSearchBar({ value, onSearch, onClear }: AssessmentSear
     </div>
   );
 }
+

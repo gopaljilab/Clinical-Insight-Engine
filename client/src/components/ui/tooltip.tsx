@@ -1,3 +1,4 @@
+import React from 'react';
 "use client"
 
 import * as React from "react"
@@ -28,3 +29,4 @@ const TooltipContent = React.forwardRef<
 TooltipContent.displayName = TooltipPrimitive.Content.displayName
 
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+

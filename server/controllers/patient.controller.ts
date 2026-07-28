@@ -1,9 +1,11 @@
 import { type Request, type Response } from "express";
 import bcrypt from "bcrypt";
+import { randomInt } from "crypto";
 import { z } from "zod";
 import { storage } from "../storage";
 import { logger } from "../logger";
 import { issueToken } from "../services/auth/tokenValidator";
+import { sendVerificationEmail } from "../email";
 
 const registerSchema = z.object({
   patientName: z.string().trim().min(1, "Patient name is required"),
@@ -17,12 +19,30 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+const verifyOtpSchema = z.object({
+  email: z.string().email("Valid email is required"),
+  otp: z.string().length(6, "OTP must be exactly 6 digits"),
+});
+
+const PATIENT_SESSION_COOKIE = "patient_session";
+const PATIENT_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
 function hashPassword(password: string): string {
   return bcrypt.hashSync(password, 10);
 }
 
 function verifyPassword(password: string, hash: string): boolean {
   return bcrypt.compareSync(password, hash);
+}
+
+function setPatientSessionCookie(res: Response, token: string) {
+  res.cookie(PATIENT_SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: PATIENT_SESSION_MAX_AGE_MS,
+    path: "/",
+  });
 }
 
 export const registerPatient = async (req: Request, res: Response) => {
@@ -41,15 +61,29 @@ export const registerPatient = async (req: Request, res: Response) => {
       patientName: body.patientName,
       email: body.email,
       passwordHash,
-      phone: body.phone ?? null,
+      // patient_users.phone exists in DB schema but older repo typing may not include it
+      phone: ((body as any).phone ?? null) as any,
       isActive: true,
-      emailVerified: true,
+
+      emailVerified: false,
     });
-    const token = issueToken(user.id, user.email, "PATIENT", "24h");
+
+    // Generate and store OTP
+    const otp = randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await storage.createPatientOtp(user.id, otp, expiresAt);
+
+    // Send verification email
+    const emailSent = await sendVerificationEmail(body.email, otp);
+    if (!emailSent) {
+      logger.warn({ email: body.email }, "Failed to send patient verification email");
+    }
+
     return res.status(201).json({
       success: true,
-      token,
-      user: { id: user.id, patientName: user.patientName, email: user.email },
+      requiresOTP: true,
+      pendingEmail: body.email,
+      message: "OTP sent to email. Verify to complete registration.",
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -70,10 +104,25 @@ export const loginPatient = async (req: Request, res: Response) => {
     if (!user.isActive) {
       return res.status(403).json({ message: "Account is deactivated." });
     }
+    if (!user.emailVerified) {
+      // Resend OTP and direct user to verify
+      const otp = randomInt(100000, 999999).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      await storage.replacePatientOtp(user.id, otp, expiresAt);
+      const emailSent = await sendVerificationEmail(body.email, otp);
+      if (!emailSent) {
+        logger.warn({ email: body.email }, "Failed to send patient verification email on login");
+      }
+      return res.status(403).json({
+        message: "Email not verified. A verification code has been sent to your email.",
+        requiresOTP: true,
+        pendingEmail: body.email,
+      });
+    }
     const token = issueToken(user.id, user.email, "PATIENT", "24h");
+    setPatientSessionCookie(res, token);
     return res.json({
       success: true,
-      token,
       user: { id: user.id, patientName: user.patientName, email: user.email },
     });
   } catch (err) {
@@ -82,6 +131,38 @@ export const loginPatient = async (req: Request, res: Response) => {
     }
     logger.error({ err }, "Patient login error");
     return res.status(500).json({ message: "Login failed." });
+  }
+};
+
+export const verifyPatientOTP = async (req: Request, res: Response) => {
+  try {
+    const body = verifyOtpSchema.parse(req.body);
+
+    const user = await storage.getPatientUserByEmail(body.email);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const result = await storage.verifyPatientOtpAndSetVerified(user, body.otp);
+
+    if (!result.success) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    // OTP is valid — issue JWT and set cookie
+    const token = issueToken(user.id, user.email, "PATIENT", "24h");
+    setPatientSessionCookie(res, token);
+
+    return res.json({
+      success: true,
+      user: { id: user.id, patientName: user.patientName, email: user.email },
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ message: err.errors[0].message });
+    }
+    logger.error({ err }, "Patient OTP verification error");
+    return res.status(500).json({ message: "Verification failed." });
   }
 };
 

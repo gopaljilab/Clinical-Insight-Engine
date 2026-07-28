@@ -1,3 +1,4 @@
+import React from 'react';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, BarChart3, CheckCircle2, Loader2, TrendingDown, TrendingUp } from "lucide-react";
 import { type AssessmentResponse, type AssessmentWhatIfResponse, type AssessmentWhatIfBatchResponse } from "@shared/routes";

@@ -4,6 +4,7 @@ import { logAuditEvent, generateRequestId } from "../services/security/auditLogg
 import { createErrorResponse } from "../../shared/schemas/errorResponse";
 import { logger } from "../logger";
 import { AppError } from "../utils/AppError";
+import { getSafeServerErrorMessage } from "../security/errorSanitizer";
 
 /**
  * Global Exception Handler
@@ -61,7 +62,7 @@ export function globalErrorHandler(
   if (err instanceof AppError) {
     safeMessage = err.message;
   } else if (finalStatus === 500) {
-    safeMessage = "An internal server error occurred";
+    safeMessage = getSafeServerErrorMessage(err);
   }
 
   // 5. Record security audit event

@@ -1,11 +1,14 @@
+import React from 'react';
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Loader2, Users, FileText, Activity, Shield, UserCheck, UserX } from "lucide-react";
+import { Loader2, Users, FileText, Activity, Shield, UserCheck, UserX, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/EmptyState";
 import { useToast } from "@/hooks/use-toast";
 import { formatReadableDate } from "@/utils/dateFormat";
@@ -159,69 +162,157 @@ function UsersTab({ active }: { active: boolean }) {
 }
 
 function AuditLogsTab({ active }: { active: boolean }) {
+  const { toast } = useToast();
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [userId, setUserId] = useState("");
+  const [ipAddress, setIpAddress] = useState("");
+  const [status, setStatus] = useState("all");
+
+  const queryParams = new URLSearchParams();
+  if (startDate) queryParams.append("startDate", startDate);
+  if (endDate) queryParams.append("endDate", endDate);
+  if (userId) queryParams.append("userId", userId);
+  if (ipAddress) queryParams.append("ipAddress", ipAddress);
+  if (status !== "all") queryParams.append("status", status);
+  
+  const queryString = queryParams.toString();
+  const queryKey = `/api/admin/audit-logs${queryString ? `?${queryString}` : ""}`;
+
   const { data, isLoading } = useQuery<{ data: AuditLog[]; total: number }>({
-    queryKey: ["/api/admin/audit-logs"],
+    queryKey: [queryKey],
     enabled: active,
     queryFn: async () => {
-      return ApiClient.get("/api/admin/audit-logs");
+      return ApiClient.get(queryKey);
     },
     staleTime: 2 * 60 * 1000,
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  if (data?.data.length === 0) {
-    return (
-      <EmptyState
-        icon={Shield}
-        title="No Audit Logs"
-        description="There are currently no security audit logs recorded."
-      />
-    );
-  }
+  const handleExport = async () => {
+    try {
+      const exportQueryString = queryParams.toString();
+      const exportUrl = `/api/admin/audit-logs/export${exportQueryString ? `?${exportQueryString}` : ""}`;
+      
+      const response = await fetch(exportUrl, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error("Failed to export audit logs");
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit-logs-export-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Export Successful",
+        description: "Your audit logs have been exported.",
+      });
+    } catch (err) {
+      toast({
+        title: "Export Failed",
+        description: "There was an error exporting the audit logs.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 dark:border-gray-700 text-left text-slate-500 dark:text-slate-400">
-            <th className="pb-3 font-medium">Timestamp</th>
-            <th className="pb-3 font-medium">User ID</th>
-            <th className="pb-3 font-medium">IP Address</th>
-            <th className="pb-3 font-medium">Status</th>
-            <th className="pb-3 font-medium">User Agent</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data?.data.map((log) => (
-            <tr key={log.id} className="border-b border-slate-100 dark:border-gray-800">
-              <td className="py-3 pr-4 text-slate-500 dark:text-slate-400">
-                {formatReadableDate(log.createdAt, { fallback: "-" })}
-              </td>
-              <td className="py-3 pr-4 text-slate-500 dark:text-slate-400">{log.userId ? log.userId.slice(0, 8) + "..." : "-"}</td>
-              <td className="py-3 pr-4 dark:text-gray-300">{log.ipAddress || "-"}</td>
-              <td className="py-3 pr-4">
-                <Badge variant={log.loginStatus === "success" ? "default" : "destructive"}>
-                  {log.loginStatus || "-"}
-                </Badge>
-              </td>
-              <td className="py-3 max-w-[200px] truncate text-slate-500 dark:text-slate-400" title={log.userAgent || ""}>
-                {log.userAgent || "-"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {data && (
-        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-          Showing {data.data.length} of {data.total} log entries
-        </p>
+    <div className="space-y-4">
+      <div className="flex flex-col md:flex-row gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Start Date</label>
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">End Date</label>
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">User ID</label>
+            <Input placeholder="Filter by User ID" value={userId} onChange={(e) => setUserId(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">IP Address</label>
+            <Input placeholder="Filter by IP" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Status</label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="success">Success</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex items-end md:ml-auto">
+          <Button onClick={handleExport} variant="outline" className="w-full md:w-auto flex items-center gap-2">
+            <Download className="w-4 h-4" /> Export CSV
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      ) : data?.data.length === 0 ? (
+        <EmptyState
+          icon={Shield}
+          title="No Audit Logs"
+          description="There are currently no security audit logs matching your filters."
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-gray-700 text-left text-slate-500 dark:text-slate-400">
+                <th className="pb-3 font-medium">Timestamp</th>
+                <th className="pb-3 font-medium">User ID</th>
+                <th className="pb-3 font-medium">IP Address</th>
+                <th className="pb-3 font-medium">Status</th>
+                <th className="pb-3 font-medium">User Agent</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.data.map((log) => (
+                <tr key={log.id} className="border-b border-slate-100 dark:border-gray-800">
+                  <td className="py-3 pr-4 text-slate-500 dark:text-slate-400">
+                    {formatReadableDate(log.createdAt, { fallback: "-" })}
+                  </td>
+                  <td className="py-3 pr-4 text-slate-500 dark:text-slate-400">{log.userId ? log.userId.slice(0, 8) + "..." : "-"}</td>
+                  <td className="py-3 pr-4 dark:text-gray-300">{log.ipAddress || "-"}</td>
+                  <td className="py-3 pr-4">
+                    <Badge variant={log.loginStatus === "success" ? "default" : "destructive"}>
+                      {log.loginStatus || "-"}
+                    </Badge>
+                  </td>
+                  <td className="py-3 max-w-[200px] truncate text-slate-500 dark:text-slate-400" title={log.userAgent || ""}>
+                    {log.userAgent || "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data && (
+            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+              Showing {data.data.length} of {data.total} log entries
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -321,3 +412,4 @@ export default function AdminDashboard() {
     </AppLayout>
   );
 }
+

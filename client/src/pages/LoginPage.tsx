@@ -1,3 +1,4 @@
+import React from 'react';
 import { useEffect } from "react";
 import { AuthFlow } from "@/components/auth/AuthFlow";
 
@@ -14,3 +15,4 @@ export default function LoginPage() {
     <AuthFlow initialMode={initialMode} />
   );
 }
+

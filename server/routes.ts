@@ -1,26 +1,33 @@
 import mlRouter from "./routes/ml.routes";
 import exportsRouter from "./routes/exports.routes";
+import { insertAssessmentNoteSchema } from "@shared/schema";
+import { broadcastNote } from "./socket/notesSocket";
 import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
 import authRouter from "./routes/auth.routes";
+import settingsRouter from "./routes/settings.routes";
 import type { Express } from "express";
 import type { Server } from "http";
 
 import assessmentsRouter from "./routes/assessments.routes";
 import fhirRouter from "./routes/fhir.routes";
+import clinicalRouter from "./routes/clinical.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { logger } from "./logger";
+import { reportScheduler } from "./services/report-scheduler";
 import {
   generalLimiter,
   adminLimiter,
   exportLimiter,
 } from "./middleware/rateLimit";
+import { setCsrfToken, requireCsrfToken } from "./middleware/csrf";
 import { rateLimit } from "express-rate-limit";
-import { MLService, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
+import { MLService, pythonDaemon, mlConcurrency, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
 import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
+import { escapeCsvCell } from "./utils/csvSanitizer";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
 import { api } from "@shared/routes";
@@ -188,13 +195,25 @@ export async function registerRoutes(
     });
   });
 
+  // CSRF token endpoint — clients call this to get a csrf-token cookie
+  app.get("/api/csrf-token", (req, res) => {
+    setCsrfToken(req, res);
+    res.json({ token: res.locals.csrfToken });
+  });
+
   // Mount auth router
   app.use("/api/auth", authRouter);
   app.use("/api/ingest", fhirRouter);
+  app.use("/api/settings", settingsRouter);
+  app.use("/api/v1/clinical", clinicalRouter);
+
+  // Initialize the report scheduler
+  reportScheduler.init();
   app.post(
     api.assessments.preview.path,
     requireAuth,
     requireVerified,
+    requireCsrfToken,
     previewLimiter,
     validateDTO(api.assessments.preview.input),
     async (req, res) => {
@@ -301,7 +320,7 @@ export async function registerRoutes(
               "Injection-like pattern detected in search query parameter",
               req,
               {
-                matchedPattern: analysis.pattern,
+                matchedPattern: (analysis as any).pattern,
                 userId: req.session.user?.id,
               }
             );
@@ -329,7 +348,7 @@ export async function registerRoutes(
               "SUSPICIOUS_SEARCH_PATTERN",
               "Validated search term contains a suspicious pattern",
               req,
-              { matchedPattern: analysis.pattern, userId: req.session.user?.id }
+              { matchedPattern: (analysis as any).pattern, userId: req.session.user?.id }
             );
           }
         }
@@ -365,8 +384,21 @@ export async function registerRoutes(
     async (req, res) => {
       try {
         const patientName = Array.isArray(req.params.patientName) ? req.params.patientName[0] : req.params.patientName;
-        const userEmail = req.session.user?.email;
-        const result = await storage.getAssessmentsByPatientName(patientName, 100, 0, userEmail);
+        const user = req.session.user;
+        if (!user) {
+          return res.status(401).json({ message: "Authentication required." });
+        }
+        const result = await storage.getAssessmentsByPatientName(patientName, 100, 0, user.email);
+        if (result.data.length > 0 && !canAccessPatientRecord(user as any, result.data[0] as any)) {
+          logAccessAttempt(
+            user.id,
+            "Assessment",
+            result.data[0].id,
+            false,
+            "IDOR attempt: User not authorized to access patient trends"
+          );
+          return res.status(404).json({ message: "Assessment not found." });
+        }
         return res.json(result);
       } catch (err) {
         logger.error({ err }, "Patient trends fetch error:");
@@ -413,6 +445,12 @@ export async function registerRoutes(
       }
     }
   );
+
+  // Mount domain-specific routers to allow static routes (like /cohort) to match before dynamic /:id fallback
+  app.use("/api/assessments", mlRouter);
+  app.use("/api/assessments", exportsRouter);
+  app.use("/api/assessments", analyticsRouter);
+  app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   /**
    * GET /api/assessments/:id
@@ -471,12 +509,6 @@ export async function registerRoutes(
       }
     }
   );
-  
-  // Mount domain-specific routers (after app-level handlers for precedence)
-  app.use("/api/assessments", mlRouter);
-  app.use("/api/assessments", exportsRouter);
-  app.use("/api/assessments", analyticsRouter);
-  app.use("/api/assessments", generalLimiter, assessmentsRouter);
 
   // ─── Admin Routes ────────────────────────────────────────────────
 
@@ -499,7 +531,16 @@ export async function registerRoutes(
     try {
       const page = Math.max(1, parseInt(req.query.page as string) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-      const result = await storage.getLoginAuditLogs(page, limit);
+      
+      const filters = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        userId: req.query.userId as string,
+        ipAddress: req.query.ipAddress as string,
+        status: req.query.status as string,
+      };
+
+      const result = await storage.getLoginAuditLogs(page, limit, filters);
       res.json(result);
     } catch (err) {
       logger.error({ err }, "Admin audit logs fetch error:");
@@ -507,7 +548,49 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
+  app.get("/api/admin/audit-logs/export", requireAuth, requireAdmin, exportLimiter, async (req, res) => {
+    try {
+      const filters = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        userId: req.query.userId as string,
+        ipAddress: req.query.ipAddress as string,
+        status: req.query.status as string,
+      };
+
+      // Fetch all logs matching the filters (limit up to 10000 to prevent OOM)
+      const result = await storage.getLoginAuditLogs(1, 10000, filters);
+      const logs = result.data;
+
+      if (!logs || logs.length === 0) {
+        return res.status(404).json({ message: "No audit logs found to export." });
+      }
+
+      // Generate CSV
+      const headers = ["ID", "Timestamp", "User ID", "IP Address", "User Agent", "Login Status"];
+      const rows = logs.map(log => {
+        return [
+          log.id,
+          log.createdAt?.toISOString() ?? "",
+          log.userId ?? "",
+          log.ipAddress ?? "",
+          log.userAgent ?? "",
+          log.loginStatus ?? ""
+        ].map(escapeCsvCell).join(",");
+      });
+
+      const csvContent = [headers.join(","), ...rows].join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename=audit-logs-export-${new Date().toISOString().split('T')[0]}.csv`);
+      res.send(csvContent);
+    } catch (err) {
+      logger.error({ err }, "Admin audit logs export error:");
+      res.status(500).json({ message: "Failed to export audit logs." });
+    }
+  });
+
+  app.patch("/api/admin/users/:id", requireAuth, requireAdmin, requireCsrfToken, async (req, res) => {
     try {
       const id = req.params.id as string;
       const { isActive, role } = req.body;
@@ -551,6 +634,10 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/semaphore", requireAuth, requireAdmin, async (_req, res) => {
+    res.json(mlConcurrency.getMetrics());
+  });
+
   app.get("/api/admin/model/dataset-stats", requireAuth, requireAdmin, async (req, res) => {
     try {
       const stats = await storage.getModelDatasetStats();
@@ -561,7 +648,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/model/retrain", requireAuth, requireAdmin, async (req, res) => {
+  app.post("/api/admin/model/retrain", requireAuth, requireAdmin, requireCsrfToken, async (req, res) => {
     try {
       const { stdout, stderr } = await execFileAsync(
         getPythonExecutable(),
@@ -611,6 +698,10 @@ export async function registerRoutes(
       logger.error({ err }, "Admin model retrain error:");
       res.status(500).json({ message: (err as any).stderr || "Model retraining failed." });
     }
+  });
+
+  app.get("/api/admin/ml/status", requireAuth, requireAdmin, async (_req, res) => {
+    res.json(pythonDaemon.getStatus());
   });
 
   app.use("/api/upload", uploadRouter);

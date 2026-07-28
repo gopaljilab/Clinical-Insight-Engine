@@ -15,25 +15,10 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: package-lock.json
-
-      - name: Debug Workspace & Verify Lockfile
-        run: |
-          echo "Current working directory:"
-          pwd
-          echo "Listing all files in the current working directory:"
-          ls -la
-          echo "Checking if package-lock.json exists:"
-          if [ -f package-lock.json ]; then
-            echo "package-lock.json exists!"
-          else
-            echo "package-lock.json NOT found!"
-            exit 1
-          fi
 
       - name: Install dependencies
         run: npm ci

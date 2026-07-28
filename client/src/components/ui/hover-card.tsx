@@ -1,3 +1,4 @@
+import React from 'react';
 "use client"
 
 import * as React from "react"
@@ -27,3 +28,4 @@ const HoverCardContent = React.forwardRef<
 HoverCardContent.displayName = HoverCardPrimitive.Content.displayName
 
 export { HoverCard, HoverCardTrigger, HoverCardContent }
+

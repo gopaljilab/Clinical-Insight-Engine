@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth, requireVerified } from "../auth";
-import { handleFhirIngestion } from "../controllers/fhir.controller";
+import { handleFhirIngestion, parseFhirBundleOnly } from "../controllers/fhir.controller";
 
 const fhirRouter = Router();
 
@@ -9,6 +9,13 @@ fhirRouter.post(
   requireAuth,
   requireVerified,
   handleFhirIngestion
+);
+
+fhirRouter.post(
+  "/fhir/parse",
+  requireAuth,
+  requireVerified,
+  parseFhirBundleOnly
 );
 
 export default fhirRouter;

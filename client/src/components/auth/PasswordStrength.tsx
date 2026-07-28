@@ -1,3 +1,4 @@
+import React from 'react';
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 interface PasswordStrengthProps {
@@ -35,3 +36,4 @@ export function PasswordStrength({ password }: { password: string }) {
     </div>
   );
 }
+
