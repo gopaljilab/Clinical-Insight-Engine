@@ -23,6 +23,7 @@ import { PathToImprovement } from "./assessment/PathToImprovement";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "react-i18next";
+import { ReportQualityChecklist } from "./ReportQualityChecklist";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -335,6 +336,19 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               />
 
               <DataQualityAlerts alerts={assessment.qualityAlerts} />
+              <ReportQualityChecklist
+  hasSummary={true}
+  hasFindings={factorBreakdown.length > 0}
+  hasRecommendations={
+    !!assessment.recommendations &&
+    assessment.recommendations.length > 0
+  }
+  hasReferences={
+    !!assessment.clinicalNote &&
+    !!assessment.explainableInsights &&
+    assessment.explainableInsights.length > 0
+  }
+/>
 
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
@@ -458,6 +472,19 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <div className="mt-4 space-y-4">
                 <DataQualityAlerts alerts={assessment.qualityAlerts} />
+                <ReportQualityChecklist
+  hasSummary={true}
+  hasFindings={factorBreakdown.length > 0}
+  hasRecommendations={
+    !!assessment.recommendations &&
+    assessment.recommendations.length > 0
+  }
+  hasReferences={
+    !!assessment.clinicalNote &&
+    !!assessment.explainableInsights &&
+    assessment.explainableInsights.length > 0
+  }
+/>
                 <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
               </div>
 
