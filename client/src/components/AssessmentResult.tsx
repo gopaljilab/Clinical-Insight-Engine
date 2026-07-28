@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import { translatePatientAdvice } from "@/utils/adviceTranslator";
+import { MedicalGlossary } from "./MedicalGlossary";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -451,6 +452,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                 increasedRiskFactors={increasedRiskFactors}
                 reducedRiskFactors={reducedRiskFactors}
               />
+              <MedicalGlossary factors={factorBreakdown} />
             </motion.div>
           ) : (
             <motion.div
@@ -811,7 +813,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   </p>
                 )}
               </div>
+              <MedicalGlossary factors={factorBreakdown} />
             </motion.div>
+            
           )}
         </AnimatePresence>
       </div>
