@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import { translatePatientAdvice } from "@/utils/adviceTranslator";
+import { ReportQualityChecklist } from "./ReportQualityChecklist";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -140,7 +141,19 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       default: return "#2563eb";
     }
   };
+const getSeverity = (factor: { impact: string }) => {
+  if (factor.impact === "positive") {
+    return {
+      label: "🔴 Critical",
+      className: "bg-red-100 text-red-700 border-red-200",
+    };
+  }
 
+  return {
+    label: "🟢 Low Priority",
+    className: "bg-green-100 text-green-700 border-green-200",
+  };
+};
   const { data: assessmentsResponse } = useAssessments();
   const assessmentHistory = assessmentsResponse?.data ?? [];
   const improvementBadges = useMemo(
@@ -408,24 +421,40 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   <Info className="w-5 h-5 text-primary" /> {t("patientResult.whatThisMeans")}
                 </h3>
                 <div className="grid gap-4 md:grid-cols-2">
-                  {factorBreakdown.map((factor, i) => (
-                    <div key={i} className="flex gap-3 bg-card p-4 rounded-lg shadow-sm border border-border/50">
-                      {factor.impact === 'positive' ? (
-                        <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                      ) : (
-                        <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                      )}
-                      <div>
-                        <p className="font-semibold text-foreground">{factor.name}</p>
-                        <p className="text-sm text-muted-foreground mt-1">{factor.description}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                  {factorBreakdown.map((factor, i) => {
+  const severity = getSeverity(factor);
 
+  return (
+    <div key={i} className="flex gap-3 bg-card p-4 rounded-lg shadow-sm border border-border/50">
+      {factor.impact === "positive" ? (
+        <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+      ) : (
+        <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+      )}
+
+      <div>
+        <p className="font-semibold text-foreground">{factor.name}</p>
+
+        <span
+          className={cn(
+            "mt-2 inline-flex rounded-full border px-2 py-1 text-xs font-semibold",
+            severity.className
+          )}
+        >
+          {severity.label}
+        </span>
+
+        <p className="text-sm text-muted-foreground mt-1">
+          {factor.description}
+        </p>
+      </div>
+    </div>
+  );
+})}
+</div>
+</div>
               <div className="grid gap-4 md:grid-cols-3">
-                {patientGuidance.map((item, index) => (
+                {patientGuidance.map((item: string, index: number) => (
                   <div key={item} className="rounded-xl border border-border bg-card p-4 shadow-sm">
                     <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                       {index + 1}
@@ -550,6 +579,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                     {positiveFactors.length > 0 ? positiveFactors.map((factor: any) => (
                       <div key={factor.name} className="rounded-lg bg-amber-50 p-3 text-sm text-amber-950">
                         <p className="font-semibold">{factor.name}</p>
+                        <span className="mt-2 inline-flex rounded-full border border-red-200 bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">
+                          🔴 Critical
+                          </span>
                         <p className="mt-1 text-amber-900/80">{factor.description}</p>
                       </div>
                     )) : (
@@ -567,6 +599,9 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                     {protectiveFactors.length > 0 ? protectiveFactors.map((factor: any) => (
                       <div key={factor.name} className="rounded-lg bg-green-50 p-3 text-sm text-green-950">
                         <p className="font-semibold">{factor.name}</p>
+                        <span className="mt-2 inline-flex rounded-full border border-green-200 bg-green-100 px-2 py-1 text-xs font-semibold text-green-700">
+                          🟢 Low Priority
+                          </span>
                         <p className="mt-1 text-green-900/80">{factor.description}</p>
                       </div>
                     )) : (
