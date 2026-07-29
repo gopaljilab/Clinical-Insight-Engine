@@ -2,6 +2,7 @@ import React from 'react';
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { FileText, ShieldAlert, Sparkles, HelpCircle } from "lucide-react";
+import { expandClinicalAbbreviations } from "@/utils/clinicalAbbreviations";
 import { cn } from "@/lib/utils";
 
 export interface ExplainableInsight {
@@ -13,6 +14,7 @@ export interface ExplainableInsight {
 interface ClinicalNoteViewerProps {
   noteText: string;
   insights: ExplainableInsight[];
+  expandAbbreviations?: boolean;
 }
 
 export function ClinicalNoteViewer({ noteText, insights }: ClinicalNoteViewerProps) {

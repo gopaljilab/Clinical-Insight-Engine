@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import { translatePatientAdvice } from "@/utils/adviceTranslator";
+import { expandClinicalAbbreviations } from "@/utils/clinicalAbbreviations";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
@@ -78,6 +79,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [isPresenting, setIsPresenting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isGeneratingPatientPDF, setIsGeneratingPatientPDF] = useState(false);
+  const [expandAbbreviations, setExpandAbbreviations] = useState(false);
   const [pdfError, setPdfError] = useState<string>("");
   const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string }[] | null>(null);
   const [isEditingNote, setIsEditingNote] = useState(false);
@@ -311,6 +313,15 @@ const isNewFinding = (factorName: string) =>
                 {isGeneratingPatientPDF ? t("patientResult.generating") : (t("patientResult.exportPatientHandout") || "Download Patient PDF")}
               </button>
             )}
+            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
+  <input
+    type="checkbox"
+    checked={expandAbbreviations}
+    onChange={(e) => setExpandAbbreviations(e.target.checked)}
+    className="h-4 w-4"
+  />
+  Expand Abbreviations
+</label>
             <UiTooltip>
               <TooltipTrigger asChild>
                 <div>
@@ -439,7 +450,11 @@ const isNewFinding = (factorName: string) =>
                             </span>
                           )}
                           </div>
-                        <p className="text-sm text-muted-foreground mt-1">{factor.description}</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+  {expandAbbreviations
+    ? expandClinicalAbbreviations(factor.description)
+    : factor.description}
+</p>
                       </div>
                     </div>
                   ))}
@@ -580,7 +595,11 @@ const isNewFinding = (factorName: string) =>
     </span>
   )}
 </div>
-                        <p className="mt-1 text-amber-900/80">{factor.description}</p>
+                        <p className="mt-1 text-amber-900/80">
+  {expandAbbreviations
+    ? expandClinicalAbbreviations(factor.description)
+    : factor.description}
+</p>
                       </div>
                     )) : (
                       <p className="text-sm text-muted-foreground">{t("patientResult.noRiskDriving")}</p>
@@ -605,7 +624,11 @@ const isNewFinding = (factorName: string) =>
     </span>
   )}
 </div>
-                        <p className="mt-1 text-green-900/80">{factor.description}</p>
+                        <p className="mt-1 text-green-900/80">
+  {expandAbbreviations
+    ? expandClinicalAbbreviations(factor.description)
+    : factor.description}
+</p>
                       </div>
                     )) : (
                       <p className="text-sm text-muted-foreground">{t("patientResult.noProtectiveSignals")}</p>
@@ -836,9 +859,10 @@ const isNewFinding = (factorName: string) =>
                   </div>
                 ) : assessment.clinicalNote && assessment.explainableInsights ? (
                   <ClinicalNoteViewer
-                    noteText={assessment.clinicalNote}
-                    insights={assessment.explainableInsights as any}
-                  />
+  noteText={assessment.clinicalNote}
+  insights={assessment.explainableInsights as any}
+  expandAbbreviations={expandAbbreviations}
+/>
                 ) : assessment.clinicalNote ? (
                   <div className="rounded-xl border border-border bg-muted/30 p-4">
                     <p className="whitespace-pre-wrap leading-relaxed text-sm">{assessment.clinicalNote}</p>
