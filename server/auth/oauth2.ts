@@ -266,27 +266,4 @@ export function createOAuth2Router(): Router {
           // Record login audit (best-effort)
           try {
             import("../storage").then(({ storage }) => {
-              storage.recordLoginAudit({
-                userId: user.id,
-                ipAddress: req.ip,
-                userAgent: req.headers["user-agent"],
-                loginStatus: "oauth_google",
-              });
-            });
-          } catch (_auditErr) {
-            // Non-fatal
-          }
-
-          res.redirect(APP_URL);
-        });
-      });
-    } catch (err: any) {
-      logger.error({ err }, "OAuth callback error");
-      res.status(500).json({
-        message: "OAuth2 authentication failed. Please try again.",
-      });
-    }
-  });
-
-  return router;
-}
+            .catch(err => console.error(err))
