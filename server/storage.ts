@@ -160,6 +160,8 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  async getAssessmentById(id: number, createdBy?: string) {
+    return this.assessmentRepository.getAssessmentById(id, createdBy);
   async searchAssessments(
     searchTerm: string,
     createdBy?: string,
