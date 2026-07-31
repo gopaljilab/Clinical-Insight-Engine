@@ -1,7 +1,30 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
-import { AlertCircle, FileText, CheckCircle2, TrendingUp, TrendingDown, Info, HeartPulse, Activity, UserCircle, Stethoscope, Eye, Share2, Loader2, Printer, Download, MonitorPlay, Pencil, X, Save, Calendar } from "lucide-react";
+import {
+  AlertCircle,
+  FileText,
+  CheckCircle2,
+  TrendingUp,
+  TrendingDown,
+  Info,
+  HeartPulse,
+  Activity,
+  UserCircle,
+  Stethoscope,
+  Eye,
+  Share2,
+  Loader2,
+  Printer,
+  Download,
+  MonitorPlay,
+  Pencil,
+  X,
+  Save,
+  Calendar,
+  Star,
+  StarOff
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { HealthBadges } from "@/components/HealthBadges";
@@ -78,6 +101,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
   const [isPresenting, setIsPresenting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isGeneratingPatientPDF, setIsGeneratingPatientPDF] = useState(false);
+  const [bookmarkedFindings, setBookmarkedFindings] = useState<string[]>([]);
   const [pdfError, setPdfError] = useState<string>("");
   const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string }[] | null>(null);
   const [isEditingNote, setIsEditingNote] = useState(false);
@@ -177,6 +201,13 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     strength: Math.max(20, Math.round(((totalFactors - index) / totalFactors) * 100)),
     plainReason: getFactorReason(factor, t),
   }));
+  const toggleBookmark = (finding: string) => {
+  setBookmarkedFindings((prev) =>
+    prev.includes(finding)
+      ? prev.filter((item) => item !== finding)
+      : [...prev, finding]
+  );
+};
   const previousAssessment =
   patientHistory.length > 1
     ? patientHistory[patientHistory.length - 2]
@@ -401,6 +432,25 @@ const isNewFinding = (factorName: string) =>
                 title={t("patientResult.progressBadges")}
                 description={t("patientResult.progressBadgesDesc")}
               />
+              {bookmarkedFindings.length > 0 && (
+  <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+    <h3 className="mb-3 flex items-center gap-2 font-bold text-amber-800">
+      <Star className="w-5 h-5 fill-current" />
+      Bookmarked Findings
+    </h3>
+
+    <div className="flex flex-wrap gap-2">
+      {bookmarkedFindings.map((finding) => (
+        <span
+          key={finding}
+          className="rounded-full bg-white border border-amber-300 px-3 py-1 text-sm font-medium text-amber-800"
+        >
+          {finding}
+        </span>
+      ))}
+    </div>
+  </div>
+)}
 
               <DataQualityAlerts alerts={assessment.qualityAlerts} />
               <ReportQualityChecklist
@@ -430,18 +480,35 @@ const isNewFinding = (factorName: string) =>
                       ) : (
                         <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
                       )}
-                      <div>
-                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-foreground">{factor.name}</p>
-                        {isNewFinding(factor.name) && (
-                          <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-xs font-semibold">
-                            🆕 New Finding
-                            </span>
-                          )}
-                          </div>
-                        <p className="text-sm text-muted-foreground mt-1">{factor.description}</p>
-                      </div>
-                    </div>
+                      <div className="flex-1">
+  <div className="flex items-center justify-between gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
+      <p className="font-semibold text-foreground">{factor.name}</p>
+
+      {isNewFinding(factor.name) && (
+        <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-xs font-semibold">
+          🆕 New Finding
+        </span>
+      )}
+    </div>
+
+    <button
+      type="button"
+      onClick={() => toggleBookmark(factor.name)}
+      className="text-amber-500 hover:text-amber-600 transition-colors"
+    >
+      {bookmarkedFindings.includes(factor.name) ? (
+        <Star className="w-4 h-4 fill-current" />
+      ) : (
+        <StarOff className="w-4 h-4" />
+      )}
+    </button>
+  </div>
+
+  <p className="text-sm text-muted-foreground mt-1">
+    {factor.description}
+  </p>
+</div>
                   ))}
                 </div>
               </div>
@@ -571,16 +638,33 @@ const isNewFinding = (factorName: string) =>
                   <div className="space-y-3">
                     {positiveFactors.length > 0 ? positiveFactors.map((factor: any) => (
                       <div key={factor.name} className="rounded-lg bg-amber-50 p-3 text-sm text-amber-950">
-                        <div className="flex items-center gap-2 flex-wrap">
-  <p className="font-semibold">{factor.name}</p>
+                       <div className="flex items-center justify-between gap-2">
+  <div className="flex items-center gap-2 flex-wrap">
+    <p className="font-semibold">{factor.name}</p>
 
-  {isNewFinding(factor.name) && (
-    <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-xs font-semibold">
-      🆕 New Finding
-    </span>
-  )}
+    {isNewFinding(factor.name) && (
+      <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-xs font-semibold">
+        🆕 New Finding
+      </span>
+    )}
+  </div>
+
+  <button
+    type="button"
+    onClick={() => toggleBookmark(factor.name)}
+    className="text-amber-500 hover:text-amber-600 transition-colors"
+  >
+    {bookmarkedFindings.includes(factor.name) ? (
+      <Star className="w-4 h-4 fill-current" />
+    ) : (
+      <StarOff className="w-4 h-4" />
+    )}
+  </button>
 </div>
-                        <p className="mt-1 text-amber-900/80">{factor.description}</p>
+
+<p className="mt-1 text-amber-900/80">
+  {factor.description}
+</p>
                       </div>
                     )) : (
                       <p className="text-sm text-muted-foreground">{t("patientResult.noRiskDriving")}</p>
@@ -596,16 +680,33 @@ const isNewFinding = (factorName: string) =>
                   <div className="space-y-3">
                     {protectiveFactors.length > 0 ? protectiveFactors.map((factor: any) => (
                       <div key={factor.name} className="rounded-lg bg-green-50 p-3 text-sm text-green-950">
-                        <div className="flex items-center gap-2 flex-wrap">
-  <p className="font-semibold">{factor.name}</p>
+                       <div className="flex items-center justify-between gap-2">
+  <div className="flex items-center gap-2 flex-wrap">
+    <p className="font-semibold">{factor.name}</p>
 
-  {isNewFinding(factor.name) && (
-    <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-xs font-semibold">
-      🆕 New Finding
-    </span>
-  )}
+    {isNewFinding(factor.name) && (
+      <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-xs font-semibold">
+        🆕 New Finding
+      </span>
+    )}
+  </div>
+
+  <button
+    type="button"
+    onClick={() => toggleBookmark(factor.name)}
+    className="text-amber-500 hover:text-amber-600 transition-colors"
+  >
+    {bookmarkedFindings.includes(factor.name) ? (
+      <Star className="w-4 h-4 fill-current" />
+    ) : (
+      <StarOff className="w-4 h-4" />
+    )}
+  </button>
 </div>
-                        <p className="mt-1 text-green-900/80">{factor.description}</p>
+
+<p className="mt-1 text-green-900/80">
+  {factor.description}
+</p>
                       </div>
                     )) : (
                       <p className="text-sm text-muted-foreground">{t("patientResult.noProtectiveSignals")}</p>
