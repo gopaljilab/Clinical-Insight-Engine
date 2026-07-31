@@ -7,8 +7,14 @@ import { api } from "@shared/routes";
 import { storage } from "../storage";
 import { MLService, calculateClinicalFallback, type PredictionResult } from "../services/mlService";
 import { validateDTO } from "../middleware/validateDTO";
+import { safeExecML } from "../utils/exec";
+import { fileURLToPath } from "url";
 import { mlLimiter } from "../middleware/rateLimit";
 
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
 const mlRouter = Router();
 
 mlRouter.post(
