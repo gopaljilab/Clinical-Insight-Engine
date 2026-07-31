@@ -39,6 +39,7 @@ import { drainRlsClients, getPoolMetrics } from "./db-rls";
 
 import compression from "compression";
 
+
 const app = express();
 app.use(compression());
 const httpServer = createServer(app);
