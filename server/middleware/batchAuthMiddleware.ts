@@ -51,7 +51,7 @@ export async function authenticateBatchOperation(
 
     // 4. Validate request size (batch operations can be large)
     const MAX_PAYLOAD_SIZE = 10 * 1024 * 1024; // 10MB
-    const contentLength = parseInt(req.get("content-length") || "0", 10);
+    const contentLength = parseInt(req.get("content-length", 10) || "0", 10);
     if (contentLength > MAX_PAYLOAD_SIZE) {
       const userId = req.session.user.id;
       logger.warn(
