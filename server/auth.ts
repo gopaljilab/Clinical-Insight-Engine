@@ -12,6 +12,8 @@ import { AuthRepository } from "./repositories/auth.repository";
 import { getDb } from "./db";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { passwordResetTokens, users, emailVerificationTokens } from "@shared/schema";
+import { authenticator } from "otplib";
+import qrcode from "qrcode";
 
 const authRepository = new AuthRepository();
 
@@ -27,6 +29,7 @@ declare module "express-session" {
     pendingUser?: {
       id: string;
       email: string;
+      mfaRequired?: boolean;
     };
     oauthState?: {
       value: string;
@@ -393,6 +396,13 @@ export function createAuthRouter(): Router {
         return res.status(401).json({ message: "Invalid credentials." });
       }
 
+      if (dbUser.mfaEnabled) {
+        await regenerateSession(req);
+        req.session.pendingUser = { id: dbUser.id, email: dbUser.email, mfaRequired: true };
+        await saveSession(req);
+        return res.json({ success: true, pendingEmail: email, mfaRequired: true });
+      }
+
       const otp = generateOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
@@ -645,6 +655,123 @@ return res.status((outcome as any).status ?? 400).json({ message: (outcome as an
   });
 
   /**
+   * POST /api/auth/verify-mfa
+   * Verifies the TOTP sent after login when MFA is enabled and establishes a session.
+   */
+  router.post("/verify-mfa", verifyEmailLimiter, async (req: Request, res: Response) => {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ message: "MFA token is required." });
+    }
+
+    if (!req.session.pendingUser || !req.session.pendingUser.mfaRequired) {
+      return res.status(401).json({ message: "No pending MFA authentication." });
+    }
+
+    const email = req.session.pendingUser.email;
+    const db = getDb();
+
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (!user || !user.mfaSecret) {
+      return res.status(404).json({ message: "User not found or MFA not configured." });
+    }
+
+    const isValid = authenticator.verify({ token, secret: user.mfaSecret });
+
+    if (!isValid) {
+      return res.status(401).json({ message: "Invalid authentication code." });
+    }
+
+    await storage.recordLoginAudit({
+      userId: user.id,
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      loginStatus: "success",
+    });
+
+    await establishAuthenticatedSession(req, {
+      id: user.id,
+      email: user.email,
+      name: user.fullName,
+      role: user.role,
+      emailVerified: user.emailVerified ?? false,
+    });
+
+    return res.json({ success: true, message: "Logged in successfully." });
+  });
+
+  /**
+   * POST /api/auth/mfa/setup
+   * Generates a new TOTP secret for the authenticated user and returns QR code URI.
+   */
+  router.post("/mfa/setup", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.session.user!.id;
+    const email = req.session.user!.email;
+
+    try {
+      const secret = authenticator.generateSecret();
+      const otpauth = authenticator.keyuri(email, "Clinical-Insight-Engine", secret);
+      const qrCodeDataUrl = await qrcode.toDataURL(otpauth);
+
+      res.json({ secret, qrCodeDataUrl });
+    } catch (err) {
+      logger.error({ err }, "MFA setup error");
+      res.status(500).json({ message: "Failed to generate MFA setup." });
+    }
+  });
+
+  /**
+   * POST /api/auth/mfa/verify-setup
+   * Verifies the setup TOTP token and enables MFA for the user.
+   */
+  router.post("/mfa/verify-setup", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.session.user!.id;
+    const { token, secret } = req.body;
+
+    if (!token || !secret) {
+      return res.status(400).json({ message: "Token and secret are required." });
+    }
+
+    const isValid = authenticator.verify({ token, secret });
+
+    if (!isValid) {
+      return res.status(400).json({ message: "Invalid authentication code." });
+    }
+
+    try {
+      const db = getDb();
+      await db.update(users).set({ mfaEnabled: true, mfaSecret: secret }).where(eq(users.id, userId));
+      res.json({ success: true, message: "MFA enabled successfully." });
+    } catch (err) {
+      logger.error({ err }, "MFA enable error");
+      res.status(500).json({ message: "Failed to enable MFA." });
+    }
+  });
+
+  /**
+   * POST /api/auth/mfa/disable
+   * Disables MFA for the authenticated user.
+   */
+  router.post("/mfa/disable", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.session.user!.id;
+
+    try {
+      const db = getDb();
+      await db.update(users).set({ mfaEnabled: false, mfaSecret: null }).where(eq(users.id, userId));
+      res.json({ success: true, message: "MFA disabled successfully." });
+    } catch (err) {
+      logger.error({ err }, "MFA disable error");
+      res.status(500).json({ message: "Failed to disable MFA." });
+    }
+  });
+
+  /**
    * POST /api/auth/logout
 out
    * Destroys the current session and clears the session cookie.
@@ -670,9 +797,25 @@ out
    * GET /api/auth/me
    * Returns the current authenticated user's info if the session is valid.
    */
-  router.get("/me", (req: Request, res: Response) => {
+  router.get("/me", async (req: Request, res: Response) => {
     if (req.session.user) {
-      return res.json({ user: req.session.user });
+      try {
+        const db = getDb();
+        const [dbUser] = await db
+          .select({ mfaEnabled: users.mfaEnabled })
+          .from(users)
+          .where(eq(users.id, req.session.user.id))
+          .limit(1);
+        
+        return res.json({ 
+          user: { 
+            ...req.session.user, 
+            mfaEnabled: dbUser?.mfaEnabled ?? false 
+          } 
+        });
+      } catch (err) {
+        return res.json({ user: { ...req.session.user, mfaEnabled: false } });
+      }
     }
     return res.status(401).json({ message: "Not authenticated." });
   });
