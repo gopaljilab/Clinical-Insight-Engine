@@ -16,6 +16,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import ModelMonitoring from "./pages/ModelMonitoring";
 import ProgressTracking from "./pages/ProgressTracking";
 import CounterfactualAnalysis from "./pages/CounterfactualAnalysis";
+import QuarantineQueue from "./pages/QuarantineQueue";
 
 import LoginPage from "./pages/LoginPage";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -46,6 +47,11 @@ function Router() {
       <Route path="/import">
         <ProtectedRoute>
           <ImportData />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/quarantine">
+        <ProtectedRoute>
+          <QuarantineQueue />
         </ProtectedRoute>
       </Route>
       <Route path="/history">
