@@ -12,6 +12,7 @@ import type { Server } from "http";
 import assessmentsRouter from "./routes/assessments.routes";
 import fhirRouter from "./routes/fhir.routes";
 import clinicalRouter from "./routes/clinical.routes";
+import { alertsRouter } from "./routes/alerts.routes";
 import { storage, type AssessmentCreateInput } from "./storage";
 import { requireAuth, requireAdmin, requireVerified } from "./auth";
 import { logger } from "./logger";
@@ -206,6 +207,7 @@ export async function registerRoutes(
   app.use("/api/ingest", fhirRouter);
   app.use("/api/settings", settingsRouter);
   app.use("/api/v1/clinical", clinicalRouter);
+  app.use("/api/alerts", alertsRouter);
 
   // Initialize the report scheduler
   reportScheduler.init();
