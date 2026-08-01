@@ -8,12 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Loader2, LogOut, Download, AlertTriangle, Heart, Activity, FileText, ChevronLeft } from "lucide-react";
+import { Loader2, LogOut, Download, AlertTriangle, Heart, Activity, FileText, ChevronLeft, Watch } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatReadableDate } from "@/utils/dateFormat";
 import { EmptyState } from "@/components/EmptyState";
 import { useTranslation } from "react-i18next";
 import { ApiClient } from "@/lib/apiClient";
+import { WearablesCard } from "@/components/WearablesCard";
 
 interface PatientUser {
   id: string;
@@ -275,6 +276,7 @@ export default function MyHealth() {
             <TabsList className="w-full sm:w-auto">
               <TabsTrigger value="assessments" className="min-h-[44px] flex-1 sm:flex-none"><FileText className="mr-2 h-5 w-5" /> {t("myHealth.tabAssessments")}</TabsTrigger>
               <TabsTrigger value="trends" className="min-h-[44px] flex-1 sm:flex-none"><Activity className="mr-2 h-5 w-5" /> {t("myHealth.tabTrends")}</TabsTrigger>
+              <TabsTrigger value="wearables" className="min-h-[44px] flex-1 sm:flex-none"><Watch className="mr-2 h-5 w-5" /> Wearables</TabsTrigger>
             </TabsList>
           </div>
 
@@ -368,6 +370,10 @@ export default function MyHealth() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="wearables">
+            <WearablesCard />
           </TabsContent>
         </Tabs>
       </main>

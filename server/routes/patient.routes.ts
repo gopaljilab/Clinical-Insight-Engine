@@ -70,6 +70,13 @@ export function requirePatientAuth(req: Request, res: Response, next: NextFuncti
   next();
 }
 
+import {
+  connectWearable,
+  getWearableStatus,
+  syncWearableData,
+  getWearableMetrics,
+} from "../controllers/wearable.controller";
+
 router.post("/auth/register", patientAuthLimiter, registerPatient);
 router.post("/auth/login", patientAuthLimiter, loginPatient);
 router.post("/auth/verify-otp", verifyOtpLimiter, verifyPatientOTP);
@@ -85,5 +92,11 @@ router.post("/auth/logout", (_req: Request, res: Response) => {
 router.get("/auth/me", requirePatientAuth, getMe);
 router.get("/assessments", requirePatientAuth, getAssessments);
 router.get("/trends", requirePatientAuth, getTrends);
+
+// Wearable routes
+router.post("/wearables/connect", requirePatientAuth, connectWearable);
+router.get("/wearables/status", requirePatientAuth, getWearableStatus);
+router.post("/wearables/sync", requirePatientAuth, syncWearableData);
+router.get("/wearables/metrics", requirePatientAuth, getWearableMetrics);
 
 export default router;

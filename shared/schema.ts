@@ -264,6 +264,37 @@ export const patientEmailVerificationTokens = pgTable("patient_email_verificatio
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const wearableDevices = pgTable("wearable_devices", {
+  id: serial("id").primaryKey(),
+  patientId: uuid("patient_id")
+    .notNull()
+    .references(() => patientUsers.id, { onDelete: "cascade" }),
+  deviceType: varchar("device_type", { length: 50 }).notNull(), // 'fitbit' or 'apple_health'
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at"),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type WearableDevice = typeof wearableDevices.$inferSelect;
+export type InsertWearableDevice = typeof wearableDevices.$inferInsert;
+
+export const wearableMetrics = pgTable("wearable_metrics", {
+  id: serial("id").primaryKey(),
+  patientId: uuid("patient_id")
+    .notNull()
+    .references(() => patientUsers.id, { onDelete: "cascade" }),
+  date: timestamp("date").notNull(),
+  steps: integer("steps"),
+  averageHeartRate: integer("average_heart_rate"),
+  sleepHours: doublePrecision("sleep_hours"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type WearableMetric = typeof wearableMetrics.$inferSelect;
+export type InsertWearableMetric = typeof wearableMetrics.$inferInsert;
+
 export type ModelVersion = typeof modelVersions.$inferSelect;
 export type InsertModelVersion = typeof modelVersions.$inferInsert;
 

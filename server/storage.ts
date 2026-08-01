@@ -12,6 +12,7 @@ import { AnalyticsRepository } from "./repositories/analytics.repository";
 import { ModelVersionRepository } from "./repositories/model-version.repository";
 import { PatientUserRepository } from "./repositories/patient-user.repository";
 import { PatientAuthRepository, type VerifyOutcome } from "./repositories/patient-auth.repository";
+import { WearableRepository } from "./repositories/wearable.repository";
 
 export interface IStorage {
   getAssessments(
@@ -106,6 +107,7 @@ export interface IStorage {
   createAssessmentsBatch(data: AssessmentCreateInput[]): Promise<Assessment[]>;
   getAssessmentNotes(assessmentId: number): Promise<(AssessmentNote & { user: { fullName: string } })[]>;
   addAssessmentNote(note: InsertAssessmentNote): Promise<AssessmentNote & { user: { fullName: string } }>;
+  getWearableRepository(): WearableRepository;
 }
 
 export type AssessmentCreateInput = InsertAssessment & {
@@ -126,6 +128,11 @@ export class DatabaseStorage implements IStorage {
   private modelVersionRepository = new ModelVersionRepository();
   private patientUserRepository = new PatientUserRepository();
   private patientAuthRepository = new PatientAuthRepository();
+  private wearableRepository = new WearableRepository();
+
+  getWearableRepository() {
+    return this.wearableRepository;
+  }
 
   async getAssessments(limitOrParams?: number | {
     limit?: number;
