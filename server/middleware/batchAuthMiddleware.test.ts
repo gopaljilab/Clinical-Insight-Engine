@@ -21,7 +21,7 @@ describe("batchAuthMiddleware", () => {
         user: {
           id: "user-123",
           email: "user@example.com",
-          verified: true,
+          emailVerified: true,
         },
         cookie: {
           expires: new Date(Date.now() + 3600000),
@@ -72,7 +72,7 @@ describe("batchAuthMiddleware", () => {
 
   it("rejects unverified users", async () => {
     mockReq.session = {
-      user: { id: "user-123", email: "user@example.com", verified: false },
+      user: { id: "user-123", email: "user@example.com", emailVerified: false },
       cookie: { expires: new Date(Date.now() + 3600000) },
     };
 
@@ -88,7 +88,7 @@ describe("batchAuthMiddleware", () => {
 
   it("rejects expired sessions", async () => {
     mockReq.session = {
-      user: { id: "user-123", email: "user@example.com", verified: true },
+      user: { id: "user-123", email: "user@example.com", emailVerified: true },
       cookie: { expires: new Date(Date.now() - 1000) }, // Expired
     };
 

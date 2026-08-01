@@ -391,6 +391,7 @@ export type AssessmentResponse = z.infer<typeof api.assessments.create.responses
     modelConfidence?: number | null;
     disclaimer?: string;
     isFallback?: boolean;
+    shapValues?: { name: string; value: number }[];
   };
   recommendations?: Recommendation[];
   explanation?: PredictionExplanation;

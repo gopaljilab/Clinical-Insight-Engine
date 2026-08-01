@@ -112,6 +112,8 @@
     "zod-validation-error": "^5.0.0"
   },
   "devDependencies": {
+    "@emnapi/runtime": "^1.11.2",
+    "@emnapi/wasi-threads": "^2.0.0",
     "@playwright/test": "^1.61.1",
     "@replit/vite-plugin-cartographer": "^0.6.0",
     "@replit/vite-plugin-dev-banner": "^0.1.1",
