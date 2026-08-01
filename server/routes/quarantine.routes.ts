@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "../db";
+import { getDb } from "../db";
 import { quarantinedAssessments, insertAssessmentSchema, assessments } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -8,6 +8,7 @@ export const quarantineRoutes = Router();
 // GET all quarantined items
 quarantineRoutes.get("/", async (req, res) => {
   try {
+    const db = getDb();
     const records = await db.query.quarantinedAssessments.findMany({
       orderBy: (qa, { desc }) => [desc(qa.createdAt)],
     });
@@ -24,6 +25,7 @@ quarantineRoutes.delete("/:id", async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
 
+    const db = getDb();
     await db.delete(quarantinedAssessments).where(eq(quarantinedAssessments.id, id));
     return res.json({ message: "Deleted successfully" });
   } catch (err) {
@@ -53,6 +55,7 @@ quarantineRoutes.post("/:id/resolve", async (req, res) => {
     const { MLService } = await import("../services/mlService");
     const { prediction } = await MLService.runAssessmentInference(validData, req.body.patientName || "unknown", { throwOnFailure: true });
 
+    const db = getDb();
     // Assuming we insert the resolved assessment here:
     const [inserted] = await db.insert(assessments).values({
       ...validData,
