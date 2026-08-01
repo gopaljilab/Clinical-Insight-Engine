@@ -12,7 +12,7 @@ import { OtpInput } from "./OtpInput";
 import { cn } from "@/lib/utils";
 
 export type AuthMode = "login" | "register";
-type Step = "form" | "otp" | "forgot";
+type Step = "form" | "otp" | "forgot" | "mfa";
 
 interface FieldErrors {
   fullName?: string;
@@ -133,20 +133,59 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
 
     setIsLoading(true);
     try {
-      let responseData: any;
+      let data: any;
       if (mode === "register") {
-        responseData = await ApiClient.post("/api/auth/register", { fullName, email, password, licenseNumber });
+        data = await ApiClient.post("/api/auth/register", { fullName, email, password, licenseNumber });
       } else {
-        responseData = await ApiClient.post("/api/auth/login", { email, password });
+        data = await ApiClient.post("/api/auth/login", { email, password });
       }
       
-      if (responseData?.devOtp) setDevOtp(responseData.devOtp);
-      setStep("otp");
-      setCountdown(600);
-      setResendCooldown(60);
-      setOtp(responseData?.devOtp || "");
+      if (data?.mfaRequired) {
+        setStep("mfa");
+        toast({ title: "MFA Required", description: "Please enter your authenticator code." });
+      } else {
+        setStep("otp");
+        if (data?.devOtp) {
+          setDevOtp(data.devOtp);
+          setOtp(data.devOtp); // Auto-fill in dev
+        }
+        setCountdown(600);
+        setResendCooldown(60);
+        
+        toast({
+          title: "Verification code sent",
+          description: "Check your email for the code.",
+        });
+      }
     } catch (err: unknown) {
       handleServerErrors(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyMfa = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!otp) return;
+
+    setError(null);
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/auth/verify-mfa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: otp }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.message || "Invalid authentication code.");
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      onSuccess?.();
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setIsLoading(false);
     }
@@ -293,6 +332,51 @@ export function AuthFlow({ initialMode = "login", onSuccess }: AuthFlowProps) {
               </div>
             </form>
           )}
+        </AuthCard>
+      </AuthLayout>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // Render: MFA Step
+  // -------------------------------------------------------------
+  if (step === "mfa") {
+    return (
+      <AuthLayout>
+        <AuthCard title="Two-Factor Authentication">
+          <form onSubmit={handleVerifyMfa}>
+            <p className="mb-6 text-sm text-slate-600 dark:text-slate-400">
+              Enter the 6-digit code from your authenticator app.
+            </p>
+
+            {error && <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">{error}</div>}
+
+            <OtpInput
+              value={otp}
+              onChange={setOtp}
+              disabled={isLoading}
+              autoFocus
+            />
+
+            <AuthButton
+              type="submit"
+              isLoading={isLoading}
+              disabled={otp.length !== 6}
+              className="mt-6 w-full"
+            >
+              Verify Code
+            </AuthButton>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setStep("form")}
+                className="text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+              >
+                Back to login
+              </button>
+            </div>
+          </form>
         </AuthCard>
       </AuthLayout>
     );

@@ -158,6 +158,8 @@ export const users = pgTable("users", {
   emailVerifiedAt: timestamp("email_verified_at"),
   role: varchar("role", { length: 50 }).default("provider"),
   reportFrequency: varchar("report_frequency", { length: 20 }).default("none"),
+  mfaEnabled: boolean("mfa_enabled").default(false),
+  mfaSecret: text("mfa_secret"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
