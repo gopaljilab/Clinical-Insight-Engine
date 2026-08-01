@@ -277,7 +277,8 @@ export default function History() {
         method: "POST",
         body: formData
       });
-      const data = await response.json();
+      if (!response.ok) throw new Error("Request failed");
+const data = await response.json();
       toast({ title: "Success", description: data.message });
     } catch (err: unknown) {
       toast({ title: "Upload Error", description: err instanceof Error ? (err as Error).message : String(err), variant: "destructive" });
