@@ -3,8 +3,12 @@ import type { Assessment } from '@shared/schema';
 import RiskTrendChart from './RiskTrendChart';
 import { formatReadableDate } from '@/utils/dateFormat';
 import { Badge } from '@/components/ui/badge';
-import { Activity, Calendar, FileText, Droplets, Weight } from 'lucide-react';
+import { Activity, Calendar, FileText, Droplets, Weight, Download, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { exportTimelineToCsv } from '@/utils/exportTimeline';
+import { downloadPatientSummaryPdf } from '@/utils/clinicalPdfReport';
 
 interface Props {
   assessments: Assessment[];
@@ -22,10 +26,32 @@ export default function PatientTimeline({ assessments }: Props) {
 
       {/* Clinical Notes Timeline */}
       <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-        <h3 className="text-lg font-black text-foreground mb-6 flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-primary" />
-          Clinical History Timeline
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+          <h3 className="text-lg font-black text-foreground flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-primary" />
+            Clinical History Timeline
+          </h3>
+          {assessments.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="w-fit">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Timeline
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => downloadPatientSummaryPdf(sortedAssessments as any)}>
+                  <FileText className="w-4 h-4 mr-2 text-primary" />
+                  Export as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportTimelineToCsv(sortedAssessments)}>
+                  <FileSpreadsheet className="w-4 h-4 mr-2 text-emerald-600" />
+                  Export as CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
 
         <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
           {sortedAssessments.map((assessment, index) => {
