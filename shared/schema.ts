@@ -292,3 +292,16 @@ export const deadLetterJobs = pgTable("dead_letter_jobs", {
 
 export type DeadLetterJob = typeof deadLetterJobs.$inferSelect;
 export type InsertDeadLetterJob = typeof deadLetterJobs.$inferInsert;
+
+export const quarantinedAssessments = pgTable("quarantined_assessments", {
+  id: serial("id").primaryKey(),
+  originalData: jsonb("original_data").notNull(),
+  anomalyReasons: jsonb("anomaly_reasons").notNull().$type<string[]>(),
+  importSource: text("import_source").notNull(),
+  ownerId: uuid("owner_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type QuarantinedAssessment = typeof quarantinedAssessments.$inferSelect;
+export type InsertQuarantinedAssessment = typeof quarantinedAssessments.$inferInsert;
+

@@ -3,9 +3,10 @@ import multer from "multer";
 import path from "path";
 import { requireAuth, requireVerified } from "../auth";
 import Papa from "papaparse";
-import { insertAssessmentSchema, type InsertAssessment } from "@shared/schema";
+import { insertAssessmentSchema, type InsertAssessment, quarantinedAssessments } from "@shared/schema";
 import { MLService } from "../services/mlService";
 import { storage } from "../storage";
+import { getDb } from "../db";
 import { logger } from "../logger";
 
 const uploadRouter = Router();
@@ -84,6 +85,14 @@ uploadRouter.post(
 
             const parseResult = insertAssessmentSchema.safeParse(rowData);
             if (!parseResult.success) {
+              const anomalyReasons = parseResult.error.errors.map(e => `${e.path.join(".")}: ${e.message}`);
+              const db = getDb();
+              await db.insert(quarantinedAssessments).values({
+                originalData: rowData,
+                anomalyReasons,
+                importSource: "CSV",
+                ownerId: req.session.user?.id || null,
+              });
               failed++;
               continue;
             }

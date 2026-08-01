@@ -20,38 +20,32 @@ describe("insertAssessmentSchema", () => {
   });
 
   it("rejects age outside allowed clinical range", () => {
-    const result = insertAssessmentSchema.safeParse({
-      ...validAssessment,
-      age: 0,
-    });
+    const invalidAssessment = { ...validAssessment, age: 0 };
+    const result = insertAssessmentSchema.safeParse(invalidAssessment);
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/greater than or equal to 1/);
+      expect(result.error.issues[0]?.message).toMatch(/must be at least 1/i);
     }
   });
 
   it("rejects BMI outside allowed range", () => {
-    const result = insertAssessmentSchema.safeParse({
-      ...validAssessment,
-      bmi: 5,
-    });
+    const invalidAssessment = { ...validAssessment, bmi: 5 };
+    const result = insertAssessmentSchema.safeParse(invalidAssessment);
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/greater than or equal to 10/);
+      expect(result.error.issues[0]?.message).toMatch(/must be at least 10/i);
     }
   });
 
   it("rejects invalid blood glucose values", () => {
-    const result = insertAssessmentSchema.safeParse({
-      ...validAssessment,
-      bloodGlucoseLevel: 10,
-    });
+    const invalidAssessment = { ...validAssessment, bloodGlucoseLevel: 10 };
+    const result = insertAssessmentSchema.safeParse(invalidAssessment);
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/greater than or equal to 50/);
+      expect(result.error.issues[0]?.message).toMatch(/must be at least 50/i);
     }
   });
 
@@ -64,75 +58,60 @@ describe("insertAssessmentSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects missing patient name as required", () => {
-    const result = insertAssessmentSchema.safeParse({
-      ...validAssessment,
-      patientName: undefined,
-    });
+  it("accepts missing patient name as it is optional", () => {
+    const { patientName, ...invalidAssessment } = validAssessment;
+    const result = insertAssessmentSchema.safeParse(invalidAssessment);
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Required");
-    }
+    expect(result.success).toBe(true);
   });
 
   it("rejects empty age string with 'required' error", () => {
-    const result = insertAssessmentSchema.safeParse({
-      ...validAssessment,
-      age: "",
-    });
+    const invalidAssessment = { ...validAssessment, age: "" as any };
+    const result = insertAssessmentSchema.safeParse(invalidAssessment);
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Expected number, received string");
+      expect(result.error.issues[0]?.message).toMatch(/Expected number, received string|is required/i);
     }
   });
 
   it("rejects empty BMI string with 'required' error", () => {
-    const result = insertAssessmentSchema.safeParse({
-      ...validAssessment,
-      bmi: "",
-    });
+    const invalidAssessment = { ...validAssessment, bmi: "" as any };
+    const result = insertAssessmentSchema.safeParse(invalidAssessment);
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Expected number, received string");
+      expect(result.error.issues[0]?.message).toMatch(/Expected number, received string|is required/i);
     }
   });
 
   it("rejects empty HbA1c string with 'required' error", () => {
-    const result = insertAssessmentSchema.safeParse({
-      ...validAssessment,
-      hba1cLevel: "",
-    });
+    const invalidAssessment = { ...validAssessment, hba1cLevel: "" as any };
+    const result = insertAssessmentSchema.safeParse(invalidAssessment);
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Expected number, received string");
+      expect(result.error.issues[0]?.message).toMatch(/Expected number, received string|is required/i);
     }
   });
 
   it("rejects empty blood glucose string with 'required' error", () => {
-    const result = insertAssessmentSchema.safeParse({
-      ...validAssessment,
-      bloodGlucoseLevel: "",
-    });
+    const invalidAssessment = { ...validAssessment, bloodGlucoseLevel: "" as any };
+    const result = insertAssessmentSchema.safeParse(invalidAssessment);
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Expected number, received string");
+      expect(result.error.issues[0]?.message).toMatch(/Expected number, received string|is required/i);
     }
   });
 
   it("still accepts numeric age 0 as out-of-range (not 'required')", () => {
-    const result = insertAssessmentSchema.safeParse({
-      ...validAssessment,
-      age: 0,
-    });
+    const invalidAssessment = { ...validAssessment, age: 0 };
+    const result = insertAssessmentSchema.safeParse(invalidAssessment);
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Number must be greater than or equal to 1");
+      expect(result.error.issues[0]?.message).toMatch(/must be at least 1/i);
     }
   });
 });

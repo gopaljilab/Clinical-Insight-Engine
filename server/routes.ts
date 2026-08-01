@@ -1,6 +1,7 @@
 import mlRouter from "./routes/ml.routes";
 import exportsRouter from "./routes/exports.routes";
 import { insertAssessmentNoteSchema } from "@shared/schema";
+import { quarantineRoutes } from "./routes/quarantine.routes";
 import { broadcastNote } from "./socket/notesSocket";
 import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
@@ -206,6 +207,7 @@ export async function registerRoutes(
   app.use("/api/ingest", fhirRouter);
   app.use("/api/settings", settingsRouter);
   app.use("/api/v1/clinical", clinicalRouter);
+  app.use("/api/quarantine", quarantineRoutes);
 
   // Initialize the report scheduler
   reportScheduler.init();
