@@ -292,3 +292,35 @@ export const deadLetterJobs = pgTable("dead_letter_jobs", {
 
 export type DeadLetterJob = typeof deadLetterJobs.$inferSelect;
 export type InsertDeadLetterJob = typeof deadLetterJobs.$inferInsert;
+
+export const alertRules = pgTable("alert_rules", {
+  id: serial("id").primaryKey(),
+  clinicianId: uuid("clinician_id").notNull().references(() => users.id),
+  patientName: text("patient_name"), // Optional: if null, applies to all patients of this clinician
+  biomarker: text("biomarker").notNull(),
+  condition: text("condition").notNull(),
+  thresholdValue: doublePrecision("threshold_value").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAlertRuleSchema = createInsertSchema(alertRules).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type AlertRule = typeof alertRules.$inferSelect;
+export type InsertAlertRule = typeof alertRules.$inferInsert;
+
+export const alerts = pgTable("alerts", {
+  id: serial("id").primaryKey(),
+  clinicianId: uuid("clinician_id").notNull().references(() => users.id),
+  patientName: text("patient_name").notNull(),
+  assessmentId: integer("assessment_id").references(() => assessments.id),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Alert = typeof alerts.$inferSelect;
+export type InsertAlert = typeof alerts.$inferInsert;

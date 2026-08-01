@@ -10,6 +10,7 @@ import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { MedicalLoader } from "@/components/ui/medical-loader";
+import { AlertsDropdown } from "@/components/AlertsDropdown";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -145,6 +146,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{t("app.subtitle")}</p>
               </div>
               <LanguageSwitcher variant="minimal" />
+              <AlertsDropdown />
               <ThemeToggle />
             </div>
 

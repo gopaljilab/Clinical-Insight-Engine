@@ -333,6 +333,15 @@ export function startAssessmentWorker(): void {
           }
         }
 
+        // Check custom alerts
+        if (userId) {
+          import("./services/alert.service").then(({ AlertService }) => {
+            AlertService.checkAndGenerateAlerts([assessment as any], userId).catch(err => {
+              logger.error({ err }, "Failed to evaluate custom alerts during assessment creation");
+            });
+          });
+        }
+
         emitAssessmentProgress(job.id ?? "", 90, "Generating Results");
         const result = {
           ...assessment,

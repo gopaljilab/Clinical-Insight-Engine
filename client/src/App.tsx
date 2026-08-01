@@ -10,6 +10,11 @@ import NotFound from "@/pages/not-found";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import History from "./pages/History";
+import ModelGovernance from "@/pages/ModelGovernance";
+import ReportDesigner from "@/pages/ReportDesigner";
+import SharedDashboard from "@/pages/SharedDashboard";
+import SharePatientAccess from "@/pages/SharePatientAccess";
+import AlertsConfiguration from "@/pages/AlertsConfiguration";
 import Analytics from "./pages/Analytics";
 import ImportData from "./pages/ImportData";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -83,6 +88,11 @@ function Router() {
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/terms" component={Terms} />
+      <Route path="/alerts-config">
+        <ProtectedRoute>
+          <AlertsConfiguration />
+        </ProtectedRoute>
+      </Route>
       <Route path="/patient-login" component={PatientLogin} />
       <Route path="/my-health" component={MyHealth} />
       <Route component={NotFound} />

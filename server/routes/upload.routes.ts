@@ -113,6 +113,15 @@ uploadRouter.post(
             }))
           );
           created = createdAssessments.length;
+
+          // Check custom alerts asynchronously (fire and forget so we don't delay the response)
+          if (req.user) {
+            import("../services/alert.service").then(({ AlertService }) => {
+              AlertService.checkAndGenerateAlerts(createdAssessments, req.user!.id).catch(err => {
+                logger.error({ err }, "Failed to evaluate custom alerts during CSV upload");
+              });
+            });
+          }
         }
 
         return res.status(200).json({ 
