@@ -567,7 +567,7 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Con
     ? extractClinicalNoteDateWarnings(clinicalNote)
     : [];
 
-  const dateWarnings = rawDateWarnings.map((d) => {
+  const dateWarnings = (rawDateWarnings ?? []).map((d) => {
     // Reconstruct both interpretations for display purposes
     const a = parseInt(d.rawMatch.split(/[\/\-]/)[0], 10);
     const b = parseInt(d.rawMatch.split(/[\/\-]/)[1], 10);
