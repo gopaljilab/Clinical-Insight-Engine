@@ -76,7 +76,7 @@ uploadRouter.post(
               ...row,
               hypertension: hypertensionVal === 'true' || hypertensionVal === 'yes' || hypertensionVal === '1',
               heartDisease: heartDiseaseVal === 'true' || heartDiseaseVal === 'yes' || heartDiseaseVal === '1',
-              age: parseInt(String(row.age ?? ''), 10) || 0,
+              age: parseInt(String(row.age ?? '', 10), 10) || 0,
               bmi: parseFloat(String(row.bmi ?? '')) || 0,
               hba1cLevel: parseFloat(String(row.hba1cLevel ?? '')) || 0,
               bloodGlucoseLevel: parseFloat(String(row.bloodGlucoseLevel ?? '')) || 0,
@@ -102,7 +102,7 @@ uploadRouter.post(
         let created = 0;
         if (validRows.length > 0) {
           const createdAssessments = await storage.createAssessmentsBatch(
-            validRows.map(({ rowData, prediction }) => ({
+            (validRows ?? []).map(({ rowData, prediction }) => ({
               ...rowData,
               riskScore: prediction.riskScore,
               riskCategory: prediction.riskCategory,
