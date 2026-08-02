@@ -480,7 +480,7 @@ export const getAssessmentById = async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
 
-    if (isNaN(id) || id <= 0) {
+    if (Number.isNaN(id) || id <= 0) {
       return res.status(400).json({ message: "Invalid assessment ID." });
     }
 
@@ -520,7 +520,7 @@ export const deleteAssessment = async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
 
-    if (isNaN(id) || id <= 0) {
+    if (Number.isNaN(id) || id <= 0) {
       return res.status(400).json({ message: "Invalid assessment ID." });
     }
 
