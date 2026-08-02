@@ -140,7 +140,7 @@ export function parseFhirBundle(payload: any): NormalizedFhirStructure {
       }
 
       if (resource.component && Array.isArray(resource.component)) {
-        obs.component = resource.component.map((comp: any) => ({
+        obs.component = resource.(component ?? []).map((comp: any) => ({
           code: comp.code,
           valueQuantity: comp.valueQuantity ? { value: Number(comp.valueQuantity.value) } : undefined,
         }));
