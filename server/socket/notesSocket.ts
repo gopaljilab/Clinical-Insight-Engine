@@ -25,7 +25,7 @@ export function initNotesSocket(httpServer: HttpServer): void {
     }
     
     const assessmentId = parseInt(assessmentIdStr, 10);
-    if (isNaN(assessmentId)) {
+    if (Number.isNaN(assessmentId)) {
       ws.close(1008, "Invalid assessmentId");
       return;
     }

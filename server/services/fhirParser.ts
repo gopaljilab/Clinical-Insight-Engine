@@ -140,7 +140,7 @@ export function parseFhirBundle(payload: any): NormalizedFhirStructure {
       }
 
       if (resource.component && Array.isArray(resource.component)) {
-        obs.component = resource.component.map((comp: any) => ({
+        obs.component = resource.(component ?? []).map((comp: any) => ({
           code: comp.code,
           valueQuantity: comp.valueQuantity ? { value: Number(comp.valueQuantity.value) } : undefined,
         }));
@@ -567,7 +567,7 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Con
     ? extractClinicalNoteDateWarnings(clinicalNote)
     : [];
 
-  const dateWarnings = rawDateWarnings.map((d) => {
+  const dateWarnings = (rawDateWarnings ?? []).map((d) => {
     // Reconstruct both interpretations for display purposes
     const a = parseInt(d.rawMatch.split(/[\/\-]/)[0], 10);
     const b = parseInt(d.rawMatch.split(/[\/\-]/)[1], 10);
@@ -588,8 +588,8 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Con
       confidence: d.confidence,
       ambiguous: d.ambiguous,
       warning: d.warning,
-      mmddInterpretation: !isNaN(a) && !isNaN(b) && !isNaN(y) ? makeISO(y, a, b) : null,
-      ddmmInterpretation: !isNaN(a) && !isNaN(b) && !isNaN(y) ? makeISO(y, b, a) : null,
+      mmddInterpretation: !Number.isNaN(a) && !Number.isNaN(b) && !Number.isNaN(y) ? makeISO(y, a, b) : null,
+      ddmmInterpretation: !Number.isNaN(a) && !Number.isNaN(b) && !Number.isNaN(y) ? makeISO(y, b, a) : null,
     };
   });
 
