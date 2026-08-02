@@ -517,8 +517,8 @@ export async function registerRoutes(
 
   app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const page = Math.max(1, parseInt(req.query.page as string) || 1);
-      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+      const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 20));
       const result = await storage.getAllUsers(page, limit);
       res.json(result);
     } catch (err) {
@@ -529,8 +529,8 @@ export async function registerRoutes(
 
   app.get("/api/admin/audit-logs", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const page = Math.max(1, parseInt(req.query.page as string) || 1);
-      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+      const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 20));
       
       const filters = {
         startDate: req.query.startDate as string,
@@ -568,7 +568,7 @@ export async function registerRoutes(
 
       // Generate CSV
       const headers = ["ID", "Timestamp", "User ID", "IP Address", "User Agent", "Login Status"];
-      const rows = logs.map(log => {
+      const rows = (logs ?? []).map(log => {
         return [
           log.id,
           log.createdAt?.toISOString() ?? "",
