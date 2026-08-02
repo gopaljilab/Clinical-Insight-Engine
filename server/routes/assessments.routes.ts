@@ -152,7 +152,7 @@ assessmentsRouter.patch(
   async (req, res) => {
     try {
       const id = parseInt(req.params.id as string, 10);
-      if (isNaN(id) || id <= 0) {
+      if (Number.isNaN(id) || id <= 0) {
         return res.status(400).json({ message: "api.errors.invalidAssessmentId" });
       }
 

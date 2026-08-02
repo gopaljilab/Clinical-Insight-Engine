@@ -588,8 +588,8 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Con
       confidence: d.confidence,
       ambiguous: d.ambiguous,
       warning: d.warning,
-      mmddInterpretation: !isNaN(a) && !isNaN(b) && !isNaN(y) ? makeISO(y, a, b) : null,
-      ddmmInterpretation: !isNaN(a) && !isNaN(b) && !isNaN(y) ? makeISO(y, b, a) : null,
+      mmddInterpretation: !Number.isNaN(a) && !Number.isNaN(b) && !Number.isNaN(y) ? makeISO(y, a, b) : null,
+      ddmmInterpretation: !Number.isNaN(a) && !Number.isNaN(b) && !Number.isNaN(y) ? makeISO(y, b, a) : null,
     };
   });
 

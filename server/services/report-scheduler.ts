@@ -62,7 +62,7 @@ class ReportScheduler {
       
       const emailHtml = `
         <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; color: #333;">
-          <h2 style="color: #2563eb;">Clinical Insight Engine - ${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Summary</h2>
+          <h2 style="color: #2563eb;">Clinical Insight Engine - ${frequency[0].toUpperCase() + frequency.slice(1)} Summary</h2>
           <p>Here is the high-level patient cohort statistics for the ${timeframeStr.toLowerCase()}:</p>
           
           <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
@@ -84,7 +84,7 @@ class ReportScheduler {
         </div>
       `;
 
-      const emailSubject = `[Clinical Insight Engine] ${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Summary Report`;
+      const emailSubject = `[Clinical Insight Engine] ${frequency[0].toUpperCase() + frequency.slice(1)} Summary Report`;
 
       // 4. Send the emails
       for (const user of subscribedUsers) {
