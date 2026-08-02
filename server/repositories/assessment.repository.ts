@@ -147,12 +147,12 @@ export class AssessmentRepository {
       filters.push(lte(assessments.age, maxAge));
     }
 
-    if (startDate && !isNaN(Date.parse(startDate))) {
+    if (startDate && !Number.isNaN(Date.parse(startDate))) {
       const parsedStart = parseDateFilter(startDate);
       if (parsedStart) filters.push(gte(assessments.createdAt, parsedStart));
     }
 
-    if (endDate && !isNaN(Date.parse(endDate))) {
+    if (endDate && !Number.isNaN(Date.parse(endDate))) {
       const parsedEnd = parseDateFilter(endDate);
       if (parsedEnd) {
         parsedEnd.setUTCHours(23, 59, 59, 999);
@@ -451,11 +451,11 @@ export class AssessmentRepository {
     if (createdBy) {
       filters.push(eq(assessments.createdBy, createdBy));
     }
-    if (startDate && !isNaN(Date.parse(startDate))) {
+    if (startDate && !Number.isNaN(Date.parse(startDate))) {
       const parsedStart = parseDateFilter(startDate);
       if (parsedStart) filters.push(gte(assessments.createdAt, parsedStart));
     }
-    if (endDate && !isNaN(Date.parse(endDate))) {
+    if (endDate && !Number.isNaN(Date.parse(endDate))) {
       const parsedEnd = parseDateFilter(endDate);
       if (parsedEnd) {
         parsedEnd.setUTCHours(23, 59, 59, 999);
@@ -600,11 +600,11 @@ export class AssessmentRepository {
     if (params.maxHba1c !== undefined) filters.push(lte(assessments.hba1cLevel, params.maxHba1c));
     if (params.minGlucose !== undefined) filters.push(gte(assessments.bloodGlucoseLevel, params.minGlucose));
     if (params.maxGlucose !== undefined) filters.push(lte(assessments.bloodGlucoseLevel, params.maxGlucose));
-    if (params.startDate && !isNaN(Date.parse(params.startDate))) {
+    if (params.startDate && !Number.isNaN(Date.parse(params.startDate))) {
       const parsedStart = parseDateFilter(params.startDate);
       if (parsedStart) filters.push(gte(assessments.createdAt, parsedStart));
     }
-    if (params.endDate && !isNaN(Date.parse(params.endDate))) {
+    if (params.endDate && !Number.isNaN(Date.parse(params.endDate))) {
       const parsedEnd = parseDateFilter(params.endDate);
       if (parsedEnd) {
         parsedEnd.setUTCHours(23, 59, 59, 999);
