@@ -43,7 +43,7 @@ export function sanitizeCsvCell(value: unknown): string {
   }
 
   const trimmed = text.trim();
-  if (trimmed !== "" && !isNaN(Number(trimmed))) {
+  if (trimmed !== "" && !Number.isNaN(Number(trimmed))) {
     return text;
   }
 
