@@ -568,7 +568,7 @@ export async function registerRoutes(
 
       // Generate CSV
       const headers = ["ID", "Timestamp", "User ID", "IP Address", "User Agent", "Login Status"];
-      const rows = logs.map(log => {
+      const rows = (logs ?? []).map(log => {
         return [
           log.id,
           log.createdAt?.toISOString() ?? "",
