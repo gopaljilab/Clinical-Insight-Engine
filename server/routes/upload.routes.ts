@@ -102,7 +102,7 @@ uploadRouter.post(
         let created = 0;
         if (validRows.length > 0) {
           const createdAssessments = await storage.createAssessmentsBatch(
-            validRows.map(({ rowData, prediction }) => ({
+            (validRows ?? []).map(({ rowData, prediction }) => ({
               ...rowData,
               riskScore: prediction.riskScore,
               riskCategory: prediction.riskCategory,
