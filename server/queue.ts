@@ -138,7 +138,7 @@ export async function getQueueMetrics() {
       available: true,
       name: queue.name,
       counts: { waiting, active, completed, failed, delayed },
-      workerActive: assessmentWorkerInstance !== null,
+      workerActive: assessmentWorkerInstance !=== null,
       redisConnected: redisConnectionInstance?.status === "ready",
       config: {
         maxRetries: QUEUE_MAX_RETRIES,

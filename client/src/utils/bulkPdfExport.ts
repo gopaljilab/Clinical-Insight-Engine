@@ -79,7 +79,7 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
   doc.setFont("Helvetica", "bold");
   doc.text("Risk Distribution", pw / 2, 72, { align: "center" });
 
-  const categories = Object.keys(counts).sort();
+  const categories = Object.keys(counts).sort((a, b) => a - b);
   const totalBars = categories.length;
   const totalBarArea = totalBars * barW + (totalBars - 1) * barGap;
   const barStartX = (pw - totalBarArea) / 2;
