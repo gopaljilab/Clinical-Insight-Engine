@@ -517,7 +517,7 @@ export async function registerRoutes(
 
   app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
       const result = await storage.getAllUsers(page, limit);
       res.json(result);
