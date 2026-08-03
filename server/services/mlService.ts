@@ -223,7 +223,7 @@ const activeInferenceRequests = new Set<string>();
 function canonicalStringify(obj: unknown): string {
   if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
   if (Array.isArray(obj)) return "[" + obj.map(canonicalStringify).join(",") + "]";
-  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  const keys = Object.keys(obj as Record<string, unknown>).sort((a, b) => a - b);
   const pairs = keys.map(k => JSON.stringify(k) + ":" + canonicalStringify((obj as Record<string, unknown>)[k]));
   return "{" + pairs.join(",") + "}";
 }

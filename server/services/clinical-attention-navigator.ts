@@ -29,7 +29,7 @@ function buildPriority(factor: string, priority: "high" | "moderate" | "monitor"
 }
 
 function admissionPriority(value: number | undefined, threshold: number, keyLabel: string): "high" | "moderate" | "monitor" {
-  if (value == null || Number.isNaN(value)) return "monitor";
+  if (value === null || Number.isNaN(value)) return "monitor";
   if (value >= threshold * 1.25) return "high";
   if (value >= threshold) return "moderate";
   return "monitor";
