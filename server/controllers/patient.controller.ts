@@ -185,7 +185,7 @@ export const getAssessments = async (req: Request, res: Response) => {
   try {
     const user = await storage.getPatientUserById(req.jwtUser!.sub);
     if (!user) return res.status(404).json({ message: "User not found." });
-    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const limit = Math.min(parseInt(req.query.limit as string, 10) || 20, 100);
     const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
     const result = await storage.getAssessmentsByPatientName(user.patientName, limit, offset);
     return res.json(result);
