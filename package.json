@@ -99,7 +99,7 @@
     "react-resizable-panels": "^2.1.7",
     "recharts": "^2.15.2",
     "resend": "^6.17.1",
-    "sanitize-html": "^2.17.5",
+    "sanitize-html": "^2.17.6",
     "swagger-ui-express": "^5.0.1",
     "tailwind-merge": "^2.6.1",
     "tw-animate-css": "^1.2.5",
