@@ -1,5 +1,5 @@
 {
-  "include": ["shared/**/*", "server/**/*"],
+  "include": ["shared/**/*", "server/**/*", "client/**/*"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     "incremental": true,
@@ -12,7 +12,6 @@
     "jsx": "preserve",
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "ignoreDeprecations": "6.0",
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
 
