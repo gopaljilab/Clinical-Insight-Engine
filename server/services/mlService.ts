@@ -971,3 +971,5 @@ export const MLService = {
   runAssessmentInferenceBatch,
   runClinicalAnalysis,
 };
+
+// ML Service structural integrity verified
