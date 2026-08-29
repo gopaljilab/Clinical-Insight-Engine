@@ -213,11 +213,10 @@ describe("verifyOtpDTOSchema", () => {
     ).toThrow();
   });
 
-  it("accepts whitespace OTP (schema does not trim)", () => {
-    // z.string().min(1) does not trim, whitespace passes length check
+  it("rejects whitespace OTP (schema requires exactly 6 digits)", () => {
     expect(() =>
       verifyOtpDTOSchema.parse({ ...validPayload, otp: "   " })
-    ).not.toThrow();
+    ).toThrow();
   });
 
   it("rejects invalid email format", () => {
