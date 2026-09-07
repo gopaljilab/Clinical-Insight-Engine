@@ -1,4 +1,4 @@
-joblib>=1.5.3
+joblib>=1.6.0
 numpy>=2.0.0
 pandas>=2.2.0
 python-dateutil>=2.9.0.post0
