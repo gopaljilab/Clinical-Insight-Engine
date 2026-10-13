@@ -12,9 +12,10 @@ const viteLogger = createLogger();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function setupVite(server: Server, app: Express) {
+  const hmrPort = Number(process.env.VITE_HMR_PORT || 5002);
   const serverOptions = {
     middlewareMode: true,
-    hmr: { server, path: "/vite-hmr" },
+    hmr: { port: hmrPort, path: "/vite-hmr", clientPort: hmrPort },
     allowedHosts: true as const,
   };
 

@@ -16,7 +16,6 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 import { SmartFhirConnect } from "@/components/SmartFhirConnect";
 import { MedicalLoader } from "@/components/ui/medical-loader";
 import { useToast } from "@/hooks/use-toast";
-import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { ApiClient } from "@/lib/apiClient";
 const formSchema = insertAssessmentSchema.pick({

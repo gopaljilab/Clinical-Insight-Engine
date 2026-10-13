@@ -33,6 +33,7 @@ services:
     container_name: clinical-insight-app
     ports:
       - "5001:5000"
+      - "5002:5002"
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: ${PORT:-5000}
@@ -40,13 +41,14 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:-clinical-insight-engine-dev-secret}
       PUPPETEER_SKIP_DOWNLOAD: "true"
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      VITE_HMR_PORT: ${VITE_HMR_PORT:-5002}
     volumes:
       # Mount the workspace directory to support hot-reloading in development
       - .:/app
       # Preserve container-internal node_modules and python virtual environment
       - /app/node_modules
       - /app/.venv
-    command: sh -c "npm install && npm run db:push && npm run dev"
+    command: sh -c "npm install --include=dev --legacy-peer-deps && node node_modules/drizzle-kit/bin.cjs push && npm run dev"
     depends_on:
       db:
         condition: service_healthy

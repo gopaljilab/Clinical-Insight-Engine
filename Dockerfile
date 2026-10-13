@@ -1,16 +1,21 @@
 # Multi-stage Dockerfile for Clinical Insight Engine
 
 # Stage 1: Build Node.js application
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD="true"
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 COPY . .
 RUN npm run build
 
 # Stage 2: Build Python virtual environment
-FROM node:20-bookworm-slim AS python-builder
+FROM node:22-bookworm-slim AS python-builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y \
     python3 \
@@ -23,7 +28,7 @@ COPY requirements.txt ./
 RUN /app/.venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # Stage 3: Production runner
-FROM node:20-bookworm-slim AS runner
+FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -34,6 +39,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-venv \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up non-root user permissions
@@ -47,7 +53,7 @@ COPY --chown=node:node --from=python-builder /app/.venv /app/.venv
 
 # Install production Node.js dependencies
 COPY --chown=node:node package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --legacy-peer-deps
 
 # Copy built application
 COPY --chown=node:node --from=builder /app/dist ./dist

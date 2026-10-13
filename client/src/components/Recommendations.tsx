@@ -1,7 +1,6 @@
 import React from "react";
 import type { Recommendation } from "@shared/routes";
-import { Brain, Activity, Heart, Target, Salad } from "lucide-react";
-import { Heart, CalendarClock, TestTube, Pill, Activity } from "lucide-react";
+import { Brain, Activity, Heart, Target, Salad, CalendarClock, TestTube, Pill } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 function getRecommendationIcon(title: string) {
@@ -76,7 +75,6 @@ export function Recommendations({
         {filtered.map((rec) => (
           <label
             key={rec.id}
-            className="flex items-start gap-3 p-4 rounded-lg border border-primary/30 bg-primary/5 hover:shadow-md transition"
             className="flex items-start gap-3 p-4 rounded-lg border border-primary/20 bg-primary/5 hover:shadow-md transition-all"
           >
             <input
