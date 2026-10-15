@@ -26,7 +26,7 @@ import MyHealth from "./pages/MyHealth";
 import PatientLogin from "./pages/PatientLogin";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingScreen } from "./components/LoadingScreen";
-import { ThemeProvider } from "./components/theme-provider";
+import { ThemeProvider } from "./components/ThemeProvider";
 import { fetchCsrfToken } from "./lib/apiClient";
 import RoleRouter from "./pages/RoleRouter";
 import Settings from "./pages/Settings";
