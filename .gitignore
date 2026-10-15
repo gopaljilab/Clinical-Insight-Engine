@@ -7,6 +7,14 @@ vite.config.ts.*
 *.tar.gz
 /venv/
 .venv/
+# Local Python environments created at the repository root
+/#/
+/already/
+/exists/
+/folder/
+/if/
+/skip/
+/the/
 __pycache__/
 *.py[cod]
 *.log
@@ -24,3 +32,4 @@ __pycache__/
 *.tmp
 *.joblib
 *.pkl
+/eval.json
