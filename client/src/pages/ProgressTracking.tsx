@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine, Brush } from "recharts";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Search, TrendingUp, Activity, Weight, HeartPulse, AlertCircle } from "lucide-react";
 import { formatCompactDate, formatReadableDate } from "@/utils/dateFormat";
@@ -287,7 +287,7 @@ const getTrend = (current: number, old: number, lowerBetter = true) => {
                 <CardContent>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
+                      <LineChart data={chartData} syncId="progress-sync">
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                         <YAxis domain={[3, 15]} tick={{ fontSize: 12 }} label={{ value: "HbA1c (%)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }} />
@@ -314,7 +314,7 @@ const getTrend = (current: number, old: number, lowerBetter = true) => {
                 <CardContent>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
+                      <LineChart data={chartData} syncId="progress-sync">
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                         <YAxis domain={[50, 300]} tick={{ fontSize: 12 }} label={{ value: "mg/dL", angle: -90, position: "insideLeft", style: { fontSize: 12 } }} />
@@ -341,7 +341,7 @@ const getTrend = (current: number, old: number, lowerBetter = true) => {
                 <CardContent>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
+                      <LineChart data={chartData} syncId="progress-sync">
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                         <YAxis domain={[10, 50]} tick={{ fontSize: 12 }} label={{ value: "BMI", angle: -90, position: "insideLeft", style: { fontSize: 12 } }} />
@@ -368,7 +368,7 @@ const getTrend = (current: number, old: number, lowerBetter = true) => {
                 <CardContent>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
+                      <LineChart data={chartData} syncId="progress-sync">
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} label={{ value: "Risk Score (%)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }} />
@@ -378,6 +378,7 @@ const getTrend = (current: number, old: number, lowerBetter = true) => {
                           <ReferenceLine key={b.label} y={b.min} stroke={b.color} strokeDasharray="4 4" label={{ value: b.label, position: "right", style: { fontSize: 10, fill: b.color } }} />
                         ))}
                         <Line type="monotone" dataKey="riskScore" stroke="#7c3aed" strokeWidth={2} dot={{ r: 4, fill: "#7c3aed" }} name="Risk Score" />
+                        <Brush dataKey="date" height={30} stroke="#7c3aed" fill="transparent" tickFormatter={(v: string) => v} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
