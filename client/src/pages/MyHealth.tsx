@@ -12,8 +12,10 @@ import { Loader2, LogOut, Download, AlertTriangle, Heart, Activity, FileText, Ch
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatReadableDate } from "@/utils/dateFormat";
 import { EmptyState } from "@/components/EmptyState";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
 import { ApiClient } from "@/lib/apiClient";
+import { SecurePdfDialog } from "@/components/SecurePdfDialog";
 
 interface PatientUser {
   id: string;
@@ -121,8 +123,26 @@ export default function MyHealth() {
     navigate("/patient-login");
   }
 
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+  const [pdfAssessment, setPdfAssessment] = useState<Assessment | null>(null);
+
   function handleDownloadPdf(assessment: Assessment) {
+    setPdfAssessment(assessment);
+    setPdfDialogOpen(true);
+  }
+
+  function executePdfDownload(password: string) {
+    if (!pdfAssessment) return;
+    const assessment = pdfAssessment;
     const doc = new jsPDF();
+    if (password) {
+      (doc as any).setProtection(128, password, crypto.randomUUID(), {
+        print: "full",
+        modify: false,
+        copy: false,
+      });
+    }
+
     doc.setFontSize(18);
     doc.text(t("myHealth.pdfTitle"), 14, 22);
     doc.setFontSize(11);
@@ -371,6 +391,13 @@ export default function MyHealth() {
           </TabsContent>
         </Tabs>
       </main>
+      <SecurePdfDialog
+        open={pdfDialogOpen}
+        onOpenChange={setPdfDialogOpen}
+        onConfirm={executePdfDownload}
+        title={t("myHealth.securePdfTitle") || "Secure Health Summary"}
+        description={t("myHealth.securePdfDesc") || "Enter a password to protect your health summary document. Leave blank to export without password protection."}
+      />
     </div>
   );
 }
