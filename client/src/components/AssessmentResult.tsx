@@ -177,6 +177,21 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
     strength: Math.max(20, Math.round(((totalFactors - index) / totalFactors) * 100)),
     plainReason: getFactorReason(factor, t),
   }));
+  const previousAssessment =
+  patientHistory.length > 1
+    ? patientHistory[patientHistory.length - 2]
+    : null;
+
+const previousFactors = previousAssessment
+  ? normalizeFactors(previousAssessment.factors)
+  : [];
+
+const previousFactorNames = new Set(
+  previousFactors.map((factor) => factor.name)
+);
+
+const isNewFinding = (factorName: string) =>
+  !previousFactorNames.has(factorName);
   const increasedRiskFactors = factorBreakdown.filter((factor) => factor.impact === "positive");
   const reducedRiskFactors = factorBreakdown.filter((factor) => factor.impact !== "positive");
 
@@ -388,6 +403,19 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               />
 
               <DataQualityAlerts alerts={assessment.qualityAlerts} />
+              <ReportQualityChecklist
+  hasSummary={true}
+  hasFindings={factorBreakdown.length > 0}
+  hasRecommendations={
+    !!assessment.recommendations &&
+    assessment.recommendations.length > 0
+  }
+  hasReferences={
+    !!assessment.clinicalNote &&
+    !!assessment.explainableInsights &&
+    assessment.explainableInsights.length > 0
+  }
+/>
 
               {/* Patient Key Insights */}
               <div className="bg-secondary/50 rounded-xl p-6">
@@ -403,7 +431,14 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                         <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
                       )}
                       <div>
+                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-foreground">{factor.name}</p>
+                        {isNewFinding(factor.name) && (
+                          <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-xs font-semibold">
+                            🆕 New Finding
+                            </span>
+                          )}
+                          </div>
                         <p className="text-sm text-muted-foreground mt-1">{factor.description}</p>
                       </div>
                     </div>
@@ -511,6 +546,19 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
 
               <div className="mt-4 space-y-4">
                 <DataQualityAlerts alerts={assessment.qualityAlerts} />
+                <ReportQualityChecklist
+  hasSummary={true}
+  hasFindings={factorBreakdown.length > 0}
+  hasRecommendations={
+    !!assessment.recommendations &&
+    assessment.recommendations.length > 0
+  }
+  hasReferences={
+    !!assessment.clinicalNote &&
+    !!assessment.explainableInsights &&
+    assessment.explainableInsights.length > 0
+  }
+/>
                 <ClinicalAttentionNavigator navigator={assessment.attentionNavigator} />
               </div>
 
@@ -523,7 +571,15 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   <div className="space-y-3">
                     {positiveFactors.length > 0 ? positiveFactors.map((factor: any) => (
                       <div key={factor.name} className="rounded-lg bg-amber-50 p-3 text-sm text-amber-950">
-                        <p className="font-semibold">{factor.name}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+  <p className="font-semibold">{factor.name}</p>
+
+  {isNewFinding(factor.name) && (
+    <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-xs font-semibold">
+      🆕 New Finding
+    </span>
+  )}
+</div>
                         <p className="mt-1 text-amber-900/80">{factor.description}</p>
                       </div>
                     )) : (
@@ -540,7 +596,15 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   <div className="space-y-3">
                     {protectiveFactors.length > 0 ? protectiveFactors.map((factor: any) => (
                       <div key={factor.name} className="rounded-lg bg-green-50 p-3 text-sm text-green-950">
-                        <p className="font-semibold">{factor.name}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+  <p className="font-semibold">{factor.name}</p>
+
+  {isNewFinding(factor.name) && (
+    <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-xs font-semibold">
+      🆕 New Finding
+    </span>
+  )}
+</div>
                         <p className="mt-1 text-green-900/80">{factor.description}</p>
                       </div>
                     )) : (
