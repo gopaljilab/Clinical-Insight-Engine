@@ -45,7 +45,7 @@ export const previewAssessment = async (req: Request, res: Response) => {
     if (err instanceof z.ZodError) {
       return res
         .status(400)
-        .json({ message: err.errors[0]?.message ?? "Invalid input" });
+        .json({ message: err.issues[0]?.message ?? "Invalid input" });
     }
     if ((err as Error).message === "Clinical assessment timed out." || (err as Error).message.includes("timed out")) {
       return res.status(503).json({ message: "Clinical assessment preview timed out." });
@@ -69,7 +69,7 @@ export const simulateWhatIf = async (req: Request, res: Response) => {
     });
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      return res.status(400).json({ message: err.issues[0]?.message ?? "Invalid input" });
     }
     if ((err as Error).message === "Clinical assessment timed out." || (err as Error).message.includes("timed out")) {
       return res.status(503).json({ message: "What-if assessment timed out." });
@@ -152,7 +152,7 @@ export const batchWhatIf = async (req: Request, res: Response) => {
     });
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      return res.status(400).json({ message: err.issues[0]?.message ?? "Invalid input" });
     }
     logger.error({ err }, "What-if batch analysis failed");
     return res.status(503).json({ message: "ML inference service is unavailable. Please retry shortly." });
@@ -199,7 +199,7 @@ export const autoWhatIf = async (req: Request, res: Response) => {
     return res.json(result);
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      return res.status(400).json({ message: err.issues[0]?.message ?? "Invalid input" });
     }
     logger.error({ err }, "What-if auto analysis failed");
     return res.status(500).json({ message: "What-if auto analysis failed. Please try again." });
@@ -249,7 +249,7 @@ export const createAssessment = async (req: Request, res: Response) => {
     if (err instanceof z.ZodError) {
       return res
         .status(400)
-        .json({ message: err.errors[0]?.message ?? "Invalid input data" });
+        .json({ message: err.issues[0]?.message ?? "Invalid input data" });
     }
     logger.error({ err }, "Assessment creation error:");
     return res
@@ -297,7 +297,7 @@ export const simulateFallback = async (req: Request, res: Response) => {
     });
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
+      return res.status(400).json({ message: err.issues[0]?.message ?? "Invalid input" });
     }
     logger.error({ err }, "Error creating assessment simulation");
     return res.status(500).json({ message: "Internal server error" });
@@ -379,7 +379,7 @@ export const getAssessments = async (req: Request, res: Response) => {
     const parseResult = assessmentsQuerySchema.safeParse(req.query);
     if (!parseResult.success) {
       return res.status(400).json({
-        message: parseResult.error.errors[0]?.message ?? "Invalid query parameters.",
+        message: parseResult.error.issues[0]?.message ?? "Invalid query parameters.",
       });
     }
 
@@ -439,7 +439,7 @@ export const searchAssessments = async (req: Request, res: Response) => {
 
       return res.status(400).json({
         message:
-          parseResult.error.errors[0]?.message ??
+          parseResult.error.issues[0]?.message ??
           "Invalid search parameters.",
       });
     }
@@ -578,7 +578,7 @@ export const getCohortStats = async (req: Request, res: Response) => {
   try {
     const parsed = cohortQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      return res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Invalid query parameters" });
+      return res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid query parameters" });
     }
 
     const userEmail = req.session.user?.email;

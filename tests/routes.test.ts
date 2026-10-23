@@ -19,7 +19,7 @@ vi.mock("child_process", () => ({
 
 vi.mock("ioredis", () => {
   return {
-    default: vi.fn().mockImplementation(() => {
+    default: vi.fn().mockImplementation(function MockIORedis() {
       return {
         on: vi.fn(),
         info: vi.fn().mockResolvedValue(""),
@@ -54,10 +54,10 @@ vi.mock("bullmq", () => {
     }),
   };
   return {
-    Queue: vi.fn().mockImplementation(() => mockQueue),
-    Worker: vi.fn().mockImplementation(() => ({
+    Queue: vi.fn(function MockQueue() { return mockQueue; }),
+    Worker: vi.fn(function MockWorker() { return ({
       on: vi.fn(),
-    })),
+    }); }),
   };
 });
 
@@ -75,7 +75,7 @@ vi.mock("express-rate-limit", () => {
       next();
     };
   };
-  return { rateLimit, default: rateLimit };
+  return { rateLimit, ipKeyGenerator: (ip: string) => ip, default: rateLimit };
 });
 
 vi.mock("../server/storage", () => {
@@ -435,30 +435,9 @@ describe("Python inference", () => {
     expect(res.body).toHaveProperty("jobId");
   });
 
-  it("returns 202 with jobId when fallback prediction path is used in background queue", async () => {
+  it("returns 202 with jobId while inference is owned by the background queue", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
-
-    mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-      if (typeof opts === "function") {
-        cb = opts;
-        cb(new Error("Python not found"), null, "error");
-        return;
-      }
-      cb(new Error("Python not found"), null, "error");
-    });
-
-    mockCreateAssessment.mockImplementation((input) =>
-      Promise.resolve({
-        id: 2,
-        ...input,
-        riskScore: input.riskScore,
-        riskCategory: input.riskCategory,
-        factors: input.factors,
-        createdBy: "test-user-id",
-        createdAt: new Date(),
-      })
-    );
 
     const res = await request(app)
       .post("/api/assessments")
@@ -467,6 +446,8 @@ describe("Python inference", () => {
     expect(res.status).toBe(202);
     expect(res.body).toHaveProperty("message");
     expect(res.body).toHaveProperty("jobId");
+    expect(res.body).not.toHaveProperty("riskScore");
+    expect(res.body).not.toHaveProperty("fallback_used");
   });
 
   it("preview returns risk metrics on successful inference", async () => {
@@ -537,7 +518,7 @@ describe("Python inference", () => {
     }
   });
 
-  it("bulk route returns 202 and falls back to rule-based model on python process failure", async () => {
+  it("bulk route accepts a background job without returning a prediction", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
@@ -553,24 +534,8 @@ describe("Python inference", () => {
     expect(res.status).toBe(202);
     expect(res.body).toHaveProperty("jobId", "mock-job-id");
     expect(res.body).toHaveProperty("batchId");
-  });
-
-  it("bulk route returns 202 and falls back to rule-based model on python process timeout", async () => {
-    const app = createAuthenticatedApp();
-    await registerRoutes(createServer(), app);
-
-    const res = await request(app)
-      .post("/api/assessments/bulk")
-      .send({
-        assessments: [
-          validPayload,
-          { ...validPayload, patientName: "Jane Doe" }
-        ]
-      });
-
-    expect(res.status).toBe(202);
-    expect(res.body).toHaveProperty("jobId", "mock-job-id");
-    expect(res.body).toHaveProperty("batchId");
+    expect(res.body).not.toHaveProperty("predictions");
+    expect(res.body).not.toHaveProperty("fallback_used");
   });
 
   it("bulk route returns 202 on successful python daemon batch inference", async () => {

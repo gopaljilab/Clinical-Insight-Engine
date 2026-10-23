@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.12.0 <23.0.0"
+  },
   "scripts": {
     "dev": "node --env-file=.env --import tsx server/index.ts",
     "build": "tsx script/build.ts",
@@ -19,7 +22,7 @@
     "docs:generate": "typedoc --options typedoc.json"
   },
   "dependencies": {
-    "@asteasolutions/zod-to-openapi": "^7.3.4",
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
     "@hookform/resolvers": "^5.4.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@radix-ui/react-accordion": "^1.2.4",
@@ -63,8 +66,8 @@
     "cross-fetch": "^3.0.5",
     "date-fns": "^3.6.0",
     "dotenv": "^17.4.2",
-    "drizzle-orm": "^0.39.3",
-    "drizzle-zod": "^0.7.0",
+    "drizzle-orm": "^0.45.4",
+    "drizzle-zod": "^0.8.3",
     "embla-carousel-react": "^8.6.0",
     "express": "^5.0.1",
     "express-rate-limit": "^8.5.2",
@@ -76,8 +79,8 @@
     "i18next": "^26.3.4",
     "i18next-browser-languagedetector": "^8.2.1",
     "input-otp": "^1.4.2",
-    "isomorphic-webcrypto": "^2.3.8",
     "ioredis": "^5.11.0",
+    "isomorphic-webcrypto": "^2.3.8",
     "js-base64": "^3.7.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
@@ -87,7 +90,7 @@
     "nanoid": "^5.1.16",
     "next-themes": "^0.4.6",
     "node-cron": "^4.5.0",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^10.2.1",
     "papaparse": "^5.5.3",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
@@ -111,8 +114,8 @@
     "vaul": "^1.1.2",
     "wouter": "^3.3.5",
     "ws": "^8.18.0",
-    "xlsx": "^0.18.5",
-    "zod": "^3.24.2",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zod": "^4.6.7",
     "zod-validation-error": "^5.0.0"
   },
   "devDependencies": {
@@ -150,7 +153,7 @@
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.7.0",
-    "@vitest/coverage-v8": "^3.2.6",
+    "@vitest/coverage-v8": "4.1.12",
     "autoprefixer": "^10.5.0",
     "bufferutil": "^4.1.0",
     "drizzle-kit": "^0.31.8",
@@ -166,9 +169,12 @@
     "tsx": "^4.23.0",
     "typescript": "5.6.3",
     "vite": "^7.3.0",
-    "vitest": "^3.2.4"
+    "vitest": "4.1.12"
   },
   "overrides": {
+    "@tailwindcss/typography": {
+      "postcss-selector-parser": "7.1.7"
+    },
     "drizzle-kit": {
       "@esbuild-kit/esm-loader": "npm:tsx@^4.20.4"
     }

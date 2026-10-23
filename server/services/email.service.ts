@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 
 interface EmailOptions {
   to: string;
@@ -7,7 +7,7 @@ interface EmailOptions {
 }
 
 class EmailService {
-  private transporter: nodemailer.Transporter;
+  private transporter: Transporter;
 
   constructor() {
     // For production, these should be configured via environment variables.

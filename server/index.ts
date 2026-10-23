@@ -16,6 +16,7 @@ import {
 import { registerRoutes } from "./routes";
 import { createAuthRouter } from "./auth";
 import { getPythonExecutable } from "./services/mlService";
+import { getJwtSecret } from "./services/auth/tokenValidator";
 import patientsRouter from "./routes/patients";
 import patientPortalRouter from "./routes/patient.routes";
 import { serveStatic } from "./static";
@@ -93,6 +94,10 @@ declare module "express" {
 const PgSession = connectPgSimple(session);
 
 function getSessionSecret() {
+  if (process.env.NODE_ENV === "production") {
+    // Fail during server initialization rather than waiting for the first JWT request.
+    getJwtSecret();
+  }
   const secret = process.env.SESSION_SECRET;
 
   if (secret) {

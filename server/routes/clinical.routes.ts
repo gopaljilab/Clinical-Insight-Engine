@@ -8,8 +8,7 @@ const clinicalRouter = Router();
 
 const clinicalAnalyzeSchema = z.object({
   text: z.string({
-    required_error: "Text input is required",
-    invalid_type_error: "Text input must be a string",
+    error: (issue) => issue.input === undefined ? "Text input is required" : "Text input must be a string",
   }).min(1, "Text input cannot be empty"),
 });
 
@@ -22,7 +21,7 @@ clinicalRouter.post(
       const validation = clinicalAnalyzeSchema.safeParse(req.body);
       if (!validation.success) {
         return res.status(400).json({
-          message: validation.error.errors[0]?.message ?? "Invalid input format.",
+          message: validation.error.issues[0]?.message ?? "Invalid input format.",
         });
       }
 

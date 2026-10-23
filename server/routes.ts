@@ -251,7 +251,7 @@ export async function registerRoutes(
       } catch (err: unknown) {
         if (err instanceof z.ZodError) {
           return res.status(400).json({
-            message: err.errors[0].message
+            message: err.issues[0].message
           });
         }
         if ((err as Error).message?.includes("timed out")) {
@@ -356,7 +356,7 @@ export async function registerRoutes(
           }
 
           return res.status(400).json({
-            message: parseResult.error.errors[0]?.message ?? "Invalid search parameters.",
+            message: parseResult.error.issues[0]?.message ?? "Invalid search parameters.",
           });
         }
 
@@ -445,7 +445,7 @@ export async function registerRoutes(
         const parseResult = assessmentExportQuerySchema.safeParse(req.query);
         if (!parseResult.success) {
           return res.status(400).json({
-            message: parseResult.error.errors[0]?.message ?? "Invalid export query parameters.",
+            message: parseResult.error.issues[0]?.message ?? "Invalid export query parameters.",
           });
         }
 

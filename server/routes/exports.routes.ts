@@ -20,7 +20,7 @@ exportsRouter.get(
       const parseResult = assessmentExportQuerySchema.safeParse(req.query);
       if (!parseResult.success) {
         return res.status(400).json({
-          message: parseResult.error.errors[0]?.message ?? "api.errors.invalidExportParams",
+          message: parseResult.error.issues[0]?.message ?? "api.errors.invalidExportParams",
         });
       }
 
@@ -53,7 +53,7 @@ exportsRouter.get(
       const parseResult = assessmentExportQuerySchema.safeParse(req.query);
       if (!parseResult.success) {
         return res.status(400).json({
-          message: parseResult.error.errors[0]?.message ?? "api.errors.invalidExportParams",
+          message: parseResult.error.issues[0]?.message ?? "api.errors.invalidExportParams",
         });
       }
 

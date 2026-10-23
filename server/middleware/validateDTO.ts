@@ -13,7 +13,7 @@ export const validateDTO = (schema: ZodTypeAny) => {
         logger.warn({ err: error, path: req.path }, "DTO Validation failed");
         return res.status(400).json({
           message: "Validation failed.",
-          errors: error.errors.map(err => ({
+          errors: error.issues.map(err => ({
             field: err.path.join('.'),
             message: (err as unknown as Error).message
           }))
@@ -35,7 +35,7 @@ export const validateQueryDTO = (schema: ZodTypeAny) => {
         logger.warn({ err: error, path: req.path }, "Query DTO Validation failed");
         return res.status(400).json({
           message: "Validation failed.",
-          errors: error.errors.map(err => ({
+          errors: error.issues.map(err => ({
             field: err.path.join('.'),
             message: (err as unknown as Error).message
           }))

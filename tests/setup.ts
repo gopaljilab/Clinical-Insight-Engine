@@ -3,7 +3,7 @@ import { vi } from "vitest";
 // Mock ioredis globally for all tests
 vi.mock("ioredis", () => {
   return {
-    default: vi.fn().mockImplementation(() => {
+    default: vi.fn().mockImplementation(function MockIORedis() {
       return {
         status: "ready",
         on: vi.fn(),
@@ -19,14 +19,14 @@ vi.mock("ioredis", () => {
 // Mock bullmq globally for all tests
 vi.mock("bullmq", () => {
   return {
-    Queue: vi.fn().mockImplementation(() => {
+    Queue: vi.fn(function MockQueue() {
       return {
         add: vi.fn().mockResolvedValue({ id: "mock-job-id" }),
         getJob: vi.fn().mockResolvedValue(null),
         on: vi.fn(),
       };
     }),
-    Worker: vi.fn().mockImplementation(() => {
+    Worker: vi.fn(function MockWorker() {
       return {
         on: vi.fn(),
         close: vi.fn(),

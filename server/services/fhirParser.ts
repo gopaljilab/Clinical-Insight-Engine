@@ -612,8 +612,8 @@ export function convertToInternalSchema(structure: NormalizedFhirStructure): Con
     const validated = insertAssessmentSchema.parse(assessment);
     return { assessment: validated, dateWarnings };
   } catch (err: unknown) {
-    if ((err as any).errors && (err as any).errors.length > 0) {
-      throw new Error((err as any).errors[0].message);
+    if ((err as any).issues && (err as any).issues.length > 0) {
+      throw new Error((err as any).issues[0].message);
     }
     throw err;
   }

@@ -5,18 +5,18 @@ vi.mock("ws", () => {
   const mockOn = vi.fn();
   const mockClose = vi.fn();
   const mockSend = vi.fn();
-  const mockWebSocket = vi.fn(() => ({
+  const mockWebSocket = vi.fn(function MockWebSocket() { return ({
     on: mockOn,
     close: mockClose,
     send: mockSend,
     readyState: 1, // WebSocket.OPEN
-  }));
+  }); });
 
   return {
-    WebSocketServer: vi.fn(() => ({
+    WebSocketServer: vi.fn(function MockWebSocketServer() { return ({
       on: mockOn,
       close: vi.fn(),
-    })),
+    }); }),
     WebSocket: Object.assign(mockWebSocket, {
       OPEN: 1,
       CONNECTING: 0,

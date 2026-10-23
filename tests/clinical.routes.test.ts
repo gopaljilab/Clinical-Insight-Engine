@@ -9,7 +9,7 @@ import { MLService } from "../server/services/mlService";
 // Mock redis / bullmq so background queues do not initialize/hang the test process
 vi.mock("ioredis", () => {
   return {
-    default: vi.fn().mockImplementation(() => {
+    default: vi.fn().mockImplementation(function MockIORedis() {
       return {
         on: vi.fn(),
         info: vi.fn().mockResolvedValue(""),
@@ -20,13 +20,13 @@ vi.mock("ioredis", () => {
 
 vi.mock("bullmq", () => {
   return {
-    Queue: vi.fn().mockImplementation(() => ({
+    Queue: vi.fn(function MockQueue() { return ({
       add: vi.fn(),
       getJob: vi.fn(),
-    })),
-    Worker: vi.fn().mockImplementation(() => ({
+    }); }),
+    Worker: vi.fn(function MockWorker() { return ({
       on: vi.fn(),
-    })),
+    }); }),
   };
 });
 

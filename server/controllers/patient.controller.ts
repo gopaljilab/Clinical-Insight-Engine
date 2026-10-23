@@ -87,7 +87,7 @@ export const registerPatient = async (req: Request, res: Response) => {
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: err.errors[0].message });
+      return res.status(400).json({ message: err.issues[0].message });
     }
     logger.error({ err }, "Patient registration error");
     return res.status(500).json({ message: "Registration failed." });
@@ -127,7 +127,7 @@ export const loginPatient = async (req: Request, res: Response) => {
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: err.errors[0].message });
+      return res.status(400).json({ message: err.issues[0].message });
     }
     logger.error({ err }, "Patient login error");
     return res.status(500).json({ message: "Login failed." });
@@ -159,7 +159,7 @@ export const verifyPatientOTP = async (req: Request, res: Response) => {
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: err.errors[0].message });
+      return res.status(400).json({ message: err.issues[0].message });
     }
     logger.error({ err }, "Patient OTP verification error");
     return res.status(500).json({ message: "Verification failed." });

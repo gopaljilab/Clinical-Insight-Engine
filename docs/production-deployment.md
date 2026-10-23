@@ -16,6 +16,8 @@ The frontend uses relative `/api` URLs when `VITE_API_BASE` is unset. That only 
 
 Run the Docker image on a persistent container service that supports Node.js 22 and Python, allows the process to write the generated signed model and manifest under `/app`, and routes public HTTP traffic to container port `5000`. Vercel's current static output does not host the Express process or persistent Python daemon. `docker-compose.yml` is development-only: it mounts the source tree and runs `drizzle-kit push` at startup; do not use it for production.
 
+For Render, choose the **Docker** runtime so the existing Dockerfile supplies both Node and Python. A native Node runtime that logs `npm ci` may install the JavaScript packages successfully but does not provide this application's bundled Python runtime and daemon. The repository pins Node.js 22.23.4 in `.nvmrc` and limits `engines.node` to Node 22; Render's `NODE_VERSION` dashboard variable takes precedence over repository version files, so remove or update any existing `NODE_VERSION=20` override. `.npmrc` sets `legacy-peer-deps=true` because the committed lockfile was produced with that resolver option; this makes plain `npm ci` use a compatible dependency tree. npm documents that `npm ci` must use the same tree-shaping options as the lockfile.
+
 When Docker is available on a build machine, use:
 
 ```sh
@@ -33,12 +35,15 @@ Configure these on the backend service, never as Vite build variables:
 - `PORT` (provided by the container host)
 - `DATABASE_URL` and the database provider's required TLS settings
 - `SESSION_SECRET` (long random value)
+- `JWT_SECRET` (separate random value, at least 32 characters; required at startup in production)
 - `CORS_ORIGINS=https://clinical-insight-engine.vercel.app` (plus any approved custom frontend origin)
 - `PREDICTION_MODE=ml` (the default; only the exact value `rule-based` enables the separately labeled heuristic mode)
 - `SMTP_HOST`, `SMTP_USER`, and `SMTP_PASS` (the server currently requires these in production at startup, even if email verification is not being exercised)
 - Optional `MODEL_VERSION` override; otherwise Python returns a short SHA-256 digest of the loaded artifact
 - `REDIS_URL` if asynchronous assessment queues are enabled
 - Email sender credentials beyond the required SMTP connection and OAuth credentials only if those features are enabled
+
+Generate `SESSION_SECRET` and `JWT_SECRET` independently. For example, run `openssl rand -base64 48` twice on a trusted machine and enter each output directly into the backend host's secret manager. Do not use the development JWT warning/default in production; the server validates `JWT_SECRET` during startup and rejects missing or short values.
 
 The `/health` endpoint returns service availability, whether Python reports a loaded model, the artifact version when known, backend process status, and the configured prediction method. A running API with an unloaded model is not ready to serve ML predictions; assessment inference returns HTTP 503 until it can produce an ML result.
 

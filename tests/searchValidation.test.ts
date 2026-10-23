@@ -232,7 +232,7 @@ describe("searchQuerySchema — length validation", () => {
     const result = searchQuerySchema.safeParse({ q });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.errors[0].message).toMatch(/200/);
+      expect(result.error.issues[0].message).toMatch(/200/);
     }
   });
 });
@@ -250,7 +250,7 @@ describe("searchQuerySchema — riskCategory filter", () => {
     const result = searchQuerySchema.safeParse({ riskCategory: "CRITICAL" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.errors[0].message).toMatch(/LOW|MODERATE|HIGH/);
+      expect(result.error.issues[0].message).toMatch(/LOW|MODERATE|HIGH/);
     }
   });
 });

@@ -107,9 +107,7 @@ export const searchQuerySchema = z.object({
 
   riskCategory: z
     .enum(VALID_RISK_CATEGORIES, {
-      errorMap: () => ({
-        message: `Risk category must be one of: ${VALID_RISK_CATEGORIES.join(", ")}`,
-      }),
+      error: `Risk category must be one of: ${VALID_RISK_CATEGORIES.join(", ")}`,
     })
     .optional(),
 

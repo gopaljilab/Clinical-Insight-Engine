@@ -17,7 +17,7 @@ vi.mock("child_process", () => ({
 
 vi.mock("ioredis", () => {
   return {
-    default: vi.fn().mockImplementation(() => {
+    default: vi.fn().mockImplementation(function MockIORedis() {
       return {
         on: vi.fn(),
         info: vi.fn().mockResolvedValue(""),
@@ -32,10 +32,10 @@ vi.mock("bullmq", () => {
     getJob: vi.fn().mockResolvedValue(null),
   };
   return {
-    Queue: vi.fn().mockImplementation(() => mockQueue),
-    Worker: vi.fn().mockImplementation(() => ({
+    Queue: vi.fn(function MockQueue() { return mockQueue; }),
+    Worker: vi.fn(function MockWorker() { return ({
       on: vi.fn(),
-    })),
+    }); }),
   };
 });
 
@@ -53,7 +53,7 @@ vi.mock("express-rate-limit", () => {
       next();
     };
   };
-  return { rateLimit, default: rateLimit };
+  return { rateLimit, ipKeyGenerator: (ip: string) => ip, default: rateLimit };
 });
 
 vi.mock("../server/storage", () => {

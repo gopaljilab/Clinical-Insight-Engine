@@ -1,4 +1,4 @@
-import { rateLimit } from "express-rate-limit";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 
 // General API endpoints: 100 requests per minute
 export const generalLimiter = rateLimit({
@@ -60,7 +60,6 @@ export const batchLimiter = rateLimit({
   limit: 5, // Limit to 5 requests per minute
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => (req as any).session?.user?.id || req.ip || "",
-  validate: { ip: false },
+  keyGenerator: (req) => req.session?.user?.id || ipKeyGenerator(req.ip ?? "unknown"),
   message: { error: "Too many batch requests, please try again later." }
 });

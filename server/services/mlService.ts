@@ -890,6 +890,9 @@ export async function runAssessmentInference(
 ): Promise<{ prediction: PredictionResult; isFallback: boolean }> {
   const { throwOnFailure = false } = options;
   if (ruleBasedModeEnabled()) {
+    if (throwOnFailure) {
+      throw Object.assign(new Error("Rule-based inference is not allowed for strict ML inference."), { statusCode: 503 });
+    }
     return { prediction: calculateClinicalFallback(input) as PredictionResult, isFallback: true };
   }
   const release = await mlConcurrency.acquire(getRequestTimeout());
@@ -972,6 +975,9 @@ export async function runAssessmentInferenceBatch(
 ): Promise<{ predictions: PredictionResult[]; isFallback: boolean }> {
   const { throwOnFailure = false } = options;
   if (ruleBasedModeEnabled()) {
+    if (throwOnFailure) {
+      throw Object.assign(new Error("Rule-based inference is not allowed for strict ML inference."), { statusCode: 503 });
+    }
     return { predictions: inputs.map(input => calculateClinicalFallback(input)) as PredictionResult[], isFallback: true };
   }
   const release = await mlConcurrency.acquire(getRequestTimeout());
@@ -1028,7 +1034,8 @@ export async function runAssessmentInferenceBatch(
       throw new Error("Clinical assessment timed out.");
     }
     if (throwOnFailure) {
-      throw error;
+      logger.error({ err: error }, "ML batch inference failed in strict inference mode");
+      throw Object.assign(new Error("ML inference service is unavailable. Please retry shortly."), { statusCode: 503 });
     }
     if (ruleBasedModeEnabled()) {
       logger.warn({ err: error }, "ML batch inference unavailable; explicit rule-based mode is active");

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { pythonDaemon, runAssessmentInference } from "./mlService";
+import { pythonDaemon, runAssessmentInference, runAssessmentInferenceBatch } from "./mlService";
 
 const patient = {
   age: 52,
@@ -23,6 +23,21 @@ describe("production ML inference behavior", () => {
     process.env.MAX_RETRIES = "0";
     vi.spyOn(pythonDaemon, "predict").mockRejectedValue(new Error("Python daemon is not running."));
     await expect(runAssessmentInference(patient)).rejects.toMatchObject({ statusCode: 503 });
+  });
+
+  it("returns no batch scores when Python inference fails in strict mode", async () => {
+    process.env.MAX_RETRIES = "0";
+    vi.spyOn(pythonDaemon, "predictBatch").mockRejectedValue(new Error("Python daemon is not running."));
+    await expect(runAssessmentInferenceBatch([patient], undefined, { throwOnFailure: true }))
+      .rejects.toMatchObject({ statusCode: 503 });
+  });
+
+  it("does not use explicit rule-based mode for strict background inference", async () => {
+    process.env.PREDICTION_MODE = "rule-based";
+    await expect(runAssessmentInferenceBatch([patient], undefined, { throwOnFailure: true }))
+      .rejects.toMatchObject({ statusCode: 503 });
+    await expect(runAssessmentInference(patient, undefined, { throwOnFailure: true }))
+      .rejects.toMatchObject({ statusCode: 503 });
   });
 
   it("labels the explicitly selected rule-based mode and omits fabricated confidence", async () => {

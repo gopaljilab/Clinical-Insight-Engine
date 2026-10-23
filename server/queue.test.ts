@@ -20,25 +20,25 @@ vi.mock("bullmq", () => {
     on: vi.fn(),
   };
   return {
-    Queue: vi.fn().mockImplementation(() => mockQueue),
-    Worker: vi.fn().mockImplementation(() => ({
+    Queue: vi.fn(function MockQueue() { return mockQueue; }),
+    Worker: vi.fn(function MockWorker() { return ({
       on: vi.fn(),
       close: vi.fn().mockResolvedValue(undefined),
-    })),
+    }); }),
     Job: vi.fn(),
   };
 });
 
 vi.mock("ioredis", () => {
   return {
-    default: vi.fn().mockImplementation(() => ({
+    default: vi.fn().mockImplementation(function MockIORedis() { return ({
       status: "ready",
       on: vi.fn(),
       connect: vi.fn().mockResolvedValue(undefined),
       ping: vi.fn().mockResolvedValue("PONG"),
       quit: vi.fn().mockResolvedValue(undefined),
       defineCommand: vi.fn(),
-    })),
+    }); }),
   };
 });
 

@@ -30,17 +30,17 @@ const formSchema = insertAssessmentSchema.pick({
 }).extend({
   // Transform empty inputs to undefined and validate range parameters
   age: z.preprocess((val) => (val === "" || val === undefined ? undefined : Number(val)), 
-    z.number({ invalid_type_error: "Age must be a number" })
+    z.number({ error: "Age must be a number" })
      .min(0, "Age cannot be negative")
      .max(125, "Please enter a valid age between 0 and 125")),
   
   bmi: z.preprocess((val) => (val === "" || val === undefined ? undefined : Number(val)), 
-    z.number({ invalid_type_error: "BMI must be a number" })
+    z.number({ error: "BMI must be a number" })
      .min(10, "BMI is too low (minimum 10)")
      .max(70, "BMI is too high (maximum 70)")),
      
   hba1cLevel: z.preprocess((val) => (val === "" || val === undefined ? undefined : Number(val)), 
-    z.number({ invalid_type_error: "HbA1c must be a number" })
+    z.number({ error: "HbA1c must be a number" })
      .min(2, "HbA1c level is too low (minimum 2%)")
      .max(20, "HbA1c level is too high (maximum 20%)")),
 });

@@ -7,7 +7,7 @@ import { createAuthRouter } from "../server/auth";
 // Mock rate limiting to prevent test blocks
 vi.mock("express-rate-limit", () => {
   const rateLimit = () => (req: any, res: any, next: any) => next();
-  return { rateLimit, default: rateLimit };
+  return { rateLimit, ipKeyGenerator: (ip: string) => ip, default: rateLimit };
 });
 
 const mockDb = {

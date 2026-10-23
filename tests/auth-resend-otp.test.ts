@@ -7,7 +7,7 @@ import { users } from "../shared/schema";
 
 vi.mock("express-rate-limit", () => {
   const rateLimit = () => (req: any, res: any, next: any) => next();
-  return { rateLimit, default: rateLimit };
+  return { rateLimit, ipKeyGenerator: (ip: string) => ip, default: rateLimit };
 });
 
 const { mockSendVerificationEmail } = vi.hoisted(() => ({
@@ -35,10 +35,10 @@ vi.mock("../server/storage", () => ({
 }));
 
 vi.mock("ioredis", () => ({
-  default: vi.fn().mockImplementation(() => ({
+  default: vi.fn().mockImplementation(function MockIORedis() { return ({
     on: vi.fn(),
     info: vi.fn().mockResolvedValue(""),
-  })),
+  }); }),
 }));
 
 /** Override getDb to return the given mock implementation */
