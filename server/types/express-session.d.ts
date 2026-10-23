@@ -8,6 +8,8 @@ declare module "express-session" {
       name: string;
       role: string | null;
       emailVerified: boolean;
+      /** Compatibility with legacy sessions that used the `verified` field. */
+      verified?: boolean;
     };
     pendingUser?: {
       id: string;

@@ -14,6 +14,10 @@ describe("calculateClinicalFallback golden scenarios", () => {
 
     expect(prediction.riskCategory).toBe("LOW");
     expect(prediction.riskScore).toBe(1);
+    expect(prediction.prediction_method).toBe("rule_based");
+    expect(prediction.fallback_used).toBe(true);
+    expect(prediction.modelConfidence).toBeUndefined();
+    expect(prediction.confidenceInterval).toBeUndefined();
     expect(prediction.factors).toContainEqual(
       expect.objectContaining({ name: "Stable Profile", impact: "negative" }),
     );
@@ -52,6 +56,6 @@ describe("calculateClinicalFallback golden scenarios", () => {
     expect(prediction.riskCategory).toBe("HIGH");
     expect(prediction.riskScore).toBe(99);
     expect(prediction.clinicianAdvice[0]).toContain("High risk");
-    expect(prediction.confidenceInterval).toBe("94% - 99%");
+    expect(prediction.confidenceInterval).toBeUndefined();
   });
 });

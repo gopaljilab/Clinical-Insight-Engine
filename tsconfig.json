@@ -12,12 +12,11 @@
     "jsx": "preserve",
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "ignoreDeprecations": "6.0",
+    "ignoreDeprecations": "5.0",
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
 
     "types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
-    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
 
     "paths": {

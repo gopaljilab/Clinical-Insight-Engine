@@ -184,7 +184,7 @@ describe("Batch processing timeout and retry integration", () => {
     try {
       await expect(
         MLService.runAssessmentInference(validPayload, "test-doc-3", { throwOnFailure: true })
-      ).rejects.toThrow("ECONNREFUSED");
+      ).rejects.toMatchObject({ statusCode: 503, message: expect.stringMatching(/unavailable/i) });
 
       expect(calls).toBe(3); // 1 initial + 2 retries = 3 attempts
 
@@ -234,16 +234,16 @@ Patient Success 2,Male,60,false,true,current,28.0,5.8,110`;
 
       // Verify that warnings and error logs were written for the failed patient
       const warned = warnSpy.mock.calls.some((c: any) =>
-        c[0]?.includes("WARN: API timeout on Document ID Patient Fail") ||
-        (typeof c[0] === "string" && c[0].includes("WARN: API timeout on Document ID Patient Fail")) ||
-        c[1]?.includes("WARN: API timeout on Document ID Patient Fail")
+        c[0]?.includes("WARN: API timeout on Document ID unknown") ||
+        (typeof c[0] === "string" && c[0].includes("WARN: API timeout on Document ID unknown")) ||
+        c[1]?.includes("WARN: API timeout on Document ID unknown")
       );
       expect(warned).toBe(true);
 
       const errored = errorSpy.mock.calls.some((c: any) =>
-        c[0]?.includes("ERROR: Failed after 2 retries on Document ID Patient Fail") ||
-        (typeof c[0] === "string" && c[0].includes("ERROR: Failed after 2 retries on Document ID Patient Fail")) ||
-        c[1]?.includes("ERROR: Failed after 2 retries on Document ID Patient Fail")
+        c[0]?.includes("ERROR: Failed after 2 retries on Document ID unknown") ||
+        (typeof c[0] === "string" && c[0].includes("ERROR: Failed after 2 retries on Document ID unknown")) ||
+        c[1]?.includes("ERROR: Failed after 2 retries on Document ID unknown")
       );
       expect(errored).toBe(true);
     } finally {

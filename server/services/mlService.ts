@@ -5,14 +5,11 @@ import { access } from "fs/promises";
 import { writeFile, unlink } from "fs/promises";
 import os from "os";
 import path from "path";
-import { fileURLToPath } from "url";
 import { logger } from "../logger";
 import readline from "readline";
 
 // ESM-compatible path resolution for analyze.py
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
+const analyzePyPath = path.resolve(process.cwd(), "analyze.py");
 
 interface QueuedEntry {
   execute: () => void;
@@ -270,7 +267,7 @@ export let isPythonAvailable = true;
 export function checkPythonAvailability() {
   execFile(getPythonExecutable(), ["--version"], { timeout: 2000 }, (error) => {
     if (error) {
-      logger.warn("Python executable not found or unresponsive. Falling back to clinical rule-based model globally.");
+      logger.warn("Python executable not found or unresponsive; ML inference is unavailable.");
       isPythonAvailable = false;
     } else {
       isPythonAvailable = true;
@@ -295,6 +292,13 @@ export interface PredictionResult {
   modelConfidence?: number;
   error?: string;
   disclaimer?: string;
+  prediction_method?: "ml_model" | "rule_based";
+  model_version?: string | null;
+  fallback_used?: boolean;
+}
+
+function ruleBasedModeEnabled(): boolean {
+  return process.env.PREDICTION_MODE === "rule-based";
 }
 
 /**
@@ -437,8 +441,9 @@ export function calculateClinicalFallback(input: unknown): PredictionResult | Pr
         : riskCategory === "MODERATE"
         ? ["Making positive dietary changes and staying active helps lower type 2 diabetes risk."]
         : ["Continue maintaining a healthy, balanced lifestyle and regular physical activity."],
-    confidenceInterval: `${Math.max(1, riskScore - 5)}% - ${Math.min(99, riskScore + 5)}%`,
-    modelConfidence: 0.95,
+    prediction_method: "rule_based",
+    model_version: null,
+    fallback_used: true,
   };
 }
 
@@ -469,6 +474,11 @@ class PythonDaemonManager {
   private lastFailureTime = 0;
   private daemonStartTime = 0;
   private lastCrashTime = 0;
+  private modelVersion: string | null = null;
+  private modelLoaded = false;
+  private trainingManifest: Record<string, unknown> | null = null;
+  private readinessWaiters = new Set<(loaded: boolean) => void>();
+  private readinessPromise: Promise<boolean> | null = null;
 
   private init() {
     if (this.process) return;
@@ -497,6 +507,18 @@ class PythonDaemonManager {
         if (!trimmed) return;
         const response = JSON.parse(trimmed);
         const { requestId, prediction, error } = response;
+        if (response.type === "ready") {
+          this.modelLoaded = response.model_loaded === true;
+          this.modelVersion = typeof response.model_version === "string" ? response.model_version : null;
+          this.trainingManifest = response.training_manifest && typeof response.training_manifest === "object"
+            ? response.training_manifest as Record<string, unknown>
+            : null;
+          if (!this.modelLoaded) logger.error("Python inference backend started without a loadable model artifact");
+          for (const resolve of this.readinessWaiters) resolve(this.modelLoaded);
+          this.readinessWaiters.clear();
+          this.readinessPromise = null;
+          return;
+        }
         if (!requestId) return;
 
         const pending = this.pendingRequests.get(requestId);
@@ -506,6 +528,8 @@ class PythonDaemonManager {
           if (error) {
             pending.reject(new Error(error));
           } else {
+            const first = Array.isArray(prediction) ? prediction[0] : prediction;
+            if (typeof first?.model_version === "string") this.modelVersion = first.model_version;
             pending.resolve(prediction);
           }
         }
@@ -534,6 +558,7 @@ class PythonDaemonManager {
     this.process.on("error", errorHandler);
 
     this.daemonStatus = 'running';
+    this.modelLoaded = false;
     this.daemonStartTime = Date.now();
     this.restartAttempts = 0;
     this.circuitBreakerFailures = 0;
@@ -542,6 +567,10 @@ class PythonDaemonManager {
   }
 
   private cleanup() {
+    this.modelLoaded = false;
+    for (const resolve of this.readinessWaiters) resolve(false);
+    this.readinessWaiters.clear();
+    this.readinessPromise = null;
     if (this.rl) {
       this.rl.close();
       this.rl = null;
@@ -620,6 +649,9 @@ class PythonDaemonManager {
   public getStatus() {
     return {
       daemonStatus: this.daemonStatus,
+      modelVersion: this.modelVersion,
+      trainingManifest: this.trainingManifest,
+      modelLoaded: this.modelLoaded,
       circuitBreakerState: this.circuitBreakerState,
       restartAttempts: this.restartAttempts,
       maxRestartAttempts: this.maxRestartAttempts,
@@ -630,6 +662,26 @@ class PythonDaemonManager {
       lastCrashTime: this.lastCrashTime ? new Date(this.lastCrashTime).toISOString() : null,
       pendingRequests: this.pendingRequests.size,
     };
+  }
+
+  public async checkReadiness(timeoutMs = 30000): Promise<boolean> {
+    if (this.modelLoaded) return true;
+    if (this.readinessPromise) return this.readinessPromise;
+    this.init();
+    if (!this.process) return false;
+    this.readinessPromise = new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => {
+        this.readinessWaiters.delete(finish);
+        this.readinessPromise = null;
+        resolve(false);
+      }, timeoutMs);
+      const finish = (loaded: boolean) => {
+        clearTimeout(timer);
+        resolve(loaded);
+      };
+      this.readinessWaiters.add(finish);
+    });
+    return this.readinessPromise;
   }
 
   public async predict(input: unknown): Promise<PredictionResult> {
@@ -837,8 +889,11 @@ export async function runAssessmentInference(
   options: InferenceOptions = {}
 ): Promise<{ prediction: PredictionResult; isFallback: boolean }> {
   const { throwOnFailure = false } = options;
+  if (ruleBasedModeEnabled()) {
+    return { prediction: calculateClinicalFallback(input) as PredictionResult, isFallback: true };
+  }
   const release = await mlConcurrency.acquire(getRequestTimeout());
-  const docId = documentId ?? (input as any)?.id ?? (input as any)?.patientName ?? "unknown";
+  const docId = documentId ?? (input as any)?.id ?? "unknown";
   let attempt = 0;
 
   try {
@@ -846,6 +901,11 @@ export async function runAssessmentInference(
       attempt++;
       try {
         const prediction = await pythonDaemon.predict(input);
+        delete prediction.modelConfidence;
+        delete prediction.confidenceInterval;
+        prediction.prediction_method = "ml_model";
+        prediction.fallback_used = false;
+        prediction.model_version = prediction.model_version || process.env.MODEL_VERSION || null;
         return { prediction, isFallback: false };
       } catch (error: any) {
         const isTimeout = error.message?.includes("timed out") || error.message?.includes("Timeout");
@@ -884,10 +944,15 @@ export async function runAssessmentInference(
       throw new Error("Clinical assessment timed out.");
     }
     if (throwOnFailure) {
-      throw error;
+      logger.error({ err: error }, "ML inference failed in strict inference mode");
+      throw Object.assign(new Error("ML inference service is unavailable. Please retry shortly."), { statusCode: 503 });
     }
-    logger.warn({ err: error }, "ML prediction failed, using clinical fallback");
-    return { prediction: calculateClinicalFallback(input) as PredictionResult, isFallback: true };
+    if (ruleBasedModeEnabled()) {
+      logger.warn({ err: error }, "ML inference unavailable; explicit rule-based mode is active");
+      return { prediction: calculateClinicalFallback(input) as PredictionResult, isFallback: true };
+    }
+    logger.error({ err: error }, "ML inference unavailable; no prediction returned");
+    throw Object.assign(new Error("ML inference service is unavailable. Please retry shortly."), { statusCode: 503 });
   } finally {
     release();
   }
@@ -906,6 +971,9 @@ export async function runAssessmentInferenceBatch(
   options: InferenceOptions = {}
 ): Promise<{ predictions: PredictionResult[]; isFallback: boolean }> {
   const { throwOnFailure = false } = options;
+  if (ruleBasedModeEnabled()) {
+    return { predictions: inputs.map(input => calculateClinicalFallback(input)) as PredictionResult[], isFallback: true };
+  }
   const release = await mlConcurrency.acquire(getRequestTimeout());
   const docId = documentId ?? "batch";
   let attempt = 0;
@@ -915,6 +983,13 @@ export async function runAssessmentInferenceBatch(
       attempt++;
       try {
         const predictions = await pythonDaemon.predictBatch(inputs);
+        predictions.forEach((prediction) => {
+          delete prediction.modelConfidence;
+          delete prediction.confidenceInterval;
+          prediction.prediction_method = "ml_model";
+          prediction.fallback_used = false;
+          prediction.model_version = prediction.model_version || process.env.MODEL_VERSION || null;
+        });
         return { predictions, isFallback: false };
       } catch (error: any) {
         const isTimeout = error.message?.includes("timed out") || error.message?.includes("Timeout");
@@ -955,9 +1030,13 @@ export async function runAssessmentInferenceBatch(
     if (throwOnFailure) {
       throw error;
     }
-    logger.warn({ err: error }, "ML batch prediction failed, using clinical fallback");
-    const predictions = inputs.map(input => calculateClinicalFallback(input)) as PredictionResult[];
-    return { predictions, isFallback: true };
+    if (ruleBasedModeEnabled()) {
+      logger.warn({ err: error }, "ML batch inference unavailable; explicit rule-based mode is active");
+      const predictions = inputs.map(input => calculateClinicalFallback(input)) as PredictionResult[];
+      return { predictions, isFallback: true };
+    }
+    logger.error({ err: error }, "ML batch inference unavailable; no predictions returned");
+    throw Object.assign(new Error("ML inference service is unavailable. Please retry shortly."), { statusCode: 503 });
   } finally {
     release();
   }

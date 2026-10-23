@@ -2,6 +2,7 @@ import sys
 import json
 import os
 import hashlib
+import math
 import tempfile
 import time
 import numpy as np
@@ -14,6 +15,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import pickle
 import gc
+import platform
+import sklearn
 
 try:
     from fairlearn.metrics import demographic_parity_difference, equalized_odds_difference
@@ -36,6 +39,27 @@ if not os.path.exists(DATA_FILE):
     DATA_FILE = os.path.join(SCRIPT_DIR, "diabetes_dataset.csv")
 MODEL_FILE = os.path.join(SCRIPT_DIR, "diabetes_model.pkl")
 LOCK_FILE = MODEL_FILE + ".lock"
+TRAINING_CONFIG_VERSION = "diabetes-logreg-v1"
+PREPROCESSING_CONFIG = {
+    "invalid_value_medians": {"bmi": 10, "HbA1c_level": 3, "blood_glucose_level": 50, "insulin": 0, "skin_thickness": 0},
+    "drop_gender_other": True,
+    "gender_encoding": "gender_Male binary indicator",
+    "smoking_encoding": "pandas get_dummies(prefix=smoke, drop_first=True)",
+    "scaler": "StandardScaler",
+    "missing_insulin_skin_thickness": "training dataset median; inference default 80/20",
+}
+TRAINING_CONFIG = {"estimator": "LogisticRegression", "class_weight": "balanced", "solver": "lbfgs", "C": 1.0, "random_state": 42, "max_iter": 100}
+
+def _training_manifest(dataset_hash, features, model_hash=None):
+    return {
+        "training_config_version": TRAINING_CONFIG_VERSION,
+        "dataset_sha256": dataset_hash,
+        "preprocessing": PREPROCESSING_CONFIG,
+        "training": TRAINING_CONFIG,
+        "feature_order": list(features),
+        "runtime": {"python": platform.python_version(), "numpy": np.__version__, "pandas": pd.__version__, "scikit_learn": sklearn.__version__},
+        "model_artifact_sha256": model_hash,
+    }
 
 def create_synthetic_data():
     """Generates synthetic dataset to mimic the provided assignment data."""
@@ -148,7 +172,7 @@ def train_model_pipeline():
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
-    model = LogisticRegression(class_weight='balanced')
+    model = LogisticRegression(class_weight='balanced', solver='lbfgs', C=1.0, random_state=42, max_iter=100)
     model.fit(X_scaled, y)
     
     # Compute covariance matrix of coefficients (accounting for balanced class weights)
@@ -284,6 +308,8 @@ def _atomic_write(filepath, data):
     concurrent readers from seeing a partially written file.
     """
     dirpath = os.path.dirname(filepath) or '.'
+    if isinstance(data, tuple) and len(data) == 7:
+        data = (*data, _training_manifest(data[3], data[2]))
     fd, tmp_path = tempfile.mkstemp(dir=dirpath, suffix='.tmp')
     try:
         os.close(fd)
@@ -297,6 +323,16 @@ def _atomic_write(filepath, data):
         # Also move the signature file to match the filepath
         if os.path.exists(tmp_path + ".sig"):
             os.replace(tmp_path + ".sig", filepath + ".sig")
+        artifact_hash = _compute_dataset_hash(filepath)
+        dataset_hash = data[3] if isinstance(data, tuple) and len(data) > 3 else None
+        features = data[2] if isinstance(data, tuple) and len(data) > 2 else []
+        manifest = _training_manifest(dataset_hash, features, artifact_hash)
+        manifest_path = filepath + ".manifest.json"
+        manifest_tmp = manifest_path + ".tmp"
+        with open(manifest_tmp, "w", encoding="utf-8") as manifest_file:
+            json.dump(manifest, manifest_file, sort_keys=True, separators=(",", ":"))
+            manifest_file.write("\n")
+        os.replace(manifest_tmp, manifest_path)
     except BaseException:
         try:
             if os.path.exists(tmp_path):
@@ -323,12 +359,7 @@ def save_pretrained_model():
             print("Failed to train model. Ensure diabetes_dataset.csv is present.", file=sys.stderr)
             return False
         dataset_hash = _compute_dataset_hash(DATA_FILE)
-        try:
-            mtime = os.path.getmtime(DATA_FILE)
-            size = os.path.getsize(DATA_FILE)
-        except OSError:
-            mtime, size = None, None
-        _atomic_write(MODEL_FILE, (model, scaler, features, dataset_hash, cov_beta, mtime, size))
+        _atomic_write(MODEL_FILE, (model, scaler, features, dataset_hash, cov_beta, None, None))
         print(f"Model successfully serialized to {MODEL_FILE}", file=sys.stderr)
         return True
     finally:
@@ -384,7 +415,7 @@ def train_and_evaluate():
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    model = LogisticRegression(class_weight='balanced')
+    model = LogisticRegression(class_weight='balanced', solver='lbfgs', C=1.0, random_state=42, max_iter=100)
     model.fit(X_train_scaled, y_train)
 
     y_pred = model.predict(X_test_scaled)
@@ -414,11 +445,8 @@ def train_and_evaluate():
     num_features = int(len(features))
 
     dataset_hash = _compute_dataset_hash(DATA_FILE)
-    try:
-        mtime = os.path.getmtime(DATA_FILE)
-        size = os.path.getsize(DATA_FILE)
-    except OSError:
-        mtime, size = None, None
+    # Content hash is the dataset identity; filesystem timestamps vary by build.
+    mtime, size = None, None
 
     result = {
         "accuracy": accuracy,
@@ -461,7 +489,7 @@ def train_and_evaluate():
     # Retrain on full data and save
     scaler_full = StandardScaler()
     X_scaled_full = scaler_full.fit_transform(X)
-    model_full = LogisticRegression(class_weight='balanced')
+    model_full = LogisticRegression(class_weight='balanced', solver='lbfgs', C=1.0, random_state=42, max_iter=100)
     model_full.fit(X_scaled_full, y)
 
     X_design = np.hstack([np.ones((X_scaled_full.shape[0], 1)), X_scaled_full])
@@ -535,9 +563,9 @@ def get_model():
 
                 h = get_current_hash()
                 if h is not None and h == cached_hash and cov_beta is not None:
-                    if _acquire_lock():
+                    if len(model_data) < 7 and _acquire_lock():
                         try:
-                            _atomic_write(MODEL_FILE, (model, scaler, features, h, cov_beta, current_mtime, current_size))
+                            _atomic_write(MODEL_FILE, (model, scaler, features, h, cov_beta, None, None))
                         finally:
                             _release_lock()
                     return model, scaler, features, cov_beta
@@ -573,7 +601,8 @@ def get_model():
 
                     h = get_current_hash()
                     if h is not None and h == cached_hash and cov_beta is not None:
-                        _atomic_write(MODEL_FILE, (model_data[0], model_data[1], model_data[2], h, cov_beta, current_mtime, current_size))
+                        if len(model_data) < 8:
+                            _atomic_write(MODEL_FILE, (model_data[0], model_data[1], model_data[2], h, cov_beta, None, None))
                         return model_data[0], model_data[1], model_data[2], cov_beta
             except Exception:
                 pass
@@ -581,7 +610,7 @@ def get_model():
         model, scaler, features, cov_beta = train_model_pipeline()
         if model is not None:
             h = get_current_hash()
-            _atomic_write(MODEL_FILE, (model, scaler, features, h, cov_beta, current_mtime, current_size))
+            _atomic_write(MODEL_FILE, (model, scaler, features, h, cov_beta, None, None, _training_manifest(h, features)))
             print(f"Model trained and saved to {MODEL_FILE}", file=sys.stderr)
         return model, scaler, features, cov_beta
     finally:
@@ -592,26 +621,31 @@ def validate_assessment_input(data):
         raise ValueError("Input must be an object")
 
     validators = {
-        "age": {"type": (int, float), "min": 0, "max": 130},
+        "age": {"type": int, "min": 1, "max": 120},
         "gender": {"type": str},
-        "hypertension": {"type": (bool, int), "in": (False, True, 0, 1)},
-        "heartDisease": {"type": (bool, int), "in": (False, True, 0, 1)},
-        "bmi": {"type": (int, float), "min": 0, "max": 100},
-        "hba1cLevel": {"type": (int, float), "min": 0, "max": 15},
-        "bloodGlucoseLevel": {"type": (int, float), "min": 0, "max": 500},
+        "hypertension": {"type": bool},
+        "heartDisease": {"type": bool},
+        "bmi": {"type": (int, float), "min": 10, "max": 60},
+        "hba1cLevel": {"type": (int, float), "min": 3, "max": 15},
+        "bloodGlucoseLevel": {"type": (int, float), "min": 50, "max": 400},
         "smokingHistory": {
             "type": str,
-            "in": ("never", "former", "current", "not specified", "ever", "No Info"),
+            "in": ("never", "former", "current", "No Info"),
         },
     }
 
+    if data.get("gender") not in ("Male", "Female"):
+        raise ValueError("Invalid value for gender")
     for field, rules in validators.items():
         if field not in data or data[field] is None:
             raise ValueError(f"Missing or null field: {field}")
 
         value = data[field]
-        if not isinstance(value, rules["type"]):
+        if not isinstance(value, rules["type"]) or (field in ("age", "bmi", "hba1cLevel", "bloodGlucoseLevel") and isinstance(value, bool)):
             raise ValueError(f"Invalid type for {field}")
+
+        if field in ("bmi", "hba1cLevel", "bloodGlucoseLevel") and not math.isfinite(value):
+            raise ValueError(f"Invalid value for {field}")
 
         if isinstance(value, str) and not value:
             raise ValueError(f"Invalid value for {field}")
@@ -686,7 +720,10 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
     if uncached_indices:
         X_uncached = X_input[uncached_indices]
         X_scaled = scaler.transform(X_uncached)
-        probs = model.predict_proba(X_scaled)[:, 1]
+        classes = list(getattr(model, "classes_", [0, 1]))
+        if 1 not in classes:
+            raise ValueError("Trained model does not contain the positive class")
+        probs = model.predict_proba(X_scaled)[:, classes.index(1)]
         
         # Calculate vectorized confidence intervals if cov_beta is available
         if cov_beta is not None:
@@ -794,27 +831,23 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
                         clinician_advice.append("Consider age-related metabolic changes in the management plan.")
                         patient_advice.append("As you get older, it's more important to stay active and monitor your health.")
             
-            gender_value = input_data.get('gender', 'Female')
-            gender_outside_training_distribution = gender_value not in ('Male', 'Female')
-            
             result = {
                 "riskScore": risk_score,
                 "riskCategory": cat,
                 "factors": top_factors,
                 "clinicianAdvice": clinician_advice,
                 "patientAdvice": patient_advice,
-                "confidenceInterval": confidence_interval,
-                "modelConfidence": round(float(max(prob, 1 - prob)), 4),
                 "is_partial_data": len(imputed_fields_list[original_idx]) > 0,
                 "imputed_fields": imputed_fields_list[original_idx]
             }
-            if gender_outside_training_distribution:
-                result["warning"] = (
-                    f"Gender value '{gender_value}' was not present in the model's training data. "
-                    "The patient has been encoded as Female for this prediction. "
-                    "Results should be interpreted with caution for this demographic."
-                )
-            
+            try:
+                with open(MODEL_FILE, "rb") as model_file:
+                    model_version = hashlib.sha256(model_file.read()).hexdigest()[:16]
+            except OSError:
+                model_version = None
+            result["prediction_method"] = "ml_model"
+            result["model_version"] = model_version
+            result["fallback_used"] = False
             cache.set(input_data, result)
             results[original_idx] = result
             
@@ -879,8 +912,6 @@ def counterfactual_analysis(model, scaler, features, input_data, cov_beta=None):
             "riskCategory": r["riskCategory"],
             "factors": r.get("factors", []),
             "riskReduction": risk_reduction,
-            "confidenceInterval": r.get("confidenceInterval"),
-            "modelConfidence": r.get("modelConfidence"),
         })
 
     perturbation_results.sort(key=lambda x: x["riskReduction"], reverse=True)
@@ -1012,6 +1043,18 @@ if __name__ == "__main__":
             print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "daemon":
         model, scaler, features, cov_beta = get_model()
+        try:
+            with open(MODEL_FILE, "rb") as model_file:
+                model_version = hashlib.sha256(model_file.read()).hexdigest()[:16]
+        except OSError:
+            model_version = None
+        training_manifest = None
+        try:
+            with open(MODEL_FILE + ".manifest.json", "r", encoding="utf-8") as manifest_file:
+                training_manifest = json.load(manifest_file)
+        except (OSError, json.JSONDecodeError):
+            pass
+        print(json.dumps({"type": "ready", "model_loaded": model is not None, "model_version": model_version, "training_manifest": training_manifest}), flush=True)
         from app.utils.text_sanitizer import sanitize_text
         for line_bytes in sys.stdin.buffer:
             line_str = sanitize_text(line_bytes).strip()

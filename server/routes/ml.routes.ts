@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { requireAuth, requireVerified } from "../auth";
 import { api } from "@shared/routes";
 import { storage } from "../storage";
-import { MLService, calculateClinicalFallback, type PredictionResult } from "../services/mlService";
+import { MLService } from "../services/mlService";
 import { validateDTO } from "../middleware/validateDTO";
 import { mlLimiter } from "../middleware/rateLimit";
 

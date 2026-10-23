@@ -89,11 +89,10 @@ uploadRouter.post(
             }
 
             const validData = parseResult.data;
-            const rowId = (row as any).id || (row as any).patient_id || (row as any).patientName || processed;
-            const { prediction } = await MLService.runAssessmentInference(validData, rowId, { throwOnFailure: true });
+            const { prediction } = await MLService.runAssessmentInference(validData, undefined, { throwOnFailure: true });
             validRows.push({ rowData: validData, prediction });
           } catch (rowErr) {
-            logger.error({ err: rowErr, row }, "Error processing CSV row");
+            logger.error({ err: rowErr, rowNumber: processed }, "Error processing CSV row");
             failed++;
           }
         }
@@ -109,6 +108,9 @@ uploadRouter.post(
               factors: prediction.factors,
               confidenceInterval: prediction.confidenceInterval,
               modelConfidence: prediction.modelConfidence,
+              predictionMethod: prediction.prediction_method ?? "ml_model",
+              modelVersion: prediction.model_version ?? null,
+              fallbackUsed: prediction.fallback_used ?? false,
               createdBy,
             }))
           );

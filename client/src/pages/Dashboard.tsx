@@ -82,6 +82,7 @@ export default function Dashboard() {
   const [preview, setPreview] = useState<AssessmentPreviewResponse | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewRetry, setPreviewRetry] = useState(0);
   const { mutate: createAssessment, isPending, error } = useCreateAssessment();
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -199,6 +200,7 @@ export default function Dashboard() {
     }
 
     const controller = new AbortController();
+    setPreview(null);
     const timeout = setTimeout(async () => {
       try {
         setPreviewPending(true);
@@ -212,6 +214,7 @@ export default function Dashboard() {
         if ((previewErr as Error).name === "AbortError") {
           return;
         }
+        setPreview(null);
         setPreviewError((previewErr as Error).message ?? "Failed to generate preview");
       } finally {
         setPreviewPending(false);
@@ -222,7 +225,7 @@ export default function Dashboard() {
       controller.abort();
       clearTimeout(timeout);
     };
-  }, [parsedForPreview, result]);
+  }, [parsedForPreview, result, previewRetry]);
 
   // Autosave draft on form changes with an 8-hour expiry timestamp so PHI
   // does not persist indefinitely on shared or public computers.
@@ -799,7 +802,7 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {previewError && <p className="text-sm text-red-600 dark:text-red-400">{previewError}</p>}
+                  {previewError && <div className="flex items-center gap-3 text-sm text-red-600 dark:text-red-400"><p>{previewError}</p><button type="button" className="underline" onClick={() => setPreviewRetry((n) => n + 1)}>Retry</button></div>}
 
                   {preview && (
                     <>
@@ -812,13 +815,16 @@ export default function Dashboard() {
                         </div>
                       )}
 
+                      <p className="text-xs text-slate-600 dark:text-slate-400">Prediction method: <strong>{preview.prediction_method === "rule_based" ? "Clinical rule-based estimate — not an ML prediction" : preview.prediction_method === "ml_model" ? "ML model" : "Method unavailable"}</strong>{preview.model_version ? ` · Model ${preview.model_version}` : " · Model version unavailable"}</p>
+
                       <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-5 text-center">
-                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Risk Score</p>
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{preview.prediction_method === "ml_model" ? "Model probability (not calibrated clinical certainty)" : preview.prediction_method === "rule_based" ? "Rule-based estimate" : "Risk score (method unavailable)"}</p>
                         <p className="mt-2 text-5xl font-black text-[#1E293B] dark:text-slate-100">{preview.riskScore.toFixed(1)}%</p>
                         <span className={`mt-3 inline-flex rounded-full border px-3 py-1 text-sm font-bold ${getRiskBadgeClass(preview.riskCategory)}`}>
                           {preview.riskCategory} Risk
                         </span>
                       </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Research/prototype decision-support tool only. This estimate is not a diagnosis and does not replace professional medical assessment. The model also uses default values for insulin and skin thickness, which this form does not collect.</p>
 
                       <div>
                         <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 mb-2">Key Drivers</p>

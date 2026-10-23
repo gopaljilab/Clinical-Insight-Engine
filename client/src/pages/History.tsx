@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import StatusPill from "@/components/ui/StatusPill";
-import ConfidenceRange from "@/components/ui/ConfidenceRange";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { filterAssessments, type GenderFilterValue, type RiskCategoryFilterValue } from "@/utils/filterAssessments";
@@ -804,60 +803,14 @@ export default function History() {
                         />
                       </td>
                       <td className="p-4">
-                        <div className="font-black text-base flex items-center gap-3">
-                          <span>
-                            {Number(assessment.riskScore).toFixed(1)}%
-                          </span>
-                          {assessment.confidenceInterval
-                            ? (() => {
-                                const ci = assessment.confidenceInterval;
-                                if (typeof ci === "string") {
-                                  const m = ci.match(
-                                    /([0-9.]+)\s*%?\s*-\s*([0-9.]+)\s*%?/
-                                  );
-                                  if (m) {
-                                    const low = parseFloat(m[1]);
-                                    const high = parseFloat(m[2]);
-                                    return (
-                                      <ConfidenceRange
-                                        low={low}
-                                        high={high}
-                                        value={Number(assessment.riskScore)}
-                                      />
-                                    );
-                                  }
-                                }
-                                if (
-                                  ci &&
-                                  typeof ci === "object" &&
-                                  "low" in ci &&
-                                  "high" in ci
-                                ) {
-                                  const obj = ci as {
-                                    low: number;
-                                    high: number;
-                                  };
-                                  if (
-                                    typeof obj.low === "number" &&
-                                    typeof obj.high === "number"
-                                  ) {
-                                    return (
-                                      <ConfidenceRange
-                                        low={obj.low}
-                                        high={obj.high}
-                                        value={Number(assessment.riskScore)}
-                                      />
-                                    );
-                                  }
-                                }
-                                return (
-                                  <span className="text-[10px] text-muted-foreground font-normal">
-                                    ({String(ci)})
-                                  </span>
-                                );
-                              })()
-                            : null}
-                        </div>
+                        <div className="font-black text-base">{Number(assessment.riskScore).toFixed(1)}%</div>
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          {assessment.fallbackUsed || assessment.predictionMethod === "rule_based"
+                            ? "Rule-based estimate — not ML"
+                            : assessment.predictionMethod === "ml_model"
+                              ? `ML model probability · ${assessment.modelVersion || "version unknown"}`
+                              : "Prediction method unknown"}
+                        </p>
                       </td>
                       <td className="p-4">
                         {getRiskBadge(assessment.riskCategory)}

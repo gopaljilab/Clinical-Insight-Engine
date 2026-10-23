@@ -30,6 +30,9 @@ export const assessments = pgTable(
     factors: jsonb("factors").$type<AssessmentFactor[]>().notNull(),
     confidenceInterval: jsonb("confidence_interval").$type<string | null>(),
     modelConfidence: doublePrecision("model_confidence"),
+    predictionMethod: text("prediction_method"),
+    modelVersion: text("model_version"),
+    fallbackUsed: boolean("fallback_used"),
 
     ownerId: uuid("owner_id").references(() => users.id),
     createdBy: text("created_by"),
@@ -265,7 +268,7 @@ export const patientEmailVerificationTokens = pgTable("patient_email_verificatio
 });
 
 export type ModelVersion = typeof modelVersions.$inferSelect;
-export type InsertModelVersion = typeof modelVersions.$inferInsert;
+export type InsertModelVersion = Pick<ModelVersion, "version"> & Partial<Omit<ModelVersion, "id" | "version" | "createdAt">>;
 
 export const insertUserSchema = z.object({
   fullName: z.string(),

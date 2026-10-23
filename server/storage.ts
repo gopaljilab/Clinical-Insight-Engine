@@ -112,8 +112,11 @@ export type AssessmentCreateInput = InsertAssessment & {
   riskScore: number;
   riskCategory: string;
   factors: AssessmentFactor[];
-  confidenceInterval?: string;
-  modelConfidence?: number;
+  confidenceInterval?: string | null;
+  modelConfidence?: number | null;
+  predictionMethod?: "ml_model" | "rule_based" | null;
+  modelVersion?: string | null;
+  fallbackUsed?: boolean | null;
   createdBy: string;
 };
 

@@ -3,7 +3,7 @@ import { storage } from "./storage";
 import IORedis from "ioredis";
 import { sendCriticalRiskAlert } from "./email";
 import { logger } from "./logger";
-import { MLService, calculateClinicalFallback } from "./services/mlService";
+import { MLService } from "./services/mlService";
 
 import { execFile } from "child_process";
 import { emitAssessmentProgress, emitAssessmentCompleted, emitAssessmentFailed } from "./socket/assessmentSocket";
@@ -180,14 +180,7 @@ export function startAssessmentWorker(): void {
             const progress = 10 + Math.floor((i / assessments.length) * 80);
             emitAssessmentProgress(job.id ?? "", progress, `Processing Batch (${i + 1}/${assessments.length})`);
             
-            let predictions: any[];
-            try {
-              const { predictions: batchPredictions } = await MLService.runAssessmentInferenceBatch(chunk);
-              predictions = batchPredictions;
-            } catch (error) {
-              logger.warn({ error }, "Batch prediction failed, using fallback");
-              predictions = calculateClinicalFallback(chunk) as any[];
-            }
+            const { predictions } = await MLService.runAssessmentInferenceBatch(chunk, undefined, { throwOnFailure: true });
 
             const chunkCreated = await Promise.all(
               chunk.map(async (assessment: any, index: number) => {
@@ -198,12 +191,18 @@ export function startAssessmentWorker(): void {
                   await client.query("BEGIN");
                   const result = await client.query(
                     `INSERT INTO assessments (
-                      "patientName", "age", "gender", "hypertension", "heartDisease",
-                      "smokingHistory", "bmi", "hba1cLevel", "bloodGlucoseLevel",
-                      "riskScore", "riskCategory", "factors", "confidenceInterval",
-                      "modelConfidence", "createdBy", "userId"
-                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-                    RETURNING *`,
+                      patient_name, age, gender, hypertension, heart_disease,
+                      smoking_history, bmi, hba1c_level, blood_glucose_level,
+                      risk_score, risk_category, factors, confidence_interval,
+                      model_confidence, prediction_method, model_version, fallback_used, created_by, user_id
+                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+                    RETURNING *, patient_name AS "patientName", heart_disease AS "heartDisease",
+                      smoking_history AS "smokingHistory", hba1c_level AS "hba1cLevel",
+                      blood_glucose_level AS "bloodGlucoseLevel", risk_score AS "riskScore",
+                      risk_category AS "riskCategory", confidence_interval AS "confidenceInterval",
+                      model_confidence AS "modelConfidence", prediction_method AS "predictionMethod",
+                      model_version AS "modelVersion", fallback_used AS "fallbackUsed",
+                      created_by AS "createdBy", created_at AS "createdAt", user_id AS "userId"`,
                     [
                       assessment.patientName, assessment.age, assessment.gender, assessment.hypertension,
                       assessment.heartDisease, assessment.smokingHistory, assessment.bmi,
@@ -213,6 +212,9 @@ export function startAssessmentWorker(): void {
                       JSON.stringify(prediction.factors || []),
                       prediction.confidenceInterval ?? null,
                       prediction.modelConfidence == null ? null : Number(prediction.modelConfidence),
+                      prediction.prediction_method ?? "ml_model",
+                      prediction.model_version ?? null,
+                      prediction.fallback_used ?? false,
                       userId,
                       userId,
                     ]
@@ -257,7 +259,7 @@ export function startAssessmentWorker(): void {
         let resolvedPrediction: any = prediction;
 
         if (!resolvedPrediction || resolvedPrediction.error) {
-          resolvedPrediction = calculateClinicalFallback(input);
+          throw new Error("ML inference returned no valid prediction.");
         }
 
         logger.info(
@@ -265,7 +267,8 @@ export function startAssessmentWorker(): void {
             jobId: job.id,
             requestId,
             durationMs: Date.now() - startedAt,
-            riskCategory: resolvedPrediction.riskCategory,
+            prediction_method: resolvedPrediction.prediction_method,
+            model_version: resolvedPrediction.model_version,
           },
           "Assessment queue ML prediction completed",
         );
@@ -282,12 +285,18 @@ export function startAssessmentWorker(): void {
               await client.query("BEGIN");
               const result = await client.query(
                 `INSERT INTO assessments (
-                  "patientName", "age", "gender", "hypertension", "heartDisease",
-                  "smokingHistory", "bmi", "hba1cLevel", "bloodGlucoseLevel",
-                  "riskScore", "riskCategory", "factors", "confidenceInterval",
-                  "modelConfidence", "createdBy", "userId"
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-                RETURNING *`,
+                  patient_name, age, gender, hypertension, heart_disease,
+                  smoking_history, bmi, hba1c_level, blood_glucose_level,
+                  risk_score, risk_category, factors, confidence_interval,
+                  model_confidence, prediction_method, model_version, fallback_used, created_by, user_id
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+                RETURNING *, patient_name AS "patientName", heart_disease AS "heartDisease",
+                  smoking_history AS "smokingHistory", hba1c_level AS "hba1cLevel",
+                  blood_glucose_level AS "bloodGlucoseLevel", risk_score AS "riskScore",
+                  risk_category AS "riskCategory", confidence_interval AS "confidenceInterval",
+                  model_confidence AS "modelConfidence", prediction_method AS "predictionMethod",
+                  model_version AS "modelVersion", fallback_used AS "fallbackUsed",
+                  created_by AS "createdBy", created_at AS "createdAt", user_id AS "userId"`,
                 [
                   input.patientName, input.age, input.gender, input.hypertension,
                   input.heartDisease, input.smokingHistory, input.bmi,
@@ -299,6 +308,9 @@ export function startAssessmentWorker(): void {
                   resolvedPrediction.modelConfidence == null
                     ? null
                     : Number(resolvedPrediction.modelConfidence),
+                  resolvedPrediction.prediction_method ?? "ml_model",
+                  resolvedPrediction.model_version ?? null,
+                  resolvedPrediction.fallback_used ?? false,
                   userEmail || userId,
                   userId,
                 ]

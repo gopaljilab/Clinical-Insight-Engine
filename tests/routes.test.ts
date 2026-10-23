@@ -400,7 +400,11 @@ describe("Python inference", () => {
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty("simulatedRisk", 12.3);
       expect(res.body).toHaveProperty("riskCategory", "LOW");
-      expect(res.body).toHaveProperty("confidence", 0.877);
+      expect(res.body).not.toHaveProperty("confidence");
+      expect(res.body).toMatchObject({
+        prediction_method: "ml_model",
+        fallback_used: false,
+      });
       expect(res.body).toHaveProperty("factorContributions");
       expect(Array.isArray(res.body.factorContributions)).toBe(true);
     } finally {
@@ -481,12 +485,17 @@ describe("Python inference", () => {
       expect(res.body).toHaveProperty("riskScore");
       expect(res.body).toHaveProperty("riskCategory");
       expect(res.body).toHaveProperty("factors");
+      expect(res.body).toMatchObject({
+        prediction_method: "ml_model",
+        fallback_used: false,
+        disclaimer: expect.stringMatching(/not a diagnosis/i),
+      });
     } finally {
       predictSpy.mockRestore();
     }
   });
 
-  it("preview uses fallback when Python process fails", async () => {
+  it("preview returns service unavailable when Python inference fails", async () => {
     const app = createAuthenticatedApp();
     await registerRoutes(createServer(), app);
 
@@ -498,10 +507,9 @@ describe("Python inference", () => {
         .set("x-api-key", "test-key")
         .send(validPayload);
 
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty("riskScore");
-      expect(res.body).toHaveProperty("riskCategory");
-      expect(res.body).toHaveProperty("factors");
+      expect(res.status).toBe(503);
+      expect(res.body).not.toHaveProperty("riskScore");
+      expect(res.body.message).toMatch(/unavailable/i);
     } finally {
       predictSpy.mockRestore();
     }

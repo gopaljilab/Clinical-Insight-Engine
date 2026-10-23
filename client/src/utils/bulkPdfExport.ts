@@ -16,8 +16,9 @@ interface BulkExportAssessment {
   heartDisease: boolean | null;
   smokingHistory: string | null;
   factors?: Array<{ name: string; impact: string; description: string }>;
-  confidenceInterval?: string | null;
-  modelConfidence?: number | null;
+  predictionMethod?: string | null;
+  modelVersion?: string | null;
+  fallbackUsed?: boolean | null;
 }
 
 function fmt(val: unknown): string {
@@ -227,9 +228,10 @@ export function downloadBulkAssessmentPdf(assessments: BulkExportAssessment[]): 
     yy = labelVal("Smoking:", fmt(a.smokingHistory), yy);
     yy = labelVal("Risk Score:", a.riskScore != null ? `${Number(a.riskScore).toFixed(1)}%` : "—", yy);
     yy = labelVal("Risk Category:", fmt(a.riskCategory), yy);
-    if (a.modelConfidence != null) {
-      yy = labelVal("Model Confidence:", `${Number(a.modelConfidence).toFixed(1)}%`, yy);
-    }
+    yy = labelVal("Prediction Method:", a.fallbackUsed || a.predictionMethod === "rule_based"
+      ? "Clinical rule-based estimate (not ML)"
+      : a.predictionMethod === "ml_model" ? "ML model probability" : "Unknown (not recorded)", yy);
+    yy = labelVal("Model Version:", a.modelVersion ?? "Unknown (not recorded)", yy);
 
     // Risk factors
     if (a.factors && a.factors.length > 0) {

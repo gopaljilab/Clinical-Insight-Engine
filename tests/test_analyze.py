@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -45,22 +46,25 @@ def test_compute_dataset_hash_is_stable_for_same_content():
         os.remove(tmp_path)
 
 
-def test_create_synthetic_data_has_expected_columns_and_size():
-    original_path = os.path.join(REPO_ROOT, "diabetes_dataset.csv")
-    backup_path = f"{original_path}.pytest-backup"
+def test_create_synthetic_data_has_expected_columns_and_size(tmp_path, monkeypatch):
+    import analyze
 
-    if os.path.exists(original_path):
-        os.rename(original_path, backup_path)
+    monkeypatch.setattr(analyze, "DATA_FILE", str(tmp_path / "diabetes_dataset.csv"))
+    df = create_synthetic_data()
+    assert len(df) == 1000
+    assert {"gender", "age", "diabetes", "bmi"}.issubset(df.columns)
 
-    try:
-        df = create_synthetic_data()
-        assert len(df) == 1000
-        assert {"gender", "age", "diabetes", "bmi"}.issubset(df.columns)
-    finally:
-        if os.path.exists(original_path):
-            os.remove(original_path)
-        if os.path.exists(backup_path):
-            os.rename(backup_path, original_path)
+
+def _prepare_isolated_ml_workspace(workspace):
+    """Copy runtime inputs so cold-start tests never touch local model artifacts."""
+    shutil.copy2(os.path.join(REPO_ROOT, "analyze.py"), workspace)
+    shutil.copy2(os.path.join(REPO_ROOT, "diabetes_dataset.csv"), workspace)
+    for name in ("app", "services", "validation"):
+        shutil.copytree(
+            os.path.join(REPO_ROOT, name),
+            os.path.join(workspace, name),
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
 
 
 def test_interpret_prediction_returns_error_without_model():
@@ -105,22 +109,16 @@ def test_predict_file_cli_outputs_json(tmp_path):
     input_file = tmp_path / "patient.json"
     input_file.write_text(json.dumps(payload), encoding="utf-8")
 
-    dataset = os.path.join(REPO_ROOT, "diabetes_dataset.csv")
-    if not os.path.exists(dataset):
-        create_synthetic_data()
-
-    # Cold-start: remove any cached model so get_model() must retrain
-    model_file = os.path.join(REPO_ROOT, "diabetes_model.pkl")
-    if os.path.exists(model_file):
-        os.remove(model_file)
-
-    import subprocess
+    assert os.path.exists(os.path.join(REPO_ROOT, "diabetes_dataset.csv"))
+    workspace = tmp_path / "isolated-runtime"
+    workspace.mkdir()
+    _prepare_isolated_ml_workspace(workspace)
 
     result = subprocess.run(
-        [sys.executable, os.path.join(REPO_ROOT, "analyze.py"), "predict_file", str(input_file)],
+        [sys.executable, str(workspace / "analyze.py"), "predict_file", str(input_file)],
         capture_output=True,
         text=True,
-        cwd=REPO_ROOT,
+        cwd=workspace,
         timeout=120,
         check=False,
     )
@@ -147,6 +145,7 @@ def test_interpret_prediction_personalized_advice():
     from unittest.mock import MagicMock
     
     mock_model = MagicMock()
+    mock_model.classes_ = np.array([0, 1])
     mock_model.predict_proba.return_value = np.array([[0.1, 0.8]]) # 80% risk -> HIGH
     # index 4 is HbA1c_level in our features list below
     coefs = np.zeros((1, 12))
@@ -211,9 +210,10 @@ def test_atomic_write_creates_valid_model(tmp_path):
 
 def test_concurrent_prediction_processes(tmp_path):
     """Run multiple prediction subprocesses concurrently to verify no corruption."""
-    dataset = os.path.join(REPO_ROOT, "diabetes_dataset.csv")
-    if not os.path.exists(dataset):
-        create_synthetic_data()
+    assert os.path.exists(os.path.join(REPO_ROOT, "diabetes_dataset.csv"))
+    workspace = tmp_path / "isolated-runtime"
+    workspace.mkdir()
+    _prepare_isolated_ml_workspace(workspace)
 
     payload_file = tmp_path / "patient.json"
     payload_file.write_text(json.dumps({
@@ -233,9 +233,9 @@ def test_concurrent_prediction_processes(tmp_path):
     def run_prediction():
         try:
             result = subprocess.run(
-                [sys.executable, os.path.join(REPO_ROOT, "analyze.py"),
+                [sys.executable, str(workspace / "analyze.py"),
                  "predict_file", str(payload_file)],
-                capture_output=True, text=True, cwd=REPO_ROOT, timeout=120,
+                capture_output=True, text=True, cwd=workspace, timeout=120,
             )
             results.append((result.returncode, result.stdout, result.stderr))
         except Exception as e:
@@ -285,8 +285,8 @@ def test_lock_prevents_concurrent_writes(tmp_path):
     assert concurrent_holders <= 2  # at most 2 total acquisitions
 
 
-def test_get_model_metadata_caching(tmp_path, monkeypatch):
-    """Test that get_model uses metadata cache and skips hash computation."""
+def test_get_model_content_hash_cache(tmp_path, monkeypatch):
+    """Dataset identity uses content hash, independent of filesystem timestamps."""
     import analyze
     import pickle
     
@@ -311,13 +311,13 @@ def test_get_model_metadata_caching(tmp_path, monkeypatch):
     assert os.path.exists(test_model_file)
     assert os.path.exists(test_model_file + ".sig")
     
-    # Load model_data to verify it has 7 elements
+    # Model pickle contains stable training metadata in an 8-element tuple.
     from app.ml.security import safe_pickle_load
     with open(test_model_file, 'rb') as f:
         model_data = safe_pickle_load(f)
-    assert len(model_data) == 7
-    assert model_data[5] is not None  # mtime
-    assert model_data[6] is not None  # size
+    assert len(model_data) == 8
+    assert model_data[5] is None  # timestamps are intentionally excluded from the artifact
+    assert model_data[6] is None
     
     # Now call get_model() and verify it doesn't call _compute_dataset_hash
     hash_called = False
@@ -330,31 +330,30 @@ def test_get_model_metadata_caching(tmp_path, monkeypatch):
         
     monkeypatch.setattr(analyze, "_compute_dataset_hash", mock_compute_hash)
     
-    # First call: metadata matches, so hash should NOT be called
+    # Reuse is based on the dataset's content hash.
     res = analyze.get_model()
     assert res[0] is not None
-    assert not hash_called, "Cryptographic hash was computed even though metadata matched!"
+    assert hash_called, "Dataset content must be hashed before reusing a cached model."
     
     # Now touch the file to change mtime (but keep content same)
     time.sleep(0.1)  # ensure mtime difference
     os.utime(test_data_file, None)
     
-    # Second call: metadata mismatches, so hash SHOULD be called
+    # Touching the file does not change the dataset identity.
     hash_called = False
     res2 = analyze.get_model()
     assert res2[0] is not None
-    assert hash_called, "Cryptographic hash was not computed after metadata changed!"
+    assert hash_called, "Dataset identity must not depend on the file timestamp."
     
-    # The second call should have also updated the model file with the new mtime
+    # The serialized model keeps timestamp fields empty to stay reproducible.
     from app.ml.security import safe_pickle_load
     with open(test_model_file, 'rb') as f:
         model_data_updated = safe_pickle_load(f)
-    new_mtime = os.path.getmtime(test_data_file)
-    assert model_data_updated[5] == new_mtime
+    assert model_data_updated[5] is None
 
 
 def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
-    """Test that legacy 5-element tuple models are loaded correctly and migrated to 7-element tuples."""
+    """Legacy 5-element tuples still load and migrate to stable 8-element tuples."""
     import analyze
     import pickle
     from app.ml.security import write_signature
@@ -381,17 +380,17 @@ def test_get_model_legacy_compatibility_and_migration(tmp_path, monkeypatch):
     write_signature(test_model_file)
     
     # Now load using get_model(). It should detect it's a legacy model, compute the hash, match it,
-    # and update the MODEL_FILE with metadata (7-element tuple).
+    # and update the MODEL_FILE with stable metadata (8-element tuple).
     res = analyze.get_model()
     assert res[0] is not None
     
     from app.ml.security import safe_pickle_load
     with open(test_model_file, 'rb') as f:
         migrated_data = safe_pickle_load(f)
-    assert len(migrated_data) == 7
+    assert len(migrated_data) == 8
     assert migrated_data[3] == dataset_hash
-    assert migrated_data[5] == os.path.getmtime(test_data_file)
-    assert migrated_data[6] == os.path.getsize(test_data_file)
+    assert migrated_data[5] is None
+    assert migrated_data[6] is None
 
 def test_validate_assessment_input_rejects_invalid_age():
     from analyze import validate_assessment_input
@@ -437,7 +436,7 @@ def test_validate_assessment_input_accepts_complete_valid_payload():
         "age": 40,
         "gender": "Female",
         "hypertension": False,
-        "heartDisease": 0,
+        "heartDisease": False,
         "bmi": 25,
         "hba1cLevel": 5.5,
         "bloodGlucoseLevel": 100,
@@ -512,10 +511,9 @@ def test_validate_assessment_input_rejects_missing_clinical_field():
         validate_assessment_input(payload)
 
 
-def test_validate_assessment_input_allows_other_genders_and_warns():
-    from analyze import validate_assessment_input, interpret_predictions_batch, get_model
+def test_validate_assessment_input_rejects_gender_outside_supported_encoding():
+    from analyze import validate_assessment_input
 
-    # Validates successfully for custom gender
     input_data = {
         "age": 40,
         "gender": "Other",
@@ -526,10 +524,5 @@ def test_validate_assessment_input_allows_other_genders_and_warns():
         "bloodGlucoseLevel": 100,
         "smokingHistory": "never",
     }
-    assert validate_assessment_input(input_data) == input_data
-
-    # Check that interpret_predictions_batch returns warning for custom gender
-    model, scaler, features, cov_beta = get_model()
-    results = interpret_predictions_batch(model, scaler, features, [input_data], cov_beta)
-    assert "warning" in results[0]
-    assert "Gender value 'Other' was not present in the model's training data" in results[0]["warning"]
+    with pytest.raises(ValueError, match="gender"):
+        validate_assessment_input(input_data)

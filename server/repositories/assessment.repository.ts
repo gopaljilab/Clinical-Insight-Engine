@@ -115,7 +115,7 @@ export class AssessmentRepository {
       endDate = limitOrParams.endDate;
       cursor = limitOrParams.cursor;
     } else {
-      limit = limitOrParams ?? 20;
+      limit = typeof limitOrParams === "number" ? limitOrParams : 20;
     }
 
     const filters: any[] = [];

@@ -38,8 +38,9 @@ export async function seedDatabase() {
           description: "Lowers risk",
         },
       ],
-      confidenceInterval: "8.5% - 16.1%",
-      modelConfidence: 0.877,
+      predictionMethod: null,
+      modelVersion: null,
+      fallbackUsed: null,
     },
     {
       createdBy: seedUserId,
@@ -67,8 +68,9 @@ export async function seedDatabase() {
           description: "Increases risk",
         },
       ],
-      confidenceInterval: "38.9% - 58.5%",
-      modelConfidence: 0.513,
+      predictionMethod: null,
+      modelVersion: null,
+      fallbackUsed: null,
     },
   ];
 

@@ -483,8 +483,6 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
   const reportDate = formatDate(new Date().toISOString());
   const riskCategory = formatValue(assessment.riskCategory);
   const riskScore = formatNumber(assessment.riskScore, 1, "%");
-  const modelConfidence = formatValue(assessment.modelConfidence);
-  const confidenceInterval = formatValue(assessment.confidenceInterval);
   const factors = normalizeFactors(assessment.factors);
   const reportId = `CIE-RPT-${assessment.id ?? "N/A"}`;
   const patientAdvice = assessment.prediction?.patientAdvice ?? [
@@ -548,9 +546,8 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
   pdf.keyValueRows([
     ["Overall Risk Score", riskScore],
     ["Risk Category", riskCategory],
-    ["Model Confidence", formatNumber(assessment.modelConfidence, 2)],
-    ["Confidence Interval (95%)", formatValue(assessment.confidenceInterval)],
-    ["Prediction Method", assessment.prediction?.isFallback ? "Fallback (Rule-Based)" : "ML Model"],
+    ["Prediction Method", assessment.predictionMethod ?? "Unknown (not recorded)"],
+    ["Model Version", assessment.modelVersion ?? "Unknown (not recorded)"],
   ]);
 
   pdf.sectionTitle("Key Contributing Factors");

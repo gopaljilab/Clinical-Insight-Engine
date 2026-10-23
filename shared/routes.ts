@@ -90,10 +90,11 @@ export const api = {
               description: z.string(),
             })
           ),
-          confidenceInterval: z.string().nullable().optional(),
-          modelConfidence: z.number().nullable().optional(),
-          // present in some responses
+          prediction_method: z.enum(["ml_model", "rule_based"]).optional(),
+          model_version: z.string().nullable().optional(),
+          fallback_used: z.boolean().optional(),
           isFallback: z.boolean().optional(),
+          disclaimer: z.string().optional(),
           recommendations: z
             .array(
               z.object({
@@ -162,7 +163,9 @@ export const api = {
         200: z.object({
           simulatedRisk: z.number(),
           riskCategory: z.enum(["LOW", "MODERATE", "HIGH"]),
-          confidence: z.number().nullable().optional(),
+          prediction_method: z.enum(["ml_model", "rule_based"]).optional(),
+          model_version: z.string().nullable().optional(),
+          fallback_used: z.boolean().optional(),
           factorContributions: z
             .array(
               z.object({
@@ -194,9 +197,10 @@ export const api = {
               })
             )
             .optional(),
-          confidenceInterval: z.string().nullable().optional(),
-          modelConfidence: z.number().nullable().optional(),
           isFallback: z.boolean().optional(),
+          prediction_method: z.enum(["ml_model", "rule_based"]).optional(),
+          model_version: z.string().nullable().optional(),
+          fallback_used: z.boolean().optional(),
         }),
         400: errorSchemas.validation,
         500: errorSchemas.internal,
@@ -242,8 +246,6 @@ export const api = {
                 )
                 .optional(),
               riskReduction: z.number(),
-              confidenceInterval: z.string().nullable().optional(),
-              modelConfidence: z.number().nullable().optional(),
             })
           ),
           ranked: z.array(
@@ -261,11 +263,12 @@ export const api = {
                 )
                 .optional(),
               riskReduction: z.number(),
-              confidenceInterval: z.string().nullable().optional(),
-              modelConfidence: z.number().nullable().optional(),
             })
           ).optional(),
           isFallback: z.boolean().optional(),
+          prediction_method: z.enum(["ml_model", "rule_based"]).optional(),
+          model_version: z.string().nullable().optional(),
+          fallback_used: z.boolean().optional(),
         }),
         400: errorSchemas.validation,
         500: errorSchemas.internal,

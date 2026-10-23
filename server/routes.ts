@@ -1,6 +1,7 @@
 import mlRouter from "./routes/ml.routes";
 import exportsRouter from "./routes/exports.routes";
 import { insertAssessmentNoteSchema } from "@shared/schema";
+import type { InsertModelVersion } from "@shared/schema";
 import { broadcastNote } from "./socket/notesSocket";
 import analyticsRouter from "./routes/analytics.routes";
 import uploadRouter from "./routes/upload.routes";
@@ -23,12 +24,11 @@ import {
 } from "./middleware/rateLimit";
 import { setCsrfToken, requireCsrfToken } from "./middleware/csrf";
 import { rateLimit } from "express-rate-limit";
-import { MLService, pythonDaemon, mlConcurrency, calculateClinicalFallback, generateRequestFingerprint, type PredictionResult } from "./services/mlService";
+import { MLService, pythonDaemon, mlConcurrency } from "./services/mlService";
 import { getAssessmentQueue, getPythonExecutable, getQueueMetrics } from "./queue";
 import { execFile } from "child_process";
 import path from "path";
 import { escapeCsvCell } from "./utils/csvSanitizer";
-import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -42,9 +42,7 @@ import { analyzeSearchInput, logSecurityEvent, sanitizeDatabaseError } from "./s
 import { canAccessPatientRecord } from "./services/authz/patient-access";
 import { logAccessAttempt } from "./security/access-audit";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "analyze.py");
+const analyzePyPath = path.resolve(process.cwd(), "analyze.py");
 
 function execFileAsync(file: string, args: string[], options: any): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
@@ -116,8 +114,9 @@ async function seedDatabase() {
         { name: "Bmi", impact: "negative", description: "Lowers risk" },
         { name: "Hba1c Level", impact: "negative", description: "Lowers risk" },
       ],
-      confidenceInterval: "8.5% - 16.1%",
-      modelConfidence: 0.877,
+      predictionMethod: null,
+      modelVersion: null,
+      fallbackUsed: null,
     },
     {
       createdBy: seedUserId,
@@ -137,8 +136,9 @@ async function seedDatabase() {
         { name: "Bmi", impact: "positive", description: "Increases risk" },
         { name: "Hypertension", impact: "positive", description: "Increases risk" },
       ],
-      confidenceInterval: "38.9% - 58.5%",
-      modelConfidence: 0.513,
+      predictionMethod: null,
+      modelVersion: null,
+      fallbackUsed: null,
     },
   ];
 
@@ -187,11 +187,21 @@ export async function registerRoutes(
   }
 
 
-  app.get("/health", (req, res) => {
+  app.get("/health", async (req, res) => {
+    const modelLoaded = process.env.PREDICTION_MODE === "rule-based"
+      ? false
+      : await pythonDaemon.checkReadiness().catch(() => false);
+    const inferenceStatus = pythonDaemon.getStatus();
     res.json({
       status: "ok",
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
+      api_available: true,
+      model_loaded: modelLoaded,
+      model_version: modelLoaded ? (inferenceStatus.modelVersion ?? process.env.MODEL_VERSION ?? null) : null,
+      training_manifest: modelLoaded ? inferenceStatus.trainingManifest : null,
+      inference_backend_status: inferenceStatus.daemonStatus,
+      prediction_method: process.env.PREDICTION_MODE === "rule-based" ? "rule_based" : "ml_model",
     });
   });
 
@@ -219,15 +229,24 @@ export async function registerRoutes(
     async (req, res) => {
       try {
         const input = api.assessments.preview.input.parse(req.body);
-        const { prediction } = await MLService.runAssessmentInference(input);
+        const { prediction, isFallback } = await MLService.runAssessmentInference(input, undefined, { throwOnFailure: true });
 
-        logger.info(`[AUDIT] preview requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`);
+        logger.info({
+          event: "prediction_preview",
+          userId: req.session.user?.id,
+          prediction_method: prediction.prediction_method ?? (isFallback ? "rule_based" : "ml_model"),
+          model_version: prediction.model_version ?? null,
+          fallback_used: isFallback,
+        }, "Prediction preview completed");
         return res.json({
           riskScore: prediction.riskScore,
           riskCategory: prediction.riskCategory,
           factors: prediction.factors ?? [],
-          confidenceInterval: prediction.confidenceInterval ?? null,
-          modelConfidence: prediction.modelConfidence ?? null
+          prediction_method: prediction.prediction_method ?? (isFallback ? "rule_based" : "ml_model"),
+          model_version: prediction.model_version ?? null,
+          fallback_used: isFallback,
+          isFallback,
+          disclaimer: "Research/prototype decision-support estimate only; not a diagnosis or substitute for professional medical assessment.",
         });
       } catch (err: unknown) {
         if (err instanceof z.ZodError) {
@@ -239,6 +258,9 @@ export async function registerRoutes(
           return res.status(503).json({
             message: "Clinical assessment preview timed out."
           });
+        }
+        if ((err as Error & { statusCode?: number }).statusCode === 503) {
+          return res.status(503).json({ message: "ML inference service is unavailable. Please retry shortly." });
         }
         logger.error({ err }, "Error creating assessment preview");
         return res.status(500).json({ message: "Internal server error" });
@@ -676,7 +698,7 @@ export async function registerRoutes(
       const previousVersion = await storage.getLatestModelVersion();
       const nextVersion = (previousVersion?.version ?? 0) + 1;
 
-      const record = await storage.createModelVersion({
+      const modelVersion: InsertModelVersion = {
         version: nextVersion,
         accuracy: metrics.accuracy,
         precision: metrics.precision,
@@ -690,7 +712,8 @@ export async function registerRoutes(
         featureDistributions: metrics.feature_distributions,
         trainingDurationMs: metrics.training_duration_ms,
         status: "completed",
-      });
+      };
+      const record = await storage.createModelVersion(modelVersion);
 
       logger.info(`Model retrained: version ${nextVersion}, accuracy ${metrics.accuracy}`);
       res.json(record);

@@ -28,16 +28,19 @@ export async function authenticateBatchOperation(
         { ip: req.ip, userAgent: req.get("user-agent") },
         "Batch operation attempted without authentication"
       );
-      return res.status(401).json({ message: "Unauthorized. Authentication required." });
+      res.status(401).json({ message: "Unauthorized. Authentication required." });
+      return;
     }
 
     // 2. Verify user is verified (email confirmed, etc)
-    if (!req.session?.user?.verified) {
+    const verified = req.session.user.verified ?? req.session.user.emailVerified;
+    if (!verified) {
       logger.warn(
         { userId: req.session.user.id, email: req.session.user.email },
         "Batch operation attempted by unverified user"
       );
-      return res.status(403).json({ message: "Forbidden. User account must be verified." });
+      res.status(403).json({ message: "Forbidden. User account must be verified." });
+      return;
     }
 
     // 3. Verify session is not expired
@@ -46,7 +49,8 @@ export async function authenticateBatchOperation(
         { userId: req.session.user.id },
         "Batch operation attempted with expired session"
       );
-      return res.status(401).json({ message: "Unauthorized. Session expired." });
+      res.status(401).json({ message: "Unauthorized. Session expired." });
+      return;
     }
 
     // 4. Validate request size (batch operations can be large)
@@ -58,9 +62,10 @@ export async function authenticateBatchOperation(
         { userId, contentLength, maxSize: MAX_PAYLOAD_SIZE },
         "Batch operation payload too large"
       );
-      return res.status(413).json({
+      res.status(413).json({
         message: `Payload too large. Maximum size is ${MAX_PAYLOAD_SIZE / 1024 / 1024}MB.`,
       });
+      return;
     }
 
     // 5. Log batch operation initiation for audit trail
@@ -79,13 +84,13 @@ export async function authenticateBatchOperation(
     (req as any).validatedUser = {
       id: req.session.user.id,
       email: req.session.user.email,
-      verified: req.session.user.verified,
+      verified,
     };
 
     next();
   } catch (err) {
     logger.error({ err, userId: req.session?.user?.id }, "Error in batch auth middleware");
-    return res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error" });
   }
 }
 

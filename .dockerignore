@@ -9,6 +9,7 @@ __pycache__
 *.pyc
 *.pyo
 *.pyd
+diabetes_model.pkl*
 
 # Production builds
 dist
@@ -27,6 +28,9 @@ dist
 
 
 # Environment secrets
+.env
+.env.*
+!.env.example
 .env
 .env.local
 .env.development

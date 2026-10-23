@@ -61,6 +61,10 @@ COPY --chown=node:node --from=builder /app/dist ./dist
 # Copy ML inference script and data assets
 COPY --chown=node:node analyze.py ./
 COPY --chown=node:node attached_assets ./attached_assets
+COPY --chown=node:node app ./app
+COPY --chown=node:node services ./services
+COPY --chown=node:node validation ./validation
+COPY --chown=node:node diabetes_dataset.csv ./diabetes_dataset.csv
 
 EXPOSE 5000
 CMD ["node", "dist/index.cjs"]

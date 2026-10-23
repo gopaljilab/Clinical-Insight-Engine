@@ -471,12 +471,11 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                     {riskScore}<span className="text-xl text-muted-foreground">%</span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    {t("patientResult.modelProbability")}
-                    {assessment.confidenceInterval && (
-                      <span className="block text-[10px] mt-0.5 opacity-80">
-                        (95% CI: {assessment.confidenceInterval})
-                      </span>
-                    )}
+                    {assessment.predictionMethod === "rule_based" || assessment.fallbackUsed
+                      ? "Clinical rule-based estimate — not an ML prediction"
+                      : assessment.predictionMethod === "ml_model"
+                        ? "Model probability; not calibrated clinical certainty"
+                        : "Prediction method not recorded for this historical result"}
                   </p>
                 </div>
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
@@ -484,11 +483,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   <div className={cn("inline-flex px-3 py-1 rounded-full text-sm font-bold mt-1", getRiskColor(assessment.riskCategory))}>
                     {assessment.riskCategory}
                   </div>
-                  {assessment.modelConfidence && (
-                    <p className="text-[10px] text-muted-foreground mt-2 italic">
-                      {t("patientResult.modelConfidenceLabel")}: {Number(assessment.modelConfidence).toFixed(2)}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground mt-2">Model version: {assessment.modelVersion || "unknown"}</p>
                 </div>
                 <div className="bg-card border border-border p-5 rounded-xl shadow-sm">
                   <p className="text-sm font-medium text-muted-foreground mb-1">{t("patientResult.vitalsSummary")}</p>
@@ -508,6 +503,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
                   </div>
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground">Research/prototype decision-support tool only. This estimate is not a diagnosis and does not replace professional medical assessment. The model also uses default values for insulin and skin thickness, which this form does not collect.</p>
 
               <div className="mt-4 space-y-4">
                 <DataQualityAlerts alerts={assessment.qualityAlerts} />

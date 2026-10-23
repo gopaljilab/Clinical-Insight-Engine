@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import { randomInt } from "crypto";
 import { z } from "zod";
 import { storage } from "../storage";
+import type { InsertPatientUser } from "@shared/schema";
 import { logger } from "../logger";
 import { issueToken } from "../services/auth/tokenValidator";
 import { sendVerificationEmail } from "../email";
@@ -57,16 +58,15 @@ export const registerPatient = async (req: Request, res: Response) => {
       return res.status(409).json({ message: "This patient name is already registered." });
     }
     const passwordHash = hashPassword(body.password);
-    const user = await storage.createPatientUser({
+    const patientInput = {
       patientName: body.patientName,
       email: body.email,
       passwordHash,
-      // patient_users.phone exists in DB schema but older repo typing may not include it
-      phone: ((body as any).phone ?? null) as any,
+      phone: body.phone ?? null,
       isActive: true,
-
       emailVerified: false,
-    });
+    } as InsertPatientUser;
+    const user = await storage.createPatientUser(patientInput);
 
     // Generate and store OTP
     const otp = randomInt(100000, 999999).toString();
@@ -145,7 +145,7 @@ export const verifyPatientOTP = async (req: Request, res: Response) => {
 
     const result = await storage.verifyPatientOtpAndSetVerified(user, body.otp);
 
-    if (!result.success) {
+    if (result.success === false) {
       return res.status(result.status).json({ message: result.message });
     }
 

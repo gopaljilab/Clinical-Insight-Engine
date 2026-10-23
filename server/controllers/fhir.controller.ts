@@ -78,7 +78,7 @@ export const handleFhirIngestion = async (req: Request, res: Response) => {
     }
 
     // 4. Run ML Pipeline Inference (with fallback)
-    const { prediction } = await MLService.runAssessmentInference(assessmentInput);
+    const { prediction } = await MLService.runAssessmentInference(assessmentInput, undefined, { throwOnFailure: true });
 
     // 5. Generate recommendations
     const recommendations = generateRecommendations({
@@ -97,6 +97,9 @@ export const handleFhirIngestion = async (req: Request, res: Response) => {
       factors: prediction.factors ?? [],
       confidenceInterval: prediction.confidenceInterval ?? null,
       modelConfidence: prediction.modelConfidence ?? null,
+      predictionMethod: prediction.prediction_method ?? "ml_model",
+      modelVersion: prediction.model_version ?? null,
+      fallbackUsed: prediction.fallback_used ?? false,
       createdBy: userEmail,
       userId: userId ? String(userId) : null,
     });
@@ -107,8 +110,9 @@ export const handleFhirIngestion = async (req: Request, res: Response) => {
         type: "risk",
         category: prediction.riskCategory,
         score: prediction.riskScore,
-        confidence: prediction.modelConfidence ?? null,
-        confidenceInterval: prediction.confidenceInterval ?? null,
+        prediction_method: prediction.prediction_method,
+        model_version: prediction.model_version,
+        fallback_used: prediction.fallback_used,
       },
       ...recommendations.map(r => ({
         type: "recommendation",
@@ -159,6 +163,9 @@ export const handleFhirIngestion = async (req: Request, res: Response) => {
 
   } catch (err: unknown) {
     logger.error({ err }, "FHIR Ingestion failed");
+    if ((err as Error & { statusCode?: number }).statusCode === 503) {
+      return res.status(503).json({ status: "error", message: "ML inference service is unavailable. Please retry shortly." });
+    }
     return res.status(500).json({
       status: "error",
       message: (err as Error).message || "Internal server error during FHIR ingestion",

@@ -14,13 +14,10 @@ import { validateDTO } from "../middleware/validateDTO";
 import { getSafeServerErrorMessage } from "../security/errorSanitizer";
 import { existsSync } from "fs";
 import { execFile } from "child_process";
-import { fileURLToPath } from "url";
 import path from "path";
 import os from "os";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const analyzePyPath = path.resolve(__dirname, "..", "..", "analyze.py");
+const analyzePyPath = path.resolve(process.cwd(), "analyze.py");
 
 function getPythonExecutable() {
   const candidates =
@@ -33,15 +30,16 @@ function getPythonExecutable() {
 export const previewAssessment = async (req: Request, res: Response) => {
   try {
     const input = req.body;
-    const { prediction, isFallback } = await MLService.runAssessmentInference(input);
+    const { prediction, isFallback } = await MLService.runAssessmentInference(input, undefined, { throwOnFailure: true });
 
     return res.json({
       riskScore: prediction.riskScore,
       riskCategory: prediction.riskCategory,
       factors: prediction.factors ?? [],
-      confidenceInterval: prediction.confidenceInterval ?? null,
-      modelConfidence: prediction.modelConfidence ?? null,
       isFallback,
+      prediction_method: prediction.prediction_method ?? (isFallback ? "rule_based" : "ml_model"),
+      model_version: prediction.model_version ?? null,
+      fallback_used: isFallback,
     });
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
@@ -76,6 +74,9 @@ export const simulateWhatIf = async (req: Request, res: Response) => {
     if ((err as Error).message === "Clinical assessment timed out." || (err as Error).message.includes("timed out")) {
       return res.status(503).json({ message: "What-if assessment timed out." });
     }
+    if ((err as Error & { statusCode?: number }).statusCode === 503) {
+      return res.status(503).json({ message: "ML inference service is unavailable. Please retry shortly." });
+    }
     logger.error({ err, endpoint: "simulateWhatIf" }, "Error in what-if simulation");
     return res.status(500).json({ message: getSafeServerErrorMessage(err) });
   }
@@ -86,7 +87,7 @@ export const batchWhatIf = async (req: Request, res: Response) => {
     const parsed = api.assessments.whatIfBatch.input.parse(req.body);
     const { original, perturbations } = parsed;
 
-    if (!isPythonAvailable) {
+    if (process.env.PREDICTION_MODE === "rule-based") {
       const originalResult = calculateClinicalFallback(original) as PredictionResult;
       const perturbationResults = perturbations.map((p: any) => {
         const variant = { ...original, ...p };
@@ -99,8 +100,6 @@ export const batchWhatIf = async (req: Request, res: Response) => {
           riskCategory: variantResult.riskCategory,
           factors: variantResult.factors ?? [],
           riskReduction: Number(riskReduction.toFixed(1)),
-          confidenceInterval: variantResult.confidenceInterval,
-          modelConfidence: variantResult.modelConfidence,
         };
       }).sort((a: any, b: any) => b.riskReduction - a.riskReduction);
       
@@ -108,8 +107,14 @@ export const batchWhatIf = async (req: Request, res: Response) => {
         original: originalResult,
         perturbations: perturbationResults,
         ranked: perturbationResults,
-        isFallback: true
+        isFallback: true,
+        prediction_method: "rule_based",
+        model_version: null,
+        fallback_used: true,
       });
+    }
+    if (!isPythonAvailable) {
+      return res.status(503).json({ message: "ML inference service is unavailable. Please retry shortly." });
     }
 
     const payload = { original, perturbations };
@@ -139,19 +144,28 @@ export const batchWhatIf = async (req: Request, res: Response) => {
       return res.status(400).json({ message: result.error });
     }
 
-    return res.json(result);
+    return res.json({
+      ...result,
+      prediction_method: "ml_model",
+      model_version: result?.original?.model_version ?? null,
+      fallback_used: false,
+    });
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ message: err.errors[0]?.message ?? "Invalid input" });
     }
     logger.error({ err }, "What-if batch analysis failed");
-    return res.status(500).json({ message: "What-if batch analysis failed. Please try again." });
+    return res.status(503).json({ message: "ML inference service is unavailable. Please retry shortly." });
   }
 };
 
 export const autoWhatIf = async (req: Request, res: Response) => {
   try {
     const input = api.assessments.create.input.parse(req.body);
+
+    if (process.env.PREDICTION_MODE === "rule-based") {
+      return res.status(503).json({ message: "Automatic counterfactual analysis requires ML mode." });
+    }
 
     if (!isPythonAvailable) {
       return res.status(503).json({ message: "Python service is required for counterfactual auto analysis." });
@@ -254,29 +268,32 @@ export const simulateFallback = async (req: Request, res: Response) => {
     let prediction: any;
 
     try {
-      const result = await MLService.runAssessmentInference(input);
+      const result = await MLService.runAssessmentInference(input, undefined, { throwOnFailure: true });
       prediction = result.prediction;
     } catch (error: unknown) {
       if ((error as Error).message?.includes("timed out")) {
         return res.status(408).json({ message: "Clinical assessment simulation timed out." });
       }
 
-      logger.warn(
-        { err: error },
-        "Python prediction simulation failed, falling back to clinical rule-based model:"
-      );
-      prediction = calculateClinicalFallback(input);
+      logger.error({ err: error }, "ML prediction simulation unavailable");
+      return res.status(503).json({ message: "ML inference service is unavailable. Please retry shortly." });
     }
 
-    logger.info(
-      `[AUDIT] simulate requested by=${req.session.user?.email} riskCategory=${prediction.riskCategory} riskScore=${prediction.riskScore} at=${new Date().toISOString()}`
-    );
+    logger.info({
+      event: "assessment_simulation",
+      userId: req.session.user?.id,
+      prediction_method: prediction.prediction_method,
+      model_version: prediction.model_version,
+      fallback_used: prediction.fallback_used,
+    }, "Assessment simulation completed");
 
     return res.json({
       simulatedRisk: prediction.riskScore,
       riskCategory: prediction.riskCategory,
-      confidence: prediction.modelConfidence ?? null,
       factorContributions: prediction.factors ?? [],
+      prediction_method: prediction.prediction_method,
+      model_version: prediction.model_version,
+      fallback_used: prediction.fallback_used,
     });
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
