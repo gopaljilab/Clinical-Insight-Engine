@@ -79,7 +79,7 @@
     "i18next": "^26.3.4",
     "i18next-browser-languagedetector": "^8.2.1",
     "input-otp": "^1.4.2",
-    "ioredis": "^5.11.0",
+    "ioredis": "^6.0.0",
     "isomorphic-webcrypto": "^2.3.8",
     "js-base64": "^3.7.2",
     "jspdf": "^4.2.1",
