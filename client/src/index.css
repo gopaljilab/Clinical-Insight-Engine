@@ -282,6 +282,16 @@
     padding: 1.5cm !important;
     width: 100% !important;
     max-width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #assessment-result-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    transform: none !important;
   }
 }
 }

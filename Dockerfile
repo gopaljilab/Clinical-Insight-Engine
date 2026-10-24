@@ -34,6 +34,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=5000
 ENV PATH="/app/.venv/bin:$PATH"
+ENV EXPECTED_MODEL_SHA256=146f09587948dbc570800bb242baf4b7dd6a9a5e509c6d7bc84828ea12bc1264
 
 # Install Python runtime (no build tools needed)
 RUN apt-get update && apt-get install -y \
@@ -57,6 +58,12 @@ RUN npm ci --omit=dev --legacy-peer-deps
 
 # Copy built application
 COPY --chown=node:node --from=builder /app/dist ./dist
+# connect-pg-simple resolves its bundled session table relative to the bundled
+# server entrypoint (__dirname is /app/dist in the production build).
+COPY --chown=node:node --from=builder /app/node_modules/connect-pg-simple/table.sql ./dist/table.sql
+
+# Package the verified model, signature, and manifest used by this release.
+COPY --chown=node:node diabetes_model.pkl diabetes_model.pkl.sig diabetes_model.pkl.manifest.json ./
 
 # Copy ML inference script and data assets
 COPY --chown=node:node analyze.py ./

@@ -19,6 +19,34 @@ describe("insertAssessmentSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("supports optional insulin and skin thickness form values", () => {
+    const formSchema = insertAssessmentSchema.pick({
+      insulin: true,
+      skinThickness: true,
+    });
+    const result = formSchema.safeParse({ insulin: "80", skinThickness: "20" });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({ insulin: 80, skinThickness: 20 });
+    }
+  });
+
+  it("allows blank optional insulin and skin thickness fields", () => {
+    const result = insertAssessmentSchema.safeParse({
+      ...validAssessment,
+      insulin: "",
+      skinThickness: "",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects non-finite optional insulin and skin thickness values", () => {
+    expect(insertAssessmentSchema.safeParse({ ...validAssessment, insulin: Infinity }).success).toBe(false);
+    expect(insertAssessmentSchema.safeParse({ ...validAssessment, skinThickness: "Infinity" }).success).toBe(false);
+  });
+
   it("rejects age outside allowed clinical range", () => {
     const result = insertAssessmentSchema.safeParse({
       ...validAssessment,

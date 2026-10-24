@@ -13,19 +13,23 @@ function injectNonce(html: string, nonce: string): string {
     );
 }
 
-export function serveStatic(app: Express) {
-  const distPath = path.resolve(process.cwd(), "dist", "public");
+export function serveStatic(
+  app: Express,
+  distPath = path.resolve(process.cwd(), "dist", "public"),
+) {
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`,
     );
   }
 
-  app.use(express.static(distPath));
+  // Let the SPA fallback serve index.html so its inline scripts receive the
+  // same nonce that Helmet placed in the response's CSP header.
+  app.use(express.static(distPath, { index: false }));
 
   // fall through to index.html if the file doesn't exist,
   // but return JSON 404 for unknown API routes
-  app.get("*", (req, res) => {
+  app.get("/{*path}", (req, res) => {
     if (req.path.startsWith("/api")) {
       return res.status(404).json({ message: "API endpoint not found" });
     }

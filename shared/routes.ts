@@ -1,5 +1,11 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { insertAssessmentSchema, assessments } from "./schema";
+
+// The database row is typed from Drizzle, so Zod cannot infer its OpenAPI shape.
+// Mark it as an object explicitly for the OpenAPI generator.
+const assessmentResponseSchema = z
+  .custom<typeof assessments.$inferSelect>()
+  .meta({ type: "object" });
 
 /** Allowed risk category values for search filtering. */
 export const RISK_CATEGORIES = ["LOW", "MODERATE", "HIGH"] as const;
@@ -25,7 +31,7 @@ export const api = {
       path: "/api/assessments" as const,
       input: insertAssessmentSchema,
       responses: {
-        201: z.custom<typeof assessments.$inferSelect>(),
+        201: assessmentResponseSchema,
         202: z.object({ jobId: z.string(), message: z.string() }),
         400: errorSchemas.validation,
         500: errorSchemas.internal,
@@ -37,7 +43,7 @@ export const api = {
       /** Query params: limit, cursor */
       responses: {
         200: z.object({
-          data: z.array(z.custom<typeof assessments.$inferSelect>()),
+          data: z.array(assessmentResponseSchema),
           nextCursor: z.number().nullable(),
           // Some UI components expect pagination metadata.
           // Backend may omit these; they are optional for type-safety.
@@ -54,7 +60,7 @@ export const api = {
       /** Query params: q, riskCategory, cursor, limit */
       responses: {
         200: z.object({
-          data: z.array(z.custom<typeof assessments.$inferSelect>()),
+          data: z.array(assessmentResponseSchema),
           nextCursor: z.number().nullable(),
           // Optional pagination metadata
           total: z.number().optional(),
@@ -69,7 +75,7 @@ export const api = {
       method: "GET" as const,
       path: "/api/assessments/:id" as const,
       responses: {
-        200: z.custom<typeof assessments.$inferSelect>(),
+        200: assessmentResponseSchema,
         400: errorSchemas.validation,
         404: errorSchemas.notFound,
         500: errorSchemas.internal,

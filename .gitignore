@@ -32,4 +32,5 @@ __pycache__/
 *.tmp
 *.joblib
 *.pkl
+!diabetes_model.pkl
 /eval.json

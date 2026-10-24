@@ -2,7 +2,7 @@
 
 ## Architecture
 
-`vercel.json` builds `dist/public` only. It serves the Vite frontend and does not deploy the Express API or its Python inference daemon. Deploy the existing Docker application as a persistent Node/Python backend (for example, a container service), and configure Vercel to call that backend. The Docker image includes the existing training code, Python packages, and `diabetes_dataset.csv`; the established Python pipeline loads the signed model artifact if present and can train it from the bundled dataset when no compatible artifact is present.
+`vercel.json` builds `dist/public` only. It serves the Vite frontend and does not deploy the Express API or its Python inference daemon. Deploy the Docker application as a persistent Node/Python backend (for example, a container service), and configure Vercel to call that backend. The production image packages the verified `diabetes_model.pkl`, its HMAC signature, and its manifest. Startup validates the artifact SHA-256, signature, manifest, and dataset hash against the release value; it fails closed instead of silently training a different artifact.
 
 ## Vercel frontend settings
 
@@ -14,7 +14,7 @@ The frontend uses relative `/api` URLs when `VITE_API_BASE` is unset. That only 
 
 ## Backend image and hosting requirements
 
-Run the Docker image on a persistent container service that supports Node.js 22 and Python, allows the process to write the generated signed model and manifest under `/app`, and routes public HTTP traffic to container port `5000`. Vercel's current static output does not host the Express process or persistent Python daemon. `docker-compose.yml` is development-only: it mounts the source tree and runs `drizzle-kit push` at startup; do not use it for production.
+Run the Docker image on a persistent container service that supports Node.js 22 and Python and routes public HTTP traffic to container port `5000`. Vercel's current static output does not host the Express process or persistent Python daemon. `docker-compose.yml` is development-only: it mounts the source tree and runs `drizzle-kit push` at startup; do not use it for production.
 
 For Render, choose the **Docker** runtime so the existing Dockerfile supplies both Node and Python. A native Node runtime that logs `npm ci` may install the JavaScript packages successfully but does not provide this application's bundled Python runtime and daemon. The repository pins Node.js 22.23.4 in `.nvmrc` and limits `engines.node` to Node 22; Render's `NODE_VERSION` dashboard variable takes precedence over repository version files, so remove or update any existing `NODE_VERSION=20` override. `.npmrc` sets `legacy-peer-deps=true` because the committed lockfile was produced with that resolver option; this makes plain `npm ci` use a compatible dependency tree. npm documents that `npm ci` must use the same tree-shaping options as the lockfile.
 
@@ -25,7 +25,7 @@ docker build --pull -t clinical-insight-engine:<release-tag> .
 docker run --rm --env-file backend.production.env -p 5000:5000 clinical-insight-engine:<release-tag>
 ```
 
-Create `backend.production.env` locally or configure the same variables in the backend host's secret/environment settings. Do not commit that file or pass backend secrets as Vercel variables. For a registry-backed host, tag and push the image to that host's registry, then select the pushed release tag in its deployment settings. The container's first model initialization may train from the bundled dataset, so allow sufficient startup time and preserve `/app/diabetes_model.pkl`, its signature, and manifest on persistent storage if the host replaces containers between releases.
+Create `backend.production.env` locally or configure the same variables in the backend host's secret/environment settings. Do not commit that file or pass backend secrets as Vercel variables. For a registry-backed host, tag and push the image to that host's registry, then select the pushed release tag in its deployment settings. The build context must contain the reviewed model pickle, signature, and manifest; the image validates them at startup and does not train a replacement.
 
 ## Backend settings
 
@@ -33,9 +33,13 @@ Configure these on the backend service, never as Vite build variables:
 
 - `NODE_ENV=production`
 - `PORT` (provided by the container host)
+- `TRUST_PROXY_HOPS` (non-negative integer matching the backend host's actual proxy chain; defaults to `0`. Never set Express trust proxy to boolean `true`.)
 - `DATABASE_URL` and the database provider's required TLS settings
 - `SESSION_SECRET` (long random value)
+- `SESSION_COOKIE_SECURE=true` (secure session cookies are required for public production origins; the explicit `false` override is honored only for loopback HTTP testing)
 - `JWT_SECRET` (separate random value, at least 32 characters; required at startup in production)
+- `MODEL_SIGNING_KEY` (separate random value of at least 32 characters; configure it in the backend secret store and use the same key when signing the packaged model)
+- The Dockerfile pins `EXPECTED_MODEL_SHA256` to the reviewed release artifact. Update it only after reviewing a new artifact and manifest.
 - `CORS_ORIGINS=https://clinical-insight-engine.vercel.app` (plus any approved custom frontend origin)
 - `PREDICTION_MODE=ml` (the default; only the exact value `rule-based` enables the separately labeled heuristic mode)
 - `SMTP_HOST`, `SMTP_USER`, and `SMTP_PASS` (the server currently requires these in production at startup, even if email verification is not being exercised)
@@ -43,15 +47,15 @@ Configure these on the backend service, never as Vite build variables:
 - `REDIS_URL` if asynchronous assessment queues are enabled
 - Email sender credentials beyond the required SMTP connection and OAuth credentials only if those features are enabled
 
-Generate `SESSION_SECRET` and `JWT_SECRET` independently. For example, run `openssl rand -base64 48` twice on a trusted machine and enter each output directly into the backend host's secret manager. Do not use the development JWT warning/default in production; the server validates `JWT_SECRET` during startup and rejects missing or short values.
+Generate `SESSION_SECRET`, `JWT_SECRET`, and `MODEL_SIGNING_KEY` independently. For example, run `openssl rand -base64 48` three times on a trusted machine and enter each output directly into the backend host's secret manager. Do not use the development JWT warning/default in production; the server validates `JWT_SECRET` during startup and rejects missing or short values.
 
-The `/health` endpoint returns service availability, whether Python reports a loaded model, the artifact version when known, backend process status, and the configured prediction method. A running API with an unloaded model is not ready to serve ML predictions; assessment inference returns HTTP 503 until it can produce an ML result.
+The `/health` endpoint returns service availability, whether Python reports a loaded model, the artifact version when known, backend process status, and the configured prediction method. Originless `GET` and `HEAD` requests to `/health`, the explicitly registered SPA pages/static assets, and API routes are allowed because same-origin browser reads commonly omit `Origin`; they receive no CORS allow-origin header. API authentication and authorization still apply. Requests with an `Origin` header pass through the exact origin allowlist, and originless state-changing API requests remain rejected. A running API with an unloaded model is not ready to serve ML predictions; assessment inference returns HTTP 503 until it can produce an ML result.
 
 Each newly trained artifact also writes `diabetes_model.pkl.manifest.json` beside the signed pickle. It records the dataset SHA-256, preprocessing and training configuration versions, ordered features, Python/scientific-library versions, and full artifact SHA-256. `/health` exposes this manifest as `training_manifest`; `model_version` is the first 16 characters of `model_artifact_sha256`. Record the full production manifest and verify that prefix relationship after deployment. Treat any changed dataset, configuration, runtime version, or artifact hash as a distinct deployed model; do not infer the production value from a local training run.
 
-The local reproducibility check trained the bundled dataset twice with identical artifact bytes: dataset SHA-256 `c1a517da15e8b334af5716a5bfa6c97c6537daad08485e082bb6e9d861eaff70`, artifact SHA-256 `146f09587948dbc570800bb242baf4b7dd6a9a5e509c6d7bc84828ea12bc1264` (model version `146f09587948dbc5`). The manifest records Python 3.12.15, NumPy 2.5.4, pandas 3.0.6, and scikit-learn 1.9.1 for this run. This is a local reference, not an expected production value. The production value must be captured from the deployed backend's health response.
+The reviewed release artifact has dataset SHA-256 `c1a517da15e8b334af5716a5bfa6c97c6537daad08485e082bb6e9d861eaff70`, artifact SHA-256 `146f09587948dbc570800bb242baf4b7dd6a9a5e509c6d7bc84828ea12bc1264` (model version `146f09587948dbc5`). Its manifest records Python 3.12.15, NumPy 2.5.4, pandas 3.0.6, and scikit-learn 1.9.1 for training. The Docker image pins this artifact hash and includes the corresponding signed artifact and manifest; the deployed health response must report this hash and version.
 
-The current training artifact contains insulin and skin-thickness features in addition to the eight fields collected by the form. The inference pipeline supplies fixed defaults for those two uncollected features; the UI discloses this limitation. The artifact carries its own training feature order and the scaler is loaded from the same serialized artifact.
+The current training artifact contains insulin and skin-thickness features in addition to the eight fields collected by the form. The inference pipeline supplies fixed defaults for those two uncollected features; the UI discloses this limitation. The artifact carries its own training feature order and the scaler is loaded from the same serialized artifact. The image build requires the verified model, signature, and manifest to be present in the build context; do not rely on first-start training in a production image.
 
 ## Deployment checks
 

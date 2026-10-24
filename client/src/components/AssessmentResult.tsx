@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import { type AssessmentResponse } from "@shared/routes";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
 import { AlertCircle, FileText, CheckCircle2, TrendingUp, TrendingDown, Info, HeartPulse, Activity, UserCircle, Stethoscope, Eye, Share2, Loader2, Printer, Download, MonitorPlay, Pencil, X, Save, Calendar } from "lucide-react";
@@ -21,7 +21,6 @@ import { ClinicalNoteViewer } from "./ClinicalNoteViewer";
 import { ExplainabilityPanel } from "./assessment/ExplainabilityPanel";
 import { CollaborativeNotes } from "./CollaborativeNotes";
 import { PathToImprovement } from "./assessment/PathToImprovement";
-import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
@@ -29,6 +28,7 @@ import { translatePatientAdvice } from "@/utils/adviceTranslator";
 
 interface AssessmentResultProps {
   assessment: AssessmentResponse;
+  onClearResult?: () => void;
 }
 
 interface RiskFactor {
@@ -72,7 +72,7 @@ const getFactorReason = (factor: RiskFactor, t: (key: string) => string) => {
   return translatedKey ? t(translatedKey) : factor.description;
 };
 
-export function AssessmentResult({ assessment }: AssessmentResultProps) {
+export function AssessmentResult({ assessment, onClearResult }: AssessmentResultProps) {
   const { t, i18n } = useTranslation();
   const [view, setView] = useState<"patient" | "clinician">("patient");
   const [isPresenting, setIsPresenting] = useState(false);
@@ -220,130 +220,116 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
       id="assessment-result-wrapper"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 flex flex-col"
+      className="box-border w-full min-w-0 max-w-full bg-card rounded-2xl shadow-xl shadow-black/5 border border-border/60 flex flex-col"
     >
-      {/* Header/Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 bg-muted/30 p-2.5">
-        <div className="relative flex flex-1 max-w-md bg-muted/65 p-1 gap-1 rounded-xl">
-          <button
-            onClick={() => setView("patient")}
-            className={cn(
-              "relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none",
-              view === "patient" 
-                ? "text-primary" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <UserCircle className="w-4 h-4" />
-            {t("patientResult.patientView")}
-            {view === "patient" && (
-              <motion.div
-                layoutId="activeTab"
-                className="absolute inset-0 bg-background rounded-lg border border-border/50 shadow-sm z-[-1]"
-                transition={{ type: "spring", stiffness: 380, damping: 30 }}
-              />
-            )}
-          </button>
-          <button
-            onClick={() => setView("clinician")}
-            className={cn(
-              "relative flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold z-10 transition-colors rounded-lg focus:outline-none",
-              view === "clinician" 
-                ? "text-primary" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Stethoscope className="w-4 h-4" />
-            {t("patientResult.clinicianView")}
-            {view === "clinician" && (
-              <motion.div
-                layoutId="activeTab"
-                className="absolute inset-0 bg-background rounded-lg border border-border/50 shadow-sm z-[-1]"
-                transition={{ type: "spring", stiffness: 380, damping: 30 }}
-              />
-            )}
-          </button>
+      <div className="flex min-w-0 flex-col gap-3 border-b border-border/60 bg-muted/30 p-3 sm:p-4">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="min-w-0 text-lg font-bold text-foreground">{t("patientResult.assessmentComplete")}</h2>
+          {onClearResult && (
+            <button
+              type="button"
+              onClick={onClearResult}
+              className="inline-flex min-h-10 max-w-full shrink-0 items-center justify-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {t("patientResult.clearResult")}
+            </button>
+          )}
         </div>
 
-        <div className="pdf-hide-buttons flex flex-col gap-2 justify-end self-stretch print:hidden">
-          <div className="flex flex-wrap gap-2 items-center justify-end">
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div
+              role="group"
+              aria-label={t("patientResult.resultView")}
+              className="grid w-full min-w-0 grid-cols-2 gap-1 rounded-xl bg-muted/65 p-1 sm:w-auto sm:min-w-[17rem]"
+            >
+              <button
+                type="button"
+                aria-pressed={view === "patient"}
+                onClick={() => setView("patient")}
+                className={cn(
+                  "inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  view === "patient"
+                    ? "bg-background text-primary shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <UserCircle aria-hidden="true" className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 break-words">{t("patientResult.patientView")}</span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "clinician"}
+                onClick={() => setView("clinician")}
+                className={cn(
+                  "inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  view === "clinician"
+                    ? "bg-background text-primary shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Stethoscope aria-hidden="true" className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 break-words">{t("patientResult.clinicianView")}</span>
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => setIsPresenting(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-900 text-white hover:bg-slate-800 shadow-sm transition-all duration-200 active:scale-[0.98]"
+              aria-expanded={isPresenting}
+              aria-controls="patient-presentation-dialog"
+              className="pdf-hide-buttons inline-flex min-h-10 w-full max-w-full items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98] sm:w-auto print:hidden"
             >
-              <MonitorPlay className="w-3.5 h-3.5" />
-              {t("patientResult.present")}
+              <MonitorPlay aria-hidden="true" className="h-4 w-4 shrink-0" />
+              <span>{t("patientResult.present")}</span>
             </button>
-            {view === "clinician" ? (
-              <button
-                type="button"
-                onClick={generatePDF}
-                disabled={isGeneratingPDF}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 border border-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
-              >
-                {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                {isGeneratingPDF ? t("patientResult.generating") : t("patientResult.exportOfficial")}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => generatePatientPDF(factorBreakdown, patientGuidance)}
-                disabled={isGeneratingPatientPDF}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 border border-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
-              >
-                {isGeneratingPatientPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                {isGeneratingPatientPDF ? t("patientResult.generating") : (t("patientResult.exportPatientHandout") || "Download Patient PDF")}
-              </button>
-            )}
-            <UiTooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <CopySummaryButton assessment={assessment} iconOnly />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{t("patientResult.copySummary")}</p>
-              </TooltipContent>
-            </UiTooltip>
-            <UiTooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={exportToJson}
-                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-                  aria-label={t("patientResult.exportJson")}
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{t("patientResult.exportJson")}</p>
-              </TooltipContent>
-            </UiTooltip>
-            <UiTooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="flex items-center justify-center w-9 h-9 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm shadow-sm transition-all duration-200 active:scale-[0.98]"
-                  aria-label={t("patientResult.printReport")}
-                >
-                  <Printer className="w-4 h-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{t("patientResult.printReport")}</p>
-              </TooltipContent>
-            </UiTooltip>
           </div>
-          {pdfError ? (
-            <p role="alert" className="text-sm text-red-600 mt-1">
-              {pdfError}
-            </p>
-          ) : null}
+
+          <div className="pdf-hide-buttons flex min-w-0 flex-wrap items-center gap-2 print:hidden">
+            <button
+              type="button"
+              onClick={view === "clinician" ? generatePDF : () => generatePatientPDF(factorBreakdown, patientGuidance)}
+              disabled={isGeneratingPDF || isGeneratingPatientPDF}
+              aria-label={view === "clinician" ? t("patientResult.exportOfficial") : t("patientResult.exportPatientHandout")}
+              className="inline-flex min-h-10 max-w-full min-w-0 shrink-0 items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+            >
+              {(isGeneratingPDF || isGeneratingPatientPDF) ? <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin" /> : <FileText aria-hidden="true" className="h-4 w-4 shrink-0" />}
+              <span className="min-w-0 break-words text-left">{(isGeneratingPDF || isGeneratingPatientPDF) ? t("patientResult.generating") : view === "clinician" ? t("patientResult.exportOfficial") : t("patientResult.exportPatientHandout")}</span>
+            </button>
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-muted/30 p-1.5" role="group" aria-label={t("patientResult.reportActions")}>
+              <CopySummaryButton
+                assessment={assessment}
+                label={t("patientResult.copy")}
+                copyingLabel={t("patientResult.copying")}
+                copiedLabel={t("patientResult.copied")}
+                ariaLabel={t("patientResult.copySummary")}
+              />
+              <button
+                type="button"
+                onClick={exportToJson}
+                className="inline-flex min-h-10 max-w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-label={t("patientResult.exportJson")}
+              >
+                <Download aria-hidden="true" className="h-4 w-4 shrink-0" />
+                <span>{t("patientResult.download")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex min-h-10 max-w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-label={t("patientResult.printReport")}
+              >
+                <Printer aria-hidden="true" className="h-4 w-4 shrink-0" />
+                <span>{t("patientResult.print")}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+      {pdfError ? (
+        <p role="alert" className="px-4 pt-3 text-sm text-red-600 sm:px-6" aria-live="assertive">
+          {pdfError}
+        </p>
+      ) : null}
 
       <AnimatePresence>
         {isPresenting && (
@@ -354,7 +340,7 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
         )}
       </AnimatePresence>
 
-      <div className="p-6 md:p-8">
+      <div className="box-border w-full min-w-0 max-w-full p-4 sm:p-6 lg:p-8">
         <AnimatePresence mode="wait">
           {view === "patient" ? (
             <motion.div
@@ -363,7 +349,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 10 }}
               transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="space-y-8"
+              id="assessment-patient-view"
+              className="min-w-0 space-y-8"
             >
               {/* Patient Hero */}
               <div className="text-center space-y-4 max-w-2xl mx-auto">
@@ -446,7 +433,8 @@ export function AssessmentResult({ assessment }: AssessmentResultProps) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="space-y-8"
+              id="assessment-clinician-view"
+              className="min-w-0 space-y-8"
             >
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

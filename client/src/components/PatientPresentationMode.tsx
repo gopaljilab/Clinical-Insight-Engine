@@ -66,6 +66,10 @@ export function PatientPresentationMode({ assessment, onClose }: Props) {
 
   return (
     <motion.div
+      id="patient-presentation-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="patient-presentation-title"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -86,7 +90,7 @@ export function PatientPresentationMode({ assessment, onClose }: Props) {
             {t("patientPresentation.title")}
           </div>
           
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-slate-900 tracking-tight">
+          <h1 id="patient-presentation-title" className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-slate-900 tracking-tight">
             {t("patientPresentation.yourHealth")}
           </h1>
 

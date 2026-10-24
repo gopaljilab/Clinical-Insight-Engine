@@ -1,7 +1,7 @@
+import "./openapiZodInit";
 import crypto from "crypto";
 import { safeExecML } from "./utils/exec";
 import express, { type Request, Response, NextFunction, RequestHandler } from "express";
-import cors from "cors";
 import helmet from "helmet";
 import session from "express-session";
 import cookieParser from "cookie-parser";
@@ -36,7 +36,9 @@ import { registerOpenApiDocs } from "./openapi";
 import { initAssessmentSocket } from "./socket/assessmentSocket";
 import { initNotesSocket } from "./socket/notesSocket";
 import { rlsContextMiddleware } from "./middleware/rlsContext";
+import { createCorsMiddleware } from "./middleware/cors";
 import { drainRlsClients, getPoolMetrics } from "./db-rls";
+import { shouldUseSecureSessionCookie } from "./config/sessionCookie";
 
 import compression from "compression";
 
@@ -44,40 +46,20 @@ const app = express();
 app.use(compression());
 const httpServer = createServer(app);
 
+const trustProxyHopsValue = process.env.TRUST_PROXY_HOPS ?? "0";
+if (!/^\d+$/.test(trustProxyHopsValue)) {
+  throw new Error("TRUST_PROXY_HOPS must be a non-negative integer.");
+}
+app.set("trust proxy", Number(trustProxyHopsValue));
+
 // CORS configuration - hardened to reject requests missing the Origin header in production
 const allowedOrigins = process.env.CORS_ORIGINS 
   ? process.env.CORS_ORIGINS.split(",") 
   : [process.env.APP_URL, process.env.API_URL, "http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:3000", "http://127.0.0.1:3000"].filter(Boolean) as string[];
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // In development, allow missing origin (for curl, local tools, Vite HMR)
-    if (!origin && process.env.NODE_ENV !== "production") {
-      return callback(null, true);
-    }
-    
-    // In production, require and validate Origin
-    if (!origin && process.env.NODE_ENV === "production") {
-      console.warn(
-        "CORS: Request with no Origin header blocked " +
-        "(production mode requires Origin for all requests)"
-      );
-      return callback(new Error("Origin header is required"), false);
-    }
-    
-    if (origin && allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"), false);
-    }
-  },
-  credentials: true,
-}));
+app.use(createCorsMiddleware(allowedOrigins, process.env.NODE_ENV === "production"));
 
 const REQUEST_BODY_LIMIT = "10kb";
-if (process.env.NODE_ENV === "production") {
-  app.set("trust proxy", true);
-}
 
 declare module "http" {
   interface IncomingMessage {
@@ -124,7 +106,11 @@ app.use(
     }),
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: shouldUseSecureSessionCookie({
+        nodeEnv: process.env.NODE_ENV,
+        secureOverride: process.env.SESSION_COOKIE_SECURE,
+        appUrl: process.env.APP_URL,
+      }),
       sameSite: "lax",
       maxAge: 15 * 60 * 1000, // 15 minutes
     },
@@ -281,7 +267,8 @@ registerOpenApiDocs(app);
   app.use("/api/patient", patientPortalRouter);
   // Warm up ML model at startup so first prediction request is fast
   logger.info({ source: "ml" }, "Warming up ML model at startup...");
-  const warmupResult = await safeExecML(getPythonExecutable(), ["analyze.py", "train"])
+  // Verify and load the bundled model without mutating or retraining it.
+  const warmupResult = await safeExecML(getPythonExecutable(), ["analyze.py", "verify"])
     .then(() => {
       logger.info({ source: "ml" }, "ML model ready.");
       return true;

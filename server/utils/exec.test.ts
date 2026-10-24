@@ -70,6 +70,12 @@ describe("safeExecFile security guard", () => {
         safeExecFile("python3", ["analyze.py", "train", "model.pkl"]);
       }).not.toThrow();
     });
+
+    it("accepts verify as allowed command", () => {
+      expect(() => {
+        safeExecFile("python3", ["analyze.py", "verify"]);
+      }).not.toThrow();
+    });
   });
 
   describe("argument injection detection", () => {

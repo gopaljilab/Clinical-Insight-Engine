@@ -65,8 +65,15 @@ def patch_joblib():
 
 
 def get_signing_secret() -> bytes:
-    # Use SESSION_SECRET, fallback to a stable dev secret if not set
-    secret = os.environ.get("SESSION_SECRET") or os.environ.get("JWT_SECRET") or "clinical-insight-engine-dev-secret"
+    # Model artifacts have a dedicated key so their signature is independent
+    # from user session/JWT rotation.
+    secret = os.environ.get("MODEL_SIGNING_KEY")
+    if not secret and os.environ.get("EXPECTED_MODEL_SHA256"):
+        raise RuntimeError("MODEL_SIGNING_KEY is required when an expected model hash is configured.")
+    if os.environ.get("EXPECTED_MODEL_SHA256") and secret and len(secret) < 32:
+        raise RuntimeError("MODEL_SIGNING_KEY must be at least 32 characters when an expected model hash is configured.")
+    # Backward-compatible signing for local development and legacy artifacts.
+    secret = secret or os.environ.get("SESSION_SECRET") or os.environ.get("JWT_SECRET") or "clinical-insight-engine-dev-secret"
     return secret.encode("utf-8")
 
 def compute_signature(file_path: str) -> str:

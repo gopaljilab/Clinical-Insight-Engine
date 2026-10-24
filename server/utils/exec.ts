@@ -3,7 +3,7 @@ import { promisify } from "util";
 import path from "path";
 
 const ALLOWED_SCRIPTS = ["analyze.py"];
-const ALLOWED_COMMANDS = ["predict_file", "train"];
+const ALLOWED_COMMANDS = ["predict_file", "train", "verify"];
 
 function validateArgs(executable: string, args: ReadonlyArray<string>) {
   const isPython = executable.endsWith("python") || executable.endsWith("python.exe") || executable.endsWith("python3");

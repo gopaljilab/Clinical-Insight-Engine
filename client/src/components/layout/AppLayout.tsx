@@ -4,7 +4,7 @@ import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "@/lib/queryClient";
 import { ApiClient } from "@/lib/apiClient";
-import { Activity, ClipboardList, HeartPulse, LogOut, PieChart, TrendingUp, UploadCloud, User, GitCompare, Settings as SettingsIcon } from "lucide-react";
+import { Activity, ClipboardList, HeartPulse, LogOut, PieChart, TrendingUp, UploadCloud, User, GitCompare, Settings as SettingsIcon, Menu, X } from "lucide-react";
 import ThemeToggle from "../ThemeToggle";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
   const [checking, setChecking] = useState(true);
   const [networkError, setNetworkError] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   useEffect(() => {
     ApiClient.get("/api/auth/me")
@@ -127,7 +128,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-gray-950 flex flex-col md:flex-row transition-colors duration-300">
       {/* Sidebar */}
-      <aside className="print:hidden w-full md:w-64 lg:w-72 bg-white dark:bg-gray-900 border-r border-slate-100 dark:border-gray-800 flex shrink-0 md:h-screen sticky top-0 z-10 shadow-sm shadow-slate-900/[0.02] dark:shadow-gray-950/50 transition-colors duration-300">
+      <aside className="print:hidden w-full md:w-64 lg:w-72 bg-white dark:bg-gray-900 border-r border-slate-100 dark:border-gray-800 flex shrink-0 md:h-screen md:sticky top-0 z-10 shadow-sm shadow-slate-900/[0.02] dark:shadow-gray-950/50 transition-colors duration-300">
         <div className="flex h-full w-full flex-col justify-between">
           <div>
             <div className="p-6 flex items-center gap-3 border-b border-slate-100 dark:border-gray-800">
@@ -146,9 +147,19 @@ export function AppLayout({ children }: AppLayoutProps) {
               </div>
               <LanguageSwitcher variant="minimal" />
               <ThemeToggle />
+              <button
+                type="button"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+                aria-label={isMobileNavOpen ? t("nav.closeMenu") : t("nav.openMenu")}
+                aria-expanded={isMobileNavOpen}
+                aria-controls="primary-navigation"
+                onClick={() => setIsMobileNavOpen((open) => !open)}
+              >
+                {isMobileNavOpen ? <X aria-hidden="true" className="h-5 w-5" /> : <Menu aria-hidden="true" className="h-5 w-5" />}
+              </button>
             </div>
 
-            <nav className="p-4 space-y-2 overflow-y-auto">
+            <nav id="primary-navigation" className={cn("p-4 space-y-2 overflow-y-auto md:block", isMobileNavOpen ? "block" : "hidden")}>
               {navItems.map((item) => {
                 const isActive = location === item.href;
                 const Icon = item.icon;
@@ -156,6 +167,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => setIsMobileNavOpen(false)}
                     className={cn(
                       "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold relative",
                       isActive
@@ -173,7 +185,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               })}
             </nav>
           </div>
-          <div className="m-4 border-t border-slate-100 dark:border-gray-800 pt-4 space-y-3">
+          <div className={cn("m-4 border-t border-slate-100 dark:border-gray-800 pt-4 space-y-3 md:block", isMobileNavOpen ? "block" : "hidden")}>
             <div className="flex items-center gap-3 rounded-2xl bg-slate-50 dark:bg-gray-800 p-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 flex items-center justify-center text-blue-800 dark:text-blue-300 font-black text-sm border-2 border-white dark:border-gray-700 shadow-md ring-2 ring-blue-50 dark:ring-blue-900/50">
                 <User className="w-5 h-5 opacity-80" />
@@ -207,7 +219,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* Main Content */}
       <main className="flex-1 min-w-0 overflow-y-auto transition-colors duration-300">
-        <div className="max-w-7xl mx-auto p-4 md:p-8 lg:p-10">
+        <div className="mx-auto w-full max-w-screen-2xl p-4 md:p-8 lg:p-10">
           {children}
         </div>
       </main>

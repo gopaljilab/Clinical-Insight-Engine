@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const registerDTOSchema = z.object({
   fullName: z.string().trim().min(1, "Full name is required").max(255, "Full name must be 255 characters or less"),

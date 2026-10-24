@@ -1,6 +1,6 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb, doublePrecision, uuid, varchar, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export type AssessmentFactor = {
   name: string;
@@ -56,6 +56,18 @@ export const assessments = pgTable(
 // Explicit insert schema for request-side fields.
 // Using drizzle-zod omit() triggers TS typing issues in this repo's current
 // drizzle/drizzle-zod versions.
+const optionalFiniteNumber = z.preprocess(
+  (value) => {
+    if (value === "" || value === undefined || value === null) return undefined;
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? value : parsed;
+    }
+    return value;
+  },
+  z.number().finite().optional(),
+);
+
 export const insertAssessmentSchema = z.object({
   patientName: z.string().trim().min(1).optional(),
   gender: z.enum(["Male", "Female"]),
@@ -110,6 +122,8 @@ export const insertAssessmentSchema = z.object({
       .min(50, "Blood glucose must be at least 50")
       .max(400, "Blood glucose must be 400 or below")
   ),
+  insulin: optionalFiniteNumber,
+  skinThickness: optionalFiniteNumber,
   createdBy: z.string().email().optional(),
   clinicalNote: z.string().optional().nullable(),
   explainableInsights: z

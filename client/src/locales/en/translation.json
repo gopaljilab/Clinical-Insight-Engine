@@ -10,7 +10,9 @@
     "bulkImport": "Bulk Import CSV",
     "progressTracking": "Progress Tracking",
     "signOut": "Sign Out",
-    "signingOut": "Signing out..."
+    "signingOut": "Signing out...",
+    "openMenu": "Open navigation menu",
+    "closeMenu": "Close navigation menu"
   },
   "auth": {
     "signOutAria": "Sign out of Clinical Insight workspace",
@@ -126,7 +128,10 @@
     "modelConfidence": "Model Confidence",
     "exportPdf": "Export PDF",
     "exportCsv": "Export CSV",
-    "disclaimer": "This assessment is for informational purposes only and does not replace professional medical advice."
+    "disclaimer": "This assessment is for informational purposes only and does not replace professional medical advice.",
+    "deleteTitle": "Delete Assessment",
+    "deleteConfirm": "Are you sure you want to delete the assessment for {{patientName}} from {{assessmentDate}}? This action cannot be undone.",
+    "deleting": "Deleting..."
   },
   "history": {
     "title": "Patient History",
@@ -242,6 +247,7 @@
     }
   },
   "dashboard": {
+    "liveRiskPanel": "Live risk panel",
     "emptyState": {
       "title": "No Assessments Yet",
       "description": "Your statistics will appear here once you run your first risk assessment.",
@@ -249,6 +255,40 @@
     }
   },
   "myHealth": {
+    "title": "My Health",
+    "welcome": "Welcome, {{name}}",
+    "signOut": "Sign Out",
+    "tabAssessments": "Assessments",
+    "tabTrends": "Trends",
+    "assessmentHistory": "Assessment History",
+    "riskTrends": "Risk Trends",
+    "date": "Date",
+    "riskScore": "Risk Score",
+    "category": "Category",
+    "age": "Age",
+    "action": "Action",
+    "assessmentLabel": "Assessment #{{id}}",
+    "backToHealth": "Back to My Health",
+    "yourHealthAdvice": "Your Health Advice",
+    "keyFactors": "Key Health Measures",
+    "bmi": "BMI",
+    "hba1c": "HbA1c",
+    "bloodGlucose": "Blood Glucose",
+    "ageGender": "Age / Gender",
+    "loadError": "Unable to load your health records. Please try again.",
+    "fallbackAdviceHigh": "Please schedule an appointment with your clinician to review your results.",
+    "fallbackAdviceModerate": "Healthy eating, regular activity, and routine monitoring can help reduce risk.",
+    "fallbackAdviceLow": "Continue healthy habits and attend routine checkups.",
+    "pdfTitle": "Health Assessment Report",
+    "pdfPatient": "Patient: {{name}}",
+    "pdfDate": "Date: {{date}}",
+    "pdfRiskScore": "Risk score: {{score}}%",
+    "pdfRiskCategory": "Risk category: {{category}}",
+    "pdfAgeGender": "Age: {{age}} | Gender: {{gender}}",
+    "pdfBmi": "BMI: {{bmi}}",
+    "pdfHba1c": "HbA1c: {{hba1c}}",
+    "pdfGlucose": "Blood glucose: {{glucose}} mg/dL",
+    "pdfDownload": "Download PDF",
     "emptyAssessments": {
       "title": "No Assessments Yet",
       "description": "Your completed risk assessments will appear here after your care team shares results with this patient account.",
@@ -263,6 +303,77 @@
       "actionLabel": "Refresh Trends"
     }
   },
+  "patientResult": {
+    "assessmentComplete": "Assessment Complete", "clearResult": "Clear Result & Start Over",
+    "resultView": "Assessment result view", "reportActions": "Assessment report actions",
+    "patientView": "Patient View", "clinicianView": "Clinician View", "present": "Present",
+    "yourHealthAssessment": "Your Health Assessment", "plainLanguage": "A clear summary of your results",
+    "riskLevel": "Risk Level", "basedOnInfo": "Based on the information provided, your estimated risk level is ",
+    "progressBadges": "Health Progress", "progressBadgesDesc": "Track healthy changes over time.",
+    "whatThisMeans": "What This Means", "pathToImprovement": "Your Path to Improvement",
+    "analyzing": "Analyzing your results...", "clinicianDecision": "CLINICAL SUMMARY",
+    "detailedInterpretation": "Detailed Interpretation", "clinicianViewDesc": "Risk assessment and clinical context",
+    "riskLabel": "risk", "predictedRisk": "Predicted Risk", "vitalsSummary": "Vitals Summary",
+    "riskDrivingFactors": "Factors Increasing Risk", "noRiskDriving": "No significant risk drivers identified.",
+    "protectiveSignals": "Protective Factors", "noProtectiveSignals": "No protective factors identified.",
+    "factorCoefficient": "Factor Contributions", "whatIfActive": "What-if analysis active",
+    "impactLabel": "Impact", "increasesRisk": "Increases risk", "reducesRisk": "Reduces risk",
+    "raised": "increased risk factors", "reduced": "reduced risk factors", "relativeContribution": "Relative contribution",
+    "explainability": "Why This Result?", "explainabilityDesc": "Key factors that influenced this estimate.",
+    "suggestedFollowUp": "Suggested Follow-up", "guidance1": "Review these results with a qualified healthcare professional.",
+    "guidance2": "Discuss practical steps to address modifiable risk factors.", "guidance3": "Continue routine screening and follow-up as recommended.",
+    "clinicianAction1": "Review the risk factors and confirm relevant clinical history.",
+    "clinicianAction2": "Consider appropriate diagnostic testing and follow-up.",
+    "clinicianAction3": "Discuss individualized prevention and monitoring options.",
+    "exportOfficial": "Download Clinical Report", "exportPatientHandout": "Export Patient Handout",
+    "exportJson": "Export JSON", "download": "Download", "printReport": "Print Report", "print": "Print",
+    "copySummary": "Copy assessment summary", "copy": "Copy", "copying": "Copying...", "copied": "Copied",
+    "copySuccessDescription": "The assessment summary was copied to your clipboard.", "copyFailed": "Copy failed",
+    "generating": "Generating...", "pdfError": "Unable to generate the report. Please try again.",
+    "addNote": "Add Note", "editNote": "Edit Note", "noClinicalNotes": "No clinical notes recorded for this assessment."
+  },
+  "healthBadges": {
+    "title": "Health Milestones", "progressRewards": "Progress Rewards", "emptyDesc": "Complete assessments to track your health progress.",
+    "locked": "Locked", "needsMoreData": "More data needed", "earned": "Earned", "tapForDetails": "Select for details"
+  },
+  "simulator": {
+    "title": "Risk Simulator", "heading": "Explore Possible Changes", "description": "Adjust health measures to see how they may affect the estimated risk.",
+    "bmi": "BMI", "hba1c": "HbA1c", "bloodGlucose": "Blood Glucose", "smokingStatus": "Smoking Status",
+    "neverSmoked": "Never smoked", "formerSmoker": "Former smoker", "currentSmoker": "Current smoker", "noInfo": "No information",
+    "compareCharts": "Compare scenarios", "showingWhatIf": "Showing what-if scenario", "runSimulation": "Run Simulation",
+    "adjustValues": "Adjust values to explore a scenario.", "currentRisk": "Current Risk", "simulatedRisk": "Simulated Risk",
+    "pending": "Not calculated", "riskDifference": "Risk change", "riskReduction": "{{percent}}% lower estimated risk",
+    "riskIncrease": "{{percent}}% higher estimated risk", "riskUnchanged": "No estimated change", "biggestImpact": "Largest Potential Changes",
+    "newRisk": "Estimated risk: {{score}}% ({{category}})", "simulationComplete": "Simulation complete", "simulationReady": "Your scenario results are ready."
+  },
+  "patientPresentation": {
+    "title": "Health Review", "yourHealth": "Your Health", "riskLevel": "Estimated Risk Level",
+    "basedOnInfo": "Based on the health information entered", "clinicalGoals": "Health Goals",
+    "targetHba1c": "Review your HbA1c", "targetHba1cDesc": "Discuss an appropriate HbA1c target with your healthcare professional.",
+    "targetBmi": "Consider a BMI goal near {{bmi}}", "targetBmiDesc": "Ask your care team about a healthy, realistic weight goal.",
+    "maintainHealth": "Maintain your healthy habits", "maintainHealthDesc": "Continue routine checkups and healthy daily choices.",
+    "endPresentation": "End Presentation", "exitAria": "Exit patient presentation"
+  },
+  "predictionExplanation": {
+    "titlePatient": "Understanding Your Estimate", "titleClinician": "Prediction Explanation",
+    "badgePatient": "For You", "badgeClinician": "Clinical View", "patientSummary": "This estimate reflects the health information provided.",
+    "clinicianSummary": "The estimate is based on the submitted clinical factors.", "topContributors": "Top Contributing Factors",
+    "risk": "May increase risk", "protective": "May lower risk", "positiveContributors": "Risk-increasing factors",
+    "negativeContributors": "Protective factors", "noPositiveContributors": "No risk-increasing contributors were identified.",
+    "noNegativeContributors": "No protective contributors were identified."
+  },
+  "copilot": {
+    "title": "Clinical Recommendations", "urgentCount": "{{count}} urgent", "recommendationsCount": "{{count}} recommendations",
+    "intensiveManagement": "Consider prompt clinical review", "preventiveMeasures": "Prevention and monitoring",
+    "maintainHabits": "Continue healthy habits", "patientSummary": "Patient Summary",
+    "summaryLine": "{{gender}}, age {{age}}, BMI {{bmi}}. HbA1c {{hba1c}}, glucose {{glucose}}. {{hypertension}} {{heartDisease}} Smoking: {{smoking}}. Risk category: {{rc}}.",
+    "female": "Female", "male": "Male", "hypertension": "Hypertension present.", "heartDisease": "Heart disease present.",
+    "high": "High", "medium": "Moderate", "noRecommendations": "No recommendations available", "noRecommendationsDesc": "No additional recommendations were generated for this assessment.",
+    "catDiagnosticTest": "Diagnostic testing", "catMonitoring": "Monitoring", "catLifestyle": "Lifestyle", "catReferral": "Referral", "catFollowUp": "Follow-up"
+  },
+  "biomarkerAlerts": { "title": "Biomarker Alerts", "trend": "Trend: {{value}}", "severity": "Severity: {{value}}" },
+  "dataQuality": { "title": "Data Quality Notices", "code": "Code: {{value}}" },
+  "recommendations": { "high": "High priority", "med": "Medium priority" },
   "patientAdviceText": {
     "lowRisk": "Keep up the good work! Continue your healthy lifestyle and routine checkups.",
     "moderateRisk": "Consider increasing physical activity and managing your diet to lower your risk.",

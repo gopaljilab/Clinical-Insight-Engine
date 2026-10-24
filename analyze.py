@@ -540,6 +540,30 @@ def get_model():
 
     from app.ml.security import verify_signature, safe_pickle_load
 
+    expected_artifact_hash = os.environ.get("EXPECTED_MODEL_SHA256")
+    if expected_artifact_hash:
+        if len(expected_artifact_hash) != 64 or any(c not in "0123456789abcdef" for c in expected_artifact_hash.lower()):
+            raise RuntimeError("EXPECTED_MODEL_SHA256 must be a 64-character SHA-256 digest.")
+        if not os.path.isfile(MODEL_FILE):
+            raise RuntimeError("The expected packaged model artifact is missing; refusing runtime training.")
+        actual_artifact_hash = _compute_dataset_hash(MODEL_FILE)
+        if actual_artifact_hash != expected_artifact_hash.lower():
+            raise RuntimeError("Packaged model artifact SHA-256 does not match EXPECTED_MODEL_SHA256.")
+        if not verify_signature(MODEL_FILE):
+            raise RuntimeError("Packaged model artifact signature verification failed.")
+        manifest_path = MODEL_FILE + ".manifest.json"
+        if not os.path.isfile(manifest_path):
+            raise RuntimeError("The packaged model training manifest is missing.")
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as manifest_file:
+                packaged_manifest = json.load(manifest_file)
+        except Exception as exc:
+            raise RuntimeError("The packaged model training manifest is invalid.") from exc
+        if packaged_manifest.get("model_artifact_sha256") != expected_artifact_hash.lower():
+            raise RuntimeError("Packaged model manifest does not match EXPECTED_MODEL_SHA256.")
+        if packaged_manifest.get("dataset_sha256") != get_current_hash():
+            raise RuntimeError("Packaged model manifest does not match the bundled training dataset.")
+
     if os.path.exists(MODEL_FILE):
         try:
             if not verify_signature(MODEL_FILE):
@@ -555,6 +579,11 @@ def get_model():
                 cov_beta = model_data[4] if len(model_data) >= 5 else None
                 cached_mtime = model_data[5] if len(model_data) >= 6 else None
                 cached_size = model_data[6] if len(model_data) >= 7 else None
+
+                if expected_artifact_hash:
+                    if cached_hash != get_current_hash() or cov_beta is None:
+                        raise RuntimeError("Packaged model payload is incompatible with the bundled dataset.")
+                    return model, scaler, features, cov_beta
 
                 if (current_mtime is not None and current_size is not None and
                     cached_mtime == current_mtime and cached_size == current_size and
@@ -572,7 +601,12 @@ def get_model():
 
                 print("Dataset has changed. Retraining model...", file=sys.stderr)
         except Exception as e:
+            if expected_artifact_hash:
+                raise RuntimeError("Failed to load the required packaged model artifact; refusing runtime training.") from e
             print(f"Failed to load pre-trained model: {e}", file=sys.stderr)
+
+    if expected_artifact_hash:
+        raise RuntimeError("Required packaged model artifact could not be loaded; refusing runtime training.")
 
     if not _acquire_lock():
         print("Could not acquire lock for model retraining.", file=sys.stderr)
@@ -1144,6 +1178,11 @@ if __name__ == "__main__":
         print(json.dumps(result))
     elif len(sys.argv) > 1 and sys.argv[1] == "train_and_evaluate":
         train_and_evaluate()
+    elif len(sys.argv) > 1 and sys.argv[1] == "verify":
+        model, scaler, features, cov_beta = get_model()
+        if model is None or scaler is None or not features or cov_beta is None:
+            raise SystemExit("Model verification failed.")
+        print("Model loaded and verified.", flush=True)
     elif len(sys.argv) > 1 and sys.argv[1] == "train":
         if not os.path.exists(DATA_FILE):
             print("Dataset not found. Creating synthetic dataset...")

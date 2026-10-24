@@ -1,3 +1,4 @@
+import { openApiRequire } from "./openapiZodInit";
 import type { Express, NextFunction, Request, Response } from "express";
 
 // Optional dependency gating: this project should still run even if the
@@ -7,15 +8,13 @@ let extendZodWithOpenApi: any;
 let OpenAPIRegistry: any;
 let OpenApiGeneratorV3: any;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  swaggerUi = require("swagger-ui-express");
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  ({ extendZodWithOpenApi, OpenAPIRegistry, OpenApiGeneratorV3 } = require("@asteasolutions/zod-to-openapi"));
+  swaggerUi = openApiRequire("swagger-ui-express");
+  ({ extendZodWithOpenApi, OpenAPIRegistry, OpenApiGeneratorV3 } = openApiRequire("@asteasolutions/zod-to-openapi"));
 } catch {
   swaggerUi = null;
 }
 
-import { z } from "zod";
+import { z } from "zod/v4";
 import { loginDTOSchema } from "./validation/auth.dto";
 import { api } from "../shared/routes";
 
