@@ -27,6 +27,8 @@ from analyze import (  # noqa: E402
     interpret_prediction,
 )
 
+os.environ.setdefault("ALLOW_DEV_MODEL_SIGNING", "1")
+
 
 def test_compute_dataset_hash_returns_none_for_missing_file():
     assert _compute_dataset_hash("definitely_missing_dataset_xyz.csv") is None

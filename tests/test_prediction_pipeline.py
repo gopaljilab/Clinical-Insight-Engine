@@ -63,6 +63,28 @@ def test_feature_order_preprocessing_and_positive_class_probability():
     assert "confidenceInterval" not in result
 
 
+def test_factor_contribution_uses_standardized_value_and_preserves_direction():
+    class StandardizingScaler:
+        def transform(self, values):
+            scaled = np.zeros_like(values, dtype=float)
+            scaled[:, FEATURES.index("age")] = (values[:, FEATURES.index("age")] - 50) / 10
+            return scaled
+
+    class AgeCoefficientModel(ReversedClassModel):
+        coef_ = np.zeros((1, len(FEATURES)))
+        coef_[0, FEATURES.index("age")] = 1.0
+
+    get_cache().clear()
+    patient = {**PATIENT, "age": 23}
+    result = interpret_predictions_batch(
+        AgeCoefficientModel(), StandardizingScaler(), FEATURES, [patient],
+    )[0]
+
+    assert result["factors"][0]["name"] == "Age"
+    assert result["factors"][0]["impact"] == "negative"
+    assert result["factors"][0]["logOdds"] == -2.7
+
+
 def test_input_validation_rejects_missing_invalid_and_nonfinite_fields():
     assert validate_assessment_input(dict(PATIENT)) == PATIENT
     for invalid in (

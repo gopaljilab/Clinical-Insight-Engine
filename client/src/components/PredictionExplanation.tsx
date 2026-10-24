@@ -82,6 +82,11 @@ export function PredictionExplanation({
                     {factor.impact === "positive" ? t("predictionExplanation.risk") : t("predictionExplanation.protective")}
                   </span>
                 </div>
+                {factor.logOdds != null && (
+                  <p className="mt-2 text-xs font-medium text-muted-foreground">
+                    {factor.logOdds > 0 ? "+" : ""}{factor.logOdds.toFixed(2)} {t("patientResult.logOdds")}
+                  </p>
+                )}
                 <div className="mt-3 rounded-full bg-slate-100 h-2 overflow-hidden">
                   <div
                     className={cn(

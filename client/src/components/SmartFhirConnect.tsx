@@ -55,7 +55,7 @@ export function SmartFhirConnect({ onDataLoaded }: SmartFhirConnectProps) {
           };
 
           // Send to backend for parsing
-          const response = await ApiClient.post("/api/fhir/parse", bundle);
+          const response = await ApiClient.post("/api/ingest/fhir/parse", bundle);
           if (response.status === "success" && response.data) {
             onDataLoaded(response.data);
             toast({

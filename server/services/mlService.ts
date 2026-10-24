@@ -285,6 +285,8 @@ export interface PredictionResult {
     name: string;
     impact: "positive" | "negative";
     description: string;
+    logOdds?: number;
+    oddsRatio?: number;
   }>;
   clinicianAdvice: string[];
   patientAdvice: string[];

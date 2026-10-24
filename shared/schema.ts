@@ -6,6 +6,8 @@ export type AssessmentFactor = {
   name: string;
   impact: "positive" | "negative";
   description: string;
+  logOdds?: number;
+  oddsRatio?: number;
 };
 
 export const assessments = pgTable(

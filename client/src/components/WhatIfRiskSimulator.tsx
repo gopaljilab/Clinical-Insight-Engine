@@ -34,7 +34,7 @@ const getDeltaStyles = (delta: number) => {
 
 interface WhatIfRiskSimulatorProps {
   assessment: AssessmentResponse;
-  onComparisonFactors?: (factors: { name: string; impact: string; description: string }[] | null) => void;
+  onComparisonFactors?: (factors: { name: string; impact: string; description: string; logOdds?: number }[] | null) => void;
 }
 
 export function WhatIfRiskSimulator({ assessment, onComparisonFactors }: WhatIfRiskSimulatorProps) {

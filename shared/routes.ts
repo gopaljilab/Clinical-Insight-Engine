@@ -94,6 +94,8 @@ export const api = {
               name: z.string(),
               impact: z.string(),
               description: z.string(),
+              logOdds: z.number().optional(),
+              oddsRatio: z.number().optional(),
             })
           ),
           prediction_method: z.enum(["ml_model", "rule_based"]).optional(),
@@ -134,6 +136,8 @@ export const api = {
                   strength: z.number(),
                   description: z.string(),
                   why: z.string(),
+                  logOdds: z.number().optional(),
+                  oddsRatio: z.number().optional(),
                 })
               ),
               strongestPositive: z.array(
@@ -143,6 +147,8 @@ export const api = {
                   strength: z.number(),
                   description: z.string(),
                   why: z.string(),
+                  logOdds: z.number().optional(),
+                  oddsRatio: z.number().optional(),
                 })
               ),
               strongestNegative: z.array(
@@ -152,6 +158,8 @@ export const api = {
                   strength: z.number(),
                   description: z.string(),
                   why: z.string(),
+                  logOdds: z.number().optional(),
+                  oddsRatio: z.number().optional(),
                 })
               ),
             })
@@ -178,6 +186,8 @@ export const api = {
                 name: z.string(),
                 impact: z.enum(["positive", "negative"]),
                 description: z.string(),
+                logOdds: z.number().optional(),
+                oddsRatio: z.number().optional(),
               })
             )
             .optional(),
@@ -200,6 +210,8 @@ export const api = {
                 name: z.string(),
                 impact: z.enum(["positive", "negative"]),
                 description: z.string(),
+                logOdds: z.number().optional(),
+                oddsRatio: z.number().optional(),
               })
             )
             .optional(),
@@ -233,6 +245,8 @@ export const api = {
                   name: z.string(),
                   impact: z.enum(["positive", "negative"]),
                   description: z.string(),
+                  logOdds: z.number().optional(),
+                  oddsRatio: z.number().optional(),
                 })
               )
               .optional(),
@@ -248,6 +262,8 @@ export const api = {
                     name: z.string(),
                     impact: z.enum(["positive", "negative"]),
                     description: z.string(),
+                    logOdds: z.number().optional(),
+                    oddsRatio: z.number().optional(),
                   })
                 )
                 .optional(),
@@ -265,6 +281,8 @@ export const api = {
                     name: z.string(),
                     impact: z.enum(["positive", "negative"]),
                     description: z.string(),
+                    logOdds: z.number().optional(),
+                    oddsRatio: z.number().optional(),
                   })
                 )
                 .optional(),
@@ -361,6 +379,8 @@ export type ExplanationContributor = {
   strength: number;
   description: string;
   why: string;
+  logOdds?: number;
+  oddsRatio?: number;
 };
 
 export type PredictionExplanation = {

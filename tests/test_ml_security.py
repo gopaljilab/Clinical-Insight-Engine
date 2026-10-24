@@ -9,6 +9,8 @@ import pickle
 
 import pytest
 
+os.environ.setdefault("ALLOW_DEV_MODEL_SIGNING", "1")
+
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
@@ -226,25 +228,25 @@ class TestSignatureFunctions:
 class TestGetSigningSecret:
     def test_get_signing_secret_returns_bytes(self):
         """get_signing_secret returns a bytes object."""
+        os.environ["ALLOW_DEV_MODEL_SIGNING"] = "1"
         result = get_signing_secret()
         assert isinstance(result, bytes)
 
-    def test_get_signing_secret_uses_session_secret_when_set(self, monkeypatch):
-        """get_signing_secret uses SESSION_SECRET env var when available."""
-        monkeypatch.setenv("SESSION_SECRET", "my-test-secret")
+    def test_get_signing_secret_uses_dedicated_key(self, monkeypatch):
+        """Model signing uses its dedicated key, not session credentials."""
+        monkeypatch.setenv("MODEL_SIGNING_KEY", "my-test-model-signing-key")
         result = get_signing_secret()
-        assert result == b"my-test-secret"
+        assert result == b"my-test-model-signing-key"
 
-    def test_get_signing_secret_falls_back_to_jwt_secret(self, monkeypatch):
-        """get_signing_secret falls back to JWT_SECRET when SESSION_SECRET is unset."""
-        monkeypatch.delenv("SESSION_SECRET", raising=False)
-        monkeypatch.setenv("JWT_SECRET", "jwt-test-secret")
-        result = get_signing_secret()
-        assert result == b"jwt-test-secret"
-
-    def test_get_signing_secret_falls_back_to_dev_secret(self, monkeypatch):
-        """get_signing_secret falls back to dev default when no env vars are set."""
+    def test_get_signing_secret_requires_explicit_dev_opt_in(self, monkeypatch):
+        monkeypatch.delenv("MODEL_SIGNING_KEY", raising=False)
+        monkeypatch.delenv("ALLOW_DEV_MODEL_SIGNING", raising=False)
         monkeypatch.delenv("SESSION_SECRET", raising=False)
         monkeypatch.delenv("JWT_SECRET", raising=False)
-        result = get_signing_secret()
-        assert result == b"clinical-insight-engine-dev-secret"
+        with pytest.raises(RuntimeError, match="MODEL_SIGNING_KEY is required"):
+            get_signing_secret()
+
+    def test_get_signing_secret_allows_opted_in_dev_key(self, monkeypatch):
+        monkeypatch.delenv("MODEL_SIGNING_KEY", raising=False)
+        monkeypatch.setenv("ALLOW_DEV_MODEL_SIGNING", "1")
+        assert get_signing_secret() == b"clinical-insight-engine-dev-secret"

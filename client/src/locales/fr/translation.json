@@ -14,7 +14,7 @@
   },
   "auth": {
     "signOutAria": "Se déconnecter de Clinical Insight",
-    "securityNotice": "Espace de travail sécurisé avec 2FA simulée",
+    "securityNotice": "Cette version de démonstration ne doit pas recevoir de données réelles de patients.",
     "sessionExpiring": "Session sur le point d'expirer",
     "sessionExpiringDesc": "Vous êtes inactif. Pour votre sécurité, vous serez déconnecté dans 1 minute si l'inactivité persiste.",
     "connectionError": "Erreur de connexion",
@@ -37,7 +37,7 @@
     "featurePersonalizedTitle": "Informations Personnalisées",
     "featurePersonalizedDesc": "Chaque évaluation fournit des conseils adaptés aux cliniciens et aux patients, avec des recommandations concrètes et des explications claires.",
     "featureSecureTitle": "Sécurisé et Privé",
-    "featureSecureDesc": "Vos données restent sécurisées avec un chiffrement de niveau entreprise. La 2FA simulée et la gestion des sessions protègent les informations des patients.",
+    "featureSecureDesc": "Cette version de démonstration ne doit pas recevoir de données réelles de patients.",
     "workflowTitle": "Comment Ça Marche",
     "workflowStep1Title": "Saisir les Données du Patient",
     "workflowStep1Desc": "Remplissez les indicateurs de santé clés comme l'HbA1c, l'IMC, la glycémie et les facteurs liés au mode de vie.",
@@ -52,7 +52,7 @@
     "faq1Q": "Quelle est la précision de l'évaluation des risques ?",
     "faq1A": "Notre modèle utilise une régression logistique entraînée sur les données du diabète des CDC avec une haute précision. Les résultats doivent toujours être examinés par un professionnel de santé qualifié.",
     "faq2Q": "Mes données patients sont-elles sécurisées ?",
-    "faq2A": "Oui. Toutes les données sont chiffrées en transit et au repos. Nous utilisons une 2FA simulée, des délais d'expiration de session et ne partageons jamais vos données avec des tiers.",
+    "faq2A": "Cette version de démonstration ne doit pas recevoir de données réelles de patients.",
     "faq3Q": "Puis-je exporter les résultats d'évaluation ?",
     "faq3A": "Oui, vous pouvez exporter des évaluations individuelles sous forme de rapports PDF et des données groupées en CSV pour une analyse plus approfondie.",
     "footerCopyright": "© 2026 Clinical Insight Engine. Tous droits réservés.",
@@ -251,9 +251,9 @@
   "patientAdviceText": {
     "lowRisk": "Continuez comme ça ! Poursuivez votre mode de vie sain et vos contrôles de routine.",
     "moderateRisk": "Envisagez d'augmenter l'activité physique et de gérer votre alimentation pour réduire votre risque.",
-    "highRisk": "Veuillez consulter votre médecin bientôt pour discuter d'un plan de prévention détaillé.",
-    "hba1c": "Concentrez-vous sur la gestion de votre glycémie grâce à l'alimentation et aux médicaments prescrits.",
-    "glucose": "Surveillez de près vos lectures quotidiennes de glucose et suivez votre plan de repas.",
+    "highRisk": "Consultez votre professionnel de santé au sujet des examens de suivi et des options de prévention.",
+    "hba1c": "Demandez à votre professionnel de santé ce que signifie ce résultat d’HbA1c et si un suivi est indiqué.",
+    "glucose": "Discutez de cette glycémie et de son contexte (à jeun ou après un repas) avec votre professionnel de santé.",
     "bmi": "Travaillez à atteindre un poids plus sain grâce à une nutrition équilibrée et à l'exercice régulier.",
     "hypertension": "Vérifiez régulièrement votre tension artérielle et réduisez votre consommation de sel.",
     "smoking": "Arrêter de fumer est l'un des moyens les plus efficaces de réduire votre risque de diabète.",
@@ -265,5 +265,19 @@
     "default1": "Examinez ces résultats avec un clinicien qualifié avant de prendre des décisions médicales.",
     "default2": "Concentrez-vous d'abord sur les facteurs de risque mis en évidence qui peuvent être modifiés grâce à la planification des soins.",
     "default3": "Suivez l'IMC, l'HbA1c et la glycémie au fil du temps afin que les évaluations futures aient un contexte."
+  },
+  "factorReasoning": {
+    "age": "L’âge est comparé à la moyenne des données d’entraînement.",
+    "bmi": "L’IMC est comparé à la moyenne des données d’entraînement.",
+    "hba1c": "L’HbA1c est comparée à la moyenne des données d’entraînement.",
+    "glucose": "La glycémie est comparée à la moyenne des données d’entraînement.",
+    "hypertension": "L’hypertension est comparée à la moyenne des données d’entraînement.",
+    "heartDisease": "Les maladies cardiaques sont comparées à la moyenne des données d’entraînement.",
+    "smoking": "Les antécédents tabagiques sont comparés à la moyenne des données d’entraînement.",
+    "gender": "Le sexe est comparé à la moyenne des données d’entraînement."
+  },
+  "patientResult": {
+    "ruleBasedDisclaimer": "Estimation fondée sur des règles ; ce n’est pas une prédiction ML.",
+    "logOdds": "log-odds"
   }
 }

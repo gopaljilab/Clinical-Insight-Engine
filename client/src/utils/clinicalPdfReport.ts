@@ -563,7 +563,7 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
       riskIncFactors.forEach((factor) => {
         const reason = factorReasoning[factor.name.trim().toLowerCase()] ?? factor.description;
         pdf.ensureSpace(42);
-        pdf.text(factor.name, MARGIN + 10, { size: 10, font: "bold", color: SLATE, lineHeight: 14 });
+        pdf.text(`${factor.name}${factor.logOdds == null ? "" : ` · +${factor.logOdds.toFixed(2)} log-odds`}`, MARGIN + 10, { size: 10, font: "bold", color: SLATE, lineHeight: 14 });
         pdf.text(`Increases risk: ${reason}`, MARGIN + 10, { size: 9, color: MUTED, maxWidth: CONTENT_WIDTH - 10, lineHeight: 13 });
         pdf.moveDown(4);
       });
@@ -576,7 +576,7 @@ export function downloadClinicalAssessmentPdf(assessment: ReportAssessment) {
       riskRedFactors.forEach((factor) => {
         const reason = factorReasoning[factor.name.trim().toLowerCase()] ?? factor.description;
         pdf.ensureSpace(42);
-        pdf.text(factor.name, MARGIN + 10, { size: 10, font: "bold", color: SLATE, lineHeight: 14 });
+        pdf.text(`${factor.name}${factor.logOdds == null ? "" : ` · ${factor.logOdds.toFixed(2)} log-odds`}`, MARGIN + 10, { size: 10, font: "bold", color: SLATE, lineHeight: 14 });
         pdf.text(`Reduces risk: ${reason}`, MARGIN + 10, { size: 9, color: MUTED, maxWidth: CONTENT_WIDTH - 10, lineHeight: 13 });
         pdf.moveDown(4);
       });
@@ -738,6 +738,7 @@ export function downloadPatientHandoutPdf(
   pdf.text(assessment.riskCategory.toUpperCase(), MARGIN, { size: 16, font: "bold", color: getRiskColor(assessment.riskCategory) });
   pdf.moveDown(4);
   pdf.text(`${t("patientResult.basedOnInfo") || "Based on the information provided, your estimated risk level is "} ${assessment.riskCategory.toLowerCase()}.`, MARGIN, { size: 11, color: MUTED, maxWidth: CONTENT_WIDTH, lineHeight: 14 });
+  pdf.text(`${assessment.predictionMethod === "rule_based" || assessment.fallbackUsed ? "Rule-based estimate" : "ML model"} · ${assessment.modelVersion || "version not recorded"} · synthetic training data`, MARGIN, { size: 9, color: MUTED, maxWidth: CONTENT_WIDTH });
   pdf.moveDown(16);
 
   // What this means for you

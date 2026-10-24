@@ -255,7 +255,7 @@ export default function Dashboard() {
             </div>
             <h1 className="text-3xl md:text-5xl font-black font-display text-[#1E293B] dark:text-gray-100 tracking-tight">New Assessment</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-3 text-lg max-w-2xl leading-8">
-              Enter patient details to run the preventive diabetes and cardiovascular risk model.
+              Diabetes-risk screening (research prototype).
             </p>
             <div className="mt-4">
               <SmartFhirConnect onDataLoaded={(data) => {
@@ -412,11 +412,11 @@ export default function Dashboard() {
                           aria-labelledby="smoking-label"
                           className={`grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 dark:bg-gray-800 p-1 transition-all duration-200 sm:grid-cols-4 ${errors.smokingHistory ? "ring-2 ring-red-500 bg-red-50/30 dark:bg-red-950/20" : ""}`}
                         >
-                          {["never", "No Info", "current", "former"].map((smoking) => (
-                            <label key={smoking} className="flex-1 cursor-pointer">
-                              <input type="radio" value={smoking} {...register("smokingHistory")} className="peer sr-only" />
+                          {[{ value: "never", label: "Never" }, { value: "former", label: "Former" }, { value: "current", label: "Current" }, { value: "No Info", label: "Not recorded" }].map(({ value, label }) => (
+                            <label key={value} className="flex-1 cursor-pointer">
+                              <input type="radio" value={value} {...register("smokingHistory")} className="peer sr-only" />
                               <div className="text-center px-3 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-slate-500 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-400 peer-checked:bg-white dark:peer-checked:bg-gray-700 peer-checked:text-blue-700 dark:peer-checked:text-blue-400 peer-checked:shadow-sm">
-                                {smoking}
+                                {label}
                               </div>
                             </label>
                           ))}
@@ -430,7 +430,7 @@ export default function Dashboard() {
                     <h3 className={sectionHeadingClass}>
                       <HeartPulse className="w-5 h-5 text-blue-600" /> Vitals
                     </h3>
-                    <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <div className="mt-4 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr))]">
                       <div className="space-y-2">
                         <div className="flex items-center justify-between w-full">
                           <div className="flex items-center gap-1.5">
@@ -532,7 +532,7 @@ export default function Dashboard() {
                         )}
                       </div>
 
-                      <div className="space-y-2 lg:col-span-2">
+                      <div className="space-y-2">
                         <div className="flex items-center gap-1.5">
                           <label htmlFor="bloodGlucoseLevel" className={labelClass}>Blood Glucose Level (mg/dL)</label>
                           <Tooltip>
@@ -662,14 +662,14 @@ export default function Dashboard() {
                       reset();
                       localStorage.removeItem("clinical-insight-assessment-draft");
                     }}
-                    className="w-full md:w-auto px-8 py-4 rounded-xl font-bold text-lg border border-slate-200 dark:border-gray-700 text-slate-600 dark:text-slate-400 bg-white dark:bg-gray-900 hover:bg-slate-50 dark:hover:bg-gray-800 transition-all duration-200"
+                    className="w-full md:w-auto px-4 py-2 rounded-xl font-semibold text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-gray-800 transition-all duration-200"
                   >
                     Reset Form
                   </button>
                   <button
                     type="submit"
                     disabled={isPending || result !== null || Object.keys(errors).length > 0}
-                    className="w-full md:w-auto px-8 py-4 rounded-xl font-black text-lg border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 bg-white dark:bg-gray-900 shadow-sm hover:bg-blue-50 dark:hover:bg-blue-950/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full md:w-auto px-8 py-4 rounded-xl font-bold text-lg border border-blue-800 text-white bg-blue-700 shadow-sm hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
                   >
                     {isPending ? (
                       <>

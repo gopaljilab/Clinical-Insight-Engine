@@ -4,10 +4,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLin
 import { AlertCircle, FileText, CheckCircle2, TrendingUp, TrendingDown, Info, HeartPulse, Activity, UserCircle, Stethoscope, Eye, Share2, Loader2, Printer, Download, MonitorPlay, Pencil, X, Save, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import { HealthBadges } from "@/components/HealthBadges";
 import { CopySummaryButton } from "@/components/CopySummaryButton";
 import { useAssessments, useWhatIfAuto, useUpdateClinicalNote, usePatientAssessments } from "@/hooks/use-assessments";
-import { calculateHealthBadges } from "@/utils/healthBadges";
 import { downloadClinicalAssessmentPdf, downloadPatientHandoutPdf } from "@/utils/clinicalPdfReport";
 import { PatientPresentationMode } from "./PatientPresentationMode";
 import { WhatIfRiskSimulator } from "./WhatIfRiskSimulator";
@@ -35,6 +33,7 @@ interface RiskFactor {
   name: string;
   impact: "positive" | "negative" | string;
   description: string;
+  logOdds?: number;
 }
 
 export interface FactorBreakdown extends RiskFactor {
@@ -46,6 +45,8 @@ const factorReasoning: Record<string, string> = {
   age: "factorReasoning.age",
   bmi: "factorReasoning.bmi",
   "hba1c level": "factorReasoning.hba1c",
+  "hba1c": "factorReasoning.hba1c",
+  "blood glucose": "factorReasoning.glucose",
   "blood glucose level": "factorReasoning.glucose",
   hypertension: "factorReasoning.hypertension",
   "heart disease": "factorReasoning.heartDisease",
@@ -74,12 +75,12 @@ const getFactorReason = (factor: RiskFactor, t: (key: string) => string) => {
 
 export function AssessmentResult({ assessment, onClearResult }: AssessmentResultProps) {
   const { t, i18n } = useTranslation();
-  const [view, setView] = useState<"patient" | "clinician">("patient");
+  const [view, setView] = useState<"patient" | "clinician">("clinician");
   const [isPresenting, setIsPresenting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isGeneratingPatientPDF, setIsGeneratingPatientPDF] = useState(false);
   const [pdfError, setPdfError] = useState<string>("");
-  const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string }[] | null>(null);
+  const [whatIfFactors, setWhatIfFactors] = useState<{ name: string; impact: string; description: string; logOdds?: number }[] | null>(null);
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [editNoteText, setEditNoteText] = useState("");
   const updateNoteMutation = useUpdateClinicalNote();
@@ -143,10 +144,6 @@ export function AssessmentResult({ assessment, onClearResult }: AssessmentResult
 
   const { data: assessmentsResponse } = useAssessments();
   const assessmentHistory = assessmentsResponse?.data ?? [];
-  const improvementBadges = useMemo(
-    () => calculateHealthBadges(assessment, assessmentHistory),
-    [assessment, assessmentHistory]
-  );
 
   const { data: patientAssessmentsResponse } = usePatientAssessments(assessment.patientName);
   const patientHistory = useMemo(() => {
@@ -171,14 +168,24 @@ export function AssessmentResult({ assessment, onClearResult }: AssessmentResult
   }, [patientHistory]);
 
   const factors = normalizeFactors(assessment.factors);
-  const totalFactors = Math.max(factors.length, 1);
-  const factorBreakdown: FactorBreakdown[] = factors.map((factor, index) => ({
+  const maxAbsLogOdds = Math.max(...factors.map((factor) => Math.abs(factor.logOdds ?? 0)), 1e-6);
+  const factorBreakdown: FactorBreakdown[] = factors.map((factor) => ({
     ...factor,
-    strength: Math.max(20, Math.round(((totalFactors - index) / totalFactors) * 100)),
+    strength: factor.logOdds == null
+      ? 0
+      : Math.round((Math.abs(factor.logOdds) / maxAbsLogOdds) * 100),
     plainReason: getFactorReason(factor, t),
   }));
   const increasedRiskFactors = factorBreakdown.filter((factor) => factor.impact === "positive");
-  const reducedRiskFactors = factorBreakdown.filter((factor) => factor.impact !== "positive");
+  const reducedRiskFactors = factorBreakdown.filter((factor) => factor.impact === "negative");
+  const patientFactors = factorBreakdown.filter((factor) => factor.name.toLowerCase() !== "smoking");
+  const patientExplanation = assessment.explanation ? {
+    ...assessment.explanation,
+    patientSummary: t("predictionExplanation.patientSummary"),
+    topContributors: assessment.explanation.topContributors.filter((factor) => factor.name.toLowerCase() !== "smoking"),
+    strongestPositive: assessment.explanation.strongestPositive.filter((factor) => factor.name.toLowerCase() !== "smoking"),
+    strongestNegative: assessment.explanation.strongestNegative.filter((factor) => factor.name.toLowerCase() !== "smoking"),
+  } : undefined;
 
   const chartData = factorBreakdown.map((f) => ({
     name: f.name,
@@ -191,14 +198,17 @@ export function AssessmentResult({ assessment, onClearResult }: AssessmentResult
 
   const whatIfChartData = useMemo(() => {
     if (!whatIfFactors) return null;
-    const maxStrength = Math.max(whatIfFactors.length, 1);
-    return whatIfFactors.map((f, i) => ({
+    const maxAbsLogOdds = Math.max(...whatIfFactors.map((factor) => Math.abs(factor.logOdds ?? 0)), 1e-6);
+    return whatIfFactors.map((f) => {
+      const strength = f.logOdds == null ? 0 : Math.round((Math.abs(f.logOdds) / maxAbsLogOdds) * 100);
+      return ({
       name: f.name,
-      value: f.impact === 'positive' ? Math.round(((maxStrength - i) / maxStrength) * 100) : -Math.round(((maxStrength - i) / maxStrength) * 100),
+      value: f.impact === 'positive' ? strength : -strength,
       impact: f.impact,
       description: f.description,
       isWhatIf: true,
-    }));
+      });
+    });
   }, [whatIfFactors]);
 
   const riskScore = Number(assessment.riskScore).toFixed(1);
@@ -287,7 +297,7 @@ export function AssessmentResult({ assessment, onClearResult }: AssessmentResult
           <div className="pdf-hide-buttons flex min-w-0 flex-wrap items-center gap-2 print:hidden">
             <button
               type="button"
-              onClick={view === "clinician" ? generatePDF : () => generatePatientPDF(factorBreakdown, patientGuidance)}
+              onClick={view === "clinician" ? generatePDF : () => generatePatientPDF(patientFactors, patientGuidance)}
               disabled={isGeneratingPDF || isGeneratingPatientPDF}
               aria-label={view === "clinician" ? t("patientResult.exportOfficial") : t("patientResult.exportPatientHandout")}
               className="inline-flex min-h-10 max-w-full min-w-0 shrink-0 items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
@@ -331,6 +341,12 @@ export function AssessmentResult({ assessment, onClearResult }: AssessmentResult
         </p>
       ) : null}
 
+      {(assessment.predictionMethod === "rule_based" || assessment.fallbackUsed) && (
+        <p role="status" className="mx-4 mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800 sm:mx-6 print:hidden">
+          {t("patientResult.ruleBasedDisclaimer")}
+        </p>
+      )}
+
       <AnimatePresence>
         {isPresenting && (
           <PatientPresentationMode 
@@ -366,37 +382,14 @@ export function AssessmentResult({ assessment, onClearResult }: AssessmentResult
                 <p className="text-muted-foreground text-lg">
                   {t("patientResult.basedOnInfo")}<strong>{assessment?.riskCategory?.toLowerCase() ?? "unknown"}</strong>.
                 </p>
+                <p className="text-xs text-muted-foreground">
+                  {assessment.predictionMethod === "rule_based" || assessment.fallbackUsed
+                    ? t("patientResult.ruleBasedDisclaimer")
+                    : `ML model · ${assessment.modelVersion || "version not recorded"} · synthetic training data`}
+                </p>
               </div>
-
-              <HealthBadges
-                badges={improvementBadges}
-                title={t("patientResult.progressBadges")}
-                description={t("patientResult.progressBadgesDesc")}
-              />
 
               <DataQualityAlerts alerts={assessment.qualityAlerts} />
-
-              {/* Patient Key Insights */}
-              <div className="bg-secondary/50 rounded-xl p-6">
-                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                  <Info className="w-5 h-5 text-primary" /> {t("patientResult.whatThisMeans")}
-                </h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {factorBreakdown.map((factor, i) => (
-                    <div key={i} className="flex gap-3 bg-card p-4 rounded-lg shadow-sm border border-border/50">
-                      {factor.impact === 'positive' ? (
-                        <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                      ) : (
-                        <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                      )}
-                      <div>
-                        <p className="font-semibold text-foreground">{factor.name}</p>
-                        <p className="text-sm text-muted-foreground mt-1">{factor.description}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
               <div className="grid gap-4 md:grid-cols-3">
                 {patientGuidance.map((item, index) => (
@@ -409,22 +402,12 @@ export function AssessmentResult({ assessment, onClearResult }: AssessmentResult
                 ))}
               </div>
 
-              <Recommendations recommendations={assessment.recommendations} audience="patient" />
-
               <PathToImprovement assessment={assessment} />
-              <PredictionExplanation explanation={assessment.explanation} view="patient" />
+              <PredictionExplanation explanation={patientExplanation} view="patient" />
 
               <BiomarkerAlerts alerts={(assessment as any).biomarkerAlerts ?? (assessment as any).alerts ?? undefined} />
 
-              <WhatIfRiskSimulator assessment={assessment} onComparisonFactors={setWhatIfFactors} />
-
               <ClinicalCopilot assessment={assessment} />
-
-              <ExplainabilityPanel
-                factors={factorBreakdown}
-                increasedRiskFactors={increasedRiskFactors}
-                reducedRiskFactors={reducedRiskFactors}
-              />
             </motion.div>
           ) : (
             <motion.div
@@ -436,6 +419,8 @@ export function AssessmentResult({ assessment, onClearResult }: AssessmentResult
               id="assessment-clinician-view"
               className="min-w-0 space-y-8"
             >
+              <WhatIfRiskSimulator assessment={assessment} onComparisonFactors={setWhatIfFactors} />
+
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -669,8 +654,6 @@ export function AssessmentResult({ assessment, onClearResult }: AssessmentResult
                 reducedRiskFactors={reducedRiskFactors}
               />
 
-              <PredictionExplanation explanation={assessment.explanation} view="clinician" />
-              
               <div className="mt-8">
                 <CollaborativeNotes assessmentId={assessment.id} />
               </div>

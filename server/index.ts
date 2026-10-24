@@ -46,6 +46,14 @@ const app = express();
 app.use(compression());
 const httpServer = createServer(app);
 
+if (
+  process.env.NODE_ENV === "production" &&
+  process.env.PREDICTION_MODE === "rule-based" &&
+  process.env.ALLOW_RULE_BASED_DEMO !== "true"
+) {
+  throw new Error("Rule-based prediction mode is not allowed in production.");
+}
+
 const trustProxyHopsValue = process.env.TRUST_PROXY_HOPS ?? "0";
 if (!/^\d+$/.test(trustProxyHopsValue)) {
   throw new Error("TRUST_PROXY_HOPS must be a non-negative integer.");
@@ -60,6 +68,7 @@ const allowedOrigins = process.env.CORS_ORIGINS
 app.use(createCorsMiddleware(allowedOrigins, process.env.NODE_ENV === "production"));
 
 const REQUEST_BODY_LIMIT = "10kb";
+const FHIR_BODY_LIMIT = "256kb";
 
 declare module "http" {
   interface IncomingMessage {
@@ -92,6 +101,12 @@ function getSessionSecret() {
 
   return "clinical-insight-engine-dev-secret";
 }
+
+// Mount before the global parser so FHIR bundles can use their dedicated limit.
+app.use(
+  ["/api/ingest/fhir", "/api/ingest/fhir/parse"],
+  express.json({ limit: FHIR_BODY_LIMIT, type: ["application/json", "application/fhir+json"] })
+);
 
 app.use(
   session({

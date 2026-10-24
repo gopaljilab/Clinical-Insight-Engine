@@ -40,6 +40,17 @@ describe("translation resources", () => {
     expect(unresolved).toEqual([]);
   });
 
+  test("factor reasoning keys used through the component map exist in every locale", async () => {
+    const locales = ["en", "es", "fr", "hi", "zh", "ar"];
+    const keys = ["age", "bmi", "hba1c", "glucose", "hypertension", "heartDisease", "smoking", "gender"];
+    for (const locale of locales) {
+      const resource = JSON.parse(fs.readFileSync(path.resolve(sourceRoot, `locales/${locale}/translation.json`), "utf8"));
+      for (const key of keys) {
+        expect(getValue(resource, `factorReasoning.${key}`), `${locale}: factorReasoning.${key}`).toBeTypeOf("string");
+      }
+    }
+  });
+
   test("missing Spanish result strings fall back to English and interpolate values", () => {
     const spanish = i18n.getFixedT("es");
     expect(spanish("patientResult.present")).toBe("Present");

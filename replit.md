@@ -7,7 +7,7 @@ A full-stack web application for preventive diabetes risk assessment that combin
 ### Core Functionality
 - **Risk Assessment Form**: Input patient data including age, gender, hypertension, heart disease, smoking history, BMI, HbA1c level, and blood glucose level
 - **Dual-View Results**:
-  - **Clinician View**: Displays precise risk percentage, top contributing factors with impact analysis, model confidence, and recommended follow-up actions
+  - **Clinician View**: Displays the estimated risk, signed factor contributions, prediction method, model version, and suggested follow-up actions
   - **Patient View**: Shows simplified risk category (LOW/MODERATE/HIGH), factors in plain language, and preventive lifestyle advice
 - **Assessment History**: View all past risk assessments with timestamps and risk categories
 - **Data Visualization**: Interactive bar charts showing risk factor contributions (clinician view)

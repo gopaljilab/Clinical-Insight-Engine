@@ -39,6 +39,7 @@ Configure these on the backend service, never as Vite build variables:
 - `SESSION_COOKIE_SECURE=true` (secure session cookies are required for public production origins; the explicit `false` override is honored only for loopback HTTP testing)
 - `JWT_SECRET` (separate random value, at least 32 characters; required at startup in production)
 - `MODEL_SIGNING_KEY` (separate random value of at least 32 characters; configure it in the backend secret store and use the same key when signing the packaged model)
+- `ALLOW_DEV_MODEL_SIGNING` (leave unset or `0` outside local development; `1` opts in to the public development key only for disposable local artifacts)
 - The Dockerfile pins `EXPECTED_MODEL_SHA256` to the reviewed release artifact. Update it only after reviewing a new artifact and manifest.
 - `CORS_ORIGINS=https://clinical-insight-engine.vercel.app` (plus any approved custom frontend origin)
 - `PREDICTION_MODE=ml` (the default; only the exact value `rule-based` enables the separately labeled heuristic mode)
@@ -48,6 +49,8 @@ Configure these on the backend service, never as Vite build variables:
 - Email sender credentials beyond the required SMTP connection and OAuth credentials only if those features are enabled
 
 Generate `SESSION_SECRET`, `JWT_SECRET`, and `MODEL_SIGNING_KEY` independently. For example, run `openssl rand -base64 48` three times on a trusted machine and enter each output directly into the backend host's secret manager. Do not use the development JWT warning/default in production; the server validates `JWT_SECRET` during startup and rejects missing or short values.
+
+Production startup rejects `PREDICTION_MODE=rule-based` unless `ALLOW_RULE_BASED_DEMO=true` is explicitly set. Keep that demo override off in production deployments.
 
 The `/health` endpoint returns service availability, whether Python reports a loaded model, the artifact version when known, backend process status, and the configured prediction method. Originless `GET` and `HEAD` requests to `/health`, the explicitly registered SPA pages/static assets, and API routes are allowed because same-origin browser reads commonly omit `Origin`; they receive no CORS allow-origin header. API authentication and authorization still apply. Requests with an `Origin` header pass through the exact origin allowlist, and originless state-changing API requests remain rejected. A running API with an unloaded model is not ready to serve ML predictions; assessment inference returns HTTP 503 until it can produce an ML result.
 

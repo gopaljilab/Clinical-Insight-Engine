@@ -83,10 +83,11 @@ const mockAssessment = {
   explanation: null,
 };
 
-test("renders translated patient view with correct risk category", () => {
+test("defaults to the clinician view with the correct risk category", () => {
   render(<AssessmentResult assessment={mockAssessment as any} onClearResult={vi.fn()} />);
-  expect(screen.getByText("Your Health Assessment")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Patient View" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByText("Detailed Interpretation")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Clinician View" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "Patient View" })).toHaveAttribute("aria-pressed", "false");
   expect(screen.queryByText(/patientResult\.[\w.]+/i)).not.toBeInTheDocument();
   // We expect "LOW" since riskCategory is LOW
   expect(screen.getAllByText("LOW").length).toBeGreaterThan(0);
@@ -104,6 +105,8 @@ test("keeps view selection and report actions in separate wrapping rows", () => 
 
 test("switches between patient and clinician views using the assessment data", async () => {
   render(<AssessmentResult assessment={mockAssessment as any} />);
+  fireEvent.click(screen.getByRole("button", { name: "Patient View" }));
+  expect(await screen.findByText("Your Health Assessment")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Clinician View" }));
 
   expect(screen.getByRole("button", { name: "Clinician View" })).toHaveAttribute("aria-pressed", "true");
@@ -124,6 +127,7 @@ test("opens presentation mode and can clear the assessment result", () => {
 test("exports the patient handout and clinician report from the existing handlers", async () => {
   render(<AssessmentResult assessment={mockAssessment as any} />);
 
+  fireEvent.click(screen.getByRole("button", { name: "Patient View" }));
   fireEvent.click(screen.getByRole("button", { name: "Export Patient Handout" }));
   await waitFor(() => expect(downloadPatientHandoutPdf).toHaveBeenCalledOnce());
 

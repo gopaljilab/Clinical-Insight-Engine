@@ -74,7 +74,7 @@ export function ExplainabilityPanel({
               <div className="mt-4">
                 <div className="flex items-center justify-between text-xs font-medium text-muted-foreground mb-1.5">
                   <span>{t("patientResult.relativeContribution")}</span>
-                  <span>{factor.strength}%</span>
+                  <span>{factor.logOdds == null ? "—" : `${factor.logOdds > 0 ? "+" : ""}${factor.logOdds.toFixed(2)} ${t("patientResult.logOdds")}`}</span>
                 </div>
                 <div className="h-2.5 rounded-full bg-muted overflow-hidden">
                   <div

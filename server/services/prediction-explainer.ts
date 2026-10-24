@@ -6,33 +6,14 @@ type ExplainerInput = Partial<Assessment> & {
   factors?: AssessmentFactor[];
 };
 
-const factorStrengthMap: Record<string, number> = {
-  "diabetic hba1c range": 100,
-  "prediabetic hba1c": 80,
-  "hyperglycemia": 95,
-  "elevated fasting glucose": 75,
-  "obese (bmi >= 30)": 90,
-  "overweight (bmi 25-30)": 65,
-  "hypertension": 60,
-  "heart disease": 60,
-  "age > 60": 55,
-  "age > 45": 40,
-  "smoking current": 70,
-  "smoking": 70,
-  "current smoker": 70,
-  "stable profile": 20,
-};
-
 function normalizeFactors(factors?: AssessmentFactor[]): AssessmentFactor[] {
   if (!Array.isArray(factors)) return [];
   return factors;
 }
 
-function getFactorWeight(factor: AssessmentFactor, index: number): number {
-  const key = factor.name.toLowerCase();
-  const base = factorStrengthMap[key] ?? (factor.impact === "positive" ? 50 : 40);
-  const positionBonus = Math.max(0, 20 - index * 5);
-  return Math.min(100, base + positionBonus);
+function getFactorWeight(factor: AssessmentFactor, maxAbsLogOdds: number): number {
+  if (factor.logOdds == null || maxAbsLogOdds <= 0) return 0;
+  return Math.round((Math.abs(factor.logOdds) / maxAbsLogOdds) * 100);
 }
 
 function getFactorWhy(factor: AssessmentFactor, input: ExplainerInput): string {
@@ -103,15 +84,16 @@ function summarizeContributorNames(contributors: Array<PredictionExplanation["to
  */
 export function generatePredictionExplanation(input: ExplainerInput): PredictionExplanation {
   const factors = normalizeFactors(input.factors);
-  const weightedFactors = factors.map((factor, index) => ({
+  const maxAbsLogOdds = Math.max(0, ...factors.map((factor) => Math.abs(factor.logOdds ?? 0)));
+  const weightedFactors = factors.map((factor) => ({
     ...factor,
-    strength: getFactorWeight(factor, index),
+    strength: getFactorWeight(factor, maxAbsLogOdds),
     why: getFactorWhy(factor, input),
   }));
 
   const sortedByStrength = [...weightedFactors].sort((a, b) => b.strength - a.strength);
   const positiveContributors = sortedByStrength.filter((factor) => factor.impact === "positive");
-  const negativeContributors = sortedByStrength.filter((factor) => factor.impact !== "positive");
+  const negativeContributors = sortedByStrength.filter((factor) => factor.impact === "negative");
 
   const topContributors = sortedByStrength.slice(0, 4);
   const strongestPositive = positiveContributors.slice(0, 3);

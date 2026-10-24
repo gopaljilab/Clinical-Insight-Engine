@@ -99,7 +99,7 @@ Age · Gender · Hypertension · Heart Disease · Smoking History · BMI · HbA1
 **🩻 Clinician View**
 - Exact risk percentage (0–100%)
 - Top contributing factors with impact scores
-- Model confidence indicators
+- Prediction method, model version, and fallback status
 - Suggested clinical follow-up actions
 - Interactive factor contribution charts
 
@@ -804,7 +804,7 @@ py analyze.py predict_file patient.json
 
 > **Security:** `.env.local` is git-ignored and should **never** be committed. Production builds do not expose dev credentials.
 
-> **Request limits:** JSON and URL-encoded API payloads are limited to `256kb` by default. Add route-specific upload handling before increasing this global limit.
+> **Request limits:** JSON and URL-encoded API payloads are limited to `10kb` by default. FHIR bundle ingestion accepts up to `256kb`.
 > **Production sessions:** When the app runs behind a TLS-terminating reverse proxy or load balancer, Express trusts one proxy hop in production so secure session cookies are issued from `X-Forwarded-Proto: https` requests.
 
 ---

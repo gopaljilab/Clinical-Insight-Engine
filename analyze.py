@@ -797,29 +797,38 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
             upper_ci = upper_cis[i]
             confidence_interval = f"{lower_ci}% - {upper_ci}%"
             
-            contributions = model.coef_[0] * X_uncached[i]
-            factor_indices = np.argsort(np.abs(contributions))[::-1][:3]
-            top_factors = []
-            for idx in factor_indices:
+            # Logistic regression coefficients are learned on standardized
+            # features, so contributions must use the same scaled values.
+            contributions = model.coef_[0] * X_scaled[i]
+            # Combine one-hot smoking columns into one interpretable factor.
+            grouped = {}
+            for idx, value in enumerate(contributions):
                 feat = features[idx]
-                val = contributions[idx]
-                if abs(val) > 0.05:
-                    impact = "positive" if val > 0 else "negative"
-                    if feat == 'HbA1c_level':
-                        fname = 'HbA1c Level'
-                    elif feat == 'bmi':
-                        fname = 'BMI'
-                    elif feat.startswith('smoke'):
-                        fname = 'Smoking History'
-                    else:
-                        fname = feat.replace('_', ' ').title()
-                        if fname == 'Gender Male': fname = 'Gender'
-                    
-                    top_factors.append({
-                        "name": fname,
-                        "impact": impact,
-                        "description": "Increases risk" if val > 0 else "Lowers risk"
-                    })
+                name = (
+                    'HbA1c' if feat == 'HbA1c_level' else
+                    'Blood Glucose' if feat == 'blood_glucose_level' else
+                    'Smoking' if feat.startswith('smoke_') else
+                    'Heart Disease' if feat == 'heart_disease' else
+                    'Hypertension' if feat == 'hypertension' else
+                    'Gender' if feat == 'gender_Male' else
+                    feat.replace('_', ' ').title()
+                )
+                grouped[name] = grouped.get(name, 0.0) + float(value)
+            ordered_factors = sorted(grouped.items(), key=lambda item: abs(item[1]), reverse=True)
+            top_factors = []
+            for fname, val in ordered_factors:
+                if abs(val) < 0.10:
+                    continue
+                impact = "positive" if val > 0 else "negative"
+                top_factors.append({
+                    "name": fname,
+                    "impact": impact,
+                    "logOdds": round(val, 3),
+                    "oddsRatio": round(float(np.exp(val)), 2),
+                    "description": "Raises estimated risk" if val > 0 else "Lowers estimated risk"
+                })
+                if len(top_factors) == 4:
+                    break
                     
             if risk_score < 20:
                 cat = "LOW"
@@ -837,31 +846,32 @@ def interpret_predictions_batch(model, scaler, features, input_data_list, cov_be
                 clinician_advice.append("Recommend lifestyle counseling. Repeat HbA1c in 6 months.")
                 patient_advice.append("Consider increasing physical activity and managing your diet to lower your risk.")
             else:
-                clinician_advice.append("High risk detected. Refer for diagnostic testing and consider intervention.")
-                patient_advice.append("Please consult your doctor soon to discuss a detailed prevention plan.")
+                clinician_advice.append("Recommend confirmatory diagnostic evaluation and clinician review.")
+                patient_advice.append("Please consult your healthcare professional to discuss follow-up testing and prevention options.")
 
             for factor in top_factors:
                 if factor["impact"] == "positive":
                     fname = factor["name"]
-                    if fname == "HbA1c Level":
-                        clinician_advice.append("Review glycemic control and consider initiating or adjusting therapy.")
-                        patient_advice.append("Focus on managing your blood sugar through diet and prescribed medications.")
-                    elif fname == "Blood Glucose Level":
-                        clinician_advice.append("Immediate follow-up on elevated glucose levels may be necessary.")
-                        patient_advice.append("Monitor your daily glucose readings closely and follow your meal plan.")
-                    elif fname == "BMI":
+                    if fname == "HbA1c" and float(input_data.get("hba1cLevel", 0) or 0) >= 5.7:
+                        clinician_advice.append("Review the elevated HbA1c and confirm results using the applicable clinical protocol.")
+                        patient_advice.append("Ask your healthcare professional what this HbA1c result means and whether follow-up testing is appropriate.")
+                    elif fname == "Blood Glucose" and float(input_data.get("bloodGlucoseLevel", 0) or 0) >= 140:
+                        clinician_advice.append("Confirm glucose context and review the result using the applicable clinical protocol.")
+                        patient_advice.append("Discuss this glucose reading and its fasting or meal context with your healthcare professional.")
+                    elif fname == "BMI" and float(input_data.get("bmi", 0) or 0) >= 25:
                         clinician_advice.append("Discuss weight management strategies and nutritional counseling.")
                         patient_advice.append("Work on achieving a healthier weight through balanced nutrition and regular exercise.")
-                    elif fname == "Hypertension":
+                    elif fname == "Hypertension" and bool(input_data.get("hypertension")):
                         clinician_advice.append("Optimize blood pressure management and monitor for complications.")
                         patient_advice.append("Regularly check your blood pressure and reduce salt intake.")
-                    elif fname == "Smoking History":
-                        clinician_advice.append("Provide smoking cessation resources and support.")
-                        patient_advice.append("Quitting smoking is one of the most effective ways to reduce your diabetes risk.")
-                    elif fname == "Heart Disease":
+                    elif fname == "Smoking":
+                        # Smoking coefficients are a synthetic-data artifact and
+                        # should not drive patient-facing advice.
+                        continue
+                    elif fname == "Heart Disease" and bool(input_data.get("heartDisease")):
                         clinician_advice.append("Coordinate care with cardiology and manage cardiovascular risk factors.")
                         patient_advice.append("Manage your heart health as it is closely linked to diabetes risk.")
-                    elif fname == "Age":
+                    elif fname == "Age" and int(input_data.get("age", 0) or 0) >= 45:
                         clinician_advice.append("Consider age-related metabolic changes in the management plan.")
                         patient_advice.append("As you get older, it's more important to stay active and monitor your health.")
             

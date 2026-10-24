@@ -14,7 +14,7 @@
   },
   "auth": {
     "signOutAria": "Cerrar sesión de Clinical Insight",
-    "securityNotice": "Espacio de trabajo protegido con 2FA simulada",
+    "securityNotice": "Esta es una versión de demostración. No use datos reales de pacientes.",
     "sessionExpiring": "Sesión a punto de expirar",
     "sessionExpiringDesc": "Ha estado inactivo. Por su seguridad, se cerrará la sesión en 1 minuto si continúa la inactividad.",
     "connectionError": "Error de conexión",
@@ -37,7 +37,7 @@
     "featurePersonalizedTitle": "Información Personalizada",
     "featurePersonalizedDesc": "Cada evaluación ofrece consejos adaptados tanto para médicos como para pacientes, con recomendaciones accionables y explicaciones claras.",
     "featureSecureTitle": "Seguro y Privado",
-    "featureSecureDesc": "Sus datos permanecen seguros con cifrado de nivel empresarial. La 2FA simulada y la gestión de sesiones protegen la información del paciente.",
+    "featureSecureDesc": "Esta es una versión de demostración. No use datos reales de pacientes.",
     "workflowTitle": "Cómo Funciona",
     "workflowStep1Title": "Ingrese Datos del Paciente",
     "workflowStep1Desc": "Complete métricas clave de salud como HbA1c, IMC, glucosa en sangre y factores de estilo de vida.",
@@ -52,7 +52,7 @@
     "faq1Q": "¿Qué tan preciso es el análisis de riesgo?",
     "faq1A": "Nuestro modelo utiliza regresión logística entrenada con datos de diabetes de los CDC con alta precisión. Los resultados deben ser revisados por un profesional de la salud calificado.",
     "faq2Q": "¿Están seguros los datos de mis pacientes?",
-    "faq2A": "Sí. Todos los datos están cifrados en tránsito y en reposo. Usamos 2FA simulada, tiempos de espera de sesión y nunca compartimos sus datos con terceros.",
+    "faq2A": "Esta es una versión de demostración. No use datos reales de pacientes.",
     "faq3Q": "¿Puedo exportar los resultados de la evaluación?",
     "faq3A": "Sí, puede exportar evaluaciones individuales como informes PDF y datos masivos como CSV para su posterior análisis.",
     "footerCopyright": "© 2026 Clinical Insight Engine. Todos los derechos reservados.",
@@ -251,9 +251,9 @@
   "patientAdviceText": {
     "lowRisk": "¡Siga así! Continúe con su estilo de vida saludable y chequeos de rutina.",
     "moderateRisk": "Considere aumentar la actividad física y controlar su dieta para reducir su riesgo.",
-    "highRisk": "Por favor consulte a su médico pronto para discutir un plan de prevención detallado.",
-    "hba1c": "Concéntrese en controlar su nivel de azúcar en la sangre mediante dieta y medicamentos recetados.",
-    "glucose": "Controle sus lecturas diarias de glucosa de cerca y siga su plan de comidas.",
+    "highRisk": "Consulte a su profesional de salud sobre las pruebas de seguimiento y las opciones de prevención.",
+    "hba1c": "Pregunte a su profesional de salud qué significa este resultado de HbA1c y si conviene hacer pruebas de seguimiento.",
+    "glucose": "Consulte con su profesional de salud sobre esta lectura de glucosa y si fue en ayunas o después de comer.",
     "bmi": "Trabaje para lograr un peso más saludable mediante una nutrición equilibrada y ejercicio regular.",
     "hypertension": "Controle su presión arterial regularmente y reduzca la ingesta de sal.",
     "smoking": "Dejar de fumar es una de las formas más efectivas de reducir su riesgo de diabetes.",
@@ -265,5 +265,19 @@
     "default1": "Revise estos resultados con un médico calificado antes de tomar decisiones médicas.",
     "default2": "Concéntrese primero en los factores de riesgo resaltados que se pueden cambiar mediante la planificación de la atención.",
     "default3": "Rastree el IMC, HbA1c y glucosa en sangre a lo largo del tiempo para que las evaluaciones futuras tengan contexto."
+  },
+  "factorReasoning": {
+    "age": "La edad se compara con el promedio de los datos de entrenamiento.",
+    "bmi": "El IMC se compara con el promedio de los datos de entrenamiento.",
+    "hba1c": "La HbA1c se compara con el promedio de los datos de entrenamiento.",
+    "glucose": "La glucosa en sangre se compara con el promedio de los datos de entrenamiento.",
+    "hypertension": "La hipertensión se compara con el promedio de los datos de entrenamiento.",
+    "heartDisease": "Las enfermedades cardíacas se comparan con el promedio de los datos de entrenamiento.",
+    "smoking": "El historial de tabaquismo se compara con el promedio de los datos de entrenamiento.",
+    "gender": "El sexo se compara con el promedio de los datos de entrenamiento."
+  },
+  "patientResult": {
+    "ruleBasedDisclaimer": "Estimación basada en reglas; no es una predicción de ML.",
+    "logOdds": "log-odds"
   }
 }

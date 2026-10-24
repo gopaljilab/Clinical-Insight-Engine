@@ -104,17 +104,17 @@
     "exitAria": "Exit Patient View (Esc)"
   },
   "factorReasoning": {
-    "age": "Risk changes with age because blood vessels and metabolic control can become less resilient over time.",
-    "bmi": "BMI helps estimate weight-related strain that can influence blood pressure, insulin resistance, and heart workload.",
-    "hba1c": "HbA1c reflects longer-term blood sugar control, so higher values can point to sustained metabolic stress.",
-    "glucose": "Blood glucose shows the current sugar level, which can reinforce or soften the overall diabetes risk signal.",
-    "hypertension": "High blood pressure increases cardiovascular strain and can raise the chance of future heart complications.",
-    "heartDisease": "Prior heart disease is a strong clinical history marker and usually increases baseline cardiovascular risk.",
-    "smoking": "Smoking history affects blood vessels and inflammation, so current or past exposure can shift risk upward.",
-    "gender": "Sex-linked population patterns can slightly shift the model's baseline risk estimate."
+    "age": "يُقارن العمر بمتوسط بيانات التدريب.",
+    "bmi": "يُقارن مؤشر كتلة الجسم بمتوسط بيانات التدريب.",
+    "hba1c": "يُقارن HbA1c بمتوسط بيانات التدريب.",
+    "glucose": "يُقارن سكر الدم بمتوسط بيانات التدريب.",
+    "hypertension": "تُقارن حالة ارتفاع ضغط الدم بمتوسط بيانات التدريب.",
+    "heartDisease": "تُقارن حالة مرض القلب بمتوسط بيانات التدريب.",
+    "smoking": "يُقارن تاريخ التدخين بمتوسط بيانات التدريب.",
+    "gender": "يُقارن الجنس بمتوسط بيانات التدريب."
   },
   "landing": {
-    "faq2A": "نعم. جميع البيانات مشفرة أثناء النقل والتخزين. نستخدم مصادقة ثنائية محاكاة ومهلات جلسة ولا نشارك بياناتك أبداً مع أطراف ثالثة.",
+    "faq2A": "هذه نسخة تجريبية. لا تستخدم بيانات مرضى حقيقية.",
     "heroSubtitle": "تمكين الأطباء والمرضى من خلال تحليل المخاطر في الوقت الفعلي، ورؤى مخصصة، وخطط وقائية قابلة للتنفيذ.",
     "footerCopyright": "© 2026 محرك الرؤية السريرية. جميع الحقوق محفوظة.",
     "workflowStep1Title": "أدخل بيانات المريض",
@@ -144,7 +144,7 @@
     "workflowStep1Desc": "املأ المقاييس الصحية الرئيسية مثل HbA1c ومؤشر كتلة الجسم وسكر الدم وعوامل نمط الحياة.",
     "featurePersonalizedTitle": "رؤى مخصصة",
     "featuresTitle": "لماذا الرؤية السريرية؟",
-    "featureSecureDesc": "تظل بياناتك آمنة مع تشفير على مستوى المؤسسات. تحمي المصادقة الثنائية المحاكاة وإدارة الجلسات معلومات المرضى."
+    "featureSecureDesc": "هذه نسخة تجريبية. لا تستخدم بيانات مرضى حقيقية."
   },
   "common": {
     "filter": "تصفية",
@@ -181,7 +181,7 @@
   "auth": {
     "connectionErrorDesc": "تعذر التحقق من جلستك. يرجى التحقق من اتصالك والمحاولة مرة أخرى.",
     "sessionExpiringDesc": "أنت غير نشط. لأمانك، سيتم تسجيل خروجك خلال دقيقة واحدة إذا استمر عدم النشاط.",
-    "securityNotice": "مساحة عمل محمية بمصادقة ثنائية محاكاة",
+    "securityNotice": "هذه نسخة تجريبية. لا تستخدم بيانات مرضى حقيقية.",
     "sessionExpiring": "الجلسة على وشك الانتهاء",
     "retry": "إعادة المحاولة",
     "signOutAria": "تسجيل الخروج من مساحة العمل السريرية",
@@ -433,7 +433,9 @@
     "modelConfidenceLabel": "Model confidence",
     "raised": "raised",
     "reduced": "reduced",
-    "riskLabel": "risk"
+    "riskLabel": "risk",
+    "ruleBasedDisclaimer": "تقدير قائم على القواعد — وليس تنبؤًا بالتعلم الآلي.",
+    "logOdds": "log-odds"
   },
   "language": {
     "en": "English",
@@ -456,9 +458,9 @@
   "patientAdviceText": {
     "lowRisk": "استمر في العمل الجيد! واصل نمط حياتك الصحي والفحوصات الروتينية.",
     "moderateRisk": "فكر في زيادة النشاط البدني وإدارة نظامك الغذائي لتقليل المخاطر.",
-    "highRisk": "يرجى استشارة طبيبك قريبًا لمناقشة خطة وقاية مفصلة.",
-    "hba1c": "ركز على إدارة نسبة السكر في الدم من خلال النظام الغذائي والأدوية الموصوفة.",
-    "glucose": "راقب قراءات الجلوكوز اليومية عن كثب واتبع خطة الوجبات الخاصة بك.",
+    "highRisk": "استشر مقدم الرعاية الصحية بشأن فحوصات المتابعة وخيارات الوقاية.",
+    "hba1c": "اسأل مقدم الرعاية الصحية عن معنى نتيجة HbA1c وما إذا كانت هناك حاجة إلى فحوصات متابعة.",
+    "glucose": "ناقش قراءة الجلوكوز وسياقها، أثناء الصيام أو بعد الطعام، مع مقدم الرعاية الصحية.",
     "bmi": "اعمل على تحقيق وزن أكثر صحة من خلال التغذية المتوازنة والتمارين الرياضية المنتظمة.",
     "hypertension": "افحص ضغط الدم بانتظام وقلل من تناول الملح.",
     "smoking": "الإقلاع عن التدخين هو أحد أكثر الطرق فعالية لتقليل خطر الإصابة بمرض السكري.",

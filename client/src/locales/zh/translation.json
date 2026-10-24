@@ -104,17 +104,17 @@
     "exitAria": "Exit Patient View (Esc)"
   },
   "factorReasoning": {
-    "age": "Risk changes with age because blood vessels and metabolic control can become less resilient over time.",
-    "bmi": "BMI helps estimate weight-related strain that can influence blood pressure, insulin resistance, and heart workload.",
-    "hba1c": "HbA1c reflects longer-term blood sugar control, so higher values can point to sustained metabolic stress.",
-    "glucose": "Blood glucose shows the current sugar level, which can reinforce or soften the overall diabetes risk signal.",
-    "hypertension": "High blood pressure increases cardiovascular strain and can raise the chance of future heart complications.",
-    "heartDisease": "Prior heart disease is a strong clinical history marker and usually increases baseline cardiovascular risk.",
-    "smoking": "Smoking history affects blood vessels and inflammation, so current or past exposure can shift risk upward.",
-    "gender": "Sex-linked population patterns can slightly shift the model's baseline risk estimate."
+    "age": "年龄与训练数据的平均值进行比较。",
+    "bmi": "BMI 与训练数据的平均值进行比较。",
+    "hba1c": "HbA1c 与训练数据的平均值进行比较。",
+    "glucose": "血糖与训练数据的平均值进行比较。",
+    "hypertension": "高血压状态与训练数据的平均值进行比较。",
+    "heartDisease": "心脏病状态与训练数据的平均值进行比较。",
+    "smoking": "吸烟史与训练数据的平均值进行比较。",
+    "gender": "性别与训练数据的平均值进行比较。"
   },
   "landing": {
-    "faq2A": "是的。所有数据在传输和存储过程中都经过加密。我们使用模拟2FA、会话超时，并且从不与第三方共享您的数据。",
+    "faq2A": "这是演示版本。请勿使用真实患者数据。",
     "heroSubtitle": "通过实时风险分析、个性化洞察和可执行的预防计划，赋能临床医生和患者。",
     "footerCopyright": "© 2026 临床洞察引擎。保留所有权利。",
     "workflowStep1Title": "输入患者数据",
@@ -144,7 +144,7 @@
     "workflowStep1Desc": "填写关键健康指标，如HbA1c、BMI、血糖和生活方式因素。",
     "featurePersonalizedTitle": "个性化洞察",
     "featuresTitle": "为什么选择临床洞察？",
-    "featureSecureDesc": "您的数据通过企业级加密保持安全。模拟2FA和会话管理保护患者信息。"
+    "featureSecureDesc": "这是演示版本。请勿使用真实患者数据。"
   },
   "common": {
     "filter": "筛选",
@@ -181,7 +181,7 @@
   "auth": {
     "connectionErrorDesc": "无法验证您的会话。请检查您的连接后重试。",
     "sessionExpiringDesc": "您已处于非活动状态。为了安全，如果继续不活动，将在1分钟后自动退出。",
-    "securityNotice": "通过模拟2FA保护的工作区",
+    "securityNotice": "这是演示版本。请勿使用真实患者数据。",
     "sessionExpiring": "会话即将过期",
     "retry": "重试",
     "signOutAria": "退出临床洞察工作区",
@@ -433,7 +433,9 @@
     "modelConfidenceLabel": "Model confidence",
     "raised": "raised",
     "reduced": "reduced",
-    "riskLabel": "risk"
+    "riskLabel": "risk",
+    "ruleBasedDisclaimer": "基于规则的估算 — 不是机器学习预测。",
+    "logOdds": "log-odds"
   },
   "language": {
     "en": "English",
@@ -456,9 +458,9 @@
   "patientAdviceText": {
     "lowRisk": "继续保持！继续您的健康生活方式和常规体检。",
     "moderateRisk": "考虑增加体育活动并管理您的饮食以降低风险。",
-    "highRisk": "请尽快咨询您的医生，讨论详细的预防计划。",
-    "hba1c": "专注于通过饮食和处方药控制血糖。",
-    "glucose": "密切监控每日血糖读数并遵循您的膳食计划。",
+    "highRisk": "请咨询医疗专业人员，了解后续检查和预防方案。",
+    "hba1c": "请咨询医疗专业人员，了解此 HbA1c 结果的含义以及是否需要复查。",
+    "glucose": "请与医疗专业人员讨论此血糖读数及其空腹或餐后背景。",
     "bmi": "通过均衡营养和定期锻炼努力达到更健康的体重。",
     "hypertension": "定期检查血压并减少盐的摄入。",
     "smoking": "戒烟是降低糖尿病风险最有效的方法之一。",
