@@ -178,8 +178,8 @@ def test_interpret_prediction_personalized_advice():
     
     assert result["riskCategory"] == "HIGH"
     # Check if HbA1c advice is present
-    assert any("glycemic control" in advice for advice in result["clinicianAdvice"])
-    assert any("blood sugar" in advice for advice in result["patientAdvice"])
+    assert any("elevated HbA1c" in advice for advice in result["clinicianAdvice"])
+    assert any("HbA1c result means" in advice for advice in result["patientAdvice"])
     
     # Check if other advice is NOT present (e.g. BMI)
     assert not any("weight management" in advice for advice in result["clinicianAdvice"])
